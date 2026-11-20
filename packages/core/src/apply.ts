@@ -20,8 +20,18 @@ import type { GeometryDescriptor, GeometryLimits, GeometryRegistry } from './geo
 import { jsonByteLength, RECT_GEOMETRY } from './geometry.js';
 import type { Metadata } from './json.js';
 import { checkMetadataKey, copyJson, copyMetadata, describe } from './json.js';
-import type { Id, NodeRecord, SceneState, SurfaceRecord } from './model.js';
+import type {
+  CameraRecord,
+  Id,
+  NavigationTarget,
+  NodeRecord,
+  ProjectionSetting,
+  SceneState,
+  SurfaceRecord,
+  ViewportRecord,
+} from './model.js';
 import { DEFAULT_FLAGS } from './model.js';
+import type { ProjectionKindRegistry } from './projection-kinds.js';
 import {
   ancestorIds,
   descendantIds,
@@ -32,7 +42,6 @@ import {
 } from './query.js';
 import type { TableDraft } from './table.js';
 import {
-  expectAdapterTypeId,
   expectBindingKey,
   expectBounds,
   expectFlags,
@@ -43,9 +52,13 @@ import {
   expectInteraction,
   expectLabel,
   expectNonBlank,
+  expectPositive,
   expectRecord,
+  expectRotation,
   expectTags,
   expectTransform,
+  expectVec3,
+  expectVersionedId,
   invalid,
 } from './validate.js';
 
@@ -58,12 +71,16 @@ export interface ApplyContext {
   readonly constraints: readonly Constraint[];
   readonly geometry: GeometryRegistry;
   readonly geometryLimits: GeometryLimits;
+  readonly projectionKinds: ProjectionKindRegistry;
 }
 
 /** The scene after applying commands, before the revision is advanced. */
 export interface ApplyOutcome {
   readonly nodes: SceneState['nodes'];
   readonly surfaces: SceneState['surfaces'];
+  readonly cameras: SceneState['cameras'];
+  readonly viewports: SceneState['viewports'];
+  readonly orbitRootId: Id | null;
   readonly rootIds: readonly Id[];
   readonly selection: readonly Id[];
   readonly focusedId: Id | null;
@@ -72,6 +89,9 @@ export interface ApplyOutcome {
   readonly touched: readonly Id[];
   /** Surfaces created, changed or removed, in the order they were first touched. */
   readonly touchedSurfaces: readonly Id[];
+  /** Cameras and viewports created, changed or removed: view state, not layout. */
+  readonly touchedCameras: readonly Id[];
+  readonly touchedViewports: readonly Id[];
   readonly createdIds: readonly Id[];
 }
 
@@ -102,12 +122,17 @@ class Draft {
   readonly #ctx: ApplyContext;
   readonly #nodes: TableDraft<NodeRecord>;
   readonly #surfaces: TableDraft<SurfaceRecord>;
+  readonly #cameras: TableDraft<CameraRecord>;
+  readonly #viewports: TableDraft<ViewportRecord>;
+  #orbitRootId: Id | null;
   #rootIds: readonly Id[];
   #selection: readonly Id[];
   #focusedId: Id | null;
   readonly #commandTypes: SceneCommandType[] = [];
   readonly #touched = new Set<Id>();
   readonly #touchedSurfaces = new Set<Id>();
+  readonly #touchedCameras = new Set<Id>();
+  readonly #touchedViewports = new Set<Id>();
   /** Nodes whose placement was proposed in this transaction: constraints resolve these. */
   readonly #placed = new Set<Id>();
   readonly #created: Id[] = [];
@@ -117,6 +142,9 @@ class Draft {
     this.#ctx = ctx;
     this.#nodes = base.nodes.edit();
     this.#surfaces = base.surfaces.edit();
+    this.#cameras = base.cameras.edit();
+    this.#viewports = base.viewports.edit();
+    this.#orbitRootId = base.orbitRootId;
     this.#rootIds = base.rootIds;
     this.#selection = base.selection;
     this.#focusedId = base.focusedId;
@@ -209,6 +237,45 @@ class Draft {
         this.#removeSurface(surface.id);
         return;
       }
+      case 'camera.create':
+        this.#createCamera(command['camera'], `${path}.camera`);
+        return;
+      case 'camera.patch':
+        this.#patchCamera(command, path);
+        return;
+      case 'camera.delete': {
+        const camera = this.#requireCamera(command['id'], `${path}.id`);
+        const user = [...this.#viewports.values()].find((v) => v.cameraId === camera.id);
+        if (user !== undefined) {
+          throw invalid(
+            `${path}.id`,
+            `names camera "${camera.id}", which viewport "${user.id}" uses`,
+          );
+        }
+        this.#cameras.delete(camera.id);
+        this.#touchedCameras.add(camera.id);
+        return;
+      }
+      case 'viewport.create':
+        this.#createViewport(command['viewport'], `${path}.viewport`);
+        return;
+      case 'viewport.patch':
+        this.#patchViewport(command, path);
+        return;
+      case 'viewport.delete': {
+        const viewport = this.#requireViewport(command['id'], `${path}.id`);
+        this.#viewports.delete(viewport.id);
+        this.#touchedViewports.add(viewport.id);
+        return;
+      }
+      case 'orbitRoot.set': {
+        const nodeId = expectIdOrNull(command['nodeId'], `${path}.nodeId`);
+        if (nodeId !== null) {
+          this.#requireNode(nodeId, `${path}.nodeId`);
+        }
+        this.#orbitRootId = nodeId;
+        return;
+      }
     }
   }
 
@@ -222,6 +289,11 @@ class Draft {
     return {
       nodes: this.#nodes.freeze(),
       surfaces: this.#surfaces.freeze(),
+      cameras: this.#cameras.freeze(),
+      viewports: this.#viewports.freeze(),
+      // A deleted orbit root leaves the workspace without one.
+      orbitRootId:
+        this.#orbitRootId !== null && this.#nodes.has(this.#orbitRootId) ? this.#orbitRootId : null,
       rootIds: this.#rootIds,
       selection:
         selection.length === this.#selection.length ? this.#selection : Object.freeze(selection),
@@ -229,8 +301,207 @@ class Draft {
       commandTypes: Object.freeze([...this.#commandTypes]),
       touched: Object.freeze([...this.#touched]),
       touchedSurfaces: Object.freeze([...this.#touchedSurfaces]),
+      touchedCameras: Object.freeze([...this.#touchedCameras]),
+      touchedViewports: Object.freeze([...this.#touchedViewports]),
       createdIds: Object.freeze([...this.#created]),
     };
+  }
+
+  // --- camera and viewport commands -------------------------------------------------------
+
+  #createCamera(raw: unknown, path: string): void {
+    const spec = expectRecord(raw, path, CAMERA_SPEC_FIELDS);
+    const id =
+      spec['id'] === undefined
+        ? this.#freshId(`${path}.id`)
+        : this.#unusedId(spec['id'], `${path}.id`);
+    const near = spec['near'] === undefined ? 0.05 : expectPositive(spec['near'], `${path}.near`);
+    const far = spec['far'] === undefined ? null : this.#far(spec['far'], near, `${path}.far`);
+    this.#putCamera({
+      id,
+      position:
+        spec['position'] === undefined
+          ? ZERO_POSITION
+          : expectVec3(spec['position'], `${path}.position`),
+      rotation:
+        spec['rotation'] === undefined
+          ? IDENTITY_QUAT
+          : expectRotation(spec['rotation'], `${path}.rotation`),
+      near,
+      far,
+      label: spec['label'] === undefined ? null : expectLabel(spec['label'], `${path}.label`),
+      metadata:
+        spec['metadata'] === undefined
+          ? EMPTY_METADATA
+          : copyMetadata(spec['metadata'], `${path}.metadata`),
+      createdAt: this.#ctx.now,
+      updatedAt: this.#ctx.now,
+    });
+    this.#created.push(id);
+  }
+
+  #patchCamera(command: Record<string, unknown>, path: string): void {
+    const camera = this.#requireCamera(command['id'], `${path}.id`);
+    const next: Mutable<CameraRecord> = { ...camera, updatedAt: this.#ctx.now };
+    if (command['position'] !== undefined) {
+      next.position = expectVec3(command['position'], `${path}.position`);
+    }
+    if (command['rotation'] !== undefined) {
+      next.rotation = expectRotation(command['rotation'], `${path}.rotation`);
+    }
+    if (command['near'] !== undefined) {
+      next.near = expectPositive(command['near'], `${path}.near`);
+    }
+    if (command['far'] !== undefined) {
+      next.far = this.#far(command['far'], next.near, `${path}.far`);
+    } else if (next.far !== null && next.far <= next.near) {
+      throw invalid(
+        `${path}.near`,
+        `must be less than the camera's far distance ${String(next.far)}`,
+      );
+    }
+    if (command['label'] !== undefined) {
+      next.label = expectLabel(command['label'], `${path}.label`);
+    }
+    if (command['metadata'] !== undefined) {
+      next.metadata = patchMetadata(camera.metadata, command['metadata'], `${path}.metadata`);
+    }
+    this.#putCamera(next);
+  }
+
+  #far(raw: unknown, near: number, path: string): number | null {
+    if (raw === null) {
+      return null;
+    }
+    const far = expectPositive(raw, path);
+    if (far <= near) {
+      throw invalid(path, `must be greater than the near distance ${String(near)}`);
+    }
+    return far;
+  }
+
+  #createViewport(raw: unknown, path: string): void {
+    const spec = expectRecord(raw, path, VIEWPORT_SPEC_FIELDS);
+    const id =
+      spec['id'] === undefined
+        ? this.#freshId(`${path}.id`)
+        : this.#unusedId(spec['id'], `${path}.id`);
+    this.#putViewport({
+      id,
+      cameraId: this.#requireCamera(spec['cameraId'], `${path}.cameraId`).id,
+      projection: this.#projection(spec['projection'], `${path}.projection`),
+      mode: spec['mode'] === undefined ? 'panorama' : expectNonBlank(spec['mode'], `${path}.mode`),
+      size: viewportSize(spec['size'], `${path}.size`),
+      navigation:
+        spec['navigation'] === undefined
+          ? 'camera'
+          : navigationTarget(spec['navigation'], `${path}.navigation`),
+      renderer: optionalVersionedId(spec['renderer'], `${path}.renderer`),
+      compositor: optionalVersionedId(spec['compositor'], `${path}.compositor`),
+      label: spec['label'] === undefined ? null : expectLabel(spec['label'], `${path}.label`),
+      metadata:
+        spec['metadata'] === undefined
+          ? EMPTY_METADATA
+          : copyMetadata(spec['metadata'], `${path}.metadata`),
+      createdAt: this.#ctx.now,
+      updatedAt: this.#ctx.now,
+    });
+    this.#created.push(id);
+  }
+
+  #patchViewport(command: Record<string, unknown>, path: string): void {
+    const viewport = this.#requireViewport(command['id'], `${path}.id`);
+    const next: Mutable<ViewportRecord> = { ...viewport, updatedAt: this.#ctx.now };
+    if (command['cameraId'] !== undefined) {
+      next.cameraId = this.#requireCamera(command['cameraId'], `${path}.cameraId`).id;
+    }
+    if (command['projection'] !== undefined) {
+      next.projection = this.#projection(command['projection'], `${path}.projection`);
+    }
+    if (command['mode'] !== undefined) {
+      next.mode = expectNonBlank(command['mode'], `${path}.mode`);
+    }
+    if (command['size'] !== undefined) {
+      next.size = viewportSize(command['size'], `${path}.size`);
+    }
+    if (command['navigation'] !== undefined) {
+      next.navigation = navigationTarget(command['navigation'], `${path}.navigation`);
+    }
+    if (command['renderer'] !== undefined) {
+      next.renderer = optionalVersionedId(command['renderer'], `${path}.renderer`);
+    }
+    if (command['compositor'] !== undefined) {
+      next.compositor = optionalVersionedId(command['compositor'], `${path}.compositor`);
+    }
+    if (command['label'] !== undefined) {
+      next.label = expectLabel(command['label'], `${path}.label`);
+    }
+    if (command['metadata'] !== undefined) {
+      next.metadata = patchMetadata(viewport.metadata, command['metadata'], `${path}.metadata`);
+    }
+    this.#putViewport(next);
+  }
+
+  /** A registered projection kind and a configuration it accepts. */
+  #projection(raw: unknown, path: string): ProjectionSetting {
+    const record = expectRecord(raw, path, ['id', 'config']);
+    const id = expectVersionedId(record['id'], `${path}.id`);
+    const kind = this.#ctx.projectionKinds.get(id);
+    if (kind === undefined) {
+      throw invalid(`${path}.id`, `names projection "${id}", which is not registered`);
+    }
+    if (!('config' in record)) {
+      throw invalid(`${path}.config`, 'is required (null when the projection takes none)');
+    }
+    const config = copyJson(record['config'], `${path}.config`);
+    let issue: string | null;
+    try {
+      issue = kind.configIssue(config);
+    } catch (error) {
+      issue = `projection "${id}" failed: ${error instanceof Error ? error.message : String(error)}`;
+    }
+    if (issue !== null) {
+      throw invalid(`${path}.config`, `is invalid: ${issue}`);
+    }
+    return Object.freeze({ id, config });
+  }
+
+  #requireCamera(raw: unknown, path: string): CameraRecord {
+    const id = expectId(raw, path);
+    const camera = this.#cameras.get(id);
+    if (camera === undefined) {
+      throw new RejectionSignal('UNKNOWN_ENTITY', `${path}: no camera "${id}" in this workspace`, {
+        path,
+        entityId: id,
+      });
+    }
+    return camera;
+  }
+
+  #requireViewport(raw: unknown, path: string): ViewportRecord {
+    const id = expectId(raw, path);
+    const viewport = this.#viewports.get(id);
+    if (viewport === undefined) {
+      throw new RejectionSignal(
+        'UNKNOWN_ENTITY',
+        `${path}: no viewport "${id}" in this workspace`,
+        {
+          path,
+          entityId: id,
+        },
+      );
+    }
+    return viewport;
+  }
+
+  #putCamera(record: CameraRecord): void {
+    this.#cameras.set(record.id, Object.freeze(record));
+    this.#touchedCameras.add(record.id);
+  }
+
+  #putViewport(record: ViewportRecord): void {
+    this.#viewports.set(record.id, Object.freeze(record));
+    this.#touchedViewports.add(record.id);
   }
 
   // --- node commands ----------------------------------------------------------------------
@@ -539,7 +810,7 @@ class Draft {
       id,
       ownerNodeId: owner.id,
       bindingKey: expectBindingKey(spec['bindingKey'], `${path}.bindingKey`),
-      adapterTypeId: expectAdapterTypeId(spec['adapterTypeId'], `${path}.adapterTypeId`),
+      adapterTypeId: expectVersionedId(spec['adapterTypeId'], `${path}.adapterTypeId`),
       transform:
         spec['transform'] === undefined
           ? IDENTITY_TRANSFORM
@@ -642,7 +913,7 @@ class Draft {
       adapterTypeId:
         command['adapterTypeId'] === undefined
           ? surface.adapterTypeId
-          : expectAdapterTypeId(command['adapterTypeId'], `${path}.adapterTypeId`),
+          : expectVersionedId(command['adapterTypeId'], `${path}.adapterTypeId`),
       updatedAt: this.#ctx.now,
     });
   }
@@ -891,7 +1162,12 @@ class Draft {
   }
 
   #inUse(id: Id): boolean {
-    return this.#nodes.has(id) || this.#surfaces.has(id);
+    return (
+      this.#nodes.has(id) ||
+      this.#surfaces.has(id) ||
+      this.#cameras.has(id) ||
+      this.#viewports.has(id)
+    );
   }
 
   #unusedId(raw: unknown, path: string): Id {
@@ -992,6 +1268,26 @@ class Draft {
   }
 }
 
+function viewportSize(raw: unknown, path: string): ViewportRecord['size'] {
+  const size = expectRecord(raw, path, ['width', 'height', 'devicePixelRatio']);
+  return Object.freeze({
+    width: expectPositive(size['width'], `${path}.width`),
+    height: expectPositive(size['height'], `${path}.height`),
+    devicePixelRatio: expectPositive(size['devicePixelRatio'], `${path}.devicePixelRatio`),
+  });
+}
+
+function navigationTarget(raw: unknown, path: string): NavigationTarget {
+  if (raw !== 'camera' && raw !== 'orbit') {
+    throw invalid(path, `must be "camera" or "orbit" (got ${describe(raw)})`);
+  }
+  return raw;
+}
+
+function optionalVersionedId(raw: unknown, path: string): string | null {
+  return raw === undefined || raw === null ? null : expectVersionedId(raw, path);
+}
+
 function flagsFrom(raw: unknown, path: string) {
   return raw === undefined
     ? DEFAULT_FLAGS
@@ -1063,6 +1359,31 @@ const NODE_SPEC_FIELDS = [
   'metadata',
 ] as const;
 
+const ZERO_POSITION: Vec3 = Object.freeze([0, 0, 0] as const);
+
+const CAMERA_SPEC_FIELDS = [
+  'id',
+  'position',
+  'rotation',
+  'near',
+  'far',
+  'label',
+  'metadata',
+] as const;
+
+const VIEWPORT_SPEC_FIELDS = [
+  'id',
+  'cameraId',
+  'projection',
+  'mode',
+  'size',
+  'navigation',
+  'renderer',
+  'compositor',
+  'label',
+  'metadata',
+] as const;
+
 const SURFACE_SPEC_FIELDS = [
   'id',
   'ownerNodeId',
@@ -1108,4 +1429,22 @@ const COMMAND_FIELDS: Readonly<Record<SceneCommandType, readonly string[]>> = {
   'surface.reorder': ['id', 'index'],
   'surface.rebind': ['id', 'bindingKey', 'adapterTypeId'],
   'surface.detach': ['id'],
+  'camera.create': ['camera'],
+  'camera.patch': ['id', 'position', 'rotation', 'near', 'far', 'label', 'metadata'],
+  'camera.delete': ['id'],
+  'viewport.create': ['viewport'],
+  'viewport.patch': [
+    'id',
+    'cameraId',
+    'projection',
+    'mode',
+    'size',
+    'navigation',
+    'renderer',
+    'compositor',
+    'label',
+    'metadata',
+  ],
+  'viewport.delete': ['id'],
+  'orbitRoot.set': ['nodeId'],
 };

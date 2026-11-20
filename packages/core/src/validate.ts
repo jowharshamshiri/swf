@@ -1,21 +1,43 @@
-import type { Transform3D, Vec3 } from '@swf/math';
+import type { Quat, Transform3D, Vec3 } from '@swf/math';
 import { isFiniteVec3, isPositiveVec3, isUnitQuat, quatNormalize } from '@swf/math';
 import { RejectionSignal } from './errors.js';
 import { describe } from './json.js';
 import type { EntityFlags, Id, InteractionRegion } from './model.js';
 import { FLAG_NAMES } from './model.js';
 
-/** An adapter type ID: a name and a positive integer version, such as `host.video/1`. */
-export const ADAPTER_TYPE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*\/[1-9][0-9]*$/;
+/**
+ * A versioned ID: a name and a positive integer version, such as `host.video/1`. Adapter types,
+ * projection kinds, renderers and compositors are named this way.
+ */
+export const VERSIONED_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*\/[1-9][0-9]*$/;
 
-export function expectAdapterTypeId(value: unknown, path: string): string {
-  if (typeof value !== 'string' || !ADAPTER_TYPE_ID.test(value)) {
+export function expectVersionedId(value: unknown, path: string): string {
+  if (typeof value !== 'string' || !VERSIONED_ID.test(value)) {
     throw invalid(
       path,
-      `must be an adapter type ID "<name>/<version>", such as "host.video/1" (got ${describe(value)})`,
+      `must be a versioned ID "<name>/<version>", such as "host.video/1" (got ${describe(value)})`,
     );
   }
   return value;
+}
+
+export function expectPositive(value: unknown, path: string): number {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+    throw invalid(path, `must be a positive finite number (got ${describe(value)})`);
+  }
+  return value;
+}
+
+/** A validated, frozen unit quaternion, renormalized like transform rotations. */
+export function expectRotation(value: unknown, path: string): Quat {
+  const [x = NaN, y = NaN, z = NaN, w = NaN] = expectTuple(value, path, 4);
+  if (!isUnitQuat([x, y, z, w], QUAT_TOLERANCE)) {
+    throw invalid(
+      path,
+      `must be a finite unit quaternion [x, y, z, w] (length within ${String(QUAT_TOLERANCE)} of 1)`,
+    );
+  }
+  return Object.freeze(quatNormalize([x, y, z, w]));
 }
 
 /** A binding key is opaque: any non-blank string, or null for none. It is never interpreted. */
@@ -128,18 +150,7 @@ export function expectBounds(value: unknown, path: string): Vec3 {
 export function expectTransform(value: unknown, path: string): Transform3D {
   const record = expectRecord(value, path, ['position', 'rotation', 'scale']);
   const position = expectVec3(record['position'], `${path}.position`);
-  const [x = NaN, y = NaN, z = NaN, w = NaN] = expectTuple(
-    record['rotation'],
-    `${path}.rotation`,
-    4,
-  );
-  if (!isUnitQuat([x, y, z, w], QUAT_TOLERANCE)) {
-    throw invalid(
-      `${path}.rotation`,
-      `must be a finite unit quaternion [x, y, z, w] (length within ${QUAT_TOLERANCE} of 1)`,
-    );
-  }
-  const rotation = Object.freeze(quatNormalize([x, y, z, w]));
+  const rotation = expectRotation(record['rotation'], `${path}.rotation`);
   const scale = expectVec3(record['scale'], `${path}.scale`);
   if (!isPositiveVec3(scale)) {
     throw invalid(`${path}.scale`, 'must contain positive numbers');

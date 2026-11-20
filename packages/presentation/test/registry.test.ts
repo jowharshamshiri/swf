@@ -121,6 +121,7 @@ describe('capability-scoped handles', () => {
       'redo',
       'registerConstraint',
       'registerGeometry',
+      'registerProjectionKind',
       'transaction',
       'undo',
     ]);

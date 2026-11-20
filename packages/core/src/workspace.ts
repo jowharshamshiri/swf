@@ -12,7 +12,16 @@ import type { CancelReason, OperationPhase, WorkspaceEvent } from './events.js';
 import { describe } from './json.js';
 import type { GeometryLimits, GeometryProvider, ResolvedGeometry } from './geometry.js';
 import { DEFAULT_GEOMETRY_LIMITS, GeometryRegistry } from './geometry.js';
-import type { Id, NodeRecord, SceneState, SurfaceRecord } from './model.js';
+import type {
+  CameraRecord,
+  Id,
+  NodeRecord,
+  SceneState,
+  SurfaceRecord,
+  ViewportRecord,
+} from './model.js';
+import type { ProjectionKind } from './projection-kinds.js';
+import { ProjectionKindRegistry } from './projection-kinds.js';
 import type { NodeQuery } from './query.js';
 import { effectiveState, findNodes, surfaceGeometry } from './query.js';
 import { Table } from './table.js';
@@ -42,6 +51,8 @@ export interface WorkspaceOptions {
   readonly geometry?: readonly GeometryProvider[];
   /** Overrides of the geometry complexity limits. */
   readonly geometryLimits?: Partial<GeometryLimits>;
+  /** Projection kinds viewports may use. */
+  readonly projectionKinds?: readonly ProjectionKind[];
   /** Receives every diagnostic as it is recorded. A sink that throws is ignored. */
   readonly onDiagnostic?: (diagnostic: Diagnostic) => void;
 }
@@ -180,6 +191,11 @@ export interface WorkspaceMutator {
    * rectangle with `approximate` fidelity.
    */
   registerGeometry(provider: GeometryProvider): () => void;
+  /**
+   * Adds a projection kind viewports may use. Throws {@link SwfFailure} when it is malformed or its
+   * ID is taken. The returned function removes it; viewports already using it keep their settings.
+   */
+  registerProjectionKind(kind: ProjectionKind): () => void;
 }
 
 /** An independent spatial scene and the operations on it. */
@@ -209,6 +225,7 @@ const OPTION_KEYS = [
   'constraints',
   'geometry',
   'geometryLimits',
+  'projectionKinds',
   'onDiagnostic',
 ];
 
@@ -256,6 +273,7 @@ class WorkspaceImpl implements Workspace {
   #sortedConstraints: readonly Constraint[] = [];
   readonly #geometry = new GeometryRegistry();
   readonly #geometryLimits: GeometryLimits;
+  readonly #projectionKinds = new ProjectionKindRegistry();
   readonly #listeners = new Set<Listener>();
   readonly #outbox: WorkspaceEvent[] = [];
   readonly #queue: (() => void)[] = [];
@@ -296,6 +314,9 @@ class WorkspaceImpl implements Workspace {
     for (const constraint of record.constraints) {
       this.#addConstraint(constraint);
     }
+    for (const kind of record.projectionKinds) {
+      this.#addProjectionKind(kind);
+    }
     for (const provider of record.geometry) {
       this.#addGeometry(provider);
     }
@@ -305,6 +326,9 @@ class WorkspaceImpl implements Workspace {
       rootIds: Object.freeze([]),
       nodes: Table.empty<NodeRecord>(),
       surfaces: Table.empty<SurfaceRecord>(),
+      cameras: Table.empty<CameraRecord>(),
+      viewports: Table.empty<ViewportRecord>(),
+      orbitRootId: null,
       selection: Object.freeze([]),
       focusedId: null,
     });
@@ -382,6 +406,7 @@ class WorkspaceImpl implements Workspace {
       canRedo: () => this.canRedo(),
       registerConstraint: (constraint: Constraint) => this.registerConstraint(constraint),
       registerGeometry: (provider: GeometryProvider) => this.registerGeometry(provider),
+      registerProjectionKind: (kind: ProjectionKind) => this.registerProjectionKind(kind),
     });
   }
 
@@ -438,6 +463,21 @@ class WorkspaceImpl implements Workspace {
         this.#sortedConstraints = sortConstraints(this.#constraints.values());
       }
     };
+  }
+
+  registerProjectionKind(kind: ProjectionKind): () => void {
+    if (this.#lifecycle !== 'ready') {
+      throw this.#failure('WORKSPACE_DISPOSED', `workspace "${this.id}" is ${this.#lifecycle}`);
+    }
+    return this.#addProjectionKind(kind);
+  }
+
+  #addProjectionKind(kind: ProjectionKind): () => void {
+    try {
+      return this.#projectionKinds.register(kind);
+    } catch (error) {
+      throw this.#failure('INVALID_INPUT', error instanceof Error ? error.message : String(error));
+    }
   }
 
   registerGeometry(provider: GeometryProvider): () => void {
@@ -636,6 +676,7 @@ class WorkspaceImpl implements Workspace {
       constraints: this.#sortedConstraints,
       geometry: this.#geometry,
       geometryLimits: this.#geometryLimits,
+      projectionKinds: this.#projectionKinds,
     };
   }
 
@@ -655,6 +696,9 @@ class WorkspaceImpl implements Workspace {
       rootIds: outcome.rootIds,
       nodes: outcome.nodes,
       surfaces: outcome.surfaces,
+      cameras: outcome.cameras,
+      viewports: outcome.viewports,
+      orbitRootId: outcome.orbitRootId,
       selection: outcome.selection,
       focusedId: outcome.focusedId,
     });
@@ -666,7 +710,12 @@ class WorkspaceImpl implements Workspace {
     if (extra.history === null && layoutChanged) {
       this.#record(before, after, outcome, meta);
     }
-    for (const event of diffScenes(before, after, outcome.touched, outcome.touchedSurfaces)) {
+    for (const event of diffScenes(before, after, {
+      nodes: outcome.touched,
+      surfaces: outcome.touchedSurfaces,
+      cameras: outcome.touchedCameras,
+      viewports: outcome.touchedViewports,
+    })) {
       this.#emitPending(event, {
         source: meta.source,
         causeId: meta.transactionId,
@@ -803,6 +852,11 @@ class WorkspaceImpl implements Workspace {
       {
         nodes: restored,
         surfaces: restoreRecords(state.surfaces, surfacesTarget),
+        // Cameras and viewports are view state: undo and redo leave them as they are.
+        cameras: state.cameras,
+        viewports: state.viewports,
+        orbitRootId:
+          state.orbitRootId !== null && restored.has(state.orbitRootId) ? state.orbitRootId : null,
         rootIds: rootsTarget,
         selection:
           selection.length === state.selection.length ? state.selection : Object.freeze(selection),
@@ -810,6 +864,8 @@ class WorkspaceImpl implements Workspace {
         commandTypes: record.entry.commandTypes,
         touched: record.entry.changedNodeIds,
         touchedSurfaces: record.entry.changedSurfaceIds,
+        touchedCameras: Object.freeze([]),
+        touchedViewports: Object.freeze([]),
         createdIds: Object.freeze([]),
       },
       meta,
@@ -880,6 +936,9 @@ class WorkspaceImpl implements Workspace {
       rootIds: outcome.rootIds,
       nodes: outcome.nodes,
       surfaces: outcome.surfaces,
+      cameras: outcome.cameras,
+      viewports: outcome.viewports,
+      orbitRootId: outcome.orbitRootId,
       selection: outcome.selection,
       focusedId: outcome.focusedId,
     });
@@ -1180,6 +1239,7 @@ interface CheckedOptions {
   readonly constraints: readonly Constraint[];
   readonly geometry: readonly GeometryProvider[];
   readonly geometryLimits: GeometryLimits;
+  readonly projectionKinds: readonly ProjectionKind[];
   readonly onDiagnostic: ((d: Diagnostic) => void) | undefined;
 }
 
@@ -1217,7 +1277,7 @@ function checkOptions(options: WorkspaceOptions): CheckedOptions {
       throw fail(key, 'must be a function');
     }
   }
-  for (const key of ['constraints', 'geometry']) {
+  for (const key of ['constraints', 'geometry', 'projectionKinds']) {
     if (record[key] !== undefined && !Array.isArray(record[key])) {
       throw fail(key, 'must be an array');
     }
@@ -1248,6 +1308,7 @@ function checkOptions(options: WorkspaceOptions): CheckedOptions {
     createId: options.createId,
     constraints: options.constraints ?? [],
     geometry: options.geometry ?? [],
+    projectionKinds: options.projectionKinds ?? [],
     geometryLimits: Object.freeze({
       maxParamsBytes: limit('maxParamsBytes'),
       maxPolygonVertices: limit('maxPolygonVertices'),

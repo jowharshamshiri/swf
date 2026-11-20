@@ -10,6 +10,7 @@ const ALLOWED: Readonly<Record<string, readonly string[]>> = {
   core: ['@swf/math'],
   surfaces: ['@swf/math', '@swf/core'],
   presentation: ['@swf/math', '@swf/core', '@swf/surfaces'],
+  projections: ['@swf/math', '@swf/core', '@swf/presentation'],
   conformance: ['@swf/math', '@swf/core', '@swf/surfaces', '@swf/presentation'],
 };
 

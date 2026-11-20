@@ -1,5 +1,5 @@
 import type { Id, ResolvedGeometry } from '@swf/core';
-import { ADAPTER_TYPE_ID } from '@swf/core';
+import { VERSIONED_ID } from '@swf/core';
 import type { Vec3 } from '@swf/math';
 import type { SurfaceCapabilities } from './capabilities.js';
 import { capabilitiesIssue } from './capabilities.js';
@@ -111,7 +111,7 @@ export function adapterIssue(
   }
   const a = adapter as Record<string, unknown>;
   const id = a['id'];
-  if (typeof id !== 'string' || !ADAPTER_TYPE_ID.test(id)) {
+  if (typeof id !== 'string' || !VERSIONED_ID.test(id)) {
     return malformed(
       `adapter id ${JSON.stringify(id)} must be a versioned type ID "<name>/<version>", such as "host.video/1"`,
     );

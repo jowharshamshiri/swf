@@ -28,6 +28,21 @@ export type NodeField = 'bounds' | 'label' | 'tags' | 'flags' | 'metadata' | 'ki
  */
 export type SurfaceField = 'bounds' | 'geometry' | 'interaction' | 'flags' | 'label' | 'metadata';
 
+/** Camera fields reported by `camera.updated`. */
+export type CameraField = 'position' | 'rotation' | 'near' | 'far' | 'label' | 'metadata';
+
+/** Viewport fields reported by `viewport.updated`. */
+export type ViewportField =
+  | 'cameraId'
+  | 'projection'
+  | 'mode'
+  | 'size'
+  | 'navigation'
+  | 'renderer'
+  | 'compositor'
+  | 'label'
+  | 'metadata';
+
 /** Which endpoint a surface association names. */
 export interface BindingRef {
   readonly bindingKey: string | null;
@@ -92,6 +107,15 @@ interface EventPayloads {
     readonly binding: BindingRef;
   };
   'surface.updated': { readonly surfaceId: Id; readonly fields: readonly SurfaceField[] };
+  'camera.created': { readonly cameraId: Id };
+  /** A camera moved, turned or changed its visibility settings: view state only. */
+  'camera.updated': { readonly cameraId: Id; readonly fields: readonly CameraField[] };
+  'camera.deleted': { readonly cameraId: Id };
+  'viewport.created': { readonly viewportId: Id };
+  /** A viewport's camera, projection, mode, size or preferences changed: view state only. */
+  'viewport.updated': { readonly viewportId: Id; readonly fields: readonly ViewportField[] };
+  'viewport.deleted': { readonly viewportId: Id };
+  'orbitRoot.changed': { readonly nodeId: Id | null; readonly previous: Id | null };
   'selection.changed': { readonly selection: readonly Id[]; readonly previous: readonly Id[] };
   'focus.changed': { readonly focusedId: Id | null; readonly previous: Id | null };
   /** A preview's proposed scene changed. Read it with `getPreview(previewId)`. */

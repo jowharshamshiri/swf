@@ -1,3 +1,4 @@
+import { VERSIONED_ID } from '@swf/core';
 import type { AttachStrategy, Fidelity } from '@swf/surfaces';
 import { ATTACH_STRATEGIES, FIDELITY_ORDER } from '@swf/surfaces';
 
@@ -82,7 +83,6 @@ export const LAYER_CATEGORIES: readonly LayerCategory[] = [
 const CLIPS: readonly ClipSupport[] = ['none', 'rect', 'path'];
 const TRANSFORMS: readonly TransformMode[] = ['translate', 'affine-2d', 'perspective-3d', 'mesh'];
 const LAYERINGS: readonly Layering[] = ['dom', 'raster', 'dom-and-raster'];
-const VERSIONED_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*\/[1-9][0-9]*$/;
 
 export const clipRank = (c: ClipSupport): number => CLIPS.indexOf(c);
 export const transformRank = (t: TransformMode): number => TRANSFORMS.indexOf(t);

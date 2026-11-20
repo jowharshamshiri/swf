@@ -1,7 +1,14 @@
-import type { Transform3D, Vec3 } from '@swf/math';
+import type { Quat, Transform3D, Vec3 } from '@swf/math';
 import type { GeometryDescriptor } from './geometry.js';
 import type { JsonValue, Metadata } from './json.js';
-import type { EntityFlags, Id, InteractionRegion } from './model.js';
+import type {
+  EntityFlags,
+  Id,
+  InteractionRegion,
+  NavigationTarget,
+  ProjectionSetting,
+  ViewportRecord,
+} from './model.js';
 
 /** Who originated an operation. Operator (`user`) changes respect locks. */
 export type EventSource = 'user' | 'host' | 'policy' | 'restore' | 'system';
@@ -224,6 +231,92 @@ export interface DetachSurfaceCommand {
   readonly id: Id;
 }
 
+/** Describes a camera to create. Omitted fields take the documented defaults. */
+export interface CameraSpec {
+  /** Omitted: the workspace's ID generator supplies one. */
+  readonly id?: Id;
+  /** Omitted: the world origin. */
+  readonly position?: Vec3;
+  /** Omitted: identity, looking along -Z with +Y up. */
+  readonly rotation?: Quat;
+  /** Omitted: 0.05. */
+  readonly near?: number;
+  /** Omitted: null, no limit. */
+  readonly far?: number | null;
+  readonly label?: string | null;
+  readonly metadata?: Metadata;
+}
+
+export interface CreateCameraCommand {
+  readonly type: 'camera.create';
+  readonly camera: CameraSpec;
+}
+
+export interface PatchCameraCommand {
+  readonly type: 'camera.patch';
+  readonly id: Id;
+  readonly position?: Vec3;
+  readonly rotation?: Quat;
+  readonly near?: number;
+  readonly far?: number | null;
+  readonly label?: string | null;
+  readonly metadata?: MetadataPatch;
+}
+
+/** Removes a camera no viewport uses. */
+export interface DeleteCameraCommand {
+  readonly type: 'camera.delete';
+  readonly id: Id;
+}
+
+/** Describes a viewport to create. Omitted fields take the documented defaults. */
+export interface ViewportSpec {
+  /** Omitted: the workspace's ID generator supplies one. */
+  readonly id?: Id;
+  readonly cameraId: Id;
+  /** A registered projection kind and a configuration it accepts. */
+  readonly projection: ProjectionSetting;
+  /** Omitted: `panorama`. */
+  readonly mode?: string;
+  readonly size: ViewportRecord['size'];
+  /** Omitted: `camera`. */
+  readonly navigation?: NavigationTarget;
+  readonly renderer?: string | null;
+  readonly compositor?: string | null;
+  readonly label?: string | null;
+  readonly metadata?: Metadata;
+}
+
+export interface CreateViewportCommand {
+  readonly type: 'viewport.create';
+  readonly viewport: ViewportSpec;
+}
+
+export interface PatchViewportCommand {
+  readonly type: 'viewport.patch';
+  readonly id: Id;
+  readonly cameraId?: Id;
+  readonly projection?: ProjectionSetting;
+  readonly mode?: string;
+  readonly size?: ViewportRecord['size'];
+  readonly navigation?: NavigationTarget;
+  readonly renderer?: string | null;
+  readonly compositor?: string | null;
+  readonly label?: string | null;
+  readonly metadata?: MetadataPatch;
+}
+
+export interface DeleteViewportCommand {
+  readonly type: 'viewport.delete';
+  readonly id: Id;
+}
+
+/** Designates the node that workspace orbit rotates, or none. */
+export interface SetOrbitRootCommand {
+  readonly type: 'orbitRoot.set';
+  readonly nodeId: Id | null;
+}
+
 /** A scene command. A transaction applies a list of them atomically. */
 export type SceneCommand =
   | CreateNodeCommand
@@ -243,7 +336,14 @@ export type SceneCommand =
   | MoveSurfaceCommand
   | ReorderSurfaceCommand
   | RebindSurfaceCommand
-  | DetachSurfaceCommand;
+  | DetachSurfaceCommand
+  | CreateCameraCommand
+  | PatchCameraCommand
+  | DeleteCameraCommand
+  | CreateViewportCommand
+  | PatchViewportCommand
+  | DeleteViewportCommand
+  | SetOrbitRootCommand;
 
 export type SceneCommandType = SceneCommand['type'];
 
@@ -266,4 +366,11 @@ export const SCENE_COMMAND_TYPES: readonly SceneCommandType[] = Object.freeze([
   'surface.reorder',
   'surface.rebind',
   'surface.detach',
+  'camera.create',
+  'camera.patch',
+  'camera.delete',
+  'viewport.create',
+  'viewport.patch',
+  'viewport.delete',
+  'orbitRoot.set',
 ]);

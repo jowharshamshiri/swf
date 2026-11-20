@@ -129,7 +129,10 @@ function view(profile: ProjectionProfile): ViewGeometry {
     height: 720,
     devicePixelRatio: 1,
     camera: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1] as const,
+    near: 0.05,
+    far: null,
     projectionId: profile.id,
+    projectionConfig: null,
   });
 }
 

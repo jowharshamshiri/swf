@@ -1,11 +1,16 @@
 /**
  * The Spatial Workspace Framework's scene kernel. It holds the canonical spatial state (nodes,
- * hierarchy, transforms, bounds, flags, surface associations, selection and focus) and changes it
- * only through atomic, revisioned transactions. It needs no DOM, renderer or UI framework.
+ * hierarchy, transforms, bounds, flags, surface associations, cameras, viewports, selection and
+ * focus) and changes it only through atomic, revisioned transactions. It needs no DOM, renderer or UI framework.
  */
 export type {
   ArchiveNodeCommand,
   AttachSurfaceCommand,
+  CameraSpec,
+  CreateCameraCommand,
+  CreateViewportCommand,
+  DeleteCameraCommand,
+  DeleteViewportCommand,
   CreateNodeCommand,
   DeleteMode,
   DeleteNodeCommand,
@@ -17,8 +22,10 @@ export type {
   MetadataPatch,
   MoveSurfaceCommand,
   NodeSpec,
+  PatchCameraCommand,
   PatchNodeCommand,
   PatchSurfaceCommand,
+  PatchViewportCommand,
   RebindSurfaceCommand,
   ReorderNodeCommand,
   ReorderSurfaceCommand,
@@ -27,9 +34,11 @@ export type {
   SceneCommand,
   SceneCommandType,
   SetFocusCommand,
+  SetOrbitRootCommand,
   SetSelectionCommand,
   SurfaceSpec,
   UngroupNodeCommand,
+  ViewportSpec,
 } from './commands.js';
 export { SCENE_COMMAND_TYPES } from './commands.js';
 export type {
@@ -53,12 +62,14 @@ export type { SwfError, SwfErrorCode } from './errors.js';
 export { makeError, SwfFailure } from './errors.js';
 export type {
   BindingRef,
+  CameraField,
   CancelReason,
   EventOf,
   EventPayload,
   NodeField,
   OperationPhase,
   SurfaceField,
+  ViewportField,
   WorkspaceEvent,
   WorkspaceEventType,
 } from './events.js';
@@ -80,14 +91,19 @@ export {
 } from './geometry.js';
 export type { JsonValue, Metadata } from './json.js';
 export type {
+  CameraRecord,
   EntityFlags,
   Id,
   InteractionRegion,
+  NavigationTarget,
   NodeRecord,
   NodeStatus,
+  ProjectionSetting,
   SceneState,
   SurfaceRecord,
+  ViewportRecord,
 } from './model.js';
+export type { ProjectionKind } from './projection-kinds.js';
 export { DEFAULT_FLAGS } from './model.js';
 export type { CoarseHit, EffectiveState, NodeQuery, SpatialQueryOptions } from './query.js';
 export {
@@ -104,7 +120,7 @@ export {
   worldTransform,
 } from './query.js';
 export type { RecordLookup, Table } from './table.js';
-export { ADAPTER_TYPE_ID } from './validate.js';
+export { VERSIONED_ID } from './validate.js';
 export type {
   Diagnostic,
   HistoryEntry,

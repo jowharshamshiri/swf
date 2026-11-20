@@ -1,9 +1,12 @@
-import type { Transform3D, Vec3 } from '@swf/math';
+import type { Quat, Transform3D, Vec3 } from '@swf/math';
 import type { GeometryDescriptor } from './geometry.js';
-import type { Metadata } from './json.js';
+import type { JsonValue, Metadata } from './json.js';
 import type { Table } from './table.js';
 
-/** An entity identifier, unique within one workspace across nodes and surfaces (archived included). */
+/**
+ * An entity identifier, unique within one workspace across nodes, surfaces, cameras and viewports
+ * (archived records included).
+ */
 export type Id = string;
 
 /**
@@ -96,6 +99,61 @@ export interface SurfaceRecord {
   readonly updatedAt: number;
 }
 
+/**
+ * A viewpoint: where a viewport looks from and which way. It is view state, independent of every
+ * spatial entity: moving a camera never moves anything in the scene.
+ */
+export interface CameraRecord {
+  readonly id: Id;
+  readonly position: Vec3;
+  /** Rotation of the camera; with none, it looks along -Z with +Y up. */
+  readonly rotation: Quat;
+  /** Nearest distance shown, in world units; positive. */
+  readonly near: number;
+  /** Farthest distance shown, or null for no limit. */
+  readonly far: number | null;
+  readonly label: string | null;
+  readonly metadata: Metadata;
+  readonly createdAt: number;
+  readonly updatedAt: number;
+}
+
+/** A viewport's projection: a registered projection kind and its JSON configuration. */
+export interface ProjectionSetting {
+  /** The projection kind's versioned ID, such as `equirectangular/1`. */
+  readonly id: string;
+  readonly config: JsonValue;
+}
+
+/** What a drag on a viewport's background turns: its camera, or the workspace orbit root. */
+export type NavigationTarget = 'camera' | 'orbit';
+
+/**
+ * One view into the scene: a camera, a projection, a presentation mode, preferred backends and a
+ * size. Several viewports share one scene; none of their settings is spatial truth.
+ */
+export interface ViewportRecord {
+  readonly id: Id;
+  readonly cameraId: Id;
+  readonly projection: ProjectionSetting;
+  /** The presentation mode, such as `panorama`, `focus`, `map` or `overview`. */
+  readonly mode: string;
+  /** Size in CSS pixels and device pixels per CSS pixel. */
+  readonly size: {
+    readonly width: number;
+    readonly height: number;
+    readonly devicePixelRatio: number;
+  };
+  readonly navigation: NavigationTarget;
+  /** Preferred renderer and compositor, by versioned ID, or null for the host's default. */
+  readonly renderer: string | null;
+  readonly compositor: string | null;
+  readonly label: string | null;
+  readonly metadata: Metadata;
+  readonly createdAt: number;
+  readonly updatedAt: number;
+}
+
 /** One immutable state of a workspace's scene. A new object is produced by every commit. */
 export interface SceneState {
   readonly workspaceId: Id;
@@ -105,6 +163,13 @@ export interface SceneState {
   readonly rootIds: readonly Id[];
   readonly nodes: Table<NodeRecord>;
   readonly surfaces: Table<SurfaceRecord>;
+  readonly cameras: Table<CameraRecord>;
+  readonly viewports: Table<ViewportRecord>;
+  /**
+   * The node that workspace orbit rotates, or null. Orbiting changes that node's transform as an
+   * ordinary, undoable transaction; it never touches a camera.
+   */
+  readonly orbitRootId: Id | null;
   /** Selected nodes in selection order. Only active, selectable nodes can be selected. */
   readonly selection: readonly Id[];
   readonly focusedId: Id | null;

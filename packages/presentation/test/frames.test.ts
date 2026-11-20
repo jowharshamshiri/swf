@@ -89,7 +89,10 @@ const VIEW = (profile: ProjectionProfile): ViewGeometry => ({
   height: 600,
   devicePixelRatio: 2,
   camera: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+  near: 0.05,
+  far: null,
   projectionId: profile.id,
+  projectionConfig: null,
 });
 
 describe('presentation fragment IDs', () => {
@@ -260,6 +263,15 @@ describe('frame planning', () => {
     expect(() => planFrame({ ...base, view: { ...VIEW(PERSPECTIVE), width: 0 } })).toThrow(
       /width and height/,
     );
+    expect(() => planFrame({ ...base, view: { ...VIEW(PERSPECTIVE), near: 0 } })).toThrow(
+      /near must be/,
+    );
+    expect(() => planFrame({ ...base, view: { ...VIEW(PERSPECTIVE), far: 0.01 } })).toThrow(
+      /far must be null or/,
+    );
+    expect(() =>
+      planFrame({ ...base, view: { ...VIEW(PERSPECTIVE), far: Number.POSITIVE_INFINITY } }),
+    ).toThrow(/far must be null or/);
     ws.dispatch({ type: 'surface.patch', id: 'a', label: 'later' });
     expect(() => planFrame({ ...base, scene: ws.getState() })).toThrow(/is for revision 1, not 2/);
   });

@@ -11,7 +11,7 @@ interaction; the host owns whatever is presented.
   rays and axis-aligned boxes. The world is right-handed and +Y up; the default camera looks along
   -Z with +X to the right. Lengths are arbitrary world units.
 - `@swf/core`: the scene kernel. Spatial nodes and their hierarchy, surface associations with
-  their geometry, constraints, atomic revisioned transactions, previews, undo and redo,
+  their geometry, cameras and viewports, constraints, atomic revisioned transactions, previews, undo and redo,
   idempotency keys, typed events and the workspace lifecycle. It needs no DOM, renderer or UI
   framework.
 - `@swf/surfaces`: binds the scene's surface associations to the host's presentation endpoints
@@ -22,6 +22,9 @@ interaction; the host owns whatever is presented.
   compositors and projections advertise; how each surface's presentation is negotiated from
   their capabilities; the fragments a view is made of; and the stages from a committed scene to a
   presented frame. It depends on no concrete renderer or compositor.
+- `@swf/projections`: the projection contract (forward and inverse mapping, placing surfaces as
+  fragments, visibility, interaction rays), registration that validates a projection before use,
+  and the equirectangular reference projection with seam-continuous inverse mapping.
 - `@swf/conformance`: suites that check an adapter, a renderer or a compositor against the
   contracts, with reference mocks to run them against.
 
@@ -79,6 +82,13 @@ The node commands are `node.create`, `node.patch`, `node.reparent`, `node.reorde
 `surface.patch`, `surface.move`, `surface.reorder`, `surface.rebind` and `surface.detach`. Each
 is documented on its type in `@swf/core`.
 
+Cameras and viewports are scene records too: `camera.create`, `camera.patch`, `camera.delete`,
+`viewport.create`, `viewport.patch`, `viewport.delete`, and `orbitRoot.set` for the node that
+orbit navigation turns about. A viewport names its camera, its projection and that projection's
+configuration, its size and its navigation target. They are view state: changing them commits a
+revision and reports events, but never touches node or surface records and is not undone. Node,
+surface, camera and viewport IDs share one ID space.
+
 A surface's geometry is a descriptor: the built-in `rect` and `polygon`, or a kind the host
 registers with `registerGeometry`. Descriptors are validated against configurable complexity
 limits, and `workspace.surfaceGeometry(id)` places one in the world for rendering and picking.
@@ -135,6 +145,57 @@ compositor's and projection's capabilities, walking the fallback policy (by defa
 `native`, `approximated`, `proxy`, `placeholder`) and reporting why each better mode was not
 possible. Where a live element is placed exactly but its shape only approximates the projection,
 the result says so; nothing approximate is ever labelled exact.
+
+### Projections
+
+```ts
+import { createPresentationRegistry } from '@swf/presentation';
+import {
+  cameraRotation,
+  createProjectionRegistry,
+  equirectangular,
+  pickAt,
+  projectionFor,
+  viewGeometryOf,
+} from '@swf/projections';
+
+const presentation = createPresentationRegistry();
+createProjectionRegistry({
+  kinds: workspace.mutator(),
+  projectors: presentation.registrar(),
+}).register(equirectangular);
+
+workspace.transaction([
+  { type: 'camera.create', camera: { id: 'eye', rotation: cameraRotation(0, 0) } },
+  {
+    type: 'viewport.create',
+    viewport: {
+      id: 'main-viewport',
+      cameraId: 'eye',
+      projection: { id: 'equirectangular/1', config: { horizontal: 360, vertical: 120 } },
+      size: { width: 1600, height: 800, devicePixelRatio: 2 },
+    },
+  },
+]);
+
+const state = workspace.getState();
+const view = viewGeometryOf(state, 'main-viewport');
+const pick = pickAt(projectionFor(equirectangular, view), state, view, 800, 400, (id) =>
+  workspace.surfaceGeometry(id),
+);
+```
+
+Registering a projection validates it first: its contract version, its profile, the domain it
+describes, and a round trip through a probe view. The scene then accepts viewports that use it,
+checking each configuration with the projection's own rules, and the host can project them.
+
+The equirectangular projection maps longitude across and latitude down. It covers 360° across,
+wrapping at a seam behind the camera, and 120° up and down by default (up to 180°, which reaches
+the poles); narrower angles are configurable. A direction on the seam has two images; a pole is a
+whole edge row. A surface crossing the seam yields one fragment on each side, both referring to
+the same surface, and surfaces behind the camera are kept, not dropped. Its inverse is exact.
+`pickAt` returns every selectable surface under a point, nearest first; given the previous
+longitude of a drag, the longitude is unwrapped so it stays continuous across the seam.
 
 Renderers, compositors and projectors register by versioned ID with
 `createPresentationRegistry()`. Each module can be handed only the scope it needs:

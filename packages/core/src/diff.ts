@@ -1,6 +1,21 @@
 import type { Transform3D } from '@swf/math';
-import type { EventPayload, NodeField, SurfaceField, WorkspaceEventType } from './events.js';
-import type { EntityFlags, Id, NodeRecord, SceneState, SurfaceRecord } from './model.js';
+import type {
+  CameraField,
+  EventPayload,
+  NodeField,
+  SurfaceField,
+  ViewportField,
+  WorkspaceEventType,
+} from './events.js';
+import type {
+  CameraRecord,
+  EntityFlags,
+  Id,
+  NodeRecord,
+  SceneState,
+  SurfaceRecord,
+  ViewportRecord,
+} from './model.js';
 
 export interface PendingEvent<T extends WorkspaceEventType = WorkspaceEventType> {
   readonly type: T;
@@ -11,21 +26,28 @@ function pending<T extends WorkspaceEventType>(type: T, payload: EventPayload<T>
   return { type, payload };
 }
 
+/** The records a change may have touched, by kind, in the order it first touched them. */
+export interface Touched {
+  readonly nodes: readonly Id[];
+  readonly surfaces: readonly Id[];
+  readonly cameras: readonly Id[];
+  readonly viewports: readonly Id[];
+}
+
 /**
  * The entity events that describe the change from `before` to `after`, derived from the records
- * themselves so a commit, an undo and a redo report the same way. `touchedNodes` and
- * `touchedSurfaces` list the records that may differ, in the order the change first touched them.
- * Order: node events, surface events, child and surface order changes, selection, focus.
+ * themselves so a commit, an undo and a redo report the same way. Order: node events, surface
+ * events, camera and viewport events, child and surface order changes, the orbit root, selection,
+ * focus.
  */
 export function diffScenes(
   before: SceneState,
   after: SceneState,
-  touchedNodes: readonly Id[],
-  touchedSurfaces: readonly Id[],
+  touched: Touched,
 ): PendingEvent[] {
   const events: PendingEvent[] = [];
   const orderEvents: PendingEvent[] = [];
-  for (const id of touchedNodes) {
+  for (const id of touched.nodes) {
     const a = before.nodes.get(id);
     const b = after.nodes.get(id);
     if (a === b) {
@@ -76,13 +98,24 @@ export function diffScenes(
       orderEvents.push(pending('node.surfacesChanged', { nodeId: id, surfaceIds: b.surfaceIds }));
     }
   }
-  for (const id of touchedSurfaces) {
+  for (const id of touched.surfaces) {
     events.push(...surfaceEvents(id, before.surfaces.get(id), after.surfaces.get(id)));
+  }
+  for (const id of touched.cameras) {
+    events.push(...cameraEvents(id, before.cameras.get(id), after.cameras.get(id)));
+  }
+  for (const id of touched.viewports) {
+    events.push(...viewportEvents(id, before.viewports.get(id), after.viewports.get(id)));
   }
   if (!sameList(before.rootIds, after.rootIds)) {
     orderEvents.push(pending('node.childrenChanged', { parentId: null, childIds: after.rootIds }));
   }
   events.push(...orderEvents);
+  if (before.orbitRootId !== after.orbitRootId) {
+    events.push(
+      pending('orbitRoot.changed', { nodeId: after.orbitRootId, previous: before.orbitRootId }),
+    );
+  }
   if (!sameList(before.selection, after.selection)) {
     events.push(
       pending('selection.changed', { selection: after.selection, previous: before.selection }),
@@ -94,6 +127,77 @@ export function diffScenes(
     );
   }
   return events;
+}
+
+function cameraEvents(
+  id: Id,
+  a: CameraRecord | undefined,
+  b: CameraRecord | undefined,
+): PendingEvent[] {
+  if (a === b) {
+    return [];
+  }
+  if (a === undefined) {
+    return b === undefined ? [] : [pending('camera.created', { cameraId: id })];
+  }
+  if (b === undefined) {
+    return [pending('camera.deleted', { cameraId: id })];
+  }
+  const fields: CameraField[] = [];
+  if (!sameList(a.position, b.position)) {
+    fields.push('position');
+  }
+  if (!sameList(a.rotation, b.rotation)) {
+    fields.push('rotation');
+  }
+  if (a.near !== b.near) {
+    fields.push('near');
+  }
+  if (a.far !== b.far) {
+    fields.push('far');
+  }
+  if (a.label !== b.label) {
+    fields.push('label');
+  }
+  if (!sameJson(a.metadata, b.metadata)) {
+    fields.push('metadata');
+  }
+  return fields.length === 0 ? [] : [pending('camera.updated', { cameraId: id, fields })];
+}
+
+function viewportEvents(
+  id: Id,
+  a: ViewportRecord | undefined,
+  b: ViewportRecord | undefined,
+): PendingEvent[] {
+  if (a === b) {
+    return [];
+  }
+  if (a === undefined) {
+    return b === undefined ? [] : [pending('viewport.created', { viewportId: id })];
+  }
+  if (b === undefined) {
+    return [pending('viewport.deleted', { viewportId: id })];
+  }
+  const fields: ViewportField[] = [];
+  for (const key of [
+    'cameraId',
+    'mode',
+    'navigation',
+    'renderer',
+    'compositor',
+    'label',
+  ] as const) {
+    if (a[key] !== b[key]) {
+      fields.push(key);
+    }
+  }
+  for (const key of ['projection', 'size', 'metadata'] as const) {
+    if (!sameJson(a[key], b[key])) {
+      fields.push(key);
+    }
+  }
+  return fields.length === 0 ? [] : [pending('viewport.updated', { viewportId: id, fields })];
 }
 
 function surfaceEvents(

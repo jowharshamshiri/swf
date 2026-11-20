@@ -1,4 +1,4 @@
-import type { Id, SceneState } from '@swf/core';
+import type { Id, JsonValue, SceneState } from '@swf/core';
 import { makeError, SwfFailure } from '@swf/core';
 import type { Mat4 } from '@swf/math';
 
@@ -6,17 +6,25 @@ import type { Mat4 } from '@swf/math';
 export type ScreenRect = readonly [number, number, number, number];
 export type ScreenPoint = readonly [number, number];
 
-/** The view a viewport shows: its size, pixel density, camera placement and projection. */
+/**
+ * The view a viewport shows: its size, pixel density, camera placement and depth range, and its
+ * projection with that projection's configuration.
+ */
 export interface ViewGeometry {
   readonly viewportId: Id;
   /** Width and height in CSS pixels, both positive. */
   readonly width: number;
   readonly height: number;
   readonly devicePixelRatio: number;
-  /** The camera's local-to-world placement. */
+  /** The camera's local-to-world placement (rotation and position, no scale). */
   readonly camera: Mat4;
+  /** Nearest distance shown, positive. */
+  readonly near: number;
+  /** Farthest distance shown, or null for no limit. */
+  readonly far: number | null;
   /** The projection's versioned ID. */
   readonly projectionId: string;
+  readonly projectionConfig: JsonValue;
 }
 
 /**
@@ -225,6 +233,12 @@ export function viewGeometryIssue(view: ViewGeometry): string | null {
   const camera: readonly unknown[] = view.camera;
   if (camera.length !== 16 || !camera.every((v) => typeof v === 'number' && Number.isFinite(v))) {
     return 'camera must be a finite 4x4 matrix';
+  }
+  if (!(view.near > 0 && Number.isFinite(view.near))) {
+    return 'near must be a positive finite number';
+  }
+  if (view.far !== null && !(view.far > view.near && Number.isFinite(view.far))) {
+    return 'far must be null or a finite number greater than near';
   }
   return null;
 }

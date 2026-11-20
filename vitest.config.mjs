@@ -11,6 +11,7 @@ export default defineConfig({
       '@swf/core': source('core'),
       '@swf/surfaces': source('surfaces'),
       '@swf/presentation': source('presentation'),
+      '@swf/projections': source('projections'),
       '@swf/conformance': source('conformance'),
     },
   },
