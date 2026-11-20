@@ -164,6 +164,29 @@ describe('binding', () => {
     expect(runtime.get('b')).toBeUndefined();
   });
 
+  it('discards an answer when the surface is rebound while that answer is being negotiated', async () => {
+    const { ws, runtime } = setup();
+    let rebound = false;
+    const adapter = new MockAdapter('host.view/1', caps(), {
+      handleCapabilities: (handle) => {
+        // The host reacts to the answer by pointing the surface elsewhere, before the runtime
+        // has finished negotiating it.
+        if (handle.key === 'old' && !rebound) {
+          rebound = true;
+          committed(ws.dispatch({ type: 'surface.rebind', id: 's', bindingKey: 'new' }));
+        }
+        return caps();
+      },
+    });
+    runtime.registerAdapter(adapter);
+    committed(ws.dispatch(surface('s', 'w', 'old')));
+    await settle();
+    await settle();
+    expect(runtime.get('s')).toMatchObject({ state: 'ready', binding: { bindingKey: 'new' } });
+    expect(runtime.handleOf('s')).toMatchObject({ key: 'new' });
+    expect(runtime.getDiagnostics().map((d) => d.code)).toContain('STALE_COMPLETION');
+  });
+
   it('never lets a completion that arrives after the window was deleted resurrect it', async () => {
     const { ws, runtime } = setup();
     const adapter = new MockAdapter();
