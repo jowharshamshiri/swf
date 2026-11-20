@@ -40,7 +40,11 @@ export interface ProjectedFragment {
   /** The fragment's number among its surface's fragments in this viewport, from 0. */
   readonly ordinal: number;
   readonly bounds: ScreenRect;
-  /** The projected corners (top-left, top-right, bottom-right, bottom-left), or null. */
+  /**
+   * The projected corners of the whole surface on this fragment's branch (top-left, top-right,
+   * bottom-right, bottom-left), possibly beyond the viewport, or null when the projection cannot
+   * give them; `bounds` is the visible part.
+   */
   readonly corners: readonly [ScreenPoint, ScreenPoint, ScreenPoint, ScreenPoint] | null;
   /** Distance from the camera; larger is farther. */
   readonly depth: number;

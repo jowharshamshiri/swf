@@ -289,19 +289,19 @@ class Equirectangular implements Projection {
     }
     pieces.sort((a, b) => a.from - b.from);
     const owner = ownerPiece(pieces, centre);
-    const unclippedLatitude = latHi <= this.#v / 2 && latLo >= -this.#v / 2;
+    // Every piece carries the whole surface's corners on its own branch (possibly beyond the
+    // image), so a backend can place the surface and clip it to the piece's bounds.
     return pieces.map((p, ordinal) => {
-      const whole =
-        unclippedLatitude &&
-        Math.abs(p.from - (lo + TWO_PI * p.k)) <= EPS &&
-        Math.abs(p.to - (hi + TWO_PI * p.k)) <= EPS;
       const point = ([l, phi]: readonly [number, number]): ScreenPoint => [
         this.#x(l + TWO_PI * p.k, view),
         this.#y(phi, view),
       ];
-      const shape: ProjectedFragment['corners'] = whole
-        ? [point(corners[0]), point(corners[1]), point(corners[2]), point(corners[3])]
-        : null;
+      const shape: ProjectedFragment['corners'] = [
+        point(corners[0]),
+        point(corners[1]),
+        point(corners[2]),
+        point(corners[3]),
+      ];
       return make(ordinal, p.from, p.to, ordinal === owner, true, shape);
     });
   }

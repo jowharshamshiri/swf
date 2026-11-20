@@ -134,6 +134,7 @@ export function planFrame(input: FrameInput): RenderFrame {
   return Object.freeze({
     viewportId: view.viewportId,
     sceneRevision: scene.revision,
+    scene,
     view,
     output,
     planned: Object.freeze(planned),

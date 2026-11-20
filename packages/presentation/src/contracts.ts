@@ -20,6 +20,8 @@ export interface PlannedFragment {
 export interface RenderFrame {
   readonly viewportId: Id;
   readonly sceneRevision: number;
+  /** The scene at `sceneRevision`, for what a renderer shows besides content (labels, selection). */
+  readonly scene: SceneState;
   readonly view: ViewGeometry;
   readonly output: ViewOutput;
   readonly planned: readonly PlannedFragment[];

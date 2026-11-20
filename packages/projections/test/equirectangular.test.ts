@@ -341,8 +341,12 @@ describe('surface fragments (FR-064 to FR-066)', () => {
     const [left, right] = fragments;
     expect(left?.bounds[0]).toBe(0);
     expect((right?.bounds[0] ?? 0) + (right?.bounds[2] ?? 0)).toBeCloseTo(W, 9);
-    // Clipped pieces carry no corners; the whole is the surface's angular width.
-    expect(left?.corners).toBeNull();
+    // Each piece carries the whole surface's corners on its branch: the left piece's reach past
+    // the left edge, the right piece's past the right edge, by the same width.
+    expect(left?.corners?.[0][0]).toBeLessThan(0);
+    expect(right?.corners?.[1][0]).toBeGreaterThan(W);
+    expect((left?.corners?.[0][0] ?? 0) + W).toBeCloseTo(right?.corners?.[0][0] ?? NaN, 9);
+    // Together the visible pieces span the surface's angular width.
     const width = (2 * Math.atan(0.25) * W) / (2 * Math.PI);
     expect((left?.bounds[2] ?? 0) + (right?.bounds[2] ?? 0)).toBeCloseTo(width, 9);
     expect(visibility).toMatchObject({ state: 'inside', behind: true, crossesSeam: true });
@@ -414,7 +418,8 @@ describe('surface fragments (FR-064 to FR-066)', () => {
     const straddling = project({ id: 's', heading: 0, distance: 1, y: Math.tan(Math.PI / 3) });
     expect(straddling.fragments).toHaveLength(1);
     expect(straddling.fragments[0]?.bounds[1]).toBe(0);
-    expect(straddling.fragments[0]?.corners).toBeNull();
+    // Its corners reach above the image, where the bounds clip it.
+    expect(straddling.fragments[0]?.corners?.[0][1]).toBeLessThan(0);
     expect(straddling.visibility.state).toBe('partial');
     const coverage = straddling.visibility.coverage;
     expect(coverage).toBeGreaterThan(0.2);
