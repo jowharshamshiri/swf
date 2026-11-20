@@ -18,6 +18,12 @@ interaction; the host owns whatever is presented.
   through registered adapters, negotiates each endpoint's capabilities, and drives every surface
   through its presentation lifecycle. It never inspects, decodes or runs what an endpoint shows,
   and releasing a surface never stops the endpoint's producer.
+- `@swf/presentation`: the contracts between the scene and whatever draws it. What renderers,
+  compositors and projections advertise; how each surface's presentation is negotiated from
+  their capabilities; the fragments a view is made of; and the stages from a committed scene to a
+  presented frame. It depends on no concrete renderer or compositor.
+- `@swf/conformance`: suites that check an adapter, a renderer or a compositor against the
+  contracts, with reference mocks to run them against.
 
 ## Using the kernel
 
@@ -118,6 +124,37 @@ that keeps the surface's identity and geometry, and binds in place once it can. 
 asynchronously with an abort signal and a timeout; a completion that arrives after the surface was
 removed or rebound is discarded. `replaceBinding` swaps a surface's endpoint with a safe handoff:
 the new endpoint is attached before the change commits, and the old one is released only after.
+
+## Presenting
+
+A viewport's projection produces fragments: the visible pieces of each surface, each with a
+presentation fragment ID that maps back to exactly one surface. A surface split by a panorama seam
+has several fragments, only one of which may hold its live element; the others show it as a
+proxy. `planFrame` negotiates every fragment's presentation from the surface's, renderer's,
+compositor's and projection's capabilities, walking the fallback policy (by default `exact`,
+`native`, `approximated`, `proxy`, `placeholder`) and reporting why each better mode was not
+possible. Where a live element is placed exactly but its shape only approximates the projection,
+the result says so; nothing approximate is ever labelled exact.
+
+Renderers, compositors and projectors register by versioned ID with
+`createPresentationRegistry()`. Each module can be handed only the scope it needs:
+`workspace.reader()`, `workspace.mutator()`, `surfaces.binder()` and `registry.registrar()`.
+
+## Checking an implementation
+
+```ts
+import { adapterConformance, runConformance } from '@swf/conformance';
+
+const results = await runConformance(
+  adapterConformance({
+    create: () => new EditorAdapter(),
+    keys: { valid: ['editor-1', 'editor-2'], unknown: 'no-such-editor' },
+  }),
+);
+```
+
+Each case also runs on its own (`case.run()` throws on failure), so the suites fit any test
+framework. `backendConformance` checks a renderer and a compositor the same way.
 
 ## Development
 
