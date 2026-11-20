@@ -70,11 +70,19 @@ export function worldBounds(nodes: NodeLookup, id: Id): Aabb | undefined {
   return node === undefined || m === undefined ? undefined : aabbOfBox(m, node.bounds);
 }
 
-/** The node's ancestors, nearest first. */
+/**
+ * The node's ancestors, nearest first. Throws if the hierarchy contains a cycle, which committed
+ * state never does: it means a defect, not an input to tolerate.
+ */
 export function ancestorIds(nodes: NodeLookup, id: Id): Id[] {
   const out: Id[] = [];
+  const seen = new Set<Id>([id]);
   let current = nodes.get(id)?.parentId ?? null;
   while (current !== null) {
+    if (seen.has(current)) {
+      throw new Error(`the hierarchy has a cycle through node "${current}"`);
+    }
+    seen.add(current);
     out.push(current);
     current = nodes.get(current)?.parentId ?? null;
   }
@@ -86,11 +94,19 @@ export function isSelfOrAncestor(nodes: NodeLookup, ancestorId: Id, id: Id): boo
   return id === ancestorId || ancestorIds(nodes, id).includes(ancestorId);
 }
 
-/** The node's descendants in depth-first pre-order (children in presentation order). */
+/**
+ * The node's descendants in depth-first pre-order (children in presentation order). Throws if the
+ * hierarchy contains a cycle.
+ */
 export function descendantIds(nodes: NodeLookup, id: Id): Id[] {
   const out: Id[] = [];
+  const seen = new Set<Id>([id]);
   const visit = (current: Id): void => {
     for (const child of nodes.get(current)?.childIds ?? []) {
+      if (seen.has(child)) {
+        throw new Error(`the hierarchy has a cycle through node "${child}"`);
+      }
+      seen.add(child);
       out.push(child);
       visit(child);
     }

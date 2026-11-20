@@ -8,8 +8,10 @@ import {
 } from '@swf/math';
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
-import type { SceneCommand } from '../src/index.js';
+import type { NodeRecord, RecordLookup, SceneCommand } from '../src/index.js';
 import {
+  ancestorIds,
+  descendantIds,
   effectiveState,
   findNodes,
   nodesInBox,
@@ -19,6 +21,32 @@ import {
   worldTransform,
 } from '../src/index.js';
 import { at, committed, expectClose, makeWorkspace, rejected, window } from './helpers.js';
+
+describe('hierarchy walks', () => {
+  it('fail explicitly on a cyclic hierarchy instead of looping', () => {
+    const ws = makeWorkspace();
+    committed(ws.transaction([window('a'), window('b', { parentId: 'a' })]));
+    const { nodes } = ws.getState();
+    const a = nodes.get('a');
+    const b = nodes.get('b');
+    if (a === undefined || b === undefined) {
+      throw new Error('fixture missing');
+    }
+    // A hand-built corrupt lookup: a and b are each other's parent and child.
+    const corrupt = new Map<string, NodeRecord>([
+      ['a', { ...a, parentId: 'b' }],
+      ['b', { ...b, childIds: ['a'] }],
+    ]);
+    const lookup: RecordLookup<NodeRecord> = {
+      get: (id) => corrupt.get(id),
+      has: (id) => corrupt.has(id),
+      size: corrupt.size,
+      values: () => corrupt.values(),
+    };
+    expect(() => ancestorIds(lookup, 'a')).toThrow(/cycle/);
+    expect(() => descendantIds(lookup, 'a')).toThrow(/cycle/);
+  });
+});
 
 const coord = fc.double({ min: -50, max: 50, noNaN: true });
 const vec = fc.tuple(coord, coord, coord) as fc.Arbitrary<Vec3>;
