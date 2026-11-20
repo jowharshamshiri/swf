@@ -1,13 +1,12 @@
 import type { Id, ResolvedGeometry, SceneState } from '@swf/core';
-import { ancestorIds, effectiveState, surfaceEffectiveState, worldMatrix } from '@swf/core';
-import type { Mat4, Ray, Vec3 } from '@swf/math';
 import {
-  length,
-  mat4InvertAffine,
-  mat4TransformDirection,
-  mat4TransformPoint,
-  sub,
-} from '@swf/math';
+  ancestorIds,
+  effectiveState,
+  nodeFrameGeometry,
+  surfaceEffectiveState,
+  worldMatrix,
+} from '@swf/core';
+import type { Mat4, Ray, Vec3 } from '@swf/math';
 import type { ViewGeometry } from '@swf/presentation';
 import type { Continuity, Projection } from '@swf/projections';
 import type { SceneIndex } from './scene-index.js';
@@ -261,26 +260,15 @@ function nodeHit(scene: SceneState, nodeId: Id, ray: Ray, bandAngle: number) {
   if (node === undefined || world === undefined || !takesPointer(scene, nodeId)) {
     return null;
   }
-  const inverse = mat4InvertAffine(world);
-  if (inverse === null) {
+  // The frame is the same rectangle window chrome is drawn from.
+  const hit = nodeFrameGeometry(scene, nodeId)?.intersect(ray) ?? null;
+  if (hit === null) {
     return null;
   }
-  const origin = mat4TransformPoint(inverse, ray.origin);
-  const direction = mat4TransformDirection(inverse, ray.direction);
-  if (direction[2] === 0) {
-    return null;
-  }
-  const t = -origin[2] / direction[2];
-  if (!(t >= 0)) {
-    return null;
-  }
-  const local: Vec3 = [origin[0] + t * direction[0], origin[1] + t * direction[1], 0];
   const [w, h] = node.bounds;
-  if (Math.abs(local[0]) > w / 2 || Math.abs(local[1]) > h / 2) {
-    return null;
-  }
-  const worldPoint = mat4TransformPoint(world, local);
-  const distance = length(sub(worldPoint, ray.origin));
+  const local = hit.localPoint;
+  const worldPoint = hit.point;
+  const distance = hit.distance;
   const edge = edgeAt(local, w, h, distance * bandAngle, world);
   return {
     nodeId,

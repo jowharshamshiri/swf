@@ -112,6 +112,7 @@ export {
   descendantIds,
   effectiveState,
   findNodes,
+  nodeFrameGeometry,
   nodesInBox,
   raycastBounds,
   surfaceEffectiveState,

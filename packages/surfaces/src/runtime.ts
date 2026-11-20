@@ -986,12 +986,15 @@ class Runtime implements SurfaceRuntime {
         }
       },
     });
-    let timer: unknown;
+    let stopTimer = (): void => undefined;
     const timedOut = new Promise<'timeout'>((resolve) => {
       if (adapter.untimedBinding !== true) {
-        timer = setTimeout(() => {
+        const timer = setTimeout(() => {
           resolve('timeout');
         }, this.#timeoutMs);
+        stopTimer = () => {
+          clearTimeout(timer);
+        };
       }
     });
     let outcome: unknown;
@@ -1017,7 +1020,7 @@ class Runtime implements SurfaceRuntime {
         ),
       };
     } finally {
-      clearTimeout(timer);
+      stopTimer();
     }
     if (outcome === 'cancelled') {
       return { kind: 'cancelled' };

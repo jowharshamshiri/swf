@@ -8,8 +8,8 @@ import {
   mat4Multiply,
   rayIntersectAabb,
 } from '@swf/math';
-import type { GeometryRegistry, ResolvedGeometry } from './geometry.js';
-import { resolveGeometry } from './geometry.js';
+import type { ResolvedGeometry } from './geometry.js';
+import { GeometryRegistry, RECT_GEOMETRY, resolveGeometry } from './geometry.js';
 import type { Id, NodeRecord, SceneState } from './model.js';
 import type { RecordLookup } from './table.js';
 import { Table } from './table.js';
@@ -61,6 +61,22 @@ export function surfaceGeometry(
   return surface === undefined || world === undefined
     ? undefined
     : resolveGeometry(surfaceId, surface.geometry, surface.bounds, world, registry);
+}
+
+/** Resolves only the built-in rectangle: a node frame is always a rectangle. */
+const FRAME_REGISTRY = new GeometryRegistry();
+
+/**
+ * A node's frame placed in the world: its bounds rectangle in its local z = 0 plane, as picking
+ * of window frames and rendering of window chrome both use it. The result's `surfaceId` field
+ * holds the node's ID. Undefined for an unknown node.
+ */
+export function nodeFrameGeometry(state: SceneState, nodeId: Id): ResolvedGeometry | undefined {
+  const node = state.nodes.get(nodeId);
+  const world = worldMatrix(state.nodes, nodeId);
+  return node === undefined || world === undefined
+    ? undefined
+    : resolveGeometry(nodeId, RECT_GEOMETRY, node.bounds, world, FRAME_REGISTRY);
 }
 
 const worldCache = new WeakMap<NodeLookup, Map<Id, Mat4>>();

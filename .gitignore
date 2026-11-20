@@ -3,3 +3,5 @@ dist/
 *.tsbuildinfo
 .scrap/
 .DS_Store
+# Browser test artifacts (failure screenshots)
+.vitest/

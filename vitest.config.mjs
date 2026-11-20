@@ -13,10 +13,13 @@ export default defineConfig({
       '@swf/presentation': source('presentation'),
       '@swf/projections': source('projections'),
       '@swf/interaction': source('interaction'),
+      '@swf/backend-dom': source('backend-dom'),
       '@swf/conformance': source('conformance'),
     },
   },
   test: {
     include: ['packages/*/test/**/*.test.ts'],
+    // Browser tests need a real browser: `npm run test:browser`.
+    exclude: ['packages/*/test/**/*.browser.test.ts'],
   },
 });

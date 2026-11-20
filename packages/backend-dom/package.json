@@ -1,0 +1,27 @@
+{
+  "name": "@swf/backend-dom",
+  "version": "0.0.0",
+  "description": "A browser-native DOM presentation backend for the Spatial Workspace Framework: live DOM content placed by projected anchor with declared fidelity, clipped and explicitly ordered, never mounted twice, with chrome in separate layers and native input left native.",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@swf/core": "0.0.0",
+    "@swf/interaction": "0.0.0",
+    "@swf/presentation": "0.0.0",
+    "@swf/projections": "0.0.0",
+    "@swf/surfaces": "0.0.0"
+  }
+}

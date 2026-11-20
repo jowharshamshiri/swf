@@ -29,6 +29,10 @@ interaction; the host owns whatever is presented.
   picking through the projection's inverse and a spatial index; input regions that keep content
   input native; a gesture arena with pointer capture; drags that preview and commit once;
   explicit cancellation; and a named command for every spatial operation.
+- `@swf/backend-dom`: a browser-native presentation backend. Live DOM content stays
+  browser-owned and natively interactive: it is placed by its projected corners with its fidelity
+  declared, clipped, stacked explicitly and never mounted twice; window chrome sits in layers of
+  its own and labels are text.
 - `@swf/conformance`: suites that check an adapter, a renderer or a compositor against the
   contracts, with reference mocks to run them against.
 
@@ -262,6 +266,54 @@ Every operation a gesture performs is also a command (`node.move`, `node.resize`
 is registered only if its operations are. The default keymap moves, turns, resizes and selects
 with the keyboard; `configure` changes it and the other settings, validating every field.
 
+## Presenting in the browser
+
+```ts
+import { createDomInput, createDomView, DomCompositor, DomRenderer } from '@swf/backend-dom';
+
+const view = await createDomView({
+  workspace,
+  runtime: surfaces,
+  projections,
+  renderer: new DomRenderer({ document, chrome: { projections } }),
+  compositor: new DomCompositor(),
+  container: document.querySelector('#main'),
+  viewportId: 'main-viewport',
+});
+await view.update(); // again whenever the scene or the view changes
+
+router.registerInputAdapter(
+  createDomInput({
+    root: view.root,
+    viewportId: 'main-viewport',
+    events: (listener) => router.subscribe(listener),
+  }),
+);
+```
+
+Each live surface gets a slot of its own in each view, laid out at the surface's size
+(`pixelsPerUnit` CSS pixels per world unit, 400 by default) and mapped onto its projected corners
+with a CSS perspective transform, inside a clip box at the part of it that is visible. The slot
+never moves to another parent, so content such as a frame or a video is never reloaded; layers
+are stacked by `z-index` in the planned order. Every live slot declares how it is placed
+(`data-swf-mode`, `data-swf-anchor`, `data-swf-shape`, `data-swf-placement`): a panorama bends a
+planar element, so there it is placed exactly by its corners and its shape is declared
+approximate, and a slot that cannot follow its corners is never declared exact.
+
+`createDomView` attaches each surface that is live in the view through the surface runtime and
+hides those that no longer are. A surface whose endpoint has a single owner is live in one view
+only, and in one fragment of it: another view, or the other side of a seam, shows a proxy with
+the surface's label instead. If two views race for the same endpoint, the runtime refuses the
+second, and that view shows the proxy.
+
+Window chrome (frame outline and title) is a layer of its own that takes no pointer input, so it
+never intercepts content; only the resize handles along a window's edges take input, so a press
+there reaches the framework even over a cross-origin frame. `createDomInput` offers every pointer,
+wheel and key event over the view to the interaction router. What the router consumes stops there
+(and a pressed pointer is captured until its gesture ends); what it does not consume reaches the
+content as the browser's own event. Nothing is synthesized, and content in a cross-origin frame
+gets its input from the browser alone. Labels and host metadata are always inserted as text.
+
 ## Checking an implementation
 
 ```ts
@@ -290,3 +342,14 @@ npm run build   # compile every package to dist/ (ES modules, declarations, sour
 ```
 
 Tests run against each package's TypeScript source, so they need no build first.
+
+The DOM backend's tests also run in real browsers, through Playwright:
+
+```sh
+npx playwright install --with-deps chromium firefox webkit && npm run test:browser
+```
+
+`SWF_BROWSERS` picks the browsers (comma-separated; all three by default), and
+`SWF_CHROMIUM_CHANNEL` runs Chromium as an installed browser instead of Playwright's own, for
+example `SWF_BROWSERS=chromium SWF_CHROMIUM_CHANNEL=chrome npm run test:browser` with Google
+Chrome installed.
