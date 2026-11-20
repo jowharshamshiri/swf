@@ -1,0 +1,26 @@
+{
+  "name": "@swf/conformance",
+  "version": "0.0.0",
+  "description": "Conformance suites for Spatial Workspace Framework adapters, renderers and compositors, with reference mocks.",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@swf/core": "0.0.0",
+    "@swf/math": "0.0.0",
+    "@swf/presentation": "0.0.0",
+    "@swf/surfaces": "0.0.0"
+  }
+}

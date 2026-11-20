@@ -2,9 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { PresentationHint } from '../src/index.js';
 import { createSurfaceRuntime } from '../src/index.js';
 import {
-  caps,
   committed,
-  MockAdapter,
   makeWorkspace,
   record,
   settle,
@@ -12,8 +10,9 @@ import {
   transitions,
   window,
 } from './fixtures.js';
+import { mockCapabilities, MockOpaqueAdapter } from '@swf/conformance';
 
-async function bound(adapter = new MockAdapter(), ...extra: string[]) {
+async function bound(adapter = new MockOpaqueAdapter(), ...extra: string[]) {
   const ws = makeWorkspace();
   const runtime = createSurfaceRuntime(ws);
   const events = record(runtime);
@@ -105,7 +104,7 @@ describe('presentation lifecycle', () => {
   });
 
   it('rejects presenting without a ready binding, or twice in one viewport, with typed errors', async () => {
-    const adapter = new MockAdapter();
+    const adapter = new MockOpaqueAdapter();
     adapter.holding.add('slow');
     const { ws, runtime } = await bound(adapter);
     committed(ws.dispatch(surface('t', 'w', 'slow')));
@@ -143,7 +142,10 @@ describe('presentation lifecycle', () => {
     expect(adapter.methods().slice(-2)).toEqual(['update', 'detach']);
 
     const unsafe = await bound(
-      new MockAdapter('host.view/1', caps({ safeDetach: false, rebinding: false })),
+      new MockOpaqueAdapter(
+        'host.view/1',
+        mockCapabilities({ safeDetach: false, rebinding: false }),
+      ),
     );
     await unsafe.runtime.present('s', 'v1', {});
     expect(await unsafe.runtime.hide('s', 'v1', { release: true })).toMatchObject({
@@ -177,7 +179,9 @@ describe('presentation lifecycle', () => {
     });
     expect(events.filter((e) => e.type === 'presentation.viewportChanged')).toHaveLength(1);
 
-    const shared = await bound(new MockAdapter('host.view/1', caps({ viewportSharing: 'shared' })));
+    const shared = await bound(
+      new MockOpaqueAdapter('host.view/1', mockCapabilities({ viewportSharing: 'shared' })),
+    );
     await shared.runtime.present('s', 'v1', {});
     expect(await shared.runtime.present('s', 'v2', {})).toMatchObject({
       status: 'ok',
@@ -211,7 +215,7 @@ describe('presentation lifecycle', () => {
   });
 
   it('turns a failed mount into an error on that surface only, retryable by the host', async () => {
-    const adapter = new MockAdapter();
+    const adapter = new MockOpaqueAdapter();
     adapter.attachFailing.add('k');
     const { runtime } = await bound(adapter, 'other');
     expect(await runtime.present('s', 'v1', {})).toMatchObject({
@@ -236,13 +240,16 @@ describe('presentation lifecycle', () => {
       'detaching>detached',
     ]);
     expect(runtime.get('s')).toBeUndefined();
+    const attach = adapter.calls.find((c) => c.method === 'attach');
     const detach = adapter.calls.filter((c) => c.method === 'detach');
-    expect(detach).toEqual([{ method: 'detach', handle, viewportId: 'v1' }]);
+    expect(detach).toEqual([
+      { method: 'detach', handle, viewportId: 'v1', target: attach?.target },
+    ]);
     expect(adapter.producerTouched).toBe(0);
   });
 
   it('releases an attachment that completes after its surface was removed', async () => {
-    const adapter = new MockAdapter();
+    const adapter = new MockOpaqueAdapter();
     adapter.holdingAttach.add('k');
     const { ws, runtime } = await bound(adapter);
     const presenting = runtime.present('s', 'v1', {});
@@ -301,7 +308,7 @@ describe('presentation lifecycle', () => {
 
   it('releases every attachment on dispose, also when the workspace is disposed', async () => {
     const { ws, runtime, adapter } = await bound(
-      new MockAdapter('host.view/1', caps({ viewportSharing: 'shared' })),
+      new MockOpaqueAdapter('host.view/1', mockCapabilities({ viewportSharing: 'shared' })),
       'other',
     );
     await runtime.present('s', 'v1', {});

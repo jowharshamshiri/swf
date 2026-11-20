@@ -46,17 +46,28 @@ export interface SurfaceCapabilities {
   readonly snapshotHooks: boolean;
 }
 
-const FIDELITY_ORDER: readonly Fidelity[] = [
+/** Fidelity levels, worst first. */
+export const FIDELITY_ORDER: readonly Fidelity[] = Object.freeze([
   'unsupported',
   'proxy',
   'approximate',
   'exact',
   'native',
-];
-const INTERACTION_ORDER: readonly InteractionSupport[] = ['none', 'partial', 'full'];
+]);
+/** Interaction support levels, least first. */
+export const INTERACTION_ORDER: readonly InteractionSupport[] = Object.freeze([
+  'none',
+  'partial',
+  'full',
+]);
 const RESIZE_ORDER: readonly ResizeHandling[] = ['none', 'spatial', 'intrinsic'];
 const SHARING_ORDER: readonly ViewportSharing[] = ['single-owner', 'shared'];
-const STRATEGIES: readonly AttachStrategy[] = ['native-dom', 'drawable', 'proxy-only'];
+export const ATTACH_STRATEGIES: readonly AttachStrategy[] = Object.freeze([
+  'native-dom',
+  'drawable',
+  'proxy-only',
+]);
+const STRATEGIES = ATTACH_STRATEGIES;
 
 const BOOLEAN_FIELDS = [
   'uvAddressing',

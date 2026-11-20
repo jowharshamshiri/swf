@@ -20,7 +20,13 @@ export type {
   SurfaceCapabilities,
   ViewportSharing,
 } from './capabilities.js';
-export { capabilitiesIssue, exceededCapabilities } from './capabilities.js';
+export {
+  ATTACH_STRATEGIES,
+  capabilitiesIssue,
+  exceededCapabilities,
+  FIDELITY_ORDER,
+  INTERACTION_ORDER,
+} from './capabilities.js';
 export type {
   PresentationState,
   RuntimeEvent,
@@ -33,6 +39,7 @@ export type {
   PresentationOutcome,
   RuntimeDiagnostic,
   RuntimeListener,
+  SurfaceBinder,
   SurfacePresentation,
   SurfaceRuntime,
   SurfaceRuntimeOptions,

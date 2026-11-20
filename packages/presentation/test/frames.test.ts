@@ -1,0 +1,260 @@
+import {
+  MOCK_COMPOSITOR_CAPABILITIES,
+  MOCK_RENDERER_CAPABILITIES,
+  mockCapabilities,
+} from '@swf/conformance';
+import type { SceneCommand, Workspace } from '@swf/core';
+import { createWorkspace, SwfFailure } from '@swf/core';
+import fc from 'fast-check';
+import { describe, expect, it } from 'vitest';
+import type { ProjectedFragment, ProjectionProfile, ViewGeometry } from '../src/index.js';
+import { createViewOutput, fragmentId, groupFallbacks, planFrame } from '../src/index.js';
+
+const PANORAMA: ProjectionProfile = {
+  id: 'test.panorama/1',
+  mapping: 'nonlinear',
+  seamWrapping: true,
+  exactInverse: true,
+};
+const PERSPECTIVE: ProjectionProfile = {
+  id: 'test.perspective/1',
+  mapping: 'affine',
+  seamWrapping: false,
+  exactInverse: true,
+};
+
+function workspace(): Workspace {
+  const ws = createWorkspace({ id: 'ws' });
+  const commands: SceneCommand[] = [
+    { type: 'node.create', node: { id: 'back', kind: 'window', bounds: [2, 1, 0.01] } },
+    {
+      type: 'node.create',
+      node: {
+        id: 'front',
+        kind: 'window',
+        bounds: [2, 1, 0.01],
+        flags: { presentationPriority: 5 },
+      },
+    },
+    ...['a', 'b'].map((id): SceneCommand => ({
+      type: 'surface.attach',
+      surface: {
+        id,
+        ownerNodeId: 'back',
+        bindingKey: `k-${id}`,
+        adapterTypeId: 'test.view/1',
+        bounds: [1, 1, 0.01],
+      },
+    })),
+    {
+      type: 'surface.attach',
+      surface: {
+        id: 'c',
+        ownerNodeId: 'front',
+        bindingKey: 'k-c',
+        adapterTypeId: 'test.view/1',
+        bounds: [1, 1, 0.01],
+      },
+    },
+  ];
+  const result = ws.transaction(commands);
+  if (result.status !== 'committed') {
+    throw new Error('fixture failed');
+  }
+  return ws;
+}
+
+function fragment(
+  surfaceId: string,
+  ordinal: number,
+  over: Partial<ProjectedFragment> = {},
+): ProjectedFragment {
+  return {
+    id: fragmentId('v', surfaceId, ordinal),
+    surfaceId,
+    viewportId: 'v',
+    ordinal,
+    bounds: [0, 0, 10, 10],
+    corners: null,
+    depth: 3,
+    geometricFidelity: 'exact',
+    nativeOwner: ordinal === 0,
+    ...over,
+  };
+}
+
+const VIEW = (profile: ProjectionProfile): ViewGeometry => ({
+  viewportId: 'v',
+  width: 800,
+  height: 600,
+  devicePixelRatio: 2,
+  camera: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+  projectionId: profile.id,
+});
+
+describe('presentation fragment IDs', () => {
+  it('never collide, even when IDs contain separators', () => {
+    const part = fc.string({
+      minLength: 1,
+      maxLength: 6,
+      unit: fc.constantFrom('a', '/', '%', ':', '#', 'b'),
+    });
+    fc.assert(
+      fc.property(part, part, fc.nat(3), part, part, fc.nat(3), (v1, s1, o1, v2, s2, o2) => {
+        const same = v1 === v2 && s1 === s2 && o1 === o2;
+        expect(fragmentId(v1, s1, o1) === fragmentId(v2, s2, o2)).toBe(same);
+      }),
+      { numRuns: 3000 },
+    );
+  });
+});
+
+describe('view output', () => {
+  it('maps every fragment to its one surface, several fragments sharing it', () => {
+    const ws = workspace();
+    const output = createViewOutput(ws.getState(), 'v', [
+      fragment('a', 0),
+      fragment('a', 1),
+      fragment('c', 0),
+    ]);
+    expect(output.surfaceOf(fragmentId('v', 'a', 1))).toBe('a');
+    expect(output.surfaceOf('nope')).toBeUndefined();
+    expect(output.fragmentsOf('a').map((f) => f.ordinal)).toEqual([0, 1]);
+    expect(output.fragmentsOf('b')).toEqual([]);
+    expect(Object.isFrozen(output.fragments)).toBe(true);
+  });
+
+  it('orders back to front by depth, then priority, then scene order, never by supply order', () => {
+    const ws = workspace();
+    const all = [
+      fragment('a', 0, { depth: 3 }),
+      fragment('b', 0, { depth: 3 }),
+      fragment('c', 0, { depth: 3 }),
+      fragment('a', 1, { depth: 9 }),
+    ];
+    const order = (list: readonly ProjectedFragment[]) =>
+      createViewOutput(ws.getState(), 'v', list).fragments.map((f) => f.id);
+    const expected = [
+      fragmentId('v', 'a', 1),
+      fragmentId('v', 'a', 0),
+      fragmentId('v', 'b', 0),
+      fragmentId('v', 'c', 0),
+    ];
+    expect(order(all)).toEqual(expected);
+    fc.assert(
+      fc.property(fc.shuffledSubarray(all, { minLength: all.length }), (shuffled) => {
+        expect(order(shuffled)).toEqual(expected);
+      }),
+    );
+  });
+
+  it('rejects inconsistent fragments, naming the problem', () => {
+    const state = workspace().getState();
+    const bad = (list: ProjectedFragment[]) => {
+      try {
+        createViewOutput(state, 'v', list);
+      } catch (error) {
+        return error instanceof SwfFailure ? error.error.message : String(error);
+      }
+      return 'accepted';
+    };
+    expect(bad([fragment('a', 0, { viewportId: 'w' })])).toMatch(/belongs to viewport "w"/);
+    expect(bad([{ ...fragment('a', 0), id: 'custom' }])).toMatch(/not the ID derived/);
+    expect(bad([fragment('a', 0), fragment('a', 0)])).toMatch(/appears twice/);
+    expect(bad([fragment('a', 1)])).toMatch(/ordinals 1, not 0 to 0/);
+    expect(bad([fragment('a', 0), fragment('a', 1, { nativeOwner: true })])).toMatch(
+      /more than one native-owner/,
+    );
+    expect(bad([fragment('zz', 0)])).toMatch(/unknown surface "zz"/);
+    expect(bad([fragment('a', 0, { bounds: [0, 0, -1, 1] })])).toMatch(/invalid bounds/);
+    expect(bad([fragment('a', 0, { depth: NaN })])).toMatch(/non-finite depth/);
+  });
+});
+
+describe('frame planning', () => {
+  const plan = (profile: ProjectionProfile, owns: (id: string) => boolean = () => true) => {
+    const ws = workspace();
+    const state = ws.getState();
+    return planFrame({
+      scene: state,
+      view: VIEW(profile),
+      output: createViewOutput(state, 'v', [
+        fragment('a', 0),
+        fragment('a', 1),
+        fragment('b', 0),
+        fragment('c', 0),
+      ]),
+      renderer: { id: 'r/1', capabilities: MOCK_RENDERER_CAPABILITIES },
+      compositor: { id: 'c/1', capabilities: MOCK_COMPOSITOR_CAPABILITIES },
+      projection: profile,
+      surfaceCapabilities: (id) =>
+        id === 'b'
+          ? mockCapabilities({
+              attachStrategy: 'drawable',
+              nativeInteraction: 'none',
+              transformFidelity: 'exact',
+              viewportSharing: 'shared',
+            })
+          : id === 'c'
+            ? null
+            : mockCapabilities(),
+      viewportOwns: owns,
+      geometry: (id) => ws.surfaceGeometry(id),
+    });
+  };
+  const modes = (frame: ReturnType<typeof plan>) =>
+    Object.fromEntries(frame.planned.map((p) => [p.fragment.id, p.negotiation.mode]));
+
+  it('gives the live element to the native-owner fragment and proxies its seam duplicate', () => {
+    const frame = plan(PERSPECTIVE);
+    expect(modes(frame)).toEqual({
+      [fragmentId('v', 'a', 0)]: 'native',
+      [fragmentId('v', 'a', 1)]: 'proxy',
+      [fragmentId('v', 'b', 0)]: 'exact',
+      [fragmentId('v', 'c', 0)]: 'placeholder',
+    });
+    expect(frame.planned.map((p) => p.fragment.id)).toEqual(
+      frame.output.fragments.map((f) => f.id),
+    );
+    expect(frame.fallbacks.map((f) => f.surfaceId)).toEqual(['a', 'a', 'c']);
+  });
+
+  it('approximates the live element in a panorama and proxies it where another viewport owns it', () => {
+    expect(modes(plan(PANORAMA))[fragmentId('v', 'a', 0)]).toBe('approximated');
+    expect(modes(plan(PERSPECTIVE, (id) => id !== 'a'))[fragmentId('v', 'a', 0)]).toBe('proxy');
+  });
+
+  it('groups identical fallbacks with a count', () => {
+    const groups = groupFallbacks(plan(PANORAMA).fallbacks);
+    expect(groups.map((g) => [g.example.chosen, g.count, g.surfaceIds])).toEqual([
+      ['approximated', 1, ['a']],
+      ['proxy', 1, ['a']],
+      ['placeholder', 1, ['c']],
+    ]);
+  });
+
+  it('rejects inputs that disagree', () => {
+    const ws = workspace();
+    const state = ws.getState();
+    const base = {
+      scene: state,
+      view: VIEW(PERSPECTIVE),
+      output: createViewOutput(state, 'v', []),
+      renderer: { id: 'r/1', capabilities: MOCK_RENDERER_CAPABILITIES },
+      compositor: { id: 'c/1', capabilities: MOCK_COMPOSITOR_CAPABILITIES },
+      projection: PERSPECTIVE,
+      surfaceCapabilities: () => null,
+      viewportOwns: () => true,
+      geometry: (id: string) => ws.surfaceGeometry(id),
+    };
+    expect(() => planFrame({ ...base, projection: PANORAMA })).toThrow(/uses projection/);
+    expect(() => planFrame({ ...base, view: { ...VIEW(PERSPECTIVE), viewportId: 'x' } })).toThrow(
+      /belongs to viewport/,
+    );
+    expect(() => planFrame({ ...base, view: { ...VIEW(PERSPECTIVE), width: 0 } })).toThrow(
+      /width and height/,
+    );
+    ws.dispatch({ type: 'surface.patch', id: 'a', label: 'later' });
+    expect(() => planFrame({ ...base, scene: ws.getState() })).toThrow(/is for revision 1, not 2/);
+  });
+});

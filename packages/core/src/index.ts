@@ -120,6 +120,7 @@ export type {
   TxResult,
   Workspace,
   WorkspaceLifecycle,
+  WorkspaceMutator,
   WorkspaceOptions,
   WorkspaceReader,
 } from './workspace.js';

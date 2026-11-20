@@ -1,0 +1,18 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "rootDir": "src",
+    "outDir": "dist",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true
+  },
+  "include": ["src", "../surfaces/src/platform.d.ts"],
+  "references": [
+    { "path": "../math/tsconfig.build.json" },
+    { "path": "../core/tsconfig.build.json" },
+    { "path": "../surfaces/tsconfig.build.json" },
+    { "path": "../presentation/tsconfig.build.json" }
+  ]
+}

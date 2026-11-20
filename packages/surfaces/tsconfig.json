@@ -4,7 +4,10 @@
     "noEmit": true,
     "paths": {
       "@swf/math": ["../math/src/index.ts"],
-      "@swf/core": ["../core/src/index.ts"]
+      "@swf/core": ["../core/src/index.ts"],
+      "@swf/surfaces": ["../surfaces/src/index.ts"],
+      "@swf/presentation": ["../presentation/src/index.ts"],
+      "@swf/conformance": ["../conformance/src/index.ts"]
     }
   },
   "include": ["src", "test"]

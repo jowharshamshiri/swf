@@ -1,10 +1,12 @@
-// The few platform facilities the binding runtime uses. Browsers, workers and Node.js all provide
-// them; they are declared here so the package does not pull in the whole DOM library and stays
-// free of DOM dependencies. Published declarations refer to the host's own global types.
+// The few platform facilities the binding runtime and its adapters use. Browsers, workers and
+// Node.js all provide them; they are declared here so the packages do not pull in the whole DOM
+// library and stay free of DOM dependencies. Published declarations refer to the host's own
+// global types.
 
 interface AbortSignal {
   readonly aborted: boolean;
   readonly reason: unknown;
+  addEventListener(type: 'abort', listener: () => void, options?: { once?: boolean }): void;
 }
 
 declare class AbortController {

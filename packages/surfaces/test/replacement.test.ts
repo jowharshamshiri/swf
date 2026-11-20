@@ -1,17 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { createSurfaceRuntime } from '../src/index.js';
-import {
-  caps,
-  committed,
-  MockAdapter,
-  makeWorkspace,
-  record,
-  settle,
-  surface,
-  window,
-} from './fixtures.js';
+import { committed, makeWorkspace, record, settle, surface, window } from './fixtures.js';
+import { mockCapabilities, MockOpaqueAdapter } from '@swf/conformance';
 
-async function presented(adapter = new MockAdapter()) {
+async function presented(adapter = new MockOpaqueAdapter()) {
   const ws = makeWorkspace();
   const runtime = createSurfaceRuntime(ws);
   runtime.registerAdapter(adapter);
@@ -93,7 +85,7 @@ describe('binding replacement', () => {
   });
 
   it('gives up cleanly when the surface is removed during the handoff', async () => {
-    const adapter = new MockAdapter();
+    const adapter = new MockOpaqueAdapter();
     const { ws, runtime } = await presented(adapter);
     adapter.holdingAttach.add('new');
     const replacing = runtime.replaceBinding('s', { bindingKey: 'new' });
@@ -120,10 +112,14 @@ describe('binding replacement', () => {
       status: 'rejected',
       error: { code: 'INVALID_TRANSITION' },
     });
-    const shared = new MockAdapter('host.view/1', caps({ viewportSharing: 'shared' }), {
-      handleCapabilities: (handle) =>
-        caps({ viewportSharing: handle.key === 'solo' ? 'single-owner' : 'shared' }),
-    });
+    const shared = new MockOpaqueAdapter(
+      'host.view/1',
+      mockCapabilities({ viewportSharing: 'shared' }),
+      {
+        handleCapabilities: (handle) =>
+          mockCapabilities({ viewportSharing: handle.key === 'solo' ? 'single-owner' : 'shared' }),
+      },
+    );
     runtime.registerAdapter(shared);
     await settle();
     expect(
@@ -140,9 +136,13 @@ describe('binding replacement', () => {
 
   it('hands off across adapters and reports the new capabilities', async () => {
     const { ws, runtime, events } = await presented();
-    const drawable = new MockAdapter(
+    const drawable = new MockOpaqueAdapter(
       'host.canvas/1',
-      caps({ attachStrategy: 'drawable', nativeInteraction: 'none', viewportSharing: 'shared' }),
+      mockCapabilities({
+        attachStrategy: 'drawable',
+        nativeInteraction: 'none',
+        viewportSharing: 'shared',
+      }),
     );
     runtime.registerAdapter(drawable);
     const result = await runtime.replaceBinding('s', {

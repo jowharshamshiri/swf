@@ -143,9 +143,13 @@ export interface WorkspaceReader {
   surfaceGeometry(surfaceId: Id): ResolvedGeometry | undefined;
 }
 
-/** An independent spatial scene and the operations on it. */
-export interface Workspace extends WorkspaceReader {
-  readonly lifecycle: WorkspaceLifecycle;
+/**
+ * The scene-changing operations of a workspace, for modules allowed to change the scene. Like
+ * every scope, this is a software interface that makes a module's reach explicit, not a security
+ * boundary: code running in the host stays under the host's own security model.
+ */
+export interface WorkspaceMutator {
+  readonly id: Id;
   /** Applies `commands` atomically: all commit as one revision, or none do. */
   transaction(commands: readonly SceneCommand[], options?: TxOptions): TxResult;
   /** A transaction of one command. */
@@ -176,8 +180,17 @@ export interface Workspace extends WorkspaceReader {
    * rectangle with `approximate` fidelity.
    */
   registerGeometry(provider: GeometryProvider): () => void;
+}
+
+/** An independent spatial scene and the operations on it. */
+export interface Workspace extends WorkspaceReader, WorkspaceMutator {
+  readonly id: Id;
+  readonly lifecycle: WorkspaceLifecycle;
   getDiagnostics(): readonly Diagnostic[];
+  /** The read-only scope: queries, subscriptions and history, but no changes. */
   reader(): WorkspaceReader;
+  /** The scene-changing scope: transactions, previews, undo and scene configuration. */
+  mutator(): WorkspaceMutator;
   /**
    * Releases the workspace's listeners, previews and history. It never touches anything the host
    * owns. Safe to call more than once.
@@ -347,6 +360,28 @@ class WorkspaceImpl implements Workspace {
       findNodes: (query: NodeQuery) => this.findNodes(query),
       history: () => this.history(),
       surfaceGeometry: (surfaceId: Id) => this.surfaceGeometry(surfaceId),
+    });
+  }
+
+  mutator(): WorkspaceMutator {
+    return Object.freeze({
+      id: this.id,
+      transaction: (commands: readonly SceneCommand[], options?: TxOptions) =>
+        this.transaction(commands, options),
+      dispatch: (command: SceneCommand, options?: TxOptions) => this.dispatch(command, options),
+      preview: (
+        previewId: string,
+        commands: readonly SceneCommand[],
+        options?: Pick<TxOptions, 'source' | 'causeId'>,
+      ) => this.preview(previewId, commands, options),
+      cancelPreview: (previewId: string, reason: CancelReason) =>
+        this.cancelPreview(previewId, reason),
+      undo: (options?: Pick<TxOptions, 'source' | 'causeId'>) => this.undo(options),
+      redo: (options?: Pick<TxOptions, 'source' | 'causeId'>) => this.redo(options),
+      canUndo: () => this.canUndo(),
+      canRedo: () => this.canRedo(),
+      registerConstraint: (constraint: Constraint) => this.registerConstraint(constraint),
+      registerGeometry: (provider: GeometryProvider) => this.registerGeometry(provider),
     });
   }
 

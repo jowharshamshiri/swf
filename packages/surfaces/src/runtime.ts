@@ -149,9 +149,28 @@ export interface SurfaceRuntime {
   ): Promise<PresentationOutcome>;
   subscribe(listener: RuntimeListener): () => void;
   getDiagnostics(): readonly RuntimeDiagnostic[];
+  /** The binding-management scope: adapters, binding and rebinding, but no presentation. */
+  binder(): SurfaceBinder;
   /** Releases every attachment and stops listening. The endpoints are left as they are. */
   dispose(): Promise<void>;
 }
+
+/**
+ * What a module that manages surface binding may do: register adapters, bind, unbind and replace
+ * bindings, and observe their state. Presenting in viewports is left to presentation backends.
+ * Like every scope, it makes a module's reach explicit; it is not a security boundary.
+ */
+export type SurfaceBinder = Pick<
+  SurfaceRuntime,
+  | 'workspaceId'
+  | 'registerAdapter'
+  | 'get'
+  | 'list'
+  | 'bind'
+  | 'unbind'
+  | 'replaceBinding'
+  | 'subscribe'
+>;
 
 /** Creates the surface runtime of a workspace. Throws {@link SwfFailure} for invalid options. */
 export function createSurfaceRuntime(
@@ -717,6 +736,23 @@ class Runtime implements SurfaceRuntime {
     return this.#ok(entry);
   }
 
+  binder(): SurfaceBinder {
+    return Object.freeze({
+      workspaceId: this.workspaceId,
+      registerAdapter: <THandle>(adapter: SurfaceAdapter<THandle>) => this.registerAdapter(adapter),
+      get: (surfaceId: Id) => this.get(surfaceId),
+      list: () => this.list(),
+      bind: (surfaceId: Id) => this.bind(surfaceId),
+      unbind: (surfaceId: Id) => this.unbind(surfaceId),
+      replaceBinding: (
+        surfaceId: Id,
+        binding: { readonly bindingKey: string; readonly adapterTypeId?: string },
+        options?: { readonly source?: EventSource },
+      ) => this.replaceBinding(surfaceId, binding, options),
+      subscribe: (listener: RuntimeListener) => this.subscribe(listener),
+    });
+  }
+
   dispose(): Promise<void> {
     if (this.#disposed !== null) {
       return this.#disposed;
@@ -961,8 +997,11 @@ class Runtime implements SurfaceRuntime {
     let outcome: unknown;
     try {
       outcome = await Promise.race([
+        // An attempt cancelled before it starts never reaches the adapter.
         Promise.resolve().then(() =>
-          adapter.resolve(binding.bindingKey ?? '', attempt.controller.signal, context),
+          attempt.controller.signal.aborted
+            ? attempt.cancelled
+            : adapter.resolve(binding.bindingKey ?? '', attempt.controller.signal, context),
         ),
         timedOut,
         attempt.cancelled,

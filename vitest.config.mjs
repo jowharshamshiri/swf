@@ -10,6 +10,8 @@ export default defineConfig({
       '@swf/math': source('math'),
       '@swf/core': source('core'),
       '@swf/surfaces': source('surfaces'),
+      '@swf/presentation': source('presentation'),
+      '@swf/conformance': source('conformance'),
     },
   },
   test: {

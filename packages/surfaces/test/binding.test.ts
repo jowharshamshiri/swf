@@ -1,9 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createSurfaceRuntime } from '../src/index.js';
 import {
-  caps,
   committed,
-  MockAdapter,
   makeWorkspace,
   record,
   settle,
@@ -11,6 +9,7 @@ import {
   transitions,
   window,
 } from './fixtures.js';
+import { mockCapabilities, MockOpaqueAdapter } from '@swf/conformance';
 
 afterEach(() => {
   vi.useRealTimers();
@@ -27,13 +26,17 @@ function setup(options: Parameters<typeof createSurfaceRuntime>[1] = {}) {
 describe('binding', () => {
   it('binds a new surface asynchronously, passing the key verbatim with an abort signal', async () => {
     const { ws, runtime, events } = setup();
-    const adapter = new MockAdapter();
+    const adapter = new MockOpaqueAdapter();
     runtime.registerAdapter(adapter);
     const key = 'javascript:alert(1)';
     committed(ws.dispatch(surface('s', 'w', key)));
     expect(runtime.get('s')?.state).toBe('binding');
     await settle();
-    expect(runtime.get('s')).toMatchObject({ state: 'ready', capabilities: caps(), error: null });
+    expect(runtime.get('s')).toMatchObject({
+      state: 'ready',
+      capabilities: mockCapabilities(),
+      error: null,
+    });
     expect(transitions(events, 's')).toEqual(['none>unbound', 'unbound>binding', 'binding>ready']);
     expect(adapter.calls[0]).toEqual({ method: 'resolve', key });
     expect(adapter.signals[0]?.aborted).toBe(false);
@@ -57,7 +60,7 @@ describe('binding', () => {
     const record = ws.getState().surfaces.get('s');
     expect(ws.surfaceGeometry('s')).toBeDefined();
     const revision = ws.getState().revision;
-    runtime.registerAdapter(new MockAdapter());
+    runtime.registerAdapter(new MockOpaqueAdapter());
     await settle();
     expect(runtime.get('s')?.state).toBe('ready');
     expect(ws.getState().surfaces.get('s')).toBe(record);
@@ -67,7 +70,7 @@ describe('binding', () => {
 
   it('shows a placeholder for a surface with no key, and binds once the host assigns one', async () => {
     const { ws, runtime } = setup();
-    runtime.registerAdapter(new MockAdapter());
+    runtime.registerAdapter(new MockOpaqueAdapter());
     committed(ws.dispatch(surface('s', 'w', null)));
     await settle();
     expect(runtime.get('s')).toMatchObject({ state: 'unbound', unboundReason: 'no-binding-key' });
@@ -78,7 +81,7 @@ describe('binding', () => {
 
   it('leaves an unknown key unbound, and a failing resolve in a retryable error isolated to its surface', async () => {
     const { ws, runtime, events } = setup();
-    const adapter = new MockAdapter();
+    const adapter = new MockOpaqueAdapter();
     adapter.unknown.add('ghost');
     adapter.failing.add('broken');
     runtime.registerAdapter(adapter);
@@ -117,7 +120,10 @@ describe('binding', () => {
   it('times out after 15 s by default as a retryable failure, aborting the resolve', async () => {
     vi.useFakeTimers();
     const { ws, runtime } = setup();
-    const adapter = new MockAdapter();
+    // It ignores cancellation, so it can still answer after the timeout.
+    const adapter = new MockOpaqueAdapter('host.view/1', mockCapabilities(), {
+      ignoresAbort: true,
+    });
     adapter.holding.add('slow');
     runtime.registerAdapter(adapter);
     committed(ws.dispatch(surface('s', 'w', 'slow')));
@@ -142,9 +148,11 @@ describe('binding', () => {
     vi.useFakeTimers();
     const ws = makeWorkspace();
     const runtime = createSurfaceRuntime(ws, { bindingTimeoutMs: 50 });
-    const quick = new MockAdapter();
+    const quick = new MockOpaqueAdapter();
     quick.holding.add('k');
-    const patient = new MockAdapter('host.slow/1', caps(), { untimedBinding: true });
+    const patient = new MockOpaqueAdapter('host.slow/1', mockCapabilities(), {
+      untimedBinding: true,
+    });
     patient.holding.add('k');
     runtime.registerAdapter(quick);
     runtime.registerAdapter(patient);
@@ -167,7 +175,7 @@ describe('binding', () => {
   it('discards an answer when the surface is rebound while that answer is being negotiated', async () => {
     const { ws, runtime } = setup();
     let rebound = false;
-    const adapter = new MockAdapter('host.view/1', caps(), {
+    const adapter = new MockOpaqueAdapter('host.view/1', mockCapabilities(), {
       handleCapabilities: (handle) => {
         // The host reacts to the answer by pointing the surface elsewhere, before the runtime
         // has finished negotiating it.
@@ -175,7 +183,7 @@ describe('binding', () => {
           rebound = true;
           committed(ws.dispatch({ type: 'surface.rebind', id: 's', bindingKey: 'new' }));
         }
-        return caps();
+        return mockCapabilities();
       },
     });
     runtime.registerAdapter(adapter);
@@ -187,12 +195,27 @@ describe('binding', () => {
     expect(runtime.getDiagnostics().map((d) => d.code)).toContain('STALE_COMPLETION');
   });
 
+  it('never starts resolving for a surface removed before its binding began', async () => {
+    const { ws, runtime } = setup();
+    const adapter = new MockOpaqueAdapter();
+    runtime.registerAdapter(adapter);
+    committed(ws.dispatch(surface('s', 'w', 'k')));
+    committed(ws.dispatch({ type: 'surface.detach', id: 's' }));
+    await settle();
+    expect(adapter.methods()).toEqual([]);
+    expect(runtime.get('s')).toBeUndefined();
+  });
+
   it('never lets a completion that arrives after the window was deleted resurrect it', async () => {
     const { ws, runtime } = setup();
-    const adapter = new MockAdapter();
+    // An adapter that keeps working after cancellation and answers late anyway.
+    const adapter = new MockOpaqueAdapter('host.view/1', mockCapabilities(), {
+      ignoresAbort: true,
+    });
     adapter.holding.add('k');
     runtime.registerAdapter(adapter);
     committed(ws.dispatch(surface('s', 'w', 'k')));
+    await settle();
     committed(ws.dispatch({ type: 'node.delete', id: 'w', mode: 'subtree' }));
     await settle();
     expect(runtime.get('s')).toBeUndefined();
@@ -209,10 +232,13 @@ describe('binding', () => {
 
   it('never lets a stale completion replace a newer binding', async () => {
     const { ws, runtime } = setup();
-    const adapter = new MockAdapter();
+    const adapter = new MockOpaqueAdapter('host.view/1', mockCapabilities(), {
+      ignoresAbort: true,
+    });
     adapter.holding.add('old');
     runtime.registerAdapter(adapter);
     committed(ws.dispatch(surface('s', 'w', 'old')));
+    await settle();
     committed(ws.dispatch({ type: 'surface.rebind', id: 's', bindingKey: 'new' }));
     await settle();
     const bound = runtime.handleOf('s');
@@ -225,7 +251,7 @@ describe('binding', () => {
 
   it('rebinds in place when an undo brings a deleted surface back, with a new generation', async () => {
     const { ws, runtime } = setup();
-    runtime.registerAdapter(new MockAdapter());
+    runtime.registerAdapter(new MockOpaqueAdapter());
     committed(ws.dispatch(surface('s', 'w', 'k')));
     await settle();
     const first = runtime.get('s')?.generation ?? 0;
@@ -240,11 +266,11 @@ describe('binding', () => {
 
   it('rejects handle capabilities beyond the declaration or malformed ones', async () => {
     const { ws, runtime } = setup();
-    const adapter = new MockAdapter('host.view/1', caps(), {
+    const adapter = new MockOpaqueAdapter('host.view/1', mockCapabilities(), {
       handleCapabilities: (handle) =>
         handle.key === 'greedy'
-          ? caps({ viewportSharing: 'shared' })
-          : ({ ...caps(), bogus: 1 } as never),
+          ? mockCapabilities({ viewportSharing: 'shared' })
+          : ({ ...mockCapabilities(), bogus: 1 } as never),
     });
     runtime.registerAdapter(adapter);
     committed(ws.transaction([surface('a', 'w', 'greedy'), surface('b', 'w', 'odd')]));
@@ -258,30 +284,30 @@ describe('binding', () => {
 
   it('applies capability changes the endpoint announces while current, and ignores stale ones', async () => {
     const { ws, runtime, events } = setup();
-    const adapter = new MockAdapter();
+    const adapter = new MockOpaqueAdapter();
     runtime.registerAdapter(adapter);
     committed(ws.dispatch(surface('s', 'w', 'k')));
     await settle();
     const [context] = adapter.contexts;
-    context?.announceCapabilities(caps({ safeDetach: false, rebinding: false }));
+    context?.announceCapabilities(mockCapabilities({ safeDetach: false, rebinding: false }));
     await settle();
     expect(runtime.get('s')?.capabilities?.safeDetach).toBe(false);
     expect(events.filter((e) => e.type === 'presentation.capabilitiesChanged')).toHaveLength(1);
     expect(runtime.getDiagnostics().map((d) => d.code)).toContain('CAPABILITIES_CHANGED');
     committed(ws.dispatch({ type: 'surface.rebind', id: 's', bindingKey: 'k2' }));
     await settle();
-    context?.announceCapabilities(caps({ transparency: false }));
+    context?.announceCapabilities(mockCapabilities({ transparency: false }));
     context?.reportUnavailable('gone');
     await settle();
-    expect(runtime.get('s')).toMatchObject({ state: 'ready', capabilities: caps() });
-    adapter.contexts[1]?.announceCapabilities(caps({ viewportSharing: 'shared' }));
+    expect(runtime.get('s')).toMatchObject({ state: 'ready', capabilities: mockCapabilities() });
+    adapter.contexts[1]?.announceCapabilities(mockCapabilities({ viewportSharing: 'shared' }));
     await settle();
     expect(runtime.get('s')?.error?.code).toBe('UNSUPPORTED_CAPABILITY');
   });
 
   it('turns an endpoint that becomes unavailable into a retryable error, releasing its attachment', async () => {
     const { ws, runtime } = setup();
-    const adapter = new MockAdapter();
+    const adapter = new MockOpaqueAdapter();
     runtime.registerAdapter(adapter);
     committed(ws.dispatch(surface('s', 'w', 'k')));
     await settle();
@@ -298,7 +324,7 @@ describe('binding', () => {
 
   it('waits for an explicit bind when automatic binding is off', async () => {
     const { ws, runtime } = setup({ autoBind: false });
-    runtime.registerAdapter(new MockAdapter());
+    runtime.registerAdapter(new MockOpaqueAdapter());
     committed(ws.dispatch(surface('s', 'w', 'k')));
     await settle();
     expect(runtime.get('s')?.state).toBe('unbound');
