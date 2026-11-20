@@ -93,6 +93,12 @@ const VIEW = (profile: ProjectionProfile): ViewGeometry => ({
 });
 
 describe('presentation fragment IDs', () => {
+  it('keep apart IDs that differ only in where a separator falls', () => {
+    expect(fragmentId('a/b', 'c', 0)).not.toBe(fragmentId('a', 'b/c', 0));
+    expect(fragmentId('v', 's/0', 1)).not.toBe(fragmentId('v/s', '0', 1));
+    expect(fragmentId('v%2Fs', 'x', 0)).not.toBe(fragmentId('v/s', 'x', 0));
+  });
+
   it('never collide, even when IDs contain separators', () => {
     const part = fc.string({
       minLength: 1,
