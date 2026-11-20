@@ -90,6 +90,7 @@ export {
   rectGeometry,
 } from './geometry.js';
 export type { JsonValue, Metadata } from './json.js';
+export { jsonValue } from './json.js';
 export type {
   CameraRecord,
   EntityFlags,

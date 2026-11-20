@@ -12,6 +12,7 @@ export default defineConfig({
       '@swf/surfaces': source('surfaces'),
       '@swf/presentation': source('presentation'),
       '@swf/projections': source('projections'),
+      '@swf/interaction': source('interaction'),
       '@swf/conformance': source('conformance'),
     },
   },

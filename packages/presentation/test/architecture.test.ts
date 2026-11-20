@@ -11,6 +11,7 @@ const ALLOWED: Readonly<Record<string, readonly string[]>> = {
   surfaces: ['@swf/math', '@swf/core'],
   presentation: ['@swf/math', '@swf/core', '@swf/surfaces'],
   projections: ['@swf/math', '@swf/core', '@swf/presentation'],
+  interaction: ['@swf/math', '@swf/core', '@swf/presentation', '@swf/projections'],
   conformance: ['@swf/math', '@swf/core', '@swf/surfaces', '@swf/presentation'],
 };
 

@@ -1,0 +1,1078 @@
+import type {
+  CancelReason,
+  Id,
+  JsonValue,
+  Queued,
+  SceneCommand,
+  SceneState,
+  SwfErrorCode,
+  TxResult,
+  WorkspaceEvent,
+  WorkspaceMutator,
+  WorkspaceReader,
+} from '@swf/core';
+import { descendantIds, makeError, SwfFailure, VERSIONED_ID } from '@swf/core';
+import type { ViewGeometry } from '@swf/presentation';
+import type { Continuity, Projection, ProjectionModule, RayResult } from '@swf/projections';
+import { projectionFor, viewGeometryOf } from '@swf/projections';
+import type { CommandContext, CommandOutcome, InteractionCommand } from './commands.js';
+import { BUILT_IN_COMMANDS, commandIssue } from './commands.js';
+import type {
+  CommandIntent,
+  InputIntent,
+  KeyIntent,
+  PointerIntent,
+  WheelIntent,
+} from './intents.js';
+import { intentIssue } from './intents.js';
+import type {
+  InputRegion,
+  OcclusionLookup,
+  PickCandidate,
+  PickResult,
+  PresentationLookup,
+} from './pick.js';
+import { pick } from './pick.js';
+import type {
+  ClaimContext,
+  GestureClaim,
+  GestureFinish,
+  GestureHandler,
+  GestureSession,
+  InteractionPolicy,
+  PressPick,
+} from './policies.js';
+import { BUILT_IN_POLICIES, INTERACTION_API_VERSION } from './policies.js';
+import { SceneIndex } from './scene-index.js';
+import type { InteractionSettings } from './settings.js';
+import { DEFAULT_SETTINGS, keyName, mergeSettings } from './settings.js';
+
+/** Where a dispatched intent went. */
+export type Route =
+  /** Left to the content under it: the host lets the platform deliver it natively. */
+  | 'native'
+  /** Taken by a gesture (pending or running): the host keeps the pointer captured. */
+  | 'gesture'
+  /** Ran a command. */
+  | 'command'
+  /** Stopped by an active modal. */
+  | 'blocked'
+  /** Nothing handles it. */
+  | 'ignored';
+
+/** The answer to a dispatched intent. */
+export interface DispatchResult {
+  /** True when the framework handled the intent and the host must not deliver it elsewhere. */
+  readonly consumed: boolean;
+  readonly route: Route;
+  /** The region under the intent, for pointer and wheel intents that were picked. */
+  readonly region: InputRegion | null;
+  readonly target: PickCandidate | null;
+  /** The gesture the intent belongs to, once one has won the arena. */
+  readonly gestureId: string | null;
+  /** What a command or a finished gesture did. */
+  readonly operation: {
+    readonly name: string;
+    readonly outcome: CommandOutcome | GestureFinish;
+  } | null;
+  /** Why the intent was not consumed or not acted on, when it was not. */
+  readonly reason: string | null;
+}
+
+/** Notifications from the router. Hosts release platform pointer capture and styling on them. */
+export type InteractionEvent =
+  | {
+      readonly type: 'gesture.started';
+      readonly gestureId: string;
+      readonly policyId: string;
+      readonly operation: string;
+      readonly viewportId: Id;
+      readonly nodeId: Id | null;
+      readonly pointerIds: readonly number[];
+    }
+  | {
+      readonly type: 'gesture.ended';
+      readonly gestureId: string;
+      readonly viewportId: Id;
+      readonly finish: GestureFinish;
+    }
+  | {
+      readonly type: 'capture.released';
+      readonly pointerId: number;
+      readonly deviceId: string;
+      readonly viewportId: Id;
+    };
+
+/** A device's connection to the router. */
+export interface InputAdapter {
+  /** A versioned ID, `<name>/<version>`. */
+  readonly id: string;
+  readonly apiVersion: number;
+  /** Connects the device; returns a function that disconnects it. */
+  connect(dispatch: (intent: InputIntent) => DispatchResult): () => void;
+}
+
+export interface InteractionRouterOptions {
+  readonly workspace: WorkspaceReader & WorkspaceMutator;
+  /** Projection modules by ID, as a projection registry provides them. */
+  readonly projections: { get(id: string): ProjectionModule | undefined };
+  /** How each surface is presented per viewport. Default: every surface is live. */
+  readonly presentation?: PresentationLookup;
+  /** Which hits hide what lies behind them. Default: all of them. */
+  readonly occlusion?: OcclusionLookup;
+  readonly settings?: Partial<InteractionSettings>;
+  /** Default: the built-in policies. */
+  readonly policies?: readonly InteractionPolicy[];
+  /** Commands besides the built-in ones. */
+  readonly commands?: readonly InteractionCommand[];
+}
+
+/** A pointer is identified by its device and its ID on that device. */
+const pointerKey = (p: { deviceId: string; pointerId: number }) =>
+  `${p.deviceId}\u0000${String(p.pointerId)}`;
+
+interface Pressed {
+  readonly down: PointerIntent;
+  last: PointerIntent;
+  /** The longitude of its last ray, for unwrapping across a seam. */
+  continuity: Continuity | undefined;
+}
+
+interface Running {
+  readonly id: string;
+  readonly policyId: string;
+  readonly claim: GestureClaim;
+  readonly handler: GestureHandler;
+  readonly previewId: string;
+}
+
+/** The pointers pressed on one target and the gestures bidding for them. */
+interface Arena {
+  readonly key: string;
+  readonly viewportId: Id;
+  readonly pick: PressPick;
+  readonly region: InputRegion;
+  readonly pointers: Map<string, Pressed>;
+  claims: { readonly policy: InteractionPolicy; readonly claim: GestureClaim }[];
+  running: Running | null;
+  /** Set once the arena is being torn down, so a re-entrant end is ignored. */
+  ending: boolean;
+}
+
+const NOT_HANDLED = (reason: string, extra: Partial<DispatchResult> = {}): DispatchResult => ({
+  consumed: false,
+  route: 'ignored',
+  region: null,
+  target: null,
+  gestureId: null,
+  operation: null,
+  reason,
+  ...extra,
+});
+
+/**
+ * Routes normalized input: picks what lies under pointers, keeps content input native unless a
+ * takeover is active, runs a gesture arena per pressed target, holds pointer capture across seams
+ * and outside the viewport, previews gestures and commits each once, cancels them on every
+ * documented path, and runs commands for keys and programs.
+ */
+export function createInteractionRouter(options: InteractionRouterOptions): InteractionRouter {
+  return new InteractionRouter(options);
+}
+
+export class InteractionRouter {
+  readonly #workspace: WorkspaceReader & WorkspaceMutator;
+  readonly #projections: { get(id: string): ProjectionModule | undefined };
+  readonly #presentation: PresentationLookup;
+  readonly #occlusion: OcclusionLookup;
+  #settings: InteractionSettings;
+  readonly #policies = new Map<string, InteractionPolicy>();
+  readonly #commands = new Map<string, InteractionCommand>();
+  readonly #adapters = new Map<string, () => void>();
+  readonly #arenas = new Map<string, Arena>();
+  readonly #pressed = new Map<string, Arena>();
+  readonly #listeners = new Set<(event: InteractionEvent) => void>();
+  readonly #index = new SceneIndex();
+  readonly #unsubscribe: () => void;
+  #modal: readonly Id[] | null = null;
+  #takeover = false;
+  #nextGesture = 1;
+  #disposed = false;
+  #errors: string[] = [];
+
+  constructor(options: InteractionRouterOptions) {
+    this.#workspace = options.workspace;
+    this.#projections = options.projections;
+    this.#presentation = options.presentation ?? (() => 'live');
+    this.#occlusion = options.occlusion ?? (() => 'occluding');
+    this.#settings = mergeSettings(DEFAULT_SETTINGS, options.settings ?? {});
+    for (const command of [...BUILT_IN_COMMANDS, ...(options.commands ?? [])]) {
+      this.registerCommand(command);
+    }
+    for (const policy of options.policies ?? BUILT_IN_POLICIES) {
+      this.registerPolicy(policy);
+    }
+    this.#unsubscribe = this.#workspace.subscribe((event) => {
+      this.#onWorkspaceEvent(event);
+    });
+  }
+
+  /** The current settings. */
+  settings(): InteractionSettings {
+    return this.#settings;
+  }
+
+  /**
+   * Changes settings. Throws {@link SwfFailure} (`INVALID_INPUT`) naming the first invalid field,
+   * leaving the settings as they were.
+   */
+  configure(patch: Partial<InteractionSettings>): InteractionSettings {
+    this.#live();
+    const next = mergeSettings(this.#settings, patch);
+    const unknown = next.keymap.find((b) => !this.#commands.has(b.command));
+    if (unknown !== undefined) {
+      throw failure('INVALID_INPUT', `settings.keymap binds unknown command "${unknown.command}"`);
+    }
+    this.#settings = next;
+    return next;
+  }
+
+  /**
+   * Makes the given nodes (with their descendants) a modal: everything else takes no pointer
+   * input until it is cleared with null.
+   */
+  setModal(nodeIds: readonly Id[] | null): void {
+    this.#live();
+    if (nodeIds !== null) {
+      const scene = this.#workspace.getState();
+      const unknown = nodeIds.find((id) => !scene.nodes.has(id));
+      if (unknown !== undefined) {
+        throw failure('UNKNOWN_ENTITY', `no node "${unknown}" for the modal`);
+      }
+    }
+    this.#modal = nodeIds === null ? null : Object.freeze([...nodeIds]);
+  }
+
+  /** A named takeover control: while on, presses on content start gestures instead of input. */
+  setTakeover(active: boolean): void {
+    this.#live();
+    this.#takeover = active;
+  }
+
+  /** The pointers held by pending or running gestures. */
+  captures(): {
+    readonly deviceId: string;
+    readonly pointerId: number;
+    readonly gestureId: string | null;
+  }[] {
+    return [...this.#pressed.entries()].map(([key, arena]) => {
+      const pressed = arena.pointers.get(key);
+      if (pressed === undefined) {
+        throw new Error('a captured pointer has no arena entry');
+      }
+      return {
+        deviceId: pressed.down.deviceId,
+        pointerId: pressed.down.pointerId,
+        gestureId: arena.running?.id ?? null,
+      };
+    });
+  }
+
+  /** Listener failures since the last call (a listener never breaks dispatch). */
+  takeListenerErrors(): string[] {
+    const errors = this.#errors;
+    this.#errors = [];
+    return errors;
+  }
+
+  subscribe(listener: (event: InteractionEvent) => void): () => void {
+    this.#listeners.add(listener);
+    return () => {
+      this.#listeners.delete(listener);
+    };
+  }
+
+  /**
+   * Adds a policy. Throws {@link SwfFailure}: `INVALID_INPUT` for a malformed policy or a taken ID,
+   * `UNSUPPORTED_CAPABILITY` for another contract version or an operation with no command.
+   */
+  registerPolicy(policy: InteractionPolicy): () => void {
+    this.#live();
+    const raw: unknown = policy;
+    if (typeof raw !== 'object' || raw === null) {
+      throw failure('INVALID_INPUT', 'a policy must be an object');
+    }
+    if (typeof policy.id !== 'string' || !VERSIONED_ID.test(policy.id)) {
+      throw failure(
+        'INVALID_INPUT',
+        `a policy ID must look like "name/1" (got ${JSON.stringify(policy.id)})`,
+      );
+    }
+    if (typeof policy.claim !== 'function') {
+      throw failure('INVALID_INPUT', `policy "${policy.id}" must implement claim()`);
+    }
+    if (typeof policy.priority !== 'number' || !Number.isFinite(policy.priority)) {
+      throw failure('INVALID_INPUT', `policy "${policy.id}" must have a finite priority`);
+    }
+    if (policy.apiVersion !== INTERACTION_API_VERSION) {
+      throw failure(
+        'UNSUPPORTED_CAPABILITY',
+        `policy "${policy.id}" implements contract version ${String(policy.apiVersion)}, not ${String(INTERACTION_API_VERSION)}`,
+      );
+    }
+    const operations: unknown = policy.operations;
+    if (!Array.isArray(operations) || operations.length === 0) {
+      throw failure('INVALID_INPUT', `policy "${policy.id}" must list its operations`);
+    }
+    const missing = (operations as unknown[]).find(
+      (op) => typeof op !== 'string' || !this.#commands.has(op),
+    );
+    if (missing !== undefined) {
+      throw failure(
+        'UNSUPPORTED_CAPABILITY',
+        `policy "${policy.id}" performs ${JSON.stringify(missing)}, which has no command equivalent`,
+      );
+    }
+    if (this.#policies.has(policy.id)) {
+      throw failure('INVALID_INPUT', `policy "${policy.id}" is already registered`);
+    }
+    this.#policies.set(policy.id, policy);
+    return () => {
+      if (this.#policies.get(policy.id) === policy) {
+        this.#policies.delete(policy.id);
+        for (const arena of this.#arenas.values()) {
+          arena.claims = arena.claims.filter((c) => c.policy !== policy);
+        }
+      }
+    };
+  }
+
+  policyIds(): string[] {
+    return [...this.#policies.keys()].sort();
+  }
+
+  /**
+   * Adds a command. Throws {@link SwfFailure} (`INVALID_INPUT`) for a malformed command or a taken
+   * ID. A command a registered policy names cannot be removed while that policy is registered.
+   */
+  registerCommand(command: InteractionCommand): () => void {
+    this.#live();
+    const issue = commandIssue(command);
+    if (issue !== null) {
+      throw failure('INVALID_INPUT', issue);
+    }
+    if (this.#commands.has(command.id)) {
+      throw failure('INVALID_INPUT', `command "${command.id}" is already registered`);
+    }
+    this.#commands.set(command.id, command);
+    return () => {
+      if (this.#commands.get(command.id) !== command) {
+        return;
+      }
+      const user = [...this.#policies.values()].find((p) => p.operations.includes(command.id));
+      if (user !== undefined) {
+        throw failure(
+          'INVALID_TRANSITION',
+          `command "${command.id}" is the equivalent of policy "${user.id}"; remove the policy first`,
+        );
+      }
+      const bound = this.#settings.keymap.find((b) => b.command === command.id);
+      if (bound !== undefined) {
+        throw failure(
+          'INVALID_TRANSITION',
+          `command "${command.id}" is bound to the key "${bound.key}"; rebind it first`,
+        );
+      }
+      this.#commands.delete(command.id);
+    };
+  }
+
+  commandIds(): string[] {
+    return [...this.#commands.keys()].sort();
+  }
+
+  /**
+   * Connects an input device. Throws {@link SwfFailure}: `INVALID_INPUT` for a malformed adapter
+   * or a taken ID, `UNSUPPORTED_CAPABILITY` for another contract version.
+   */
+  registerInputAdapter(adapter: InputAdapter): () => void {
+    this.#live();
+    const raw: unknown = adapter;
+    if (typeof raw !== 'object' || raw === null || typeof adapter.connect !== 'function') {
+      throw failure('INVALID_INPUT', 'an input adapter must be an object with connect()');
+    }
+    if (typeof adapter.id !== 'string' || !VERSIONED_ID.test(adapter.id)) {
+      throw failure(
+        'INVALID_INPUT',
+        `an input adapter ID must look like "name/1" (got ${JSON.stringify(adapter.id)})`,
+      );
+    }
+    if (adapter.apiVersion !== INTERACTION_API_VERSION) {
+      throw failure(
+        'UNSUPPORTED_CAPABILITY',
+        `input adapter "${adapter.id}" implements contract version ${String(adapter.apiVersion)}, not ${String(INTERACTION_API_VERSION)}`,
+      );
+    }
+    if (this.#adapters.has(adapter.id)) {
+      throw failure('INVALID_INPUT', `input adapter "${adapter.id}" is already registered`);
+    }
+    const disconnect = adapter.connect((intent) => this.dispatch(intent));
+    if (typeof disconnect !== 'function') {
+      throw failure(
+        'INVALID_INPUT',
+        `input adapter "${adapter.id}" must return a disconnect function`,
+      );
+    }
+    this.#adapters.set(adapter.id, disconnect);
+    return () => {
+      if (this.#adapters.get(adapter.id) === disconnect) {
+        this.#adapters.delete(adapter.id);
+        disconnect();
+      }
+    };
+  }
+
+  /** Picks at a viewport point in the current scene. */
+  pick(viewportId: Id, x: number, y: number, continuity?: Continuity): PickResult {
+    this.#live();
+    const scene = this.#workspace.getState();
+    const view = viewGeometryOf(scene, viewportId);
+    return this.#pickIn(scene, view, x, y, continuity);
+  }
+
+  /**
+   * Routes an intent. Throws {@link SwfFailure}: `INVALID_INPUT` for a malformed intent or an
+   * unknown command, `UNKNOWN_ENTITY` for an unknown viewport.
+   */
+  dispatch(intent: InputIntent): DispatchResult {
+    this.#live();
+    const issue = intentIssue(intent);
+    if (issue !== null) {
+      throw failure('INVALID_INPUT', `intent: ${issue}`);
+    }
+    switch (intent.kind) {
+      case 'pointer':
+        return this.#pointer(intent);
+      case 'wheel':
+        return this.#wheel(intent);
+      case 'key':
+        return this.#key(intent);
+      case 'command':
+        return this.#command(intent);
+    }
+  }
+
+  /** Cancels every pending and running gesture; returns how many there were. */
+  cancel(reason: CancelReason = 'host'): number {
+    this.#live();
+    return this.#cancelWhere(() => true, reason);
+  }
+
+  /** Cancels every gesture (`view-disposed`), disconnects adapters and stops listening. */
+  dispose(): void {
+    if (this.#disposed) {
+      return;
+    }
+    this.#cancelWhere(() => true, 'view-disposed');
+    for (const disconnect of this.#adapters.values()) {
+      disconnect();
+    }
+    this.#adapters.clear();
+    this.#unsubscribe();
+    this.#listeners.clear();
+    this.#disposed = true;
+  }
+
+  // --- pointers ---------------------------------------------------------------------------
+
+  #pointer(intent: PointerIntent): DispatchResult {
+    const key = pointerKey(intent);
+    const arena = this.#pressed.get(key);
+    switch (intent.phase) {
+      case 'down':
+        if (arena !== undefined) {
+          // A second press of a pointer still held means its release was lost.
+          this.#cancelArena(arena, 'capture-lost');
+        }
+        return this.#press(intent, key);
+      case 'move':
+        return arena === undefined
+          ? NOT_HANDLED('the pointer is not captured')
+          : this.#move(arena, key, intent);
+      case 'up':
+        // A release from a pointer no gesture holds (one already ended or cancelled) is ignored.
+        return arena === undefined
+          ? NOT_HANDLED('the pointer is not captured')
+          : this.#release(arena, key, intent);
+      case 'cancel':
+        if (arena === undefined) {
+          return NOT_HANDLED('the pointer is not captured');
+        }
+        this.#cancelArena(arena, 'capture-lost');
+        return { ...this.#handled(arena), reason: 'capture lost' };
+    }
+  }
+
+  #press(intent: PointerIntent, key: string): DispatchResult {
+    const scene = this.#workspace.getState();
+    const view = viewGeometryOf(scene, intent.viewportId);
+    const result = this.#pickIn(scene, view, intent.x, intent.y);
+    if (result.kind === 'outside' || result.kind === 'unpickable') {
+      return NOT_HANDLED(result.reason);
+    }
+    const target = result.kind === 'hit' ? result.target : null;
+    const base = { region: result.region, target };
+    if (result.region === 'modal-overlay') {
+      return { ...NOT_HANDLED('a modal is active'), ...base, consumed: true, route: 'blocked' };
+    }
+    const takeover = this.#takeover || intent.modifiers[this.#settings.takeoverModifier];
+    if (result.region === 'content' && !takeover && target?.proxy !== true) {
+      return { ...NOT_HANDLED('content input stays native'), ...base, route: 'native' };
+    }
+    const arenaKey = `${intent.viewportId}\u0000${target === null ? 'background' : `node:${target.nodeId}`}`;
+    const existing = this.#arenas.get(arenaKey);
+    if (existing?.running != null) {
+      // One gesture per target: a further pointer neither joins it nor reaches anything else.
+      return {
+        ...NOT_HANDLED('the target is already in a gesture'),
+        ...base,
+        consumed: true,
+      };
+    }
+    const arena: Arena = existing ?? {
+      key: arenaKey,
+      viewportId: intent.viewportId,
+      pick: result,
+      region: result.region,
+      pointers: new Map(),
+      claims: [],
+      running: null,
+      ending: false,
+    };
+    arena.pointers.set(key, { down: intent, last: intent, continuity: undefined });
+    const claims = this.#claims(arena, scene, takeover);
+    if (claims.length === 0) {
+      arena.pointers.delete(key);
+      return { ...NOT_HANDLED('no policy takes this press'), ...base };
+    }
+    arena.claims = claims;
+    this.#arenas.set(arenaKey, arena);
+    this.#pressed.set(key, arena);
+    return { ...this.#handled(arena), ...base };
+  }
+
+  #claims(arena: Arena, scene: SceneState, takeover: boolean) {
+    const context: ClaimContext = {
+      viewportId: arena.viewportId,
+      scene,
+      pick: arena.pick,
+      region: arena.region,
+      pointers: [...arena.pointers.values()].map((p) => p.down),
+      takeover,
+      settings: this.#settings,
+    };
+    const claims: Arena['claims'] = [];
+    for (const policy of this.#policies.values()) {
+      const claim = policy.claim(context);
+      if (claim === null) {
+        continue;
+      }
+      if (claim.pointers !== context.pointers.length) {
+        continue;
+      }
+      if (!policy.operations.includes(claim.operation)) {
+        throw failure(
+          'UNSUPPORTED_CAPABILITY',
+          `policy "${policy.id}" claimed operation "${claim.operation}", which it does not declare`,
+        );
+      }
+      claims.push({ policy, claim });
+    }
+    return claims;
+  }
+
+  #move(arena: Arena, key: string, intent: PointerIntent): DispatchResult {
+    const pressed = arena.pointers.get(key);
+    if (pressed === undefined) {
+      return NOT_HANDLED('the pointer is not captured');
+    }
+    pressed.last = intent;
+    if (arena.running !== null) {
+      this.#guard(arena, () => {
+        arena.running?.handler.update(this.#lasts(arena));
+      });
+      return this.#handled(arena);
+    }
+    const slop = this.#settings.slopPx;
+    const moved = Math.hypot(intent.x - pressed.down.x, intent.y - pressed.down.y);
+    if (moved <= slop) {
+      return this.#handled(arena);
+    }
+    const winner = best(arena.claims, 'drag', arena.pointers.size);
+    if (winner === null) {
+      this.#forget(arena);
+      return { ...this.#handled(arena), gestureId: null, reason: 'no gesture drags this press' };
+    }
+    this.#begin(arena, winner);
+    this.#guard(arena, () => {
+      arena.running?.handler.update(this.#lasts(arena));
+    });
+    return this.#handled(arena);
+  }
+
+  #release(arena: Arena, key: string, intent: PointerIntent): DispatchResult {
+    const pressed = arena.pointers.get(key);
+    if (pressed !== undefined) {
+      pressed.last = intent;
+    }
+    if (arena.running === null) {
+      const winner = best(arena.claims, 'tap', arena.pointers.size);
+      if (winner === null) {
+        this.#forget(arena);
+        return { ...this.#handled(arena), reason: 'no gesture takes a tap here' };
+      }
+      this.#begin(arena, winner);
+    }
+    const running = arena.running;
+    if (running === null) {
+      throw new Error('a gesture that began is not running');
+    }
+    const finish = this.#guard(arena, () => running.handler.finish());
+    const result: DispatchResult = {
+      ...this.#handled(arena),
+      operation: { name: running.claim.operation, outcome: finish },
+    };
+    if (finish.outcome === 'cancelled') {
+      const { reason } = finish;
+      this.#guardQuietly(() => {
+        running.handler.cancel(reason);
+      });
+    }
+    this.#end(arena, finish);
+    return result;
+  }
+
+  #begin(arena: Arena, winner: { policy: InteractionPolicy; claim: GestureClaim }): void {
+    const id = `gesture-${String(this.#nextGesture++)}`;
+    const previewId = `interaction:${id}`;
+    const session = this.#session(arena, id, previewId);
+    let handler: GestureHandler | undefined;
+    try {
+      handler = winner.claim.begin(session);
+    } catch (error) {
+      this.#forget(arena);
+      throw error;
+    }
+    arena.running = { id, policyId: winner.policy.id, claim: winner.claim, handler, previewId };
+    arena.claims = [];
+    this.#emit({
+      type: 'gesture.started',
+      gestureId: id,
+      policyId: winner.policy.id,
+      operation: winner.claim.operation,
+      viewportId: arena.viewportId,
+      nodeId: winner.claim.nodeId,
+      pointerIds: [...arena.pointers.values()].map((p) => p.down.pointerId),
+    });
+  }
+
+  #session(arena: Arena, gestureId: string, previewId: string): GestureSession {
+    const workspace = this.#workspace;
+    const viewportId = arena.viewportId;
+    const user = { source: 'user' } as const;
+    const view = () => viewGeometryOf(workspace.getState(), viewportId);
+    const projection = (v: ViewGeometry) => this.#projection(v);
+    return Object.freeze({
+      gestureId,
+      viewportId,
+      settings: this.#settings,
+      scene: () => workspace.getState(),
+      view,
+      projection: () => projection(view()),
+      ray: (pointer: PointerIntent): RayResult => {
+        const pressed = arena.pointers.get(pointerKey(pointer));
+        const v = view();
+        const result = projection(v).interactionRay(pointer.x, pointer.y, v, pressed?.continuity);
+        if (result.kind === 'ray' && pressed !== undefined) {
+          pressed.continuity = { previousLongitude: result.longitude };
+        }
+        return result;
+      },
+      preview: (commands: readonly SceneCommand[]) =>
+        settled(workspace.preview(previewId, commands, user)),
+      commit: (commands: readonly SceneCommand[]) =>
+        settled(workspace.transaction(commands, { ...user, previewId })),
+      transact: (commands: readonly SceneCommand[]) =>
+        settled(workspace.transaction(commands, user)),
+      apply: (commands: readonly SceneCommand[]): TxResult => workspace.transaction(commands, user),
+    });
+  }
+
+  /** Ends an arena: discards a leftover preview, releases its pointers, reports the outcome. */
+  #end(arena: Arena, finish: GestureFinish): void {
+    if (arena.ending) {
+      return;
+    }
+    arena.ending = true;
+    const running = arena.running;
+    if (running !== null && this.#workspace.getPreview(running.previewId) !== undefined) {
+      this.#workspace.cancelPreview(
+        running.previewId,
+        finish.outcome === 'cancelled' ? finish.reason : 'host',
+      );
+    }
+    this.#forget(arena);
+    if (running !== null) {
+      this.#emit({
+        type: 'gesture.ended',
+        gestureId: running.id,
+        viewportId: arena.viewportId,
+        finish,
+      });
+    }
+  }
+
+  /** Releases an arena's pointers and forgets it. */
+  #forget(arena: Arena): void {
+    arena.ending = true;
+    if (this.#arenas.get(arena.key) === arena) {
+      this.#arenas.delete(arena.key);
+    }
+    for (const [key, pressed] of arena.pointers) {
+      if (this.#pressed.get(key) === arena) {
+        this.#pressed.delete(key);
+        this.#emit({
+          type: 'capture.released',
+          pointerId: pressed.down.pointerId,
+          deviceId: pressed.down.deviceId,
+          viewportId: arena.viewportId,
+        });
+      }
+    }
+  }
+
+  #cancelArena(arena: Arena, reason: CancelReason): void {
+    if (arena.ending) {
+      return;
+    }
+    const running = arena.running;
+    if (running === null) {
+      this.#forget(arena);
+      return;
+    }
+    this.#guardQuietly(() => {
+      running.handler.cancel(reason);
+    });
+    this.#end(arena, { outcome: 'cancelled', reason, error: null });
+  }
+
+  #cancelWhere(match: (arena: Arena) => boolean, reason: CancelReason): number {
+    const arenas = [...this.#arenas.values()].filter(match);
+    for (const arena of arenas) {
+      this.#cancelArena(arena, reason);
+    }
+    return arenas.length;
+  }
+
+  /**
+   * Runs gesture code; if it throws, the gesture is cancelled (`host`) so nothing is left captured
+   * or previewed, and the error propagates.
+   */
+  #guard<T>(arena: Arena, run: () => T): T {
+    try {
+      return run();
+    } catch (error) {
+      this.#cancelArena(arena, 'host');
+      throw error;
+    }
+  }
+
+  #guardQuietly(run: () => void): void {
+    try {
+      run();
+    } catch (error) {
+      this.#errors.push(`a gesture failed while cancelling: ${messageOf(error)}`);
+    }
+  }
+
+  #lasts(arena: Arena): PointerIntent[] {
+    return [...arena.pointers.values()].map((p) => p.last);
+  }
+
+  #handled(arena: Arena): DispatchResult {
+    return {
+      consumed: true,
+      route: 'gesture',
+      region: arena.region,
+      target: arena.pick.kind === 'hit' ? arena.pick.target : null,
+      gestureId: arena.running?.id ?? null,
+      operation: null,
+      reason: null,
+    };
+  }
+
+  // --- wheel, keys and commands -----------------------------------------------------------
+
+  #wheel(intent: WheelIntent): DispatchResult {
+    const scene = this.#workspace.getState();
+    for (const arena of this.#arenas.values()) {
+      const handler = arena.running?.handler;
+      if (arena.viewportId === intent.viewportId && handler?.wheel !== undefined) {
+        if (this.#guard(arena, () => handler.wheel?.(intent) ?? false)) {
+          return this.#handled(arena);
+        }
+      }
+    }
+    const view = viewGeometryOf(scene, intent.viewportId);
+    const result = this.#pickIn(scene, view, intent.x, intent.y);
+    if (result.kind !== 'hit') {
+      return NOT_HANDLED(
+        result.kind === 'background' ? 'nothing spatial is under the wheel' : result.reason,
+        result.kind === 'background' ? { region: result.region } : {},
+      );
+    }
+    const base = { region: result.region, target: result.target };
+    if (result.region === 'modal-overlay') {
+      return { ...NOT_HANDLED('a modal is active'), ...base, consumed: true, route: 'blocked' };
+    }
+    // Wheel over a window scrolls its content (or the page) unless the depth modifier is held.
+    if (!intent.modifiers[this.#settings.depthModifier]) {
+      return {
+        ...NOT_HANDLED('the wheel stays with the content without the depth modifier'),
+        ...base,
+        route: result.region === 'content' ? 'native' : 'ignored',
+      };
+    }
+    const outcome = this.#run('node.move', {
+      nodeId: result.target.nodeId,
+      viewportId: intent.viewportId,
+      depth: -intent.deltaY * this.#settings.wheelDepthPerPixel,
+    });
+    return {
+      consumed: true,
+      route: 'command',
+      ...base,
+      gestureId: null,
+      operation: { name: 'node.move', outcome },
+      reason: null,
+    };
+  }
+
+  #key(intent: KeyIntent): DispatchResult {
+    if (intent.phase === 'down' && intent.key === 'Escape' && this.#arenas.size > 0) {
+      const count = this.#cancelWhere(() => true, 'escape');
+      return commandResult('gesture.cancel', { status: 'cancelled', count });
+    }
+    if (intent.focus === 'content') {
+      return { ...NOT_HANDLED('keyboard focus is in content'), route: 'native' };
+    }
+    if (intent.phase !== 'down') {
+      return NOT_HANDLED('key releases run nothing');
+    }
+    const held = (['shift', 'ctrl', 'alt', 'meta'] as const).filter((m) => intent.modifiers[m]);
+    const binding = this.#settings.keymap.find(
+      (b) =>
+        keyName(b.key) === keyName(intent.key) &&
+        b.modifiers.length === held.length &&
+        b.modifiers.every((m) => intent.modifiers[m]),
+    );
+    if (binding === undefined) {
+      return NOT_HANDLED('no binding for this key');
+    }
+    const bound = binding.args;
+    const args =
+      isRecord(bound) &&
+      intent.viewportId !== null &&
+      VIEWPORT_COMMANDS.has(binding.command) &&
+      !('viewportId' in bound)
+        ? { ...bound, viewportId: intent.viewportId }
+        : bound;
+    return commandResult(binding.command, this.#run(binding.command, args));
+  }
+
+  #command(intent: CommandIntent): DispatchResult {
+    return commandResult(intent.command, this.#run(intent.command, intent.args));
+  }
+
+  #run(id: string, args: JsonValue): CommandOutcome {
+    const command = this.#commands.get(id);
+    if (command === undefined) {
+      throw failure('INVALID_INPUT', `no command "${id}"`);
+    }
+    const context: CommandContext = {
+      workspace: this.#workspace,
+      settings: this.#settings,
+      view: (viewportId: Id) => viewGeometryOf(this.#workspace.getState(), viewportId),
+      cancelGestures: (reason: CancelReason) => this.#cancelWhere(() => true, reason),
+    };
+    return command.run(args, context);
+  }
+
+  // --- picking and workspace events -------------------------------------------------------
+
+  #projection(view: ViewGeometry): Projection {
+    const module = this.#projections.get(view.projectionId);
+    if (module === undefined) {
+      throw failure(
+        'UNSUPPORTED_CAPABILITY',
+        `viewport "${view.viewportId}" uses projection "${view.projectionId}", which is not registered`,
+      );
+    }
+    return projectionFor(module, view);
+  }
+
+  #pickIn(
+    scene: SceneState,
+    view: ViewGeometry,
+    x: number,
+    y: number,
+    continuity?: Continuity,
+  ): PickResult {
+    this.#index.sync(scene, (id) => this.#workspace.surfaceGeometry(id));
+    const modal =
+      this.#modal === null
+        ? null
+        : new Set(
+            this.#modal.flatMap((id) =>
+              scene.nodes.has(id) ? [id, ...descendantIds(scene.nodes, id)] : [],
+            ),
+          );
+    return pick(
+      {
+        scene,
+        view,
+        projection: this.#projection(view),
+        index: this.#index,
+        geometry: (id) => this.#workspace.surfaceGeometry(id),
+        options: {
+          handlePx: this.#settings.handlePx,
+          depthTolerance: this.#settings.depthTolerance,
+          modal,
+          presentation: this.#presentation,
+          occlusion: this.#occlusion,
+        },
+      },
+      x,
+      y,
+      continuity,
+    );
+  }
+
+  #onWorkspaceEvent(event: WorkspaceEvent): void {
+    switch (event.type) {
+      case 'viewport.deleted': {
+        const { viewportId } = event.payload;
+        this.#cancelWhere((a) => a.viewportId === viewportId, 'view-disposed');
+        return;
+      }
+      case 'node.deleted':
+      case 'node.archived':
+      case 'surface.detached':
+      case 'surface.moved': {
+        const scene = this.#workspace.getState();
+        this.#cancelWhere((a) => !targetPresent(a, scene), 'target-detached');
+        return;
+      }
+      case 'preview.cancelled': {
+        const { previewId, reason } = event.payload;
+        const arena = [...this.#arenas.values()].find((a) => a.running?.previewId === previewId);
+        if (arena !== undefined) {
+          const scene = this.#workspace.getState();
+          this.#cancelArena(arena, targetPresent(arena, scene) ? reason : 'target-detached');
+        }
+        return;
+      }
+      case 'workspace.disposed':
+        this.#cancelWhere(() => true, 'workspace-disposed');
+        return;
+      default:
+        return;
+    }
+  }
+
+  #emit(event: InteractionEvent): void {
+    for (const listener of [...this.#listeners]) {
+      try {
+        listener(event);
+      } catch (error) {
+        this.#errors.push(`a listener threw while handling ${event.type}: ${messageOf(error)}`);
+      }
+    }
+  }
+
+  #live(): void {
+    if (this.#disposed) {
+      throw failure('INVALID_TRANSITION', 'the interaction router is disposed');
+    }
+  }
+}
+
+/** Commands that act in a viewport: a key binding supplies the key's viewport. */
+const VIEWPORT_COMMANDS = new Set(['node.move', 'camera.turn', 'orbit.turn']);
+
+/** The best claim of a kind for a pointer count: highest priority, then lowest policy ID. */
+function best(
+  claims: Arena['claims'],
+  kind: 'drag' | 'tap',
+  pointers: number,
+): Arena['claims'][number] | null {
+  const eligible = claims.filter((c) => c.claim.kind === kind && c.claim.pointers === pointers);
+  eligible.sort(
+    (a, b) =>
+      b.policy.priority - a.policy.priority ||
+      (a.policy.id < b.policy.id ? -1 : a.policy.id > b.policy.id ? 1 : 0),
+  );
+  return eligible[0] ?? null;
+}
+
+/** Whether the arena's target (node, and surface when one was hit) is still active in the scene. */
+function targetPresent(arena: Arena, scene: SceneState): boolean {
+  const nodeId =
+    arena.running?.claim.nodeId ?? (arena.pick.kind === 'hit' ? arena.pick.target.nodeId : null);
+  if (nodeId !== null && scene.nodes.get(nodeId)?.status !== 'active') {
+    return false;
+  }
+  if (arena.pick.kind === 'hit' && arena.pick.target.surfaceId !== null) {
+    const surface = scene.surfaces.get(arena.pick.target.surfaceId);
+    return surface?.ownerNodeId === arena.pick.target.nodeId;
+  }
+  return true;
+}
+
+function isRecord(value: JsonValue): value is Readonly<Record<string, JsonValue>> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function commandResult(name: string, outcome: CommandOutcome): DispatchResult {
+  return {
+    consumed: true,
+    route: 'command',
+    region: null,
+    target: null,
+    gestureId: null,
+    operation: { name, outcome },
+    reason: null,
+  };
+}
+
+function settled<T>(result: T | Queued<T>): T {
+  if (isQueued(result)) {
+    throw failure(
+      'INVALID_TRANSITION',
+      'input cannot be dispatched from inside a workspace event listener',
+    );
+  }
+  return result;
+}
+
+function isQueued<T>(result: T | Queued<T>): result is Queued<T> {
+  return (result as { readonly status: string }).status === 'queued';
+}
+
+function failure(code: SwfErrorCode, message: string): SwfFailure {
+  return new SwfFailure(makeError(code, message));
+}
+
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}

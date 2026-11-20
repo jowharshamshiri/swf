@@ -17,6 +17,9 @@
       "path": "packages/projections/tsconfig.build.json"
     },
     {
+      "path": "packages/interaction/tsconfig.build.json"
+    },
+    {
       "path": "packages/conformance/tsconfig.build.json"
     }
   ]

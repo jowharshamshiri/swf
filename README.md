@@ -25,6 +25,10 @@ interaction; the host owns whatever is presented.
 - `@swf/projections`: the projection contract (forward and inverse mapping, placing surfaces as
   fragments, visibility, interaction rays), registration that validates a projection before use,
   and the equirectangular reference projection with seam-continuous inverse mapping.
+- `@swf/interaction`: device-neutral input. Pointer, wheel, keyboard and programmatic intents;
+  picking through the projection's inverse and a spatial index; input regions that keep content
+  input native; a gesture arena with pointer capture; drags that preview and commit once;
+  explicit cancellation; and a named command for every spatial operation.
 - `@swf/conformance`: suites that check an adapter, a renderer or a compositor against the
   contracts, with reference mocks to run them against.
 
@@ -160,10 +164,11 @@ import {
 } from '@swf/projections';
 
 const presentation = createPresentationRegistry();
-createProjectionRegistry({
+const projections = createProjectionRegistry({
   kinds: workspace.mutator(),
   projectors: presentation.registrar(),
-}).register(equirectangular);
+});
+projections.register(equirectangular);
 
 workspace.transaction([
   { type: 'camera.create', camera: { id: 'eye', rotation: cameraRotation(0, 0) } },
@@ -200,6 +205,62 @@ longitude of a drag, the longitude is unwrapped so it stays continuous across th
 Renderers, compositors and projectors register by versioned ID with
 `createPresentationRegistry()`. Each module can be handed only the scope it needs:
 `workspace.reader()`, `workspace.mutator()`, `surfaces.binder()` and `registry.registrar()`.
+
+## Interaction
+
+```ts
+import { createInteractionRouter, createSyntheticInput } from '@swf/interaction';
+
+const router = createInteractionRouter({ workspace, projections });
+
+// A device adapter turns platform events into intents; this one is driven by a program.
+const input = createSyntheticInput();
+router.registerInputAdapter(input);
+
+const press = input.pointer('down', 'main-viewport', 812, 240);
+if (!press.consumed) {
+  // Over live content: let the platform deliver the event natively.
+}
+input.pointer('move', 'main-viewport', 900, 260);
+input.pointer('up', 'main-viewport', 900, 260);
+
+input.command('node.move', { viewportId: 'main-viewport', right: 0.2 });
+```
+
+Every device reaches the router as the same intents: pointer samples carry the viewport, device,
+pointer ID, position, buttons, modifiers, phase, timestamp and, when the device has them,
+pressure, tilt and twist. `dispatch` answers whether the framework consumed the intent; anything
+it does not consume is the host's to deliver natively.
+
+Picking follows the viewport's projection inverse to a world ray, finds candidates in a
+bounding-volume tree kept in step with the scene, and intersects their exact geometry. Candidates
+are ordered by presentation priority, occlusion and depth, and each reports its window, surface,
+local point, UV and region: `content`, `chrome`, `resize-handle`, `background` or
+`modal-overlay`. A surface split by a seam is one surface in the world, so it always picks as one
+Surface ID. A surface shown only as a proxy is marked so, with focus and activation offered in
+place of direct input.
+
+Presses on content stay with the content unless a takeover is active (the takeover modifier,
+Alt by default, or `setTakeover(true)`), and the wheel over content stays with it unless the
+depth modifier (Shift by default) is held. Pressed pointers enter a gesture arena per target;
+registered policies bid for them, and the arena resolves to the highest-priority drag once a
+pointer moves past the slop, or to a tap when they lift before that. Two pointers pressed on one
+window go to two-pointer gestures; a pointer pressed on a window already in a gesture is refused
+rather than starting a second one.
+
+A window drag keeps the grabbed point under the pointer on a plane facing the camera (or on a
+world plane, or around the camera at a constant distance), with depth changed only by the wheel
+during the drag. It previews on every move, keeps its capture across the seam, outside the
+viewport and through viewport resizes, and commits once on release. Escape, a lost capture, a
+deleted viewport or target, a rejected commit, a host `cancel()`, an invalidated preview and
+workspace disposal each end it without a change, release its pointers (`capture.released`) and
+report the reason (`gesture.ended`). Background drags turn the camera or the orbit root, as the
+viewport's `navigation` setting says.
+
+Every operation a gesture performs is also a command (`node.move`, `node.resize`,
+`node.rotate`, `camera.turn`, `orbit.turn`, `selection.set`, `focus.set` and more), and a policy
+is registered only if its operations are. The default keymap moves, turns, resizes and selects
+with the keyboard; `configure` changes it and the other settings, validating every field.
 
 ## Checking an implementation
 

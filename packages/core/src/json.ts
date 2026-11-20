@@ -1,4 +1,4 @@
-import { RejectionSignal } from './errors.js';
+import { makeError, RejectionSignal, SwfFailure } from './errors.js';
 
 /** A JSON-compatible value with finite numbers only. */
 export type JsonValue =
@@ -57,6 +57,23 @@ export function copyJson(value: unknown, path: string, depth = 0): JsonValue {
   throw new RejectionSignal('INVALID_INPUT', `${path} must be JSON data (got ${describe(value)})`, {
     path,
   });
+}
+
+/**
+ * A deep, frozen copy of `value` as JSON data, by the same rules the scene applies to metadata and
+ * configurations. Throws {@link SwfFailure} (`INVALID_INPUT`) naming the failing path.
+ */
+export function jsonValue(value: unknown, path: string): JsonValue {
+  try {
+    return copyJson(value, path);
+  } catch (error) {
+    if (error instanceof RejectionSignal) {
+      throw new SwfFailure(
+        makeError(error.code, error.message, error.path === undefined ? {} : { path: error.path }),
+      );
+    }
+    throw error;
+  }
 }
 
 /** Validates and copies a metadata map: namespaced keys and JSON values. */
