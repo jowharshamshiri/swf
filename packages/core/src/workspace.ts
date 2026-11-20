@@ -1,0 +1,1164 @@
+import type { ApplyOutcome } from './apply.js';
+import { applyCommands } from './apply.js';
+import type { EventSource, SceneCommand, SceneCommandType } from './commands.js';
+import { SCENE_COMMAND_TYPES } from './commands.js';
+import type { Constraint } from './constraints.js';
+import { sortConstraints } from './constraints.js';
+import type { PendingEvent } from './diff.js';
+import { diffScenes } from './diff.js';
+import type { SwfError } from './errors.js';
+import { makeError, RejectionSignal, SwfFailure } from './errors.js';
+import type { CancelReason, OperationPhase, WorkspaceEvent } from './events.js';
+import { describe } from './json.js';
+import type { Id, NodeRecord, SceneState } from './model.js';
+import type { NodeQuery } from './query.js';
+import { effectiveState, findNodes } from './query.js';
+import { Table } from './table.js';
+
+/** Where a workspace is in its life. A disposed workspace rejects every operation. */
+export type WorkspaceLifecycle = 'ready' | 'disposing' | 'disposed';
+
+export interface WorkspaceOptions {
+  /** The workspace's ID, unique within the host. */
+  readonly id: Id;
+  /** How many committed layout transactions can be undone: 0 to 10000. Default 100. */
+  readonly undoCapacity?: number;
+  /** How many idempotency keys are remembered for this session: at least 1. Default 1024. */
+  readonly idempotencyCapacity?: number;
+  /** How many diagnostics `getDiagnostics` keeps: at least 1. Default 100. */
+  readonly diagnosticsCapacity?: number;
+  /** The clock for timestamps, in milliseconds. Default `Date.now`. */
+  readonly now?: () => number;
+  /**
+   * Supplies IDs for nodes created without one; returning an ID already in use rejects the
+   * transaction. Default: the next unused of `node-1`, `node-2`, ... in this workspace, which
+   * keeps scenes reproducible.
+   */
+  readonly createId?: () => Id;
+  readonly constraints?: readonly Constraint[];
+  /** Receives every diagnostic as it is recorded. A sink that throws is ignored. */
+  readonly onDiagnostic?: (diagnostic: Diagnostic) => void;
+}
+
+export interface TxOptions {
+  /** Commit only if the scene is still at this revision; otherwise reject with `CONFLICT`. */
+  readonly expectedRevision?: number;
+  /**
+   * Repeating a committed transaction with the same key and commands returns the first result
+   * without applying it again. Reusing a key for different commands is rejected.
+   */
+  readonly idempotencyKey?: string;
+  /** Default `host`. */
+  readonly source?: EventSource;
+  /** A host correlation ID, carried on the events as their causation ID. */
+  readonly causeId?: string;
+  /** The preview this transaction commits; the preview ends with the transaction. */
+  readonly previewId?: string;
+}
+
+export interface TxCommitted {
+  readonly status: 'committed';
+  readonly transactionId: string;
+  readonly revision: number;
+  readonly previousRevision: number;
+  readonly createdIds: readonly Id[];
+  readonly changedNodeIds: readonly Id[];
+  /** True when this result is a replay for a repeated idempotency key. */
+  readonly replayed: boolean;
+}
+
+export interface TxRejected {
+  readonly status: 'rejected';
+  readonly transactionId: string;
+  readonly error: SwfError;
+  /** The scene's revision, unchanged by the rejection. */
+  readonly revision: number;
+}
+
+/** An operation requested from inside an event listener: it runs after the current delivery. */
+export interface Queued<T> {
+  readonly status: 'queued';
+  readonly completion: Promise<T>;
+}
+
+export type TxOutcome = TxCommitted | TxRejected;
+export type TxResult = TxOutcome | Queued<TxOutcome>;
+
+export interface PreviewApplied {
+  readonly status: 'previewed';
+  readonly previewId: string;
+  readonly changedNodeIds: readonly Id[];
+}
+
+export type PreviewOutcome = PreviewApplied | TxRejected;
+export type PreviewResult = PreviewOutcome | Queued<PreviewOutcome>;
+
+/** A committed layout transaction that undo can reverse. */
+export interface HistoryEntry {
+  readonly transactionId: string;
+  readonly timestamp: number;
+  readonly source: EventSource;
+  readonly previousRevision: number;
+  readonly revision: number;
+  readonly commandTypes: readonly SceneCommandType[];
+  readonly changedNodeIds: readonly Id[];
+}
+
+export interface Diagnostic {
+  readonly code: 'LISTENER_THREW';
+  readonly message: string;
+  readonly timestamp: number;
+  readonly details: Readonly<Record<string, string>>;
+}
+
+export type Listener = (event: WorkspaceEvent) => void;
+
+/** Read-only access to a workspace, for modules that must not change it. */
+export interface WorkspaceReader {
+  readonly id: Id;
+  getState(): SceneState;
+  getPreview(previewId: string): SceneState | undefined;
+  subscribe(listener: Listener): () => void;
+  watch<T>(
+    selector: (state: SceneState) => T,
+    listener: (value: T, revision: number) => void,
+    equals?: (a: T, b: T) => boolean,
+  ): () => void;
+  findNodes(query: NodeQuery): Id[];
+  history(): readonly HistoryEntry[];
+}
+
+/** An independent spatial scene and the operations on it. */
+export interface Workspace extends WorkspaceReader {
+  readonly lifecycle: WorkspaceLifecycle;
+  /** Applies `commands` atomically: all commit as one revision, or none do. */
+  transaction(commands: readonly SceneCommand[], options?: TxOptions): TxResult;
+  /** A transaction of one command. */
+  dispatch(command: SceneCommand, options?: TxOptions): TxResult;
+  /**
+   * Proposes `commands` without committing them: the result is readable with `getPreview` and is
+   * never persisted or undoable. A later preview with the same ID replaces it; a rejected one
+   * leaves the last valid preview in place.
+   */
+  preview(
+    previewId: string,
+    commands: readonly SceneCommand[],
+    options?: Pick<TxOptions, 'source' | 'causeId'>,
+  ): PreviewResult;
+  /** Ends a preview without committing it. Returns false when there is no such preview. */
+  cancelPreview(previewId: string, reason: CancelReason): boolean | Queued<boolean>;
+  /** Reverses the most recent undoable transaction as a new commit. */
+  undo(options?: Pick<TxOptions, 'source' | 'causeId'>): TxResult;
+  /** Re-applies the most recently undone transaction as a new commit. */
+  redo(options?: Pick<TxOptions, 'source' | 'causeId'>): TxResult;
+  canUndo(): boolean;
+  canRedo(): boolean;
+  /** Adds a constraint; the returned function removes it (and is safe to call twice). */
+  registerConstraint(constraint: Constraint): () => void;
+  getDiagnostics(): readonly Diagnostic[];
+  reader(): WorkspaceReader;
+  /**
+   * Releases the workspace's listeners, previews and history. It never touches anything the host
+   * owns. Safe to call more than once.
+   */
+  dispose(): Promise<void>;
+}
+
+const EVENT_SOURCES: readonly EventSource[] = ['user', 'host', 'policy', 'restore', 'system'];
+const OPTION_KEYS = [
+  'id',
+  'undoCapacity',
+  'idempotencyCapacity',
+  'diagnosticsCapacity',
+  'now',
+  'createId',
+  'constraints',
+  'onDiagnostic',
+];
+
+/** Creates an empty, independent workspace. Throws {@link SwfFailure} for invalid options. */
+export function createWorkspace(options: WorkspaceOptions): Workspace {
+  return new WorkspaceImpl(options);
+}
+
+interface UndoRecord {
+  readonly entry: HistoryEntry;
+  readonly before: ReadonlyMap<Id, NodeRecord | undefined>;
+  readonly after: ReadonlyMap<Id, NodeRecord | undefined>;
+  readonly rootsBefore: readonly Id[];
+  readonly rootsAfter: readonly Id[];
+}
+
+interface PreviewRecord {
+  readonly commands: readonly SceneCommand[];
+  readonly source: EventSource;
+  readonly causeId: string | null;
+  state: SceneState;
+}
+
+interface Meta {
+  readonly transactionId: string;
+  readonly source: EventSource;
+  readonly causeId: string | null;
+  readonly timestamp: number;
+}
+
+class WorkspaceImpl implements Workspace {
+  readonly id: Id;
+  #lifecycle: WorkspaceLifecycle = 'ready';
+  #state: SceneState;
+  readonly #undoCapacity: number;
+  readonly #idempotencyCapacity: number;
+  readonly #diagnosticsCapacity: number;
+  readonly #now: () => number;
+  readonly #createId: (inUse: (id: Id) => boolean) => Id;
+  readonly #onDiagnostic: ((d: Diagnostic) => void) | undefined;
+  readonly #constraints = new Map<string, Constraint>();
+  #sortedConstraints: readonly Constraint[] = [];
+  readonly #listeners = new Set<Listener>();
+  readonly #outbox: WorkspaceEvent[] = [];
+  readonly #queue: (() => void)[] = [];
+  #delivering = false;
+  readonly #undo: UndoRecord[] = [];
+  readonly #redo: UndoRecord[] = [];
+  readonly #idempotency = new Map<string, { fingerprint: string; result: TxCommitted }>();
+  readonly #previews = new Map<string, PreviewRecord>();
+  readonly #diagnostics: Diagnostic[] = [];
+  #txSeq = 0;
+  #eventSeq = 0;
+  #idSeq = 0;
+  #disposalAnnounced = false;
+  #disposed: Promise<void> | null = null;
+  #resolveDisposed: (() => void) | null = null;
+
+  constructor(options: WorkspaceOptions) {
+    const record = checkOptions(options);
+    this.id = record.id;
+    this.#undoCapacity = record.undoCapacity;
+    this.#idempotencyCapacity = record.idempotencyCapacity;
+    this.#diagnosticsCapacity = record.diagnosticsCapacity;
+    this.#now = record.now;
+    const hostCreateId = record.createId;
+    this.#createId =
+      hostCreateId === undefined
+        ? (inUse) => {
+            let id: Id;
+            do {
+              this.#idSeq += 1;
+              id = `node-${String(this.#idSeq)}`;
+            } while (inUse(id));
+            return id;
+          }
+        : () => hostCreateId();
+    this.#onDiagnostic = record.onDiagnostic;
+    for (const constraint of record.constraints) {
+      this.#addConstraint(constraint);
+    }
+    this.#state = Object.freeze({
+      workspaceId: this.id,
+      revision: 0,
+      rootIds: Object.freeze([]),
+      nodes: Table.empty<NodeRecord>(),
+      selection: Object.freeze([]),
+      focusedId: null,
+    });
+  }
+
+  get lifecycle(): WorkspaceLifecycle {
+    return this.#lifecycle;
+  }
+
+  getState(): SceneState {
+    return this.#state;
+  }
+
+  getPreview(previewId: string): SceneState | undefined {
+    return this.#previews.get(previewId)?.state;
+  }
+
+  findNodes(query: NodeQuery): Id[] {
+    return findNodes(this.#state, query);
+  }
+
+  history(): readonly HistoryEntry[] {
+    return this.#undo.map((record) => record.entry);
+  }
+
+  canUndo(): boolean {
+    return this.#lifecycle === 'ready' && this.#undo.length > 0;
+  }
+
+  canRedo(): boolean {
+    return this.#lifecycle === 'ready' && this.#redo.length > 0;
+  }
+
+  getDiagnostics(): readonly Diagnostic[] {
+    return [...this.#diagnostics];
+  }
+
+  reader(): WorkspaceReader {
+    return Object.freeze({
+      id: this.id,
+      getState: () => this.getState(),
+      getPreview: (previewId: string) => this.getPreview(previewId),
+      subscribe: (listener: Listener) => this.subscribe(listener),
+      watch: <T>(
+        selector: (state: SceneState) => T,
+        listener: (value: T, revision: number) => void,
+        equals?: (a: T, b: T) => boolean,
+      ) => this.watch(selector, listener, equals),
+      findNodes: (query: NodeQuery) => this.findNodes(query),
+      history: () => this.history(),
+    });
+  }
+
+  // --- subscription -----------------------------------------------------------------------
+
+  subscribe(listener: Listener): () => void {
+    if (typeof listener !== 'function') {
+      throw this.#failure(
+        'INVALID_INPUT',
+        `listener must be a function (got ${describe(listener)})`,
+      );
+    }
+    if (this.#lifecycle !== 'ready') {
+      throw this.#failure('WORKSPACE_DISPOSED', `workspace "${this.id}" is ${this.#lifecycle}`);
+    }
+    // Each subscription is its own entry, so subscribing one function twice delivers twice.
+    const entry: Listener = (event) => {
+      listener(event);
+    };
+    this.#listeners.add(entry);
+    return () => {
+      this.#listeners.delete(entry);
+    };
+  }
+
+  watch<T>(
+    selector: (state: SceneState) => T,
+    listener: (value: T, revision: number) => void,
+    equals: (a: T, b: T) => boolean = Object.is,
+  ): () => void {
+    let current = selector(this.#state);
+    return this.subscribe((event) => {
+      if (event.type !== 'transaction.committed') {
+        return;
+      }
+      const next = selector(this.#state);
+      if (!equals(current, next)) {
+        current = next;
+        listener(next, event.revision);
+      }
+    });
+  }
+
+  // --- constraints ------------------------------------------------------------------------
+
+  registerConstraint(constraint: Constraint): () => void {
+    if (this.#lifecycle !== 'ready') {
+      throw this.#failure('WORKSPACE_DISPOSED', `workspace "${this.id}" is ${this.#lifecycle}`);
+    }
+    this.#addConstraint(constraint);
+    return () => {
+      if (this.#constraints.get(constraint.id) === constraint) {
+        this.#constraints.delete(constraint.id);
+        this.#sortedConstraints = sortConstraints(this.#constraints.values());
+      }
+    };
+  }
+
+  #addConstraint(constraint: Constraint): void {
+    checkConstraint(constraint, this.id);
+    if (this.#constraints.has(constraint.id)) {
+      throw this.#failure('INVALID_INPUT', `a constraint "${constraint.id}" is already registered`);
+    }
+    this.#constraints.set(constraint.id, constraint);
+    this.#sortedConstraints = sortConstraints(this.#constraints.values());
+  }
+
+  // --- operations -------------------------------------------------------------------------
+
+  transaction(commands: readonly SceneCommand[], options: TxOptions = {}): TxResult {
+    return this.#schedule(() => this.#transaction(commands, options));
+  }
+
+  dispatch(command: SceneCommand, options: TxOptions = {}): TxResult {
+    return this.transaction([command], options);
+  }
+
+  preview(
+    previewId: string,
+    commands: readonly SceneCommand[],
+    options: Pick<TxOptions, 'source' | 'causeId'> = {},
+  ): PreviewResult {
+    return this.#schedule(() => this.#preview(previewId, commands, options));
+  }
+
+  cancelPreview(previewId: string, reason: CancelReason): boolean | Queued<boolean> {
+    return this.#schedule(() => {
+      const record = this.#previews.get(previewId);
+      if (record === undefined || this.#lifecycle !== 'ready') {
+        return false;
+      }
+      this.#previews.delete(previewId);
+      this.#emit(
+        'preview.cancelled',
+        { previewId, reason },
+        {
+          source: record.source,
+          causeId: previewId,
+          phase: 'cancelled',
+        },
+      );
+      return true;
+    });
+  }
+
+  undo(options: Pick<TxOptions, 'source' | 'causeId'> = {}): TxResult {
+    return this.#schedule(() => this.#travel('undo', options));
+  }
+
+  redo(options: Pick<TxOptions, 'source' | 'causeId'> = {}): TxResult {
+    return this.#schedule(() => this.#travel('redo', options));
+  }
+
+  dispose(): Promise<void> {
+    if (this.#disposed !== null) {
+      return this.#disposed;
+    }
+    this.#disposed = new Promise((resolve) => {
+      this.#resolveDisposed = resolve;
+    });
+    this.#lifecycle = 'disposing';
+    this.#drain();
+    return this.#disposed;
+  }
+
+  // --- internals --------------------------------------------------------------------------
+
+  #transaction(commands: unknown, rawOptions: unknown): TxOutcome {
+    const transactionId = this.#nextTransactionId();
+    let options: CheckedTxOptions;
+    try {
+      options = checkTxOptions(rawOptions);
+    } catch (error) {
+      return this.#reject(transactionId, error, { source: 'host', causeId: null, commands });
+    }
+    const meta: Meta = {
+      transactionId,
+      source: options.source,
+      causeId: options.causeId,
+      timestamp: this.#now(),
+    };
+    const settle = (outcome: TxOutcome): TxOutcome => {
+      if (
+        options.previewId !== null &&
+        this.#previews.delete(options.previewId) &&
+        outcome.status === 'rejected'
+      ) {
+        this.#emit(
+          'preview.cancelled',
+          {
+            previewId: options.previewId,
+            reason:
+              outcome.error.code === 'CONSTRAINT_REJECTED'
+                ? 'constraint-rejected'
+                : 'commit-rejected',
+          },
+          { source: options.source, causeId: options.previewId, phase: 'cancelled' },
+        );
+      }
+      return outcome;
+    };
+    if (this.#lifecycle !== 'ready') {
+      return settle(this.#reject(transactionId, this.#disposedSignal(), { ...meta, commands }));
+    }
+    let fingerprint: string | null = null;
+    if (options.idempotencyKey !== null) {
+      fingerprint = fingerprintOf(commands, options);
+      const known = this.#idempotency.get(options.idempotencyKey);
+      if (known !== undefined) {
+        if (known.fingerprint === fingerprint) {
+          return settle({ ...known.result, replayed: true });
+        }
+        return settle(
+          this.#reject(
+            transactionId,
+            new RejectionSignal(
+              'INVALID_INPUT',
+              `options.idempotencyKey "${options.idempotencyKey}" was already used for different commands`,
+              { path: 'options.idempotencyKey' },
+            ),
+            { ...meta, commands },
+          ),
+        );
+      }
+    }
+    if (options.expectedRevision !== null && options.expectedRevision !== this.#state.revision) {
+      return settle(
+        this.#reject(
+          transactionId,
+          new RejectionSignal(
+            'CONFLICT',
+            `the scene is at revision ${this.#state.revision}, not the expected ${options.expectedRevision}`,
+            {
+              path: 'options.expectedRevision',
+              details: { currentRevision: this.#state.revision },
+            },
+          ),
+          { ...meta, commands },
+        ),
+      );
+    }
+    let outcome: ApplyOutcome;
+    try {
+      outcome = applyCommands(this.#state, commands, {
+        source: options.source,
+        now: meta.timestamp,
+        createId: this.#createId,
+        constraints: this.#sortedConstraints,
+      });
+    } catch (error) {
+      return settle(this.#reject(transactionId, error, { ...meta, commands }));
+    }
+    if (options.previewId !== null) {
+      this.#previews.delete(options.previewId);
+    }
+    const result = this.#commit(outcome, meta, {
+      idempotencyKey: options.idempotencyKey,
+      previewId: options.previewId,
+      history: null,
+    });
+    if (options.idempotencyKey !== null && fingerprint !== null) {
+      this.#idempotency.set(options.idempotencyKey, { fingerprint, result });
+      for (const key of this.#idempotency.keys()) {
+        if (this.#idempotency.size <= this.#idempotencyCapacity) {
+          break;
+        }
+        this.#idempotency.delete(key);
+      }
+    }
+    return result;
+  }
+
+  #commit(
+    outcome: ApplyOutcome,
+    meta: Meta,
+    extra: {
+      idempotencyKey: string | null;
+      previewId: string | null;
+      history: { action: 'undo' | 'redo'; transactionId: string } | null;
+    },
+  ): TxCommitted {
+    const before = this.#state;
+    const after: SceneState = Object.freeze({
+      workspaceId: this.id,
+      revision: before.revision + 1,
+      rootIds: outcome.rootIds,
+      nodes: outcome.nodes,
+      selection: outcome.selection,
+      focusedId: outcome.focusedId,
+    });
+    this.#state = after;
+    const layoutChanged = outcome.touched.length > 0 || before.rootIds !== after.rootIds;
+    if (extra.history === null && layoutChanged) {
+      this.#record(before, after, outcome, meta);
+    }
+    for (const event of diffScenes(before, after, outcome.touched)) {
+      this.#emitPending(event, {
+        source: meta.source,
+        causeId: meta.transactionId,
+        phase: 'committed',
+      });
+    }
+    this.#emit(
+      'transaction.committed',
+      {
+        transactionId: meta.transactionId,
+        previousRevision: before.revision,
+        commandTypes: outcome.commandTypes,
+        changedNodeIds: outcome.touched,
+        createdIds: outcome.createdIds,
+        idempotencyKey: extra.idempotencyKey,
+        previewId: extra.previewId,
+        history: extra.history,
+      },
+      { source: meta.source, causeId: meta.causeId ?? meta.transactionId, phase: 'committed' },
+    );
+    this.#refreshPreviews();
+    return Object.freeze({
+      status: 'committed',
+      transactionId: meta.transactionId,
+      revision: after.revision,
+      previousRevision: before.revision,
+      createdIds: outcome.createdIds,
+      changedNodeIds: outcome.touched,
+      replayed: false,
+    });
+  }
+
+  #record(before: SceneState, after: SceneState, outcome: ApplyOutcome, meta: Meta): void {
+    this.#redo.length = 0;
+    if (this.#undoCapacity === 0) {
+      return;
+    }
+    const prior = new Map<Id, NodeRecord | undefined>();
+    const next = new Map<Id, NodeRecord | undefined>();
+    for (const id of outcome.touched) {
+      prior.set(id, before.nodes.get(id));
+      next.set(id, after.nodes.get(id));
+    }
+    this.#undo.push({
+      entry: Object.freeze({
+        transactionId: meta.transactionId,
+        timestamp: meta.timestamp,
+        source: meta.source,
+        previousRevision: before.revision,
+        revision: after.revision,
+        commandTypes: outcome.commandTypes,
+        changedNodeIds: outcome.touched,
+      }),
+      before: prior,
+      after: next,
+      rootsBefore: before.rootIds,
+      rootsAfter: after.rootIds,
+    });
+    if (this.#undo.length > this.#undoCapacity) {
+      this.#undo.shift();
+    }
+  }
+
+  /**
+   * Undo or redo: restores the recorded records exactly, as a new commit. If anything recorded
+   * has changed since (a later transaction outside history touched it), the step is rejected with
+   * CONFLICT and history is left as it was.
+   */
+  #travel(action: 'undo' | 'redo', rawOptions: unknown): TxOutcome {
+    const transactionId = this.#nextTransactionId();
+    let options: CheckedTxOptions;
+    try {
+      options = checkTxOptions(rawOptions, ['source', 'causeId']);
+    } catch (error) {
+      return this.#reject(transactionId, error, { source: 'host', causeId: null, commands: [] });
+    }
+    const meta: Meta = {
+      transactionId,
+      source: options.source,
+      causeId: options.causeId,
+      timestamp: this.#now(),
+    };
+    if (this.#lifecycle !== 'ready') {
+      return this.#reject(transactionId, this.#disposedSignal(), { ...meta, commands: [] });
+    }
+    const stack = action === 'undo' ? this.#undo : this.#redo;
+    const record = stack.at(-1);
+    if (record === undefined) {
+      return this.#reject(
+        transactionId,
+        new RejectionSignal('INVALID_INPUT', `there is nothing to ${action}`),
+        { ...meta, commands: [] },
+      );
+    }
+    const [expected, target, rootsExpected, rootsTarget] =
+      action === 'undo'
+        ? [record.after, record.before, record.rootsAfter, record.rootsBefore]
+        : [record.before, record.after, record.rootsBefore, record.rootsAfter];
+    const state = this.#state;
+    const stale = [...expected].find(([id, value]) => state.nodes.get(id) !== value);
+    if (stale !== undefined || (rootsExpected !== rootsTarget && state.rootIds !== rootsExpected)) {
+      return this.#reject(
+        transactionId,
+        new RejectionSignal(
+          'CONFLICT',
+          `cannot ${action} transaction ${record.entry.transactionId}: ` +
+            (stale === undefined ? 'the root order' : `node "${stale[0]}"`) +
+            ' has changed since',
+          {
+            ...(stale === undefined ? {} : { entityId: stale[0] }),
+            details: { currentRevision: state.revision },
+          },
+        ),
+        { ...meta, commands: [] },
+      );
+    }
+    const nodes = state.nodes.edit();
+    for (const [id, value] of target) {
+      if (value === undefined) {
+        nodes.delete(id);
+      } else {
+        nodes.set(id, value);
+      }
+    }
+    const restored = nodes.freeze();
+    const selectable = (id: Id) => effectiveState(restored, id)?.selectable === true;
+    const selection = state.selection.filter(selectable);
+    stack.pop();
+    (action === 'undo' ? this.#redo : this.#undo).push(record);
+    return this.#commit(
+      {
+        nodes: restored,
+        rootIds: rootsTarget,
+        selection:
+          selection.length === state.selection.length ? state.selection : Object.freeze(selection),
+        focusedId: state.focusedId !== null && selectable(state.focusedId) ? state.focusedId : null,
+        commandTypes: record.entry.commandTypes,
+        touched: record.entry.changedNodeIds,
+        createdIds: Object.freeze([]),
+      },
+      meta,
+      {
+        idempotencyKey: null,
+        previewId: null,
+        history: { action, transactionId: record.entry.transactionId },
+      },
+    );
+  }
+
+  #preview(previewId: unknown, commands: unknown, rawOptions: unknown): PreviewOutcome {
+    const transactionId = this.#nextTransactionId();
+    let options: CheckedTxOptions;
+    try {
+      if (typeof previewId !== 'string' || previewId.trim() === '') {
+        throw new RejectionSignal('INVALID_INPUT', 'previewId must be a non-blank string', {
+          path: 'previewId',
+        });
+      }
+      options = checkTxOptions(rawOptions, ['source', 'causeId']);
+    } catch (error) {
+      return this.#reject(transactionId, error, null);
+    }
+    if (this.#lifecycle !== 'ready') {
+      return this.#reject(transactionId, this.#disposedSignal(), null);
+    }
+    let state: SceneState;
+    let changed: readonly Id[];
+    try {
+      [state, changed] = this.#previewState(commands, options.source);
+    } catch (error) {
+      return this.#reject(transactionId, error, null);
+    }
+    this.#previews.set(previewId, {
+      commands: commands as readonly SceneCommand[],
+      source: options.source,
+      causeId: options.causeId,
+      state,
+    });
+    this.#emit(
+      'transform.preview',
+      { previewId, changedNodeIds: changed },
+      {
+        source: options.source,
+        causeId: options.causeId ?? previewId,
+        phase: 'preview',
+      },
+    );
+    return Object.freeze({ status: 'previewed', previewId, changedNodeIds: changed });
+  }
+
+  #previewState(commands: unknown, source: EventSource): [SceneState, readonly Id[]] {
+    const outcome = applyCommands(this.#state, commands, {
+      source,
+      now: this.#now(),
+      createId: this.#createId,
+      constraints: this.#sortedConstraints,
+    });
+    const state: SceneState = Object.freeze({
+      workspaceId: this.id,
+      revision: this.#state.revision,
+      rootIds: outcome.rootIds,
+      nodes: outcome.nodes,
+      selection: outcome.selection,
+      focusedId: outcome.focusedId,
+    });
+    return [state, outcome.touched];
+  }
+
+  /** Re-applies open previews to the newly committed scene, ending those that no longer apply. */
+  #refreshPreviews(): void {
+    for (const [previewId, record] of [...this.#previews]) {
+      try {
+        const [state, changed] = this.#previewState(record.commands, record.source);
+        record.state = state;
+        this.#emit(
+          'transform.preview',
+          { previewId, changedNodeIds: changed },
+          {
+            source: record.source,
+            causeId: record.causeId ?? previewId,
+            phase: 'preview',
+          },
+        );
+      } catch (error) {
+        this.#previews.delete(previewId);
+        const code = error instanceof RejectionSignal ? error.code : null;
+        this.#emit(
+          'preview.cancelled',
+          {
+            previewId,
+            reason:
+              code === 'UNKNOWN_ENTITY'
+                ? 'target-detached'
+                : code === 'CONSTRAINT_REJECTED'
+                  ? 'constraint-rejected'
+                  : 'invalidated',
+          },
+          { source: record.source, causeId: previewId, phase: 'cancelled' },
+        );
+      }
+    }
+  }
+
+  #reject(
+    transactionId: string,
+    error: unknown,
+    meta: { source: EventSource; causeId: string | null; commands: unknown } | null,
+  ): TxRejected {
+    if (!(error instanceof RejectionSignal)) {
+      throw error;
+    }
+    const swfError = makeError(error.code, error.message, {
+      workspaceId: this.id,
+      causeId: transactionId,
+      ...(error.entityId === undefined ? {} : { entityId: error.entityId }),
+      ...(error.path === undefined ? {} : { path: error.path }),
+      ...(error.details === undefined ? {} : { details: error.details }),
+    });
+    if (meta !== null && this.#lifecycle === 'ready') {
+      this.#emit(
+        'transaction.rejected',
+        { transactionId, commandTypes: commandTypesOf(meta.commands), error: swfError },
+        { source: meta.source, causeId: meta.causeId ?? transactionId, phase: 'rejected' },
+      );
+    }
+    return Object.freeze({
+      status: 'rejected',
+      transactionId,
+      error: swfError,
+      revision: this.#state.revision,
+    });
+  }
+
+  #disposedSignal(): RejectionSignal {
+    return new RejectionSignal(
+      'WORKSPACE_DISPOSED',
+      `workspace "${this.id}" is ${this.#lifecycle}`,
+    );
+  }
+
+  #failure(code: SwfError['code'], message: string): SwfFailure {
+    return new SwfFailure(makeError(code, message, { workspaceId: this.id }));
+  }
+
+  #nextTransactionId(): string {
+    this.#txSeq += 1;
+    return `${this.id}/tx-${String(this.#txSeq)}`;
+  }
+
+  // --- delivery ---------------------------------------------------------------------------
+
+  #emit<T extends WorkspaceEvent['type']>(
+    type: T,
+    payload: Extract<WorkspaceEvent, { type: T }>['payload'],
+    how: { source: EventSource; causeId: string | null; phase: OperationPhase },
+  ): void {
+    this.#emitPending({ type, payload }, how);
+  }
+
+  #emitPending(
+    event: PendingEvent,
+    how: { source: EventSource; causeId: string | null; phase: OperationPhase },
+  ): void {
+    this.#eventSeq += 1;
+    this.#outbox.push(
+      Object.freeze({
+        id: `${this.id}/ev-${String(this.#eventSeq)}`,
+        type: event.type,
+        workspaceId: this.id,
+        revision: this.#state.revision,
+        timestamp: this.#now(),
+        source: how.source,
+        causationId: how.causeId,
+        phase: how.phase,
+        payload: event.payload,
+      }) as WorkspaceEvent,
+    );
+  }
+
+  /**
+   * Runs `op` now, or, when called from inside an event listener, after the current delivery
+   * finishes: a listener never changes the scene in the middle of another change's notification.
+   */
+  #schedule<T>(op: () => T): T | Queued<T> {
+    if (this.#delivering) {
+      let resolve: (value: T) => void = () => undefined;
+      const completion = new Promise<T>((r) => {
+        resolve = r;
+      });
+      this.#queue.push(() => {
+        resolve(op());
+      });
+      return Object.freeze({ status: 'queued', completion });
+    }
+    const result = op();
+    this.#drain();
+    return result;
+  }
+
+  #drain(): void {
+    if (this.#delivering) {
+      return;
+    }
+    this.#delivering = true;
+    try {
+      for (;;) {
+        const event = this.#outbox.shift();
+        if (event !== undefined) {
+          this.#deliver(event);
+          continue;
+        }
+        const op = this.#queue.shift();
+        if (op !== undefined) {
+          op();
+          continue;
+        }
+        if (this.#lifecycle === 'disposing' && !this.#disposalAnnounced) {
+          this.#announceDisposal();
+          continue;
+        }
+        break;
+      }
+    } finally {
+      this.#delivering = false;
+    }
+    if (this.#lifecycle === 'disposing' && this.#disposalAnnounced) {
+      this.#finishDisposal();
+    }
+  }
+
+  #deliver(event: WorkspaceEvent): void {
+    for (const listener of [...this.#listeners]) {
+      try {
+        listener(event);
+      } catch (error) {
+        this.#diagnose({
+          code: 'LISTENER_THREW',
+          message: `a listener threw while handling ${event.type}: ${error instanceof Error ? error.message : String(error)}`,
+          timestamp: this.#now(),
+          details: { eventId: event.id, eventType: event.type },
+        });
+      }
+    }
+  }
+
+  #diagnose(diagnostic: Diagnostic): void {
+    this.#diagnostics.push(Object.freeze(diagnostic));
+    if (this.#diagnostics.length > this.#diagnosticsCapacity) {
+      this.#diagnostics.shift();
+    }
+    try {
+      this.#onDiagnostic?.(diagnostic);
+    } catch {
+      // A failing diagnostics sink must not interrupt the workspace.
+    }
+  }
+
+  #announceDisposal(): void {
+    this.#disposalAnnounced = true;
+    for (const [previewId, record] of this.#previews) {
+      this.#emit(
+        'preview.cancelled',
+        { previewId, reason: 'workspace-disposed' },
+        {
+          source: 'system',
+          causeId: record.causeId ?? previewId,
+          phase: 'cancelled',
+        },
+      );
+    }
+    this.#previews.clear();
+    this.#emit('workspace.disposed', {}, { source: 'system', causeId: null, phase: 'committed' });
+  }
+
+  #finishDisposal(): void {
+    this.#lifecycle = 'disposed';
+    this.#listeners.clear();
+    this.#undo.length = 0;
+    this.#redo.length = 0;
+    this.#idempotency.clear();
+    this.#constraints.clear();
+    this.#sortedConstraints = [];
+    this.#resolveDisposed?.();
+    this.#resolveDisposed = null;
+  }
+}
+
+interface CheckedTxOptions {
+  readonly expectedRevision: number | null;
+  readonly idempotencyKey: string | null;
+  readonly source: EventSource;
+  readonly causeId: string | null;
+  readonly previewId: string | null;
+}
+
+const TX_OPTION_KEYS = ['expectedRevision', 'idempotencyKey', 'source', 'causeId', 'previewId'];
+
+function checkTxOptions(
+  raw: unknown,
+  allowed: readonly string[] = TX_OPTION_KEYS,
+): CheckedTxOptions {
+  const fail = (key: string, message: string) =>
+    new RejectionSignal('INVALID_INPUT', `options.${key} ${message}`, { path: `options.${key}` });
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    throw new RejectionSignal('INVALID_INPUT', `options must be an object (got ${describe(raw)})`, {
+      path: 'options',
+    });
+  }
+  const record = raw as Record<string, unknown>;
+  for (const key of Object.keys(record)) {
+    if (!allowed.includes(key)) {
+      throw fail(key, `is not a known option (expected one of ${allowed.join(', ')})`);
+    }
+  }
+  const text = (key: string): string | null => {
+    const value = record[key];
+    if (value === undefined) {
+      return null;
+    }
+    if (typeof value !== 'string' || value.trim() === '') {
+      throw fail(key, 'must be a non-blank string');
+    }
+    return value;
+  };
+  const expected = record['expectedRevision'];
+  if (
+    expected !== undefined &&
+    (typeof expected !== 'number' || !Number.isInteger(expected) || expected < 0)
+  ) {
+    throw fail('expectedRevision', 'must be a non-negative integer');
+  }
+  const source = record['source'] ?? 'host';
+  if (!EVENT_SOURCES.includes(source as EventSource)) {
+    throw fail('source', `must be one of ${EVENT_SOURCES.join(', ')}`);
+  }
+  return {
+    expectedRevision: expected ?? null,
+    idempotencyKey: text('idempotencyKey'),
+    source: source as EventSource,
+    causeId: text('causeId'),
+    previewId: text('previewId'),
+  };
+}
+
+interface CheckedOptions {
+  readonly id: Id;
+  readonly undoCapacity: number;
+  readonly idempotencyCapacity: number;
+  readonly diagnosticsCapacity: number;
+  readonly now: () => number;
+  readonly createId: (() => Id) | undefined;
+  readonly constraints: readonly Constraint[];
+  readonly onDiagnostic: ((d: Diagnostic) => void) | undefined;
+}
+
+/** Checks options passed from JavaScript, where the declared types are not enforced. */
+function checkOptions(options: WorkspaceOptions): CheckedOptions {
+  const fail = (field: string, message: string) =>
+    new SwfFailure(
+      makeError('INVALID_INPUT', `options.${field} ${message}`, { path: `options.${field}` }),
+    );
+  const raw: unknown = options;
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    throw new SwfFailure(
+      makeError('INVALID_INPUT', `workspace options must be an object (got ${describe(raw)})`),
+    );
+  }
+  const record = raw as Record<string, unknown>;
+  for (const key of Object.keys(record)) {
+    if (!OPTION_KEYS.includes(key)) {
+      throw fail(key, `is not a known option (expected one of ${OPTION_KEYS.join(', ')})`);
+    }
+  }
+  const id = record['id'];
+  if (typeof id !== 'string' || id.trim() === '') {
+    throw fail('id', 'must be a non-blank string');
+  }
+  const integer = (key: string, fallback: number, min: number, max: number): number => {
+    const value = record[key] ?? fallback;
+    if (typeof value !== 'number' || !Number.isInteger(value) || value < min || value > max) {
+      throw fail(key, `must be an integer from ${min} to ${max}`);
+    }
+    return value;
+  };
+  for (const key of ['now', 'createId', 'onDiagnostic']) {
+    if (record[key] !== undefined && typeof record[key] !== 'function') {
+      throw fail(key, 'must be a function');
+    }
+  }
+  const constraints = record['constraints'] ?? [];
+  if (!Array.isArray(constraints)) {
+    throw fail('constraints', 'must be an array of constraints');
+  }
+  return {
+    id,
+    undoCapacity: integer('undoCapacity', 100, 0, 10_000),
+    idempotencyCapacity: integer('idempotencyCapacity', 1024, 1, Number.MAX_SAFE_INTEGER),
+    diagnosticsCapacity: integer('diagnosticsCapacity', 100, 1, Number.MAX_SAFE_INTEGER),
+    now: options.now ?? Date.now,
+    createId: options.createId,
+    constraints: options.constraints ?? [],
+    onDiagnostic: options.onDiagnostic,
+  };
+}
+
+function checkConstraint(constraint: unknown, workspaceId: Id): void {
+  const fail = (message: string) =>
+    new SwfFailure(makeError('INVALID_INPUT', `constraint ${message}`, { workspaceId }));
+  if (typeof constraint !== 'object' || constraint === null) {
+    throw fail(`must be an object (got ${describe(constraint)})`);
+  }
+  const c = constraint as Record<string, unknown>;
+  if (typeof c['id'] !== 'string' || c['id'].trim() === '') {
+    throw fail('id must be a non-blank string');
+  }
+  if (typeof c['order'] !== 'number' || !Number.isFinite(c['order'])) {
+    throw fail(`"${c['id']}" order must be a finite number`);
+  }
+  if (typeof c['required'] !== 'boolean') {
+    throw fail(`"${c['id']}" required must be a boolean`);
+  }
+  if (typeof c['resolve'] !== 'function') {
+    throw fail(`"${c['id']}" resolve must be a function`);
+  }
+  if (c['appliesTo'] !== undefined && typeof c['appliesTo'] !== 'function') {
+    throw fail(`"${c['id']}" appliesTo must be a function`);
+  }
+}
+
+function commandTypesOf(commands: unknown): readonly SceneCommandType[] {
+  if (!Array.isArray(commands)) {
+    return [];
+  }
+  return commands.flatMap((command: unknown) => {
+    const type: unknown =
+      typeof command === 'object' && command !== null
+        ? (command as { type?: unknown }).type
+        : undefined;
+    return SCENE_COMMAND_TYPES.filter((known) => known === type);
+  });
+}
+
+/** A canonical rendering of a request, for recognizing a repeated idempotency key. */
+function fingerprintOf(commands: unknown, options: CheckedTxOptions): string {
+  return JSON.stringify(
+    {
+      commands,
+      expectedRevision: options.expectedRevision,
+      source: options.source,
+      previewId: options.previewId,
+    },
+    (_key, value: unknown) =>
+      typeof value === 'object' && value !== null && !Array.isArray(value)
+        ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)))
+        : value,
+  );
+}

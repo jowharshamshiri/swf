@@ -1,0 +1,369 @@
+import { describe, expect, it } from 'vitest';
+import type { TxOutcome, WorkspaceEvent } from '../src/index.js';
+import { createWorkspace, SwfFailure } from '../src/index.js';
+import { at, committed, makeWorkspace, record, rejected, window } from './helpers.js';
+
+const types = (events: readonly WorkspaceEvent[]) => events.map((e) => e.type);
+
+describe('events', () => {
+  it('reports entity changes, then one transaction.committed per revision', () => {
+    const ws = makeWorkspace();
+    const events = record(ws);
+    committed(
+      ws.transaction([window('a'), window('b', { parentId: 'a' })], {
+        source: 'user',
+        causeId: 'drag-7',
+      }),
+    );
+    // "a" is new, so its child list is conveyed by b's node.created; only the root list changed.
+    expect(types(events)).toEqual([
+      'node.created',
+      'node.created',
+      'node.childrenChanged',
+      'transaction.committed',
+    ]);
+    expect(events[2]?.payload).toEqual({ parentId: null, childIds: ['a'] });
+    const last = events.at(-1);
+    expect(last).toMatchObject({
+      workspaceId: 'ws',
+      revision: 1,
+      source: 'user',
+      causationId: 'drag-7',
+      phase: 'committed',
+      payload: { transactionId: 'ws/tx-1', previousRevision: 0, createdIds: ['a', 'b'] },
+    });
+    expect(events[0]).toMatchObject({
+      causationId: 'ws/tx-1',
+      payload: { nodeId: 'a', parentId: null },
+    });
+    expect(new Set(events.map((e) => e.id)).size).toBe(events.length);
+  });
+
+  it('describes moves, reparenting, field updates, archiving and selection', () => {
+    const ws = makeWorkspace();
+    committed(ws.transaction([window('a'), window('b')]));
+    const events = record(ws);
+    committed(
+      ws.transaction([
+        {
+          type: 'node.patch',
+          id: 'a',
+          transform: at([1, 0, 0]),
+          label: 'A',
+          flags: { locked: true },
+        },
+        { type: 'node.reparent', id: 'b', parentId: 'a' },
+        { type: 'selection.set', ids: ['a'] },
+        { type: 'focus.set', id: 'a' },
+      ]),
+    );
+    expect(types(events)).toEqual([
+      'node.transformCommitted',
+      'node.updated',
+      'node.reparented',
+      'node.childrenChanged',
+      'node.childrenChanged',
+      'selection.changed',
+      'focus.changed',
+      'transaction.committed',
+    ]);
+    expect(events[1]?.payload).toEqual({ nodeId: 'a', fields: ['label', 'flags'] });
+    events.length = 0;
+    committed(ws.dispatch({ type: 'node.archive', id: 'a' }));
+    expect(types(events)).toEqual([
+      'node.archived',
+      'selection.changed',
+      'focus.changed',
+      'transaction.committed',
+    ]);
+  });
+
+  it('emits transaction.rejected for a rejected transaction, and no entity events', () => {
+    const ws = makeWorkspace();
+    const events = record(ws);
+    const result = rejected(ws.dispatch({ type: 'node.patch', id: 'nope', label: 'x' }));
+    expect(types(events)).toEqual(['transaction.rejected']);
+    expect(events[0]).toMatchObject({
+      phase: 'rejected',
+      revision: 0,
+      payload: {
+        transactionId: result.transactionId,
+        commandTypes: ['node.patch'],
+        error: { code: 'UNKNOWN_ENTITY' },
+      },
+    });
+  });
+
+  it('reports an undo as a commit naming the transaction it reverses', () => {
+    const ws = makeWorkspace();
+    committed(ws.dispatch(window('a')));
+    const events = record(ws);
+    committed(ws.undo({ source: 'user' }));
+    expect(types(events)).toEqual([
+      'node.deleted',
+      'node.childrenChanged',
+      'transaction.committed',
+    ]);
+    expect(events.at(-1)?.payload).toMatchObject({
+      history: { action: 'undo', transactionId: 'ws/tx-1' },
+    });
+  });
+
+  it('isolates a throwing listener: others still hear, the commit stands, a diagnostic is kept', () => {
+    const sink: unknown[] = [];
+    const ws = makeWorkspace({ onDiagnostic: (d) => sink.push(d) });
+    ws.subscribe(() => {
+      throw new Error('listener bug');
+    });
+    const heard = record(ws);
+    const result = committed(ws.dispatch(window('a')));
+    expect(result.revision).toBe(1);
+    expect(ws.getState().nodes.has('a')).toBe(true);
+    expect(types(heard)).toContain('transaction.committed');
+    const [diagnostic] = ws.getDiagnostics();
+    expect(diagnostic).toMatchObject({
+      code: 'LISTENER_THREW',
+      details: { eventType: 'node.created' },
+    });
+    expect(diagnostic?.message).toMatch(/listener bug/);
+    expect(sink.length).toBe(ws.getDiagnostics().length);
+  });
+
+  it('queues a transaction made from inside a listener until delivery finishes', async () => {
+    const ws = makeWorkspace();
+    const order: string[] = [];
+    let queued: Promise<TxOutcome> | null = null;
+    ws.subscribe((event) => {
+      order.push(`${event.type}@${String(event.revision)}`);
+      if (event.type === 'transaction.committed' && event.revision === 1) {
+        const result = ws.dispatch(window('echo'));
+        expect(result.status).toBe('queued');
+        if (result.status === 'queued') {
+          queued = result.completion;
+        }
+        expect(ws.getState().nodes.has('echo')).toBe(false);
+      }
+    });
+    ws.subscribe((event) => order.push(`second:${event.type}@${String(event.revision)}`));
+    committed(ws.dispatch(window('a')));
+    expect(order).toEqual([
+      'node.created@1',
+      'second:node.created@1',
+      'node.childrenChanged@1',
+      'second:node.childrenChanged@1',
+      'transaction.committed@1',
+      'second:transaction.committed@1',
+      'node.created@2',
+      'second:node.created@2',
+      'node.childrenChanged@2',
+      'second:node.childrenChanged@2',
+      'transaction.committed@2',
+      'second:transaction.committed@2',
+    ]);
+    expect(queued).not.toBeNull();
+    expect((await (queued as unknown as Promise<TxOutcome>)).status).toBe('committed');
+  });
+
+  it('unsubscribes idempotently and watches state slices only when they change', () => {
+    const ws = makeWorkspace();
+    const heard: string[] = [];
+    const stop = ws.subscribe((e) => heard.push(e.type));
+    stop();
+    stop();
+    const counts: [number, number][] = [];
+    ws.watch(
+      (state) => state.rootIds.length,
+      (count, revision) => counts.push([count, revision]),
+    );
+    committed(ws.dispatch(window('a')));
+    committed(ws.dispatch({ type: 'node.patch', id: 'a', label: 'same count' }));
+    committed(ws.dispatch(window('b')));
+    expect(heard).toEqual([]);
+    expect(counts).toEqual([
+      [1, 1],
+      [2, 3],
+    ]);
+  });
+
+  it('gives read-only modules a reader without mutating operations', () => {
+    const ws = makeWorkspace();
+    committed(ws.dispatch(window('a', { label: 'Notes' })));
+    const reader = ws.reader();
+    expect(reader.getState()).toBe(ws.getState());
+    expect(reader.findNodes({ text: 'notes' })).toEqual(['a']);
+    expect('transaction' in reader).toBe(false);
+    expect(Object.isFrozen(reader)).toBe(true);
+  });
+});
+
+describe('previews', () => {
+  it('holds a proposed scene apart from the committed one, outside history', () => {
+    const ws = makeWorkspace();
+    committed(ws.dispatch(window('a', { transform: at([0, 0, -3]) })));
+    const events = record(ws);
+    const result = ws.preview(
+      'drag',
+      [{ type: 'node.patch', id: 'a', transform: at([1, 0, -3]) }],
+      { source: 'user' },
+    );
+    expect(result).toMatchObject({ status: 'previewed', changedNodeIds: ['a'] });
+    expect(ws.getPreview('drag')?.nodes.get('a')?.transform.position).toEqual([1, 0, -3]);
+    expect(ws.getState().nodes.get('a')?.transform.position).toEqual([0, 0, -3]);
+    expect(ws.getState().revision).toBe(1);
+    expect(ws.history()).toHaveLength(1);
+    expect(events[0]).toMatchObject({ type: 'transform.preview', phase: 'preview', revision: 1 });
+  });
+
+  it('keeps the last valid preview when a newer one is rejected', () => {
+    const ws = makeWorkspace();
+    committed(ws.dispatch(window('a')));
+    ws.preview('drag', [{ type: 'node.patch', id: 'a', transform: at([1, 0, 0]) }]);
+    const bad = ws.preview('drag', [{ type: 'node.patch', id: 'a', bounds: [0, 0, 0] }]);
+    expect(bad.status).toBe('rejected');
+    expect(ws.getPreview('drag')?.nodes.get('a')?.transform.position).toEqual([1, 0, 0]);
+  });
+
+  it('ends a preview when its transaction commits, once, with one undo step', () => {
+    const ws = makeWorkspace();
+    committed(ws.dispatch(window('a')));
+    const move = [{ type: 'node.patch', id: 'a', transform: at([2, 0, 0]) }] as const;
+    ws.preview('drag', move);
+    ws.preview('drag', [{ type: 'node.patch', id: 'a', transform: at([3, 0, 0]) }]);
+    const events = record(ws);
+    committed(ws.transaction(move, { previewId: 'drag', source: 'user' }));
+    expect(ws.getPreview('drag')).toBeUndefined();
+    expect(events.at(-1)?.payload).toMatchObject({ previewId: 'drag' });
+    expect(types(events)).not.toContain('preview.cancelled');
+    expect(ws.history()).toHaveLength(2);
+  });
+
+  it('cancels a preview whose commit is rejected, naming the reason', () => {
+    const ws = makeWorkspace();
+    committed(ws.dispatch(window('a', { flags: { locked: true } })));
+    ws.preview('drag', [{ type: 'node.patch', id: 'a', transform: at([1, 0, 0]) }]);
+    const events = record(ws);
+    rejected(
+      ws.dispatch(
+        { type: 'node.patch', id: 'a', transform: at([1, 0, 0]) },
+        { previewId: 'drag', source: 'user' },
+      ),
+    );
+    expect(ws.getPreview('drag')).toBeUndefined();
+    expect(events.find((e) => e.type === 'preview.cancelled')).toMatchObject({
+      phase: 'cancelled',
+      payload: { previewId: 'drag', reason: 'commit-rejected' },
+    });
+  });
+
+  it('cancels on request, idempotently', () => {
+    const ws = makeWorkspace();
+    committed(ws.dispatch(window('a')));
+    ws.preview('drag', [{ type: 'node.patch', id: 'a', transform: at([1, 0, 0]) }]);
+    const events = record(ws);
+    expect(ws.cancelPreview('drag', 'escape')).toBe(true);
+    expect(ws.cancelPreview('drag', 'escape')).toBe(false);
+    expect(events.map((e) => e.payload)).toEqual([{ previewId: 'drag', reason: 'escape' }]);
+  });
+
+  it('follows commits by others, and ends when its target is removed', () => {
+    const ws = makeWorkspace();
+    committed(ws.transaction([window('a'), window('b')]));
+    ws.preview('drag', [{ type: 'node.patch', id: 'a', transform: at([1, 0, 0]) }]);
+    committed(ws.dispatch({ type: 'node.patch', id: 'b', label: 'B' }));
+    expect(ws.getPreview('drag')?.nodes.get('b')?.label).toBe('B');
+    expect(ws.getPreview('drag')?.revision).toBe(2);
+    const events = record(ws);
+    committed(ws.dispatch({ type: 'node.delete', id: 'a', mode: 'subtree' }));
+    expect(ws.getPreview('drag')).toBeUndefined();
+    expect(events.find((e) => e.type === 'preview.cancelled')?.payload).toEqual({
+      previewId: 'drag',
+      reason: 'target-detached',
+    });
+  });
+});
+
+describe('workspace lifecycle', () => {
+  it('creates independent workspaces with explicit, validated options', () => {
+    const a = createWorkspace({ id: 'a' });
+    const b = createWorkspace({ id: 'b' });
+    committed(a.dispatch(window('same')));
+    committed(b.dispatch(window('same')));
+    committed(a.dispatch({ type: 'node.patch', id: 'same', label: 'only in a' }));
+    expect(b.getState().nodes.get('same')?.label).toBeNull();
+    expect(() => createWorkspace({ id: ' ' })).toThrow(/options.id/);
+    expect(() => createWorkspace({ id: 'x', undoCapacity: 10_001 })).toThrow(
+      /options.undoCapacity/,
+    );
+    expect(() => createWorkspace({ id: 'x', colour: 'red' } as never)).toThrow(/options.colour/);
+    expect(() => createWorkspace({ id: 'x', now: 5 } as never)).toThrow(SwfFailure);
+  });
+
+  it('starts empty and valid', () => {
+    const state = makeWorkspace().getState();
+    expect(state).toMatchObject({
+      workspaceId: 'ws',
+      revision: 0,
+      rootIds: [],
+      selection: [],
+      focusedId: null,
+    });
+    expect(state.nodes.size).toBe(0);
+  });
+
+  it('disposes once: cancels previews, announces disposal, releases listeners, rejects work', async () => {
+    const ws = makeWorkspace();
+    committed(ws.dispatch(window('a')));
+    ws.preview('drag', [{ type: 'node.patch', id: 'a', transform: at([1, 0, 0]) }]);
+    const events = record(ws);
+    const first = ws.dispose();
+    expect(ws.dispose()).toBe(first);
+    await first;
+    expect(ws.lifecycle).toBe('disposed');
+    expect(types(events)).toEqual(['preview.cancelled', 'workspace.disposed']);
+    expect(events[0]?.payload).toEqual({ previewId: 'drag', reason: 'workspace-disposed' });
+    const after = rejected(ws.dispatch(window('b')));
+    expect(after.error.code).toBe('WORKSPACE_DISPOSED');
+    expect(rejected(ws.undo()).error.code).toBe('WORKSPACE_DISPOSED');
+    expect(ws.preview('p', [window('c')]).status).toBe('rejected');
+    expect(() => ws.subscribe(() => undefined)).toThrow(/disposed/);
+    expect(events).toHaveLength(2);
+    expect(ws.canUndo()).toBe(false);
+  });
+
+  it('finishes delivery before disposing when disposed from a listener, rejecting queued work', async () => {
+    const ws = makeWorkspace();
+    let queued: Promise<TxOutcome> | null = null;
+    const heard: string[] = [];
+    ws.subscribe((event) => {
+      heard.push(event.type);
+      if (event.type === 'node.created') {
+        void ws.dispose();
+        const result = ws.dispatch(window('late'));
+        if (result.status === 'queued') {
+          queued = result.completion;
+        }
+      }
+    });
+    committed(ws.dispatch(window('a')));
+    expect(heard).toEqual([
+      'node.created',
+      'node.childrenChanged',
+      'transaction.committed',
+      'workspace.disposed',
+    ]);
+    expect(ws.lifecycle).toBe('disposed');
+    const late = await (queued as unknown as Promise<TxOutcome>);
+    expect(late.status === 'rejected' && late.error.code).toBe('WORKSPACE_DISPOSED');
+  });
+
+  it('returns to no listeners after repeated create and dispose', async () => {
+    for (let i = 0; i < 100; i++) {
+      const ws = makeWorkspace();
+      const heard: string[] = [];
+      ws.subscribe((e) => heard.push(e.type));
+      committed(ws.dispatch(window('a')));
+      await ws.dispose();
+      expect(ws.lifecycle).toBe('disposed');
+    }
+  });
+});

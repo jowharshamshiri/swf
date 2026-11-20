@@ -1,0 +1,23 @@
+{
+  "name": "@swf/core",
+  "version": "0.0.0",
+  "description": "The Spatial Workspace Framework's scene kernel: spatial nodes, hierarchy, constraints, atomic revisioned transactions, undo and events.",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@swf/math": "0.0.0"
+  }
+}
