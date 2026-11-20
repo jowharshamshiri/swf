@@ -1,0 +1,19 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "paths": {
+      "@swf/math": ["../math/src/index.ts"],
+      "@swf/core": ["../core/src/index.ts"],
+      "@swf/surfaces": ["../surfaces/src/index.ts"],
+      "@swf/presentation": ["../presentation/src/index.ts"],
+      "@swf/projections": ["../projections/src/index.ts"],
+      "@swf/interaction": ["../interaction/src/index.ts"],
+      "@swf/conformance": ["../conformance/src/index.ts"],
+      "@swf/backend-dom": ["../backend-dom/src/index.ts"],
+      "@swf/backend-geometry": ["./src/index.ts"]
+    }
+  },
+  "include": ["src", "test"]
+}

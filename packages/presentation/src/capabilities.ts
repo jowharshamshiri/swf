@@ -43,7 +43,8 @@ export type LayerCategory =
 /**
  * What a compositor advertises: its layer categories, how it orders them (explicitly, or by DOM
  * order when it declares so), masking, transparency, clipping, overlays, interpolation, whether
- * it presents native layers directly, and whether one instance assembles several viewports.
+ * it presents native layers directly, whether one instance assembles several viewports, and how
+ * overlapping layers occlude each other.
  */
 export interface CompositorCapabilities {
   readonly layerCategories: readonly LayerCategory[];
@@ -55,7 +56,17 @@ export interface CompositorCapabilities {
   readonly interpolation: boolean;
   readonly directNative: boolean;
   readonly multiViewport: boolean;
+  /**
+   * How overlapping layers occlude each other: `depth`, by a per-pixel depth test across layers
+   * (so interpenetrating surfaces cross correctly), or `layer-order`, whole layers stacked in
+   * order (each layer entirely in front of or behind another), the fallback where per-pixel
+   * interplay between live and drawn layers is not available.
+   */
+  readonly occlusion: Occlusion;
 }
+
+/** How overlapping layers occlude each other; see {@link CompositorCapabilities.occlusion}. */
+export type Occlusion = 'depth' | 'layer-order';
 
 /**
  * What negotiation needs to know of a projection: whether it maps planar geometry to the screen
@@ -203,6 +214,7 @@ export function compositorCapabilitiesIssue(value: unknown): string | null {
       'interpolation',
       'directNative',
       'multiViewport',
+      'occlusion',
     ],
     what,
   );
@@ -212,6 +224,7 @@ export function compositorCapabilitiesIssue(value: unknown): string | null {
   const shape =
     oneOf(record, 'ordering', ['explicit', 'dom-order'], what) ??
     oneOf(record, 'clipping', CLIPS, what) ??
+    oneOf(record, 'occlusion', ['depth', 'layer-order'], what) ??
     bools(
       record,
       ['masking', 'transparency', 'overlays', 'interpolation', 'directNative', 'multiViewport'],

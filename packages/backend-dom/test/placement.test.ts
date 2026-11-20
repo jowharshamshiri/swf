@@ -1,134 +1,49 @@
-import fc from 'fast-check';
+import type { Quad2 } from '@swf/math';
+import { applyHomography, rectQuad, rectToQuad } from '@swf/math';
 import { describe, expect, it } from 'vitest';
-import type { Quad } from '../src/index.js';
-import {
-  applyMatrix,
-  cssTransform,
-  isConvexQuad,
-  offsetQuad,
-  quadMatrix,
-  rectQuad,
-} from '../src/index.js';
+import { applyMatrix, cssMatrixOf, cssTransform, quadMatrix } from '../src/index.js';
 
-/** A rectangle w×h turned by `angle` about the view axis, seen in perspective at `depth`. */
-function perspectiveQuad(w: number, h: number, yaw: number, pitch: number, depth: number): Quad {
-  const project = (x: number, y: number): readonly [number, number] => {
-    // Turn about y (yaw) then x (pitch), push back by depth, project with focal length 500.
-    const x1 = x * Math.cos(yaw);
-    const z1 = -x * Math.sin(yaw);
-    const y2 = y * Math.cos(pitch) - z1 * Math.sin(pitch);
-    const z2 = y * Math.sin(pitch) + z1 * Math.cos(pitch) + depth;
-    return [400 + (500 * x1) / z2, 300 - (500 * y2) / z2];
-  };
-  return [
-    project(-w / 2, h / 2),
-    project(w / 2, h / 2),
-    project(w / 2, -h / 2),
-    project(-w / 2, -h / 2),
-  ];
-}
-
-describe('rect-to-quad placement', () => {
-  it('puts each corner of the box exactly on the quad, for any perspective view of a rectangle', () => {
-    fc.assert(
-      fc.property(
-        fc.double({ min: 0.1, max: 4, noNaN: true }),
-        fc.double({ min: 0.1, max: 4, noNaN: true }),
-        fc.double({ min: -1.2, max: 1.2, noNaN: true }),
-        fc.double({ min: -1.2, max: 1.2, noNaN: true }),
-        fc.double({ min: 3, max: 20, noNaN: true }),
-        fc.integer({ min: 10, max: 2000 }),
-        fc.integer({ min: 10, max: 2000 }),
-        (w, h, yaw, pitch, depth, width, height) => {
-          const quad = perspectiveQuad(w, h, yaw, pitch, depth);
-          const m = quadMatrix(width, height, quad);
-          expect(m).not.toBeNull();
-          if (m === null) {
-            return;
-          }
-          const box: [number, number][] = [
-            [0, 0],
-            [width, 0],
-            [width, height],
-            [0, height],
-          ];
-          box.forEach(([x, y], i) => {
-            const [px, py] = applyMatrix(m, x, y);
-            expect(Math.hypot(px - (quad[i]?.[0] ?? NaN), py - (quad[i]?.[1] ?? NaN))).toBeLessThan(
-              1e-6,
-            );
-          });
-          // The box's centre goes to where the quad's diagonals cross, as a plane in perspective
-          // requires (an affine fill would put it at the corners' average instead).
-          const [cx, cy] = applyMatrix(m, width / 2, height / 2);
-          const [a, , c] = quad;
-          const [, b, , d] = quad;
-          const cross = intersect(a, c, b, d);
-          expect(Math.hypot(cx - cross[0], cy - cross[1])).toBeLessThan(1e-6);
-        },
-      ),
-      { numRuns: 400 },
-    );
+describe('CSS placement', () => {
+  it('applies the same projective map as the plane homography it is made from', () => {
+    const quad: Quad2 = [
+      [110, 105],
+      [290, 120],
+      [270, 230],
+      [95, 190],
+    ];
+    const h = rectToQuad(640, 320, quad);
+    const m = quadMatrix(640, 320, quad);
+    if (h === null || m === null) {
+      throw new Error('expected a map');
+    }
+    for (const [x, y] of [
+      [0, 0],
+      [640, 0],
+      [640, 320],
+      [0, 320],
+      [123, 45],
+      [320, 160],
+    ] as const) {
+      const [ax, ay] = applyMatrix(m, x, y);
+      const [bx, by] = applyHomography(h, x, y);
+      expect(Math.hypot(ax - bx, ay - by)).toBeLessThan(1e-9);
+    }
+    expect(cssMatrixOf(h)).toEqual(m);
   });
 
-  it('is plain scaling and translation for an axis-aligned rectangle', () => {
+  it('writes a matrix as a CSS transform, and refuses quads no rectangle maps to', () => {
     const m = quadMatrix(200, 100, rectQuad([10, 20, 400, 50]));
     expect(m).toEqual([2, 0, 0, 0, 0, 0.5, 0, 0, 0, 0, 1, 0, 10, 20, 0, 1]);
-    expect(cssTransform(m ?? fail())).toBe(
+    expect(m === null ? null : cssTransform(m)).toBe(
       'matrix3d(2, 0, 0, 0, 0, 0.5, 0, 0, 0, 0, 1, 0, 10, 20, 0, 1)',
     );
-  });
-
-  it('refuses quads no rectangle in front of the viewer projects to', () => {
-    const bowtie: Quad = [
-      [0, 0],
-      [100, 100],
-      [100, 0],
-      [0, 100],
-    ];
-    const line: Quad = [
-      [0, 0],
-      [50, 0],
-      [100, 0],
-      [100, 10],
-    ];
-    const concave: Quad = [
-      [0, 0],
-      [100, 0],
-      [30, 30],
-      [0, 100],
-    ];
-    for (const quad of [bowtie, line, concave]) {
-      expect(isConvexQuad(quad)).toBe(false);
-      expect(quadMatrix(100, 100, quad)).toBeNull();
-    }
-    expect(quadMatrix(0, 100, rectQuad([0, 0, 10, 10]))).toBeNull();
     expect(
-      quadMatrix(10, 10, [
+      quadMatrix(100, 100, [
         [0, 0],
-        [NaN, 0],
-        [10, 10],
-        [0, 10],
+        [100, 100],
+        [100, 0],
+        [0, 100],
       ]),
     ).toBeNull();
   });
-
-  it('moves a quad into a box’s own frame', () => {
-    expect(offsetQuad(rectQuad([10, 20, 5, 5]), 10, 20)).toEqual(rectQuad([0, 0, 5, 5]));
-  });
 });
-
-function intersect(
-  a: readonly [number, number],
-  c: readonly [number, number],
-  b: readonly [number, number],
-  d: readonly [number, number],
-): [number, number] {
-  const den = (a[0] - c[0]) * (b[1] - d[1]) - (a[1] - c[1]) * (b[0] - d[0]);
-  const t = ((a[0] - b[0]) * (b[1] - d[1]) - (a[1] - b[1]) * (b[0] - d[0])) / den;
-  return [a[0] + t * (c[0] - a[0]), a[1] + t * (c[1] - a[1])];
-}
-
-function fail(): never {
-  throw new Error('expected a matrix');
-}

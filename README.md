@@ -33,6 +33,10 @@ interaction; the host owns whatever is presented.
   browser-owned and natively interactive: it is placed by its projected corners with its fidelity
   declared, clipped, stacked explicitly and never mounted twice; window chrome sits in layers of
   its own and labels are text.
+- `@swf/backend-geometry`: a drawing presentation backend, written independently of the DOM one.
+  It draws adapter-supplied drawables, proxies, placeholders, window chrome and indicators for
+  windows out of view on canvases, pairs with a native renderer through `LayeredRenderer`, and
+  its `LayerCompositor` stacks live and drawn layers in one explicit order.
 - `@swf/conformance`: suites that check an adapter, a renderer or a compositor against the
   contracts, with reference mocks to run them against.
 
@@ -153,6 +157,12 @@ compositor's and projection's capabilities, walking the fallback policy (by defa
 `native`, `approximated`, `proxy`, `placeholder`) and reporting why each better mode was not
 possible. Where a live element is placed exactly but its shape only approximates the projection,
 the result says so; nothing approximate is ever labelled exact.
+
+Rendering order depends only on the scene revision and the view: layers come in the plan's order
+whatever order fragments were produced in, and a compositor declares how overlapping layers
+occlude each other (`occlusion`): `depth`, by a per-pixel depth test across layers, or
+`layer-order`, each layer entirely in front of or behind another. Every composed frame says which
+it used, so the layer-level fallback is never mistaken for depth-correct occlusion.
 
 ### Projections
 
@@ -314,6 +324,36 @@ wheel and key event over the view to the interaction router. What the router con
 content as the browser's own event. Nothing is synthesized, and content in a cross-origin frame
 gets its input from the browser alone. Labels and host metadata are always inserted as text.
 
+## Drawing and layering
+
+```ts
+import { GeometryRenderer, LayeredRenderer, LayerCompositor } from '@swf/backend-geometry';
+
+const renderer = new LayeredRenderer({
+  native: new DomRenderer({ document }), // live content only: no chrome of its own
+  geometry: new GeometryRenderer({
+    projections,
+    drawables: (surfaceId) => surfaces.handleOf(surfaceId), // a `drawable` adapter's handles
+  }),
+});
+const compositor = new LayerCompositor();
+```
+
+The geometry renderer draws: content a `drawable` adapter supplies (an image source with its
+size), warped by a mesh that follows the view's projection point by point and clipped to each
+fragment, so a surface split by the panorama seam is drawn on both sides; proxies and placeholders
+with their labels; window frames and titles along each window's projected frame; and markers at
+the edge of a narrow view pointing to windows outside it. Drawn content is warped piecewise, so it
+is declared approximate, never exact. On its own it shows live surfaces as proxies; paired with a
+native renderer by `LayeredRenderer`, live content comes from that renderer and everything else
+from the geometry renderer, merged in plan order.
+
+`LayerCompositor` stacks live elements and drawn layers in that order by `z-index`: consecutive
+drawn layers share one canvas, and a live element between them splits them into separate
+canvases. Live elements are appended once and never moved. Occlusion between a live element and
+drawn content is by whole layers (`layer-order`): there is no per-pixel depth between them, and
+the composed frame says so. Nothing in the framework reads rendered pixels back.
+
 ## Checking an implementation
 
 ```ts
@@ -328,7 +368,8 @@ const results = await runConformance(
 ```
 
 Each case also runs on its own (`case.run()` throws on failure), so the suites fit any test
-framework. `backendConformance` checks a renderer and a compositor the same way.
+framework. `backendConformance` checks a renderer and a compositor the same way; the DOM backend,
+the geometry backend and the two layered together all pass the same suite.
 
 ## Development
 

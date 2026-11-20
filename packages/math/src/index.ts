@@ -4,6 +4,7 @@
  */
 export * from './aabb.js';
 export * from './mat4.js';
+export * from './plane.js';
 export * from './quat.js';
 export * from './ray.js';
 export * from './transform.js';

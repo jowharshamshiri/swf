@@ -247,6 +247,12 @@ export function backendConformance(fixture: BackendFixture): ConformanceCase[] {
             `the layer of fragment "${planned.fragment.id}" names surface "${String(layer.surfaceId)}"`,
           );
         }
+        check(
+          rendered.size.width === frame.view.width &&
+            rendered.size.height === frame.view.height &&
+            rendered.size.devicePixelRatio === frame.view.devicePixelRatio,
+          'the rendered frame names another view size',
+        );
         const ids = rendered.layers.map((l) => l.id);
         check(new Set(ids).size === ids.length, 'two layers share an ID');
         const unknown = rendered.layers.find(
@@ -315,6 +321,10 @@ export function backendConformance(fixture: BackendFixture): ConformanceCase[] {
         check(
           composed.sceneRevision === rendered.sceneRevision,
           'the composed frame names another revision',
+        );
+        check(
+          composed.occlusion === p.compositor.capabilities().occlusion,
+          `the composed frame resolves occlusion by ${composed.occlusion}, not as the compositor declares`,
         );
         await release(p);
       },

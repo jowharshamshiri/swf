@@ -2,6 +2,7 @@ import type { Id, SceneState } from '@swf/core';
 import type {
   CompositorCapabilities,
   LayerCategory,
+  Occlusion,
   RendererCapabilities,
 } from './capabilities.js';
 import type { ProjectedFragment, ViewGeometry, ViewOutput } from './fragments.js';
@@ -43,10 +44,19 @@ export interface CompositionLayer {
   readonly content: unknown;
 }
 
+/** The size of a view: CSS pixels across and down, and device pixels per CSS pixel. */
+export interface ViewSize {
+  readonly width: number;
+  readonly height: number;
+  readonly devicePixelRatio: number;
+}
+
 /** What a renderer realized for a frame, in presentation order (back to front). */
 export interface RenderedFrame {
   readonly viewportId: Id;
   readonly sceneRevision: number;
+  /** The frame's view size, for a compositor sizing what it assembles. */
+  readonly size: ViewSize;
   readonly layers: readonly CompositionLayer[];
 }
 
@@ -86,6 +96,8 @@ export interface ComposedFrame {
   readonly viewportId: Id;
   readonly sceneRevision: number;
   readonly order: readonly string[];
+  /** How this frame's overlapping layers occlude each other, as the compositor declares. */
+  readonly occlusion: Occlusion;
 }
 
 export interface CompositorSession {

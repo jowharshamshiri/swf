@@ -13,11 +13,19 @@ const ALLOWED: Readonly<Record<string, readonly string[]>> = {
   projections: ['@swf/math', '@swf/core', '@swf/presentation'],
   interaction: ['@swf/math', '@swf/core', '@swf/presentation', '@swf/projections'],
   'backend-dom': [
+    '@swf/math',
     '@swf/core',
     '@swf/surfaces',
     '@swf/presentation',
     '@swf/projections',
     '@swf/interaction',
+  ],
+  'backend-geometry': [
+    '@swf/math',
+    '@swf/core',
+    '@swf/surfaces',
+    '@swf/presentation',
+    '@swf/projections',
   ],
   conformance: ['@swf/math', '@swf/core', '@swf/surfaces', '@swf/presentation'],
 };

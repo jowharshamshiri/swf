@@ -9,15 +9,8 @@ export type { DomCompositorSession } from './compositor.js';
 export { DOM_COMPOSITOR_CAPABILITIES, DOM_COMPOSITOR_ID, DomCompositor } from './compositor.js';
 export type { DomInputOptions } from './input.js';
 export { createDomInput } from './input.js';
-export type { CssMatrix, Quad } from './placement.js';
-export {
-  applyMatrix,
-  cssTransform,
-  isConvexQuad,
-  offsetQuad,
-  quadMatrix,
-  rectQuad,
-} from './placement.js';
+export type { CssMatrix } from './placement.js';
+export { applyMatrix, cssMatrixOf, cssTransform, quadMatrix } from './placement.js';
 export type { ChromeOptions, DomRendererOptions, DomRendererSession } from './renderer.js';
 export {
   DOM_ATTRIBUTES,

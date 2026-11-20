@@ -36,7 +36,12 @@ function brokenRenderer(
         viewportId: session.viewportId,
         render(frame: RenderFrame) {
           if (released && options.renderAfterRelease === true) {
-            return { viewportId: frame.viewportId, sceneRevision: frame.sceneRevision, layers: [] };
+            return {
+              viewportId: frame.viewportId,
+              sceneRevision: frame.sceneRevision,
+              size: frame.view,
+              layers: [],
+            };
           }
           calls += 1;
           return change(session.render(frame), calls);

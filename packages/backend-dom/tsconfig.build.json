@@ -11,11 +11,23 @@
   },
   "include": ["src"],
   "references": [
-    { "path": "../math/tsconfig.build.json" },
-    { "path": "../core/tsconfig.build.json" },
-    { "path": "../surfaces/tsconfig.build.json" },
-    { "path": "../presentation/tsconfig.build.json" },
-    { "path": "../projections/tsconfig.build.json" },
-    { "path": "../interaction/tsconfig.build.json" }
+    {
+      "path": "../math/tsconfig.build.json"
+    },
+    {
+      "path": "../core/tsconfig.build.json"
+    },
+    {
+      "path": "../surfaces/tsconfig.build.json"
+    },
+    {
+      "path": "../presentation/tsconfig.build.json"
+    },
+    {
+      "path": "../projections/tsconfig.build.json"
+    },
+    {
+      "path": "../interaction/tsconfig.build.json"
+    }
   ]
 }

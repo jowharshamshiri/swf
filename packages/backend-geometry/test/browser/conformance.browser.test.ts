@@ -1,0 +1,66 @@
+import { DomCompositor, DomRenderer } from '@swf/backend-dom';
+import type { BackendFixture } from '@swf/conformance';
+import { backendConformance, runConformance } from '@swf/conformance';
+import { afterEach, describe, expect, it } from 'vitest';
+import { GeometryRenderer, LayerCompositor, LayeredRenderer } from '../../src/index.js';
+
+const containers: HTMLElement[] = [];
+afterEach(() => {
+  containers.splice(0).forEach((c) => {
+    c.remove();
+  });
+});
+
+function container(): HTMLElement {
+  const c = document.createElement('div');
+  document.body.append(c);
+  containers.push(c);
+  return c;
+}
+
+/** A small drawable: what a `drawable` adapter hands the geometry renderer. */
+function drawables() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 16;
+  canvas.height = 16;
+  const ctx = canvas.getContext('2d');
+  if (ctx !== null) {
+    ctx.fillStyle = 'rgb(0, 160, 0)';
+    ctx.fillRect(0, 0, 16, 16);
+  }
+  return () => ({ source: canvas, width: 16, height: 16 });
+}
+
+const IMPLEMENTATIONS: Record<string, BackendFixture> = {
+  'the DOM backend': {
+    renderer: () => new DomRenderer({ document }),
+    compositor: () => new DomCompositor(),
+    container,
+  },
+  'the geometry backend': {
+    renderer: () => new GeometryRenderer({ drawables: drawables() }),
+    compositor: () => new LayerCompositor(),
+    container,
+  },
+  'the DOM and geometry backends layered': {
+    renderer: () =>
+      new LayeredRenderer({
+        native: new DomRenderer({ document }),
+        geometry: new GeometryRenderer({ drawables: drawables() }),
+      }),
+    compositor: () => new LayerCompositor(),
+    container,
+  },
+};
+
+describe('one conformance suite, independent implementations (FR-090, AC-013, QA-005)', () => {
+  for (const [name, fixture] of Object.entries(IMPLEMENTATIONS)) {
+    it(`passes with ${name}`, async () => {
+      const results = await runConformance(backendConformance(fixture));
+      expect(results.length).toBeGreaterThan(5);
+      expect(results.filter((r) => r.outcome !== 'passed')).toEqual([]);
+      // Released sessions leave nothing behind.
+      expect(containers.every((c) => c.childElementCount === 0)).toBe(true);
+    });
+  }
+});

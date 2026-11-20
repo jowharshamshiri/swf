@@ -9,6 +9,7 @@ export type {
   CompositorCapabilities,
   LayerCategory,
   Layering,
+  Occlusion,
   ProjectionProfile,
   RendererCapabilities,
   TransformMode,
@@ -30,6 +31,7 @@ export type {
   RendererBackend,
   RendererSession,
   RenderFrame,
+  ViewSize,
 } from './contracts.js';
 export { PRESENTATION_API_VERSION } from './contracts.js';
 export type {

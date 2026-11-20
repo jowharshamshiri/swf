@@ -15,8 +15,9 @@ import type {
 import { PRESENTATION_API_VERSION, viewGeometryIssue } from '@swf/presentation';
 import type { ProjectionModule } from '@swf/projections';
 import { projectionFor } from '@swf/projections';
-import type { Quad } from './placement.js';
-import { cssTransform, offsetQuad, quadMatrix, rectQuad } from './placement.js';
+import type { Quad2 } from '@swf/math';
+import { offsetQuad, rectQuad } from '@swf/math';
+import { cssTransform, quadMatrix } from './placement.js';
 
 export const DOM_RENDERER_ID = 'swf.dom-renderer/1';
 
@@ -253,6 +254,11 @@ export class DomRendererSession implements RendererSession {
     return Object.freeze({
       viewportId: frame.viewportId,
       sceneRevision: frame.sceneRevision,
+      size: Object.freeze({
+        width: frame.view.width,
+        height: frame.view.height,
+        devicePixelRatio: frame.view.devicePixelRatio,
+      }),
       layers: Object.freeze(layers),
     });
   }
@@ -479,7 +485,7 @@ export class DomRendererSession implements RendererSession {
     placeBox(element, piece.bounds);
     const width = node.bounds[0] * this.#ppu;
     const height = node.bounds[1] * this.#ppu;
-    const corners: Quad = piece.corners ?? rectQuad(piece.bounds);
+    const corners: Quad2 = piece.corners ?? rectQuad(piece.bounds);
     const matrix =
       quadMatrix(width, height, offsetQuad(corners, x, y)) ??
       quadMatrix(width, height, offsetQuad(rectQuad(piece.bounds), x, y));

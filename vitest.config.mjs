@@ -14,6 +14,7 @@ export default defineConfig({
       '@swf/projections': source('projections'),
       '@swf/interaction': source('interaction'),
       '@swf/backend-dom': source('backend-dom'),
+      '@swf/backend-geometry': source('backend-geometry'),
       '@swf/conformance': source('conformance'),
     },
   },

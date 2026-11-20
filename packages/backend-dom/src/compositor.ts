@@ -35,6 +35,8 @@ export const DOM_COMPOSITOR_CAPABILITIES: CompositorCapabilities = Object.freeze
   interpolation: false,
   directNative: true,
   multiViewport: true,
+  // Elements stack by z-index: each layer lies entirely in front of or behind another.
+  occlusion: 'layer-order',
 });
 
 /** Assembles a DOM renderer's layers into the host's container, one session per viewport. */
@@ -135,6 +137,7 @@ export class DomCompositorSession implements CompositorSession {
       viewportId: frame.viewportId,
       sceneRevision: frame.sceneRevision,
       order: Object.freeze(frame.layers.map((layer) => layer.id)),
+      occlusion: DOM_COMPOSITOR_CAPABILITIES.occlusion,
     });
   }
 

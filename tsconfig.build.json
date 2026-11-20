@@ -23,6 +23,9 @@
       "path": "packages/backend-dom/tsconfig.build.json"
     },
     {
+      "path": "packages/backend-geometry/tsconfig.build.json"
+    },
+    {
       "path": "packages/conformance/tsconfig.build.json"
     }
   ]

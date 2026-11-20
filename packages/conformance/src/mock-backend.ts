@@ -43,6 +43,7 @@ export const MOCK_COMPOSITOR_CAPABILITIES: CompositorCapabilities = Object.freez
   interpolation: true,
   directNative: true,
   multiViewport: true,
+  occlusion: 'layer-order',
 });
 
 /**
@@ -97,6 +98,11 @@ export class MockRendererSession implements RendererSession {
     return Object.freeze({
       viewportId: frame.viewportId,
       sceneRevision: frame.sceneRevision,
+      size: Object.freeze({
+        width: frame.view.width,
+        height: frame.view.height,
+        devicePixelRatio: frame.view.devicePixelRatio,
+      }),
       layers: Object.freeze(layers),
     });
   }
@@ -148,6 +154,7 @@ export class MockCompositorSession implements CompositorSession {
       viewportId: frame.viewportId,
       sceneRevision: frame.sceneRevision,
       order: Object.freeze(frame.layers.map((layer) => layer.id)),
+      occlusion: MOCK_COMPOSITOR_CAPABILITIES.occlusion,
     });
   }
 
