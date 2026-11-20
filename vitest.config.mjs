@@ -9,6 +9,7 @@ export default defineConfig({
     alias: {
       '@swf/math': source('math'),
       '@swf/core': source('core'),
+      '@swf/surfaces': source('surfaces'),
     },
   },
   test: {

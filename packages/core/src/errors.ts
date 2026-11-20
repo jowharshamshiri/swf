@@ -12,6 +12,8 @@ export type SwfErrorCode =
   | 'SNAPSHOT_INVALID'
   | 'MIGRATION_FAILED'
   | 'CANCELLED'
+  /** An operation that the entity's current lifecycle state does not allow. */
+  | 'INVALID_TRANSITION'
   | 'WORKSPACE_DISPOSED';
 
 /** The error envelope every framework failure is reported in. */

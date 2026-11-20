@@ -17,8 +17,13 @@ type Op =
   | { op: 'ungroup'; pick: number }
   | { op: 'archive'; pick: number }
   | { op: 'restore'; pick: number }
-  | { op: 'duplicate'; pick: number }
-  | { op: 'select'; picks: number[] };
+  | { op: 'duplicate'; pick: number; reuse: boolean }
+  | { op: 'select'; picks: number[] }
+  | { op: 'attachSurface'; pick: number; index: number }
+  | { op: 'moveSurface'; pick: number; owner: number; keep: 'world' | 'local' }
+  | { op: 'reorderSurface'; pick: number; index: number }
+  | { op: 'rebindSurface'; pick: number; key: number | null }
+  | { op: 'detachSurface'; pick: number };
 
 type Step = { kind: 'tx'; ops: Op[] } | { kind: 'undo' } | { kind: 'redo' };
 
@@ -67,8 +72,31 @@ const op: fc.Arbitrary<Op> = fc.oneof(
   fc.record({ op: fc.constant('ungroup' as const), pick }),
   { weight: 2, arbitrary: fc.record({ op: fc.constant('archive' as const), pick }) },
   { weight: 4, arbitrary: fc.record({ op: fc.constant('restore' as const), pick }) },
-  fc.record({ op: fc.constant('duplicate' as const), pick }),
+  fc.record({ op: fc.constant('duplicate' as const), pick, reuse: fc.boolean() }),
   fc.record({ op: fc.constant('select' as const), picks: fc.array(pick, { maxLength: 2 }) }),
+  {
+    weight: 3,
+    arbitrary: fc.record({ op: fc.constant('attachSurface' as const), pick, index: fc.nat(2) }),
+  },
+  {
+    weight: 2,
+    arbitrary: fc.record({
+      op: fc.constant('moveSurface' as const),
+      pick,
+      owner: pick,
+      keep: fc.constantFrom('world' as const, 'local' as const),
+    }),
+  },
+  {
+    weight: 2,
+    arbitrary: fc.record({ op: fc.constant('reorderSurface' as const), pick, index: fc.nat(1) }),
+  },
+  fc.record({
+    op: fc.constant('rebindSurface' as const),
+    pick,
+    key: fc.option(fc.nat(5), { nil: null }),
+  }),
+  fc.record({ op: fc.constant('detachSurface' as const), pick }),
 );
 
 const step: fc.Arbitrary<Step> = fc.oneof(
@@ -89,6 +117,7 @@ function toCommands(state: SceneState, ops: readonly Op[], fresh: () => Id): Sce
   const archived = [...state.nodes.values()]
     .filter((n) => n.status === 'archived')
     .map((n) => n.id);
+  const surfaces = [...state.surfaces.ids()];
   const choose = (list: readonly Id[], n: number): Id =>
     list[n % Math.max(list.length, 1)] ?? 'missing';
   return ops.map((o): SceneCommand => {
@@ -134,9 +163,38 @@ function toCommands(state: SceneState, ops: readonly Op[], fresh: () => Id): Sce
       case 'restore':
         return { type: 'node.restoreArchived', id: choose(archived, o.pick) };
       case 'duplicate':
-        return { type: 'node.duplicate', id: choose(active, o.pick) };
+        return { type: 'node.duplicate', id: choose(active, o.pick), reuseBindingKeys: o.reuse };
       case 'select':
         return { type: 'selection.set', ids: [...new Set(o.picks.map((p) => choose(active, p)))] };
+      case 'attachSurface':
+        return {
+          type: 'surface.attach',
+          surface: {
+            id: fresh(),
+            ownerNodeId: choose(existing, o.pick),
+            bindingKey: `key-${String(o.pick % 4)}`,
+            adapterTypeId: 'host.view/1',
+            bounds: [1, 0.5, 0.01],
+            index: o.index,
+          },
+        };
+      case 'moveSurface':
+        return {
+          type: 'surface.move',
+          id: choose(surfaces, o.pick),
+          ownerNodeId: choose(existing, o.owner),
+          keep: o.keep,
+        };
+      case 'reorderSurface':
+        return { type: 'surface.reorder', id: choose(surfaces, o.pick), index: o.index };
+      case 'rebindSurface':
+        return {
+          type: 'surface.rebind',
+          id: choose(surfaces, o.pick),
+          bindingKey: o.key === null ? null : `key-${String(o.key)}`,
+        };
+      case 'detachSurface':
+        return { type: 'surface.detach', id: choose(surfaces, o.pick) };
     }
   });
 }
@@ -166,6 +224,20 @@ function checkScene(state: SceneState): void {
   for (const selected of state.selection) {
     expect(state.nodes.get(selected)?.status).toBe('active');
   }
+  // Every surface belongs to an existing node that lists it exactly once, and every slot names
+  // an existing surface of that node; no ID is both a node and a surface.
+  const slotted = new Set<string>();
+  for (const node of state.nodes) {
+    for (const surfaceId of node.surfaceIds) {
+      expect(slotted.has(surfaceId), `${surfaceId} slotted twice`).toBe(false);
+      slotted.add(surfaceId);
+      expect(state.surfaces.get(surfaceId)?.ownerNodeId, `slot ${surfaceId}`).toBe(node.id);
+    }
+  }
+  expect(slotted.size, 'every surface has a slot').toBe(state.surfaces.size);
+  for (const surface of state.surfaces) {
+    expect(state.nodes.has(surface.id), `${surface.id} is both node and surface`).toBe(false);
+  }
 }
 
 function snapshot(state: SceneState): unknown {
@@ -175,14 +247,29 @@ function snapshot(state: SceneState): unknown {
     selection: state.selection,
     focusedId: state.focusedId,
     nodes: [...state.nodes],
+    surfaces: [...state.surfaces],
   };
 }
 
-/** Every sequence starts from three windows, so early steps have nodes to act on. */
-const SEED: SceneCommand[] = ['s1', 's2', 's3'].map((id, i) => ({
-  type: 'node.create',
-  node: { id, kind: 'window', bounds: [1, 1, 0.1], transform: at([i * 2, 0, -5]) },
-}));
+/** Every sequence starts from three windows with two surfaces each, so early steps have work. */
+const SEED: SceneCommand[] = [
+  ...['s1', 's2', 's3'].map((id, i): SceneCommand => ({
+    type: 'node.create',
+    node: { id, kind: 'window', bounds: [1, 1, 0.1], transform: at([i * 2, 0, -5]) },
+  })),
+  ...['s1', 's2', 's3'].flatMap((owner) =>
+    ['a', 'b'].map((slot): SceneCommand => ({
+      type: 'surface.attach',
+      surface: {
+        id: `${owner}${slot}`,
+        ownerNodeId: owner,
+        bindingKey: `key-${slot}`,
+        adapterTypeId: 'host.view/1',
+        bounds: [1, 0.5, 0.01],
+      },
+    })),
+  ),
+];
 
 const KINDS = [
   'node.create',
@@ -196,6 +283,11 @@ const KINDS = [
   'node.restoreArchived',
   'node.duplicate',
   'selection.set',
+  'surface.attach',
+  'surface.move',
+  'surface.reorder',
+  'surface.rebind',
+  'surface.detach',
   'undo',
   'redo',
 ];
@@ -258,6 +350,7 @@ describe('scene invariants under random command sequences', () => {
             checkScene(ws.getState());
           }
           expect(ws.getState().nodes.size).toBe(0);
+          expect(ws.getState().surfaces.size).toBe(0);
           expect(ws.getState().rootIds).toEqual([]);
         },
       ),

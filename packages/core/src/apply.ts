@@ -16,10 +16,12 @@ import { SCENE_COMMAND_TYPES } from './commands.js';
 import type { Constraint } from './constraints.js';
 import { resolveConstraints } from './constraints.js';
 import { RejectionSignal } from './errors.js';
+import type { GeometryDescriptor, GeometryLimits, GeometryRegistry } from './geometry.js';
+import { jsonByteLength, RECT_GEOMETRY } from './geometry.js';
 import type { Metadata } from './json.js';
-import { checkMetadataKey, copyMetadata, describe } from './json.js';
-import type { Id, NodeRecord, SceneState } from './model.js';
-import { DEFAULT_NODE_FLAGS } from './model.js';
+import { checkMetadataKey, copyJson, copyMetadata, describe } from './json.js';
+import type { Id, NodeRecord, SceneState, SurfaceRecord } from './model.js';
+import { DEFAULT_FLAGS } from './model.js';
 import {
   ancestorIds,
   descendantIds,
@@ -30,12 +32,15 @@ import {
 } from './query.js';
 import type { TableDraft } from './table.js';
 import {
+  expectAdapterTypeId,
+  expectBindingKey,
   expectBounds,
   expectFlags,
   expectId,
   expectIdList,
   expectIdOrNull,
   expectIndex,
+  expectInteraction,
   expectLabel,
   expectNonBlank,
   expectRecord,
@@ -49,19 +54,24 @@ export interface ApplyContext {
   readonly now: number;
   /** Supplies a fresh ID, given a test for IDs in use; the draft rejects one already in use. */
   readonly createId: (inUse: (id: Id) => boolean) => Id;
-  /** Sorted constraints to resolve placements through. */
+  /** Sorted constraints to resolve node placements through. */
   readonly constraints: readonly Constraint[];
+  readonly geometry: GeometryRegistry;
+  readonly geometryLimits: GeometryLimits;
 }
 
 /** The scene after applying commands, before the revision is advanced. */
 export interface ApplyOutcome {
   readonly nodes: SceneState['nodes'];
+  readonly surfaces: SceneState['surfaces'];
   readonly rootIds: readonly Id[];
   readonly selection: readonly Id[];
   readonly focusedId: Id | null;
   readonly commandTypes: readonly SceneCommandType[];
   /** Nodes created, changed or removed, in the order they were first touched. */
   readonly touched: readonly Id[];
+  /** Surfaces created, changed or removed, in the order they were first touched. */
+  readonly touchedSurfaces: readonly Id[];
   readonly createdIds: readonly Id[];
 }
 
@@ -85,17 +95,19 @@ export function applyCommands(
   return draft.finish();
 }
 
-type MutableRecord = { -readonly [K in keyof NodeRecord]: NodeRecord[K] };
+type Mutable<T> = { -readonly [K in keyof T]: T[K] };
 
 class Draft {
   readonly #base: SceneState;
   readonly #ctx: ApplyContext;
   readonly #nodes: TableDraft<NodeRecord>;
+  readonly #surfaces: TableDraft<SurfaceRecord>;
   #rootIds: readonly Id[];
   #selection: readonly Id[];
   #focusedId: Id | null;
   readonly #commandTypes: SceneCommandType[] = [];
   readonly #touched = new Set<Id>();
+  readonly #touchedSurfaces = new Set<Id>();
   /** Nodes whose placement was proposed in this transaction: constraints resolve these. */
   readonly #placed = new Set<Id>();
   readonly #created: Id[] = [];
@@ -104,6 +116,7 @@ class Draft {
     this.#base = base;
     this.#ctx = ctx;
     this.#nodes = base.nodes.edit();
+    this.#surfaces = base.surfaces.edit();
     this.#rootIds = base.rootIds;
     this.#selection = base.selection;
     this.#focusedId = base.focusedId;
@@ -169,6 +182,33 @@ class Draft {
         this.#focusedId = id;
         return;
       }
+      case 'surface.attach':
+        this.#attachSurface(command['surface'], `${path}.surface`);
+        return;
+      case 'surface.patch':
+        this.#patchSurface(command, path);
+        return;
+      case 'surface.move':
+        this.#moveSurface(command, path);
+        return;
+      case 'surface.reorder': {
+        const surface = this.#requireSurface(command['id'], `${path}.id`);
+        this.#insertSurface(surface.ownerNodeId, surface.id, command['index'], `${path}.index`);
+        return;
+      }
+      case 'surface.rebind':
+        this.#rebindSurface(command, path);
+        return;
+      case 'surface.detach': {
+        const surface = this.#requireSurface(command['id'], `${path}.id`);
+        this.#assertUnlocked(surface, 'surface', path, 'be detached');
+        this.#setSurfaces(
+          surface.ownerNodeId,
+          this.#requireNode(surface.ownerNodeId, path).surfaceIds.filter((s) => s !== surface.id),
+        );
+        this.#removeSurface(surface.id);
+        return;
+      }
     }
   }
 
@@ -181,17 +221,19 @@ class Draft {
       this.#focusedId !== null && stillSelectable(this.#focusedId) ? this.#focusedId : null;
     return {
       nodes: this.#nodes.freeze(),
+      surfaces: this.#surfaces.freeze(),
       rootIds: this.#rootIds,
       selection:
         selection.length === this.#selection.length ? this.#selection : Object.freeze(selection),
       focusedId,
       commandTypes: Object.freeze([...this.#commandTypes]),
       touched: Object.freeze([...this.#touched]),
+      touchedSurfaces: Object.freeze([...this.#touchedSurfaces]),
       createdIds: Object.freeze([...this.#created]),
     };
   }
 
-  // --- commands ---------------------------------------------------------------------------
+  // --- node commands ----------------------------------------------------------------------
 
   #create(raw: unknown, path: string): void {
     const spec = expectRecord(raw, path, NODE_SPEC_FIELDS);
@@ -202,25 +244,20 @@ class Draft {
     const parentId =
       spec['parentId'] === undefined ? null : expectIdOrNull(spec['parentId'], `${path}.parentId`);
     if (parentId !== null) {
-      this.#require(parentId, `${path}.parentId`);
+      this.#requireNode(parentId, `${path}.parentId`);
     }
-    this.#put({
+    this.#putNode({
       id,
       kind: expectNonBlank(spec['kind'], `${path}.kind`),
       parentId,
       childIds: EMPTY,
+      surfaceIds: EMPTY,
       transform:
         spec['transform'] === undefined
           ? IDENTITY_TRANSFORM
           : expectTransform(spec['transform'], `${path}.transform`),
       bounds: expectBounds(spec['bounds'], `${path}.bounds`),
-      flags:
-        spec['flags'] === undefined
-          ? DEFAULT_NODE_FLAGS
-          : Object.freeze({
-              ...DEFAULT_NODE_FLAGS,
-              ...expectFlags(spec['flags'], `${path}.flags`),
-            }),
+      flags: flagsFrom(spec['flags'], `${path}.flags`),
       label: spec['label'] === undefined ? null : expectLabel(spec['label'], `${path}.label`),
       tags: spec['tags'] === undefined ? EMPTY : expectTags(spec['tags'], `${path}.tags`),
       metadata:
@@ -237,15 +274,15 @@ class Draft {
   }
 
   #patch(command: Record<string, unknown>, path: string): void {
-    const node = this.#require(command['id'], `${path}.id`);
-    const next: MutableRecord = { ...node, updatedAt: this.#ctx.now };
+    const node = this.#requireNode(command['id'], `${path}.id`);
+    const next: Mutable<NodeRecord> = { ...node, updatedAt: this.#ctx.now };
     if (command['transform'] !== undefined) {
-      this.#assertUnlocked(node, path, 'move');
+      this.#assertUnlocked(node, 'node', path, 'move');
       next.transform = expectTransform(command['transform'], `${path}.transform`);
       this.#placed.add(node.id);
     }
     if (command['bounds'] !== undefined) {
-      this.#assertUnlocked(node, path, 'resize');
+      this.#assertUnlocked(node, 'node', path, 'resize');
       next.bounds = expectBounds(command['bounds'], `${path}.bounds`);
     }
     if (command['label'] !== undefined) {
@@ -263,46 +300,50 @@ class Draft {
     if (command['metadata'] !== undefined) {
       next.metadata = patchMetadata(node.metadata, command['metadata'], `${path}.metadata`);
     }
-    this.#put(next);
+    this.#putNode(next);
   }
 
   #reparent(command: Record<string, unknown>, path: string): void {
-    const node = this.#require(command['id'], `${path}.id`);
+    const node = this.#requireNode(command['id'], `${path}.id`);
     const parentId = expectIdOrNull(command['parentId'], `${path}.parentId`);
     if (parentId !== null) {
-      this.#require(parentId, `${path}.parentId`);
+      this.#requireNode(parentId, `${path}.parentId`);
       if (isSelfOrAncestor(this.#nodes, node.id, parentId)) {
         throw invalid(`${path}.parentId`, `would make "${node.id}" its own ancestor`);
       }
     }
-    this.#assertUnlocked(node, path, 'be reparented');
-    const keep: unknown = command['keep'] ?? (this.#ctx.source === 'user' ? 'world' : 'local');
-    if (keep !== 'world' && keep !== 'local') {
-      throw invalid(`${path}.keep`, `must be "world" or "local" (got ${describe(keep)})`);
-    }
+    this.#assertUnlocked(node, 'node', path, 'be reparented');
+    const keep = this.#keepMode(command['keep'], `${path}.keep`);
     this.#moveTo(node.id, parentId, keep, command['index'], `${path}.index`, path);
   }
 
   #reorder(command: Record<string, unknown>, path: string): void {
-    const node = this.#require(command['id'], `${path}.id`);
+    const node = this.#requireNode(command['id'], `${path}.id`);
     this.#insertChild(node.parentId, node.id, command['index'], `${path}.index`);
   }
 
   #duplicate(command: Record<string, unknown>, path: string): void {
-    const source = this.#require(command['id'], `${path}.id`);
+    const source = this.#requireNode(command['id'], `${path}.id`);
     if (effectiveState(this.#nodes, source.id)?.active !== true) {
       throw invalid(`${path}.id`, `names archived node "${source.id}", which cannot be duplicated`);
     }
     const subtree = [source.id, ...this.#activeDescendants(source.id)];
+    const surfaceIds = subtree.flatMap((id) => this.#requireNode(id, path).surfaceIds);
     const chosen =
-      command['ids'] === undefined ? {} : expectRecord(command['ids'], `${path}.ids`, subtree);
+      command['ids'] === undefined
+        ? {}
+        : expectRecord(command['ids'], `${path}.ids`, [...subtree, ...surfaceIds]);
+    const reuseKeys = command['reuseBindingKeys'] ?? false;
+    if (typeof reuseKeys !== 'boolean') {
+      throw invalid(`${path}.reuseBindingKeys`, `must be a boolean (got ${describe(reuseKeys)})`);
+    }
     const mapping = new Map<Id, Id>();
     const used = new Set<Id>();
-    for (const id of subtree) {
+    for (const id of [...subtree, ...surfaceIds]) {
       const wanted = chosen[id];
       const copyId =
         wanted === undefined
-          ? this.#freshId(`${path}.ids`)
+          ? this.#freshId(`${path}.ids`, used)
           : this.#unusedId(wanted, `${path}.ids.${id}`);
       if (used.has(copyId)) {
         throw invalid(`${path}.ids.${id}`, `repeats the ID "${copyId}"`);
@@ -315,7 +356,7 @@ class Draft {
         ? source.parentId
         : expectIdOrNull(command['parentId'], `${path}.parentId`);
     if (parentId !== null) {
-      this.#require(parentId, `${path}.parentId`);
+      this.#requireNode(parentId, `${path}.parentId`);
     }
     const rootTransform =
       command['transform'] === undefined
@@ -329,13 +370,14 @@ class Draft {
       return copy;
     };
     for (const id of subtree) {
-      const original = this.#require(id, `${path}.id`);
+      const original = this.#requireNode(id, `${path}.id`);
       const isRoot = id === source.id;
-      this.#put({
+      this.#putNode({
         ...original,
         id: mapped(id),
         parentId: isRoot ? parentId : mapped(original.parentId ?? ''),
         childIds: Object.freeze(original.childIds.filter((c) => mapping.has(c)).map(mapped)),
+        surfaceIds: Object.freeze(original.surfaceIds.map(mapped)),
         transform: isRoot ? rootTransform : original.transform,
         status: 'active',
         createdAt: this.#ctx.now,
@@ -343,21 +385,33 @@ class Draft {
       });
       this.#created.push(mapped(id));
       this.#placed.add(mapped(id));
+      for (const surfaceId of original.surfaceIds) {
+        const surface = this.#requireSurface(surfaceId, path);
+        this.#putSurface({
+          ...surface,
+          id: mapped(surfaceId),
+          ownerNodeId: mapped(id),
+          bindingKey: reuseKeys ? surface.bindingKey : null,
+          createdAt: this.#ctx.now,
+          updatedAt: this.#ctx.now,
+        });
+        this.#created.push(mapped(surfaceId));
+      }
     }
     this.#insertChild(parentId, mapped(source.id), undefined, `${path}.parentId`);
   }
 
   #setStatus(command: Record<string, unknown>, path: string, status: NodeRecord['status']): void {
-    const node = this.#require(command['id'], `${path}.id`);
+    const node = this.#requireNode(command['id'], `${path}.id`);
     if (node.status === status) {
       throw invalid(`${path}.id`, `names node "${node.id}", which is already ${status}`);
     }
-    this.#assertUnlocked(node, path, status === 'archived' ? 'be archived' : 'be restored');
-    this.#put({ ...node, status, updatedAt: this.#ctx.now });
+    this.#assertUnlocked(node, 'node', path, status === 'archived' ? 'be archived' : 'be restored');
+    this.#putNode({ ...node, status, updatedAt: this.#ctx.now });
   }
 
   #delete(command: Record<string, unknown>, path: string): void {
-    const node = this.#require(command['id'], `${path}.id`);
+    const node = this.#requireNode(command['id'], `${path}.id`);
     const mode: unknown = command['mode'];
     if (mode !== 'subtree' && mode !== 'detachChildren' && mode !== 'rejectIfChildren') {
       throw invalid(
@@ -365,7 +419,7 @@ class Draft {
         `must be "subtree", "detachChildren" or "rejectIfChildren" (got ${describe(mode)})`,
       );
     }
-    this.#assertUnlocked(node, path, 'be deleted');
+    this.#assertUnlocked(node, 'node', path, 'be deleted');
     if (mode === 'rejectIfChildren' && node.childIds.length > 0) {
       throw invalid(
         `${path}.id`,
@@ -375,16 +429,16 @@ class Draft {
     if (mode === 'subtree') {
       const descendants = descendantIds(this.#nodes, node.id);
       for (const id of descendants) {
-        this.#assertUnlocked(this.#require(id, path), path, 'be deleted');
+        this.#assertUnlocked(this.#requireNode(id, path), 'node', path, 'be deleted');
       }
       for (const id of descendants) {
-        this.#remove(id);
+        this.#removeNode(id);
       }
     } else {
       this.#dissolve(node.id, path);
     }
     this.#detachFromParent(node.id);
-    this.#remove(node.id);
+    this.#removeNode(node.id);
   }
 
   #group(command: Record<string, unknown>, path: string): void {
@@ -393,8 +447,8 @@ class Draft {
       throw invalid(`${path}.nodeIds`, 'must list at least one node');
     }
     const members = memberIds.map((id, i) => {
-      const member = this.#require(id, `${path}.nodeIds[${i}]`);
-      this.#assertUnlocked(member, `${path}.nodeIds[${i}]`, 'be grouped');
+      const member = this.#requireNode(id, `${path}.nodeIds[${i}]`);
+      this.#assertUnlocked(member, 'node', `${path}.nodeIds[${i}]`, 'be grouped');
       return member;
     });
     members.forEach((a, i) => {
@@ -432,15 +486,16 @@ class Draft {
       spec['id'] === undefined
         ? this.#freshId(`${path}.group.id`)
         : this.#unusedId(spec['id'], `${path}.group.id`);
-    this.#put({
+    this.#putNode({
       id: groupId,
       kind:
         spec['kind'] === undefined ? 'group' : expectNonBlank(spec['kind'], `${path}.group.kind`),
       parentId,
       childIds: EMPTY,
+      surfaceIds: EMPTY,
       transform,
       bounds,
-      flags: DEFAULT_NODE_FLAGS,
+      flags: DEFAULT_FLAGS,
       label: spec['label'] === undefined ? null : expectLabel(spec['label'], `${path}.group.label`),
       tags: EMPTY,
       metadata: EMPTY_METADATA,
@@ -463,14 +518,178 @@ class Draft {
   }
 
   #ungroup(command: Record<string, unknown>, path: string): void {
-    const node = this.#require(command['id'], `${path}.id`);
-    this.#assertUnlocked(node, path, 'be ungrouped');
+    const node = this.#requireNode(command['id'], `${path}.id`);
+    this.#assertUnlocked(node, 'node', path, 'be ungrouped');
     this.#dissolve(node.id, path);
     this.#detachFromParent(node.id);
-    this.#remove(node.id);
+    this.#removeNode(node.id);
+  }
+
+  // --- surface commands -------------------------------------------------------------------
+
+  #attachSurface(raw: unknown, path: string): void {
+    const spec = expectRecord(raw, path, SURFACE_SPEC_FIELDS);
+    const id =
+      spec['id'] === undefined
+        ? this.#freshId(`${path}.id`)
+        : this.#unusedId(spec['id'], `${path}.id`);
+    const owner = this.#requireNode(spec['ownerNodeId'], `${path}.ownerNodeId`);
+    const bounds = expectBounds(spec['bounds'], `${path}.bounds`);
+    this.#putSurface({
+      id,
+      ownerNodeId: owner.id,
+      bindingKey: expectBindingKey(spec['bindingKey'], `${path}.bindingKey`),
+      adapterTypeId: expectAdapterTypeId(spec['adapterTypeId'], `${path}.adapterTypeId`),
+      transform:
+        spec['transform'] === undefined
+          ? IDENTITY_TRANSFORM
+          : expectTransform(spec['transform'], `${path}.transform`),
+      bounds,
+      geometry:
+        spec['geometry'] === undefined
+          ? RECT_GEOMETRY
+          : this.#geometry(spec['geometry'], bounds, `${path}.geometry`),
+      interaction:
+        spec['interaction'] === undefined
+          ? 'content'
+          : expectInteraction(spec['interaction'], `${path}.interaction`),
+      flags: flagsFrom(spec['flags'], `${path}.flags`),
+      label: spec['label'] === undefined ? null : expectLabel(spec['label'], `${path}.label`),
+      metadata:
+        spec['metadata'] === undefined
+          ? EMPTY_METADATA
+          : copyMetadata(spec['metadata'], `${path}.metadata`),
+      createdAt: this.#ctx.now,
+      updatedAt: this.#ctx.now,
+    });
+    this.#insertSurface(owner.id, id, spec['index'], `${path}.index`);
+    this.#created.push(id);
+  }
+
+  #patchSurface(command: Record<string, unknown>, path: string): void {
+    const surface = this.#requireSurface(command['id'], `${path}.id`);
+    const next: Mutable<SurfaceRecord> = { ...surface, updatedAt: this.#ctx.now };
+    if (command['transform'] !== undefined) {
+      this.#assertUnlocked(surface, 'surface', path, 'move');
+      next.transform = expectTransform(command['transform'], `${path}.transform`);
+    }
+    if (command['bounds'] !== undefined) {
+      this.#assertUnlocked(surface, 'surface', path, 'resize');
+      next.bounds = expectBounds(command['bounds'], `${path}.bounds`);
+    }
+    if (command['geometry'] !== undefined) {
+      next.geometry = this.#geometry(command['geometry'], next.bounds, `${path}.geometry`);
+    } else if (command['bounds'] !== undefined) {
+      // The existing geometry must still fit the new bounds.
+      next.geometry = this.#geometry(surface.geometry, next.bounds, `${path}.bounds`);
+    }
+    if (command['interaction'] !== undefined) {
+      next.interaction = expectInteraction(command['interaction'], `${path}.interaction`);
+    }
+    if (command['flags'] !== undefined) {
+      next.flags = Object.freeze({
+        ...surface.flags,
+        ...expectFlags(command['flags'], `${path}.flags`),
+      });
+    }
+    if (command['label'] !== undefined) {
+      next.label = expectLabel(command['label'], `${path}.label`);
+    }
+    if (command['metadata'] !== undefined) {
+      next.metadata = patchMetadata(surface.metadata, command['metadata'], `${path}.metadata`);
+    }
+    this.#putSurface(next);
+  }
+
+  #moveSurface(command: Record<string, unknown>, path: string): void {
+    const surface = this.#requireSurface(command['id'], `${path}.id`);
+    const owner = this.#requireNode(command['ownerNodeId'], `${path}.ownerNodeId`);
+    this.#assertUnlocked(surface, 'surface', path, 'move');
+    const keep = this.#keepMode(command['keep'], `${path}.keep`);
+    let transform = surface.transform;
+    if (keep === 'world' && owner.id !== surface.ownerNodeId) {
+      const world = mat4Multiply(
+        this.#worldOf(surface.ownerNodeId, path),
+        mat4FromTransform(surface.transform),
+      );
+      const inverse = mat4InvertAffine(this.#worldOf(owner.id, path));
+      const local = inverse === null ? null : mat4Decompose(mat4Multiply(inverse, world));
+      if (!local?.ok) {
+        const why = local === null ? 'is singular' : `has ${local.reason}`;
+        throw invalid(
+          path,
+          `cannot keep the world placement of surface "${surface.id}" on "${owner.id}": the result ${why}`,
+        );
+      }
+      transform = freezeTransform(local.transform);
+    }
+    this.#setSurfaces(
+      surface.ownerNodeId,
+      this.#requireNode(surface.ownerNodeId, path).surfaceIds.filter((s) => s !== surface.id),
+    );
+    this.#putSurface({ ...surface, ownerNodeId: owner.id, transform, updatedAt: this.#ctx.now });
+    this.#insertSurface(owner.id, surface.id, command['index'], `${path}.index`);
+  }
+
+  #rebindSurface(command: Record<string, unknown>, path: string): void {
+    const surface = this.#requireSurface(command['id'], `${path}.id`);
+    if (!('bindingKey' in command)) {
+      throw invalid(`${path}.bindingKey`, 'is required (a key, or null for none)');
+    }
+    this.#putSurface({
+      ...surface,
+      bindingKey: expectBindingKey(command['bindingKey'], `${path}.bindingKey`),
+      adapterTypeId:
+        command['adapterTypeId'] === undefined
+          ? surface.adapterTypeId
+          : expectAdapterTypeId(command['adapterTypeId'], `${path}.adapterTypeId`),
+      updatedAt: this.#ctx.now,
+    });
+  }
+
+  /**
+   * A validated, frozen geometry descriptor. The kind must be registered; its params must be JSON
+   * within the size limit and valid for the provider and the surface's bounds.
+   */
+  #geometry(raw: unknown, bounds: Vec3, path: string): GeometryDescriptor {
+    const record = expectRecord(raw, path, ['kind', 'params']);
+    const kind = expectNonBlank(record['kind'], `${path}.kind`);
+    const provider = this.#ctx.geometry.get(kind);
+    if (provider === undefined) {
+      throw invalid(`${path}.kind`, `names geometry kind "${kind}", which is not registered`);
+    }
+    if (!('params' in record)) {
+      throw invalid(`${path}.params`, 'is required (null when the kind takes none)');
+    }
+    const params = copyJson(record['params'], `${path}.params`);
+    const size = jsonByteLength(params);
+    if (size > this.#ctx.geometryLimits.maxParamsBytes) {
+      throw invalid(
+        `${path}.params`,
+        `is ${size} bytes, more than the limit of ${this.#ctx.geometryLimits.maxParamsBytes}`,
+      );
+    }
+    let issue: string | null;
+    try {
+      issue = provider.validate(params, bounds, this.#ctx.geometryLimits);
+    } catch (error) {
+      issue = `geometry provider "${kind}" failed: ${error instanceof Error ? error.message : String(error)}`;
+    }
+    if (issue !== null) {
+      throw invalid(`${path}.params`, `is invalid: ${issue}`);
+    }
+    return Object.freeze({ kind, params });
   }
 
   // --- helpers ----------------------------------------------------------------------------
+
+  #keepMode(raw: unknown, path: string): KeepMode {
+    const keep: unknown = raw ?? (this.#ctx.source === 'user' ? 'world' : 'local');
+    if (keep !== 'world' && keep !== 'local') {
+      throw invalid(path, `must be "world" or "local" (got ${describe(keep)})`);
+    }
+    return keep;
+  }
 
   #groupParent(members: readonly NodeRecord[], raw: unknown, path: string): Id | null {
     if (raw === undefined) {
@@ -483,7 +702,7 @@ class Draft {
     }
     const parentId = expectIdOrNull(raw, path);
     if (parentId !== null) {
-      this.#require(parentId, path);
+      this.#requireNode(parentId, path);
       const inside = members.find((m) => isSelfOrAncestor(this.#nodes, m.id, parentId));
       if (inside !== undefined) {
         throw invalid(path, `is inside member "${inside.id}"`);
@@ -494,7 +713,7 @@ class Draft {
 
   /** Moves the node's children to its parent at its position, keeping their world placement. */
   #dissolve(id: Id, path: string): void {
-    const node = this.#require(id, path);
+    const node = this.#requireNode(id, path);
     let index = this.#children(node.parentId).indexOf(node.id);
     for (const childId of node.childIds) {
       this.#moveTo(childId, node.parentId, 'world', index, path, path);
@@ -510,7 +729,7 @@ class Draft {
     indexPath: string,
     path: string,
   ): void {
-    const node = this.#require(id, path);
+    const node = this.#requireNode(id, path);
     let transform = node.transform;
     if (keep === 'world' && parentId !== node.parentId) {
       const world = worldMatrix(this.#nodes, id);
@@ -530,7 +749,7 @@ class Draft {
       transform = freezeTransform(local.transform);
     }
     this.#detachFromParent(id);
-    this.#put({ ...node, parentId, transform, updatedAt: this.#ctx.now });
+    this.#putNode({ ...node, parentId, transform, updatedAt: this.#ctx.now });
     this.#insertChild(parentId, id, rawIndex, indexPath);
     this.#placed.add(id);
   }
@@ -554,7 +773,7 @@ class Draft {
   #worldOf(id: Id, path: string): Mat4 {
     const m = worldMatrix(this.#nodes, id);
     if (m === undefined) {
-      throw this.#unknown(id, path);
+      throw this.#unknown(id, path, 'node');
     }
     return m;
   }
@@ -562,13 +781,13 @@ class Draft {
   #parentWorld(parentId: Id | null, path: string): Mat4 {
     const m = parentWorldMatrix(this.#nodes, parentId);
     if (m === undefined) {
-      throw this.#unknown(parentId ?? '', path);
+      throw this.#unknown(parentId ?? '', path, 'node');
     }
     return m;
   }
 
   #assertSelectable(id: Id, path: string): void {
-    this.#require(id, path);
+    this.#requireNode(id, path);
     if (effectiveState(this.#nodes, id)?.selectable !== true) {
       throw invalid(path, `names "${id}", which is not active, visible and selectable`);
     }
@@ -589,8 +808,9 @@ class Draft {
   }
 
   /**
-   * Resolves every proposed placement through the constraints, ancestors before descendants so a
-   * child is checked against its parent's final placement.
+   * Resolves every proposed node placement through the constraints, ancestors before descendants
+   * so a child is checked against its parent's final placement. Surfaces are placed relative to
+   * their owners and are not constrained themselves.
    */
   #resolveConstraints(): void {
     const constraints = this.#ctx.constraints;
@@ -601,7 +821,7 @@ class Draft {
     const order = [...this.#placed].filter((id) => this.#nodes.has(id));
     order.sort((a, b) => depth(a) - depth(b));
     for (const id of order) {
-      const node = this.#require(id, `nodes.${id}`);
+      const node = this.#requireNode(id, `nodes.${id}`);
       const applicable = constraints.filter((c) => c.appliesTo === undefined || c.appliesTo(node));
       if (applicable.length === 0) {
         continue;
@@ -625,54 +845,76 @@ class Draft {
         );
       }
       if (result.transform !== node.transform) {
-        this.#put({ ...node, transform: freezeTransform(result.transform) });
+        this.#putNode({ ...node, transform: freezeTransform(result.transform) });
       }
     }
   }
 
-  #assertUnlocked(node: NodeRecord, path: string, action: string): void {
-    if (this.#ctx.source === 'user' && node.flags.locked) {
+  #assertUnlocked(
+    entity: NodeRecord | SurfaceRecord,
+    what: 'node' | 'surface',
+    path: string,
+    action: string,
+  ): void {
+    if (this.#ctx.source === 'user' && entity.flags.locked) {
       throw new RejectionSignal(
         'LOCKED',
-        `${path}: node "${node.id}" is locked, so it cannot ${action}`,
-        { path, entityId: node.id },
+        `${path}: ${what} "${entity.id}" is locked, so it cannot ${action}`,
+        { path, entityId: entity.id },
       );
     }
   }
 
-  #require(raw: unknown, path: string): NodeRecord {
+  #requireNode(raw: unknown, path: string): NodeRecord {
     const id = expectId(raw, path);
     const node = this.#nodes.get(id);
     if (node === undefined) {
-      throw this.#unknown(id, path);
+      throw this.#unknown(id, path, 'node');
     }
     return node;
   }
 
-  #unknown(id: Id, path: string): RejectionSignal {
-    return new RejectionSignal('UNKNOWN_ENTITY', `${path}: no node "${id}" in this workspace`, {
+  #requireSurface(raw: unknown, path: string): SurfaceRecord {
+    const id = expectId(raw, path);
+    const surface = this.#surfaces.get(id);
+    if (surface === undefined) {
+      throw this.#unknown(id, path, 'surface');
+    }
+    return surface;
+  }
+
+  #unknown(id: Id, path: string, what: 'node' | 'surface'): RejectionSignal {
+    return new RejectionSignal('UNKNOWN_ENTITY', `${path}: no ${what} "${id}" in this workspace`, {
       path,
       entityId: id,
     });
   }
 
+  #inUse(id: Id): boolean {
+    return this.#nodes.has(id) || this.#surfaces.has(id);
+  }
+
   #unusedId(raw: unknown, path: string): Id {
     const id = expectId(raw, path);
-    if (this.#nodes.has(id)) {
+    if (this.#inUse(id)) {
       throw invalid(path, `"${id}" is already in use in this workspace`);
     }
     return id;
   }
 
-  #freshId(path: string): Id {
-    return this.#unusedId(
-      this.#ctx.createId((id) => this.#nodes.has(id)),
-      `${path} (generated)`,
-    );
+  /** A generated ID, also avoiding `reserved` (IDs chosen but not yet written). */
+  #freshId(path: string, reserved: ReadonlySet<Id> = NO_IDS): Id {
+    const id = this.#ctx.createId((candidate) => this.#inUse(candidate) || reserved.has(candidate));
+    if (reserved.has(id)) {
+      throw invalid(`${path} (generated)`, `"${id}" is already in use in this workspace`);
+    }
+    return this.#unusedId(id, `${path} (generated)`);
   }
 
   #children(parentId: Id | null): Id[] {
-    return [...(parentId === null ? this.#rootIds : this.#require(parentId, 'parent').childIds)];
+    return [
+      ...(parentId === null ? this.#rootIds : this.#requireNode(parentId, 'parent').childIds),
+    ];
   }
 
   #setChildren(parentId: Id | null, childIds: readonly Id[]): void {
@@ -680,8 +922,8 @@ class Draft {
     if (parentId === null) {
       this.#rootIds = frozen;
     } else {
-      this.#put({
-        ...this.#require(parentId, 'parent'),
+      this.#putNode({
+        ...this.#requireNode(parentId, 'parent'),
         childIds: frozen,
         updatedAt: this.#ctx.now,
       });
@@ -689,7 +931,7 @@ class Draft {
   }
 
   #detachFromParent(id: Id): void {
-    const parentId = this.#require(id, 'node').parentId;
+    const parentId = this.#requireNode(id, 'node').parentId;
     this.#setChildren(
       parentId,
       this.#children(parentId).filter((child) => child !== id),
@@ -708,16 +950,52 @@ class Draft {
     this.#setChildren(parentId, siblings);
   }
 
-  #put(record: NodeRecord): void {
+  #setSurfaces(ownerId: Id, surfaceIds: readonly Id[]): void {
+    this.#putNode({
+      ...this.#requireNode(ownerId, 'owner'),
+      surfaceIds: Object.freeze([...surfaceIds]),
+      updatedAt: this.#ctx.now,
+    });
+  }
+
+  /** Places surface `id` among `ownerId`'s surfaces at `rawIndex` (omitted: last). */
+  #insertSurface(ownerId: Id, id: Id, rawIndex: unknown, path: string): void {
+    const slots = this.#requireNode(ownerId, path).surfaceIds.filter((s) => s !== id);
+    const index = rawIndex === undefined ? slots.length : expectIndex(rawIndex, path, slots.length);
+    slots.splice(index, 0, id);
+    this.#setSurfaces(ownerId, slots);
+  }
+
+  #putNode(record: NodeRecord): void {
     this.#nodes.set(record.id, Object.freeze(record));
     this.#touched.add(record.id);
   }
 
-  #remove(id: Id): void {
+  /** Removes a node and its surface associations. */
+  #removeNode(id: Id): void {
+    for (const surfaceId of this.#nodes.get(id)?.surfaceIds ?? []) {
+      this.#removeSurface(surfaceId);
+    }
     this.#nodes.delete(id);
     this.#touched.add(id);
     this.#placed.delete(id);
   }
+
+  #putSurface(record: SurfaceRecord): void {
+    this.#surfaces.set(record.id, Object.freeze(record));
+    this.#touchedSurfaces.add(record.id);
+  }
+
+  #removeSurface(id: Id): void {
+    this.#surfaces.delete(id);
+    this.#touchedSurfaces.add(id);
+  }
+}
+
+function flagsFrom(raw: unknown, path: string) {
+  return raw === undefined
+    ? DEFAULT_FLAGS
+    : Object.freeze({ ...DEFAULT_FLAGS, ...expectFlags(raw, path) });
 }
 
 function patchMetadata(current: Metadata, raw: unknown, path: string): Metadata {
@@ -770,6 +1048,7 @@ function isCommandType(value: unknown): value is SceneCommandType {
 
 const EMPTY: readonly never[] = Object.freeze([]);
 const EMPTY_METADATA: Metadata = Object.freeze({});
+const NO_IDS: ReadonlySet<Id> = new Set();
 
 const NODE_SPEC_FIELDS = [
   'id',
@@ -784,6 +1063,21 @@ const NODE_SPEC_FIELDS = [
   'metadata',
 ] as const;
 
+const SURFACE_SPEC_FIELDS = [
+  'id',
+  'ownerNodeId',
+  'bindingKey',
+  'adapterTypeId',
+  'index',
+  'transform',
+  'bounds',
+  'geometry',
+  'interaction',
+  'flags',
+  'label',
+  'metadata',
+] as const;
+
 const GROUP_FIELDS = ['id', 'kind', 'label', 'parentId', 'transform', 'bounds'] as const;
 
 const COMMAND_FIELDS: Readonly<Record<SceneCommandType, readonly string[]>> = {
@@ -791,7 +1085,7 @@ const COMMAND_FIELDS: Readonly<Record<SceneCommandType, readonly string[]>> = {
   'node.patch': ['id', 'transform', 'bounds', 'label', 'tags', 'flags', 'metadata'],
   'node.reparent': ['id', 'parentId', 'keep', 'index'],
   'node.reorder': ['id', 'index'],
-  'node.duplicate': ['id', 'ids', 'parentId', 'transform'],
+  'node.duplicate': ['id', 'ids', 'parentId', 'transform', 'reuseBindingKeys'],
   'node.archive': ['id'],
   'node.restoreArchived': ['id'],
   'node.delete': ['id', 'mode'],
@@ -799,4 +1093,19 @@ const COMMAND_FIELDS: Readonly<Record<SceneCommandType, readonly string[]>> = {
   'node.ungroup': ['id'],
   'selection.set': ['ids'],
   'focus.set': ['id'],
+  'surface.attach': ['surface'],
+  'surface.patch': [
+    'id',
+    'transform',
+    'bounds',
+    'geometry',
+    'interaction',
+    'flags',
+    'label',
+    'metadata',
+  ],
+  'surface.move': ['id', 'ownerNodeId', 'keep', 'index'],
+  'surface.reorder': ['id', 'index'],
+  'surface.rebind': ['id', 'bindingKey', 'adapterTypeId'],
+  'surface.detach': ['id'],
 };

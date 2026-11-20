@@ -1,4 +1,4 @@
-import type { ApplyOutcome } from './apply.js';
+import type { ApplyContext, ApplyOutcome } from './apply.js';
 import { applyCommands } from './apply.js';
 import type { EventSource, SceneCommand, SceneCommandType } from './commands.js';
 import { SCENE_COMMAND_TYPES } from './commands.js';
@@ -10,9 +10,11 @@ import type { SwfError } from './errors.js';
 import { makeError, RejectionSignal, SwfFailure } from './errors.js';
 import type { CancelReason, OperationPhase, WorkspaceEvent } from './events.js';
 import { describe } from './json.js';
-import type { Id, NodeRecord, SceneState } from './model.js';
+import type { GeometryLimits, GeometryProvider, ResolvedGeometry } from './geometry.js';
+import { DEFAULT_GEOMETRY_LIMITS, GeometryRegistry } from './geometry.js';
+import type { Id, NodeRecord, SceneState, SurfaceRecord } from './model.js';
 import type { NodeQuery } from './query.js';
-import { effectiveState, findNodes } from './query.js';
+import { effectiveState, findNodes, surfaceGeometry } from './query.js';
 import { Table } from './table.js';
 
 /** Where a workspace is in its life. A disposed workspace rejects every operation. */
@@ -30,12 +32,16 @@ export interface WorkspaceOptions {
   /** The clock for timestamps, in milliseconds. Default `Date.now`. */
   readonly now?: () => number;
   /**
-   * Supplies IDs for nodes created without one; returning an ID already in use rejects the
-   * transaction. Default: the next unused of `node-1`, `node-2`, ... in this workspace, which
-   * keeps scenes reproducible.
+   * Supplies IDs for nodes and surfaces created without one; returning an ID already in use
+   * rejects the transaction. Default: the next unused of `node-1`, `node-2`, ... in this
+   * workspace, which keeps scenes reproducible.
    */
   readonly createId?: () => Id;
   readonly constraints?: readonly Constraint[];
+  /** Geometry kinds beyond the built-in `rect` and `polygon`. */
+  readonly geometry?: readonly GeometryProvider[];
+  /** Overrides of the geometry complexity limits. */
+  readonly geometryLimits?: Partial<GeometryLimits>;
   /** Receives every diagnostic as it is recorded. A sink that throws is ignored. */
   readonly onDiagnostic?: (diagnostic: Diagnostic) => void;
 }
@@ -61,8 +67,10 @@ export interface TxCommitted {
   readonly transactionId: string;
   readonly revision: number;
   readonly previousRevision: number;
+  /** Nodes and surfaces the transaction created. */
   readonly createdIds: readonly Id[];
   readonly changedNodeIds: readonly Id[];
+  readonly changedSurfaceIds: readonly Id[];
   /** True when this result is a replay for a repeated idempotency key. */
   readonly replayed: boolean;
 }
@@ -88,6 +96,7 @@ export interface PreviewApplied {
   readonly status: 'previewed';
   readonly previewId: string;
   readonly changedNodeIds: readonly Id[];
+  readonly changedSurfaceIds: readonly Id[];
 }
 
 export type PreviewOutcome = PreviewApplied | TxRejected;
@@ -102,6 +111,7 @@ export interface HistoryEntry {
   readonly revision: number;
   readonly commandTypes: readonly SceneCommandType[];
   readonly changedNodeIds: readonly Id[];
+  readonly changedSurfaceIds: readonly Id[];
 }
 
 export interface Diagnostic {
@@ -126,6 +136,11 @@ export interface WorkspaceReader {
   ): () => void;
   findNodes(query: NodeQuery): Id[];
   history(): readonly HistoryEntry[];
+  /**
+   * A surface's presentation geometry placed in the world, as rendering and picking must use it.
+   * Undefined for an unknown surface.
+   */
+  surfaceGeometry(surfaceId: Id): ResolvedGeometry | undefined;
 }
 
 /** An independent spatial scene and the operations on it. */
@@ -155,6 +170,12 @@ export interface Workspace extends WorkspaceReader {
   canRedo(): boolean;
   /** Adds a constraint; the returned function removes it (and is safe to call twice). */
   registerConstraint(constraint: Constraint): () => void;
+  /**
+   * Adds a geometry kind. Throws {@link SwfFailure} when its kind is not namespaced or taken. The
+   * returned function removes it; surfaces already using the kind then resolve to the surface
+   * rectangle with `approximate` fidelity.
+   */
+  registerGeometry(provider: GeometryProvider): () => void;
   getDiagnostics(): readonly Diagnostic[];
   reader(): WorkspaceReader;
   /**
@@ -173,6 +194,8 @@ const OPTION_KEYS = [
   'now',
   'createId',
   'constraints',
+  'geometry',
+  'geometryLimits',
   'onDiagnostic',
 ];
 
@@ -181,10 +204,13 @@ export function createWorkspace(options: WorkspaceOptions): Workspace {
   return new WorkspaceImpl(options);
 }
 
+/** The records a layout transaction changed, before and after (undefined: absent). */
 interface UndoRecord {
   readonly entry: HistoryEntry;
-  readonly before: ReadonlyMap<Id, NodeRecord | undefined>;
-  readonly after: ReadonlyMap<Id, NodeRecord | undefined>;
+  readonly nodesBefore: ReadonlyMap<Id, NodeRecord | undefined>;
+  readonly nodesAfter: ReadonlyMap<Id, NodeRecord | undefined>;
+  readonly surfacesBefore: ReadonlyMap<Id, SurfaceRecord | undefined>;
+  readonly surfacesAfter: ReadonlyMap<Id, SurfaceRecord | undefined>;
   readonly rootsBefore: readonly Id[];
   readonly rootsAfter: readonly Id[];
 }
@@ -215,6 +241,8 @@ class WorkspaceImpl implements Workspace {
   readonly #onDiagnostic: ((d: Diagnostic) => void) | undefined;
   readonly #constraints = new Map<string, Constraint>();
   #sortedConstraints: readonly Constraint[] = [];
+  readonly #geometry = new GeometryRegistry();
+  readonly #geometryLimits: GeometryLimits;
   readonly #listeners = new Set<Listener>();
   readonly #outbox: WorkspaceEvent[] = [];
   readonly #queue: (() => void)[] = [];
@@ -251,14 +279,19 @@ class WorkspaceImpl implements Workspace {
           }
         : () => hostCreateId();
     this.#onDiagnostic = record.onDiagnostic;
+    this.#geometryLimits = record.geometryLimits;
     for (const constraint of record.constraints) {
       this.#addConstraint(constraint);
+    }
+    for (const provider of record.geometry) {
+      this.#addGeometry(provider);
     }
     this.#state = Object.freeze({
       workspaceId: this.id,
       revision: 0,
       rootIds: Object.freeze([]),
       nodes: Table.empty<NodeRecord>(),
+      surfaces: Table.empty<SurfaceRecord>(),
       selection: Object.freeze([]),
       focusedId: null,
     });
@@ -282,6 +315,10 @@ class WorkspaceImpl implements Workspace {
 
   history(): readonly HistoryEntry[] {
     return this.#undo.map((record) => record.entry);
+  }
+
+  surfaceGeometry(surfaceId: Id): ResolvedGeometry | undefined {
+    return surfaceGeometry(this.#state, surfaceId, this.#geometry);
   }
 
   canUndo(): boolean {
@@ -309,6 +346,7 @@ class WorkspaceImpl implements Workspace {
       ) => this.watch(selector, listener, equals),
       findNodes: (query: NodeQuery) => this.findNodes(query),
       history: () => this.history(),
+      surfaceGeometry: (surfaceId: Id) => this.surfaceGeometry(surfaceId),
     });
   }
 
@@ -365,6 +403,21 @@ class WorkspaceImpl implements Workspace {
         this.#sortedConstraints = sortConstraints(this.#constraints.values());
       }
     };
+  }
+
+  registerGeometry(provider: GeometryProvider): () => void {
+    if (this.#lifecycle !== 'ready') {
+      throw this.#failure('WORKSPACE_DISPOSED', `workspace "${this.id}" is ${this.#lifecycle}`);
+    }
+    return this.#addGeometry(provider);
+  }
+
+  #addGeometry(provider: GeometryProvider): () => void {
+    try {
+      return this.#geometry.register(provider);
+    } catch (error) {
+      throw this.#failure('INVALID_INPUT', error instanceof Error ? error.message : String(error));
+    }
   }
 
   #addConstraint(constraint: Constraint): void {
@@ -512,12 +565,11 @@ class WorkspaceImpl implements Workspace {
     }
     let outcome: ApplyOutcome;
     try {
-      outcome = applyCommands(this.#state, commands, {
-        source: options.source,
-        now: meta.timestamp,
-        createId: this.#createId,
-        constraints: this.#sortedConstraints,
-      });
+      outcome = applyCommands(
+        this.#state,
+        commands,
+        this.#applyContext(options.source, meta.timestamp),
+      );
     } catch (error) {
       return settle(this.#reject(transactionId, error, { ...meta, commands }));
     }
@@ -541,6 +593,17 @@ class WorkspaceImpl implements Workspace {
     return result;
   }
 
+  #applyContext(source: EventSource, now: number): ApplyContext {
+    return {
+      source,
+      now,
+      createId: this.#createId,
+      constraints: this.#sortedConstraints,
+      geometry: this.#geometry,
+      geometryLimits: this.#geometryLimits,
+    };
+  }
+
   #commit(
     outcome: ApplyOutcome,
     meta: Meta,
@@ -556,15 +619,19 @@ class WorkspaceImpl implements Workspace {
       revision: before.revision + 1,
       rootIds: outcome.rootIds,
       nodes: outcome.nodes,
+      surfaces: outcome.surfaces,
       selection: outcome.selection,
       focusedId: outcome.focusedId,
     });
     this.#state = after;
-    const layoutChanged = outcome.touched.length > 0 || before.rootIds !== after.rootIds;
+    const layoutChanged =
+      outcome.touched.length > 0 ||
+      outcome.touchedSurfaces.length > 0 ||
+      before.rootIds !== after.rootIds;
     if (extra.history === null && layoutChanged) {
       this.#record(before, after, outcome, meta);
     }
-    for (const event of diffScenes(before, after, outcome.touched)) {
+    for (const event of diffScenes(before, after, outcome.touched, outcome.touchedSurfaces)) {
       this.#emitPending(event, {
         source: meta.source,
         causeId: meta.transactionId,
@@ -578,6 +645,7 @@ class WorkspaceImpl implements Workspace {
         previousRevision: before.revision,
         commandTypes: outcome.commandTypes,
         changedNodeIds: outcome.touched,
+        changedSurfaceIds: outcome.touchedSurfaces,
         createdIds: outcome.createdIds,
         idempotencyKey: extra.idempotencyKey,
         previewId: extra.previewId,
@@ -593,6 +661,7 @@ class WorkspaceImpl implements Workspace {
       previousRevision: before.revision,
       createdIds: outcome.createdIds,
       changedNodeIds: outcome.touched,
+      changedSurfaceIds: outcome.touchedSurfaces,
       replayed: false,
     });
   }
@@ -601,12 +670,6 @@ class WorkspaceImpl implements Workspace {
     this.#redo.length = 0;
     if (this.#undoCapacity === 0) {
       return;
-    }
-    const prior = new Map<Id, NodeRecord | undefined>();
-    const next = new Map<Id, NodeRecord | undefined>();
-    for (const id of outcome.touched) {
-      prior.set(id, before.nodes.get(id));
-      next.set(id, after.nodes.get(id));
     }
     this.#undo.push({
       entry: Object.freeze({
@@ -617,9 +680,12 @@ class WorkspaceImpl implements Workspace {
         revision: after.revision,
         commandTypes: outcome.commandTypes,
         changedNodeIds: outcome.touched,
+        changedSurfaceIds: outcome.touchedSurfaces,
       }),
-      before: prior,
-      after: next,
+      nodesBefore: snapshotOf(before.nodes, outcome.touched),
+      nodesAfter: snapshotOf(after.nodes, outcome.touched),
+      surfacesBefore: snapshotOf(before.surfaces, outcome.touchedSurfaces),
+      surfacesAfter: snapshotOf(after.surfaces, outcome.touchedSurfaces),
       rootsBefore: before.rootIds,
       rootsAfter: after.rootIds,
     });
@@ -659,50 +725,56 @@ class WorkspaceImpl implements Workspace {
         { ...meta, commands: [] },
       );
     }
-    const [expected, target, rootsExpected, rootsTarget] =
-      action === 'undo'
-        ? [record.after, record.before, record.rootsAfter, record.rootsBefore]
-        : [record.before, record.after, record.rootsBefore, record.rootsAfter];
+    const undoing = action === 'undo';
+    const nodesExpected = undoing ? record.nodesAfter : record.nodesBefore;
+    const nodesTarget = undoing ? record.nodesBefore : record.nodesAfter;
+    const surfacesExpected = undoing ? record.surfacesAfter : record.surfacesBefore;
+    const surfacesTarget = undoing ? record.surfacesBefore : record.surfacesAfter;
+    const rootsExpected = undoing ? record.rootsAfter : record.rootsBefore;
+    const rootsTarget = undoing ? record.rootsBefore : record.rootsAfter;
     const state = this.#state;
-    const stale = [...expected].find(([id, value]) => state.nodes.get(id) !== value);
-    if (stale !== undefined || (rootsExpected !== rootsTarget && state.rootIds !== rootsExpected)) {
+    const staleNode = [...nodesExpected].find(([id, value]) => state.nodes.get(id) !== value);
+    const staleSurface = [...surfacesExpected].find(
+      ([id, value]) => state.surfaces.get(id) !== value,
+    );
+    const staleRoots = rootsExpected !== rootsTarget && state.rootIds !== rootsExpected;
+    if (staleNode !== undefined || staleSurface !== undefined || staleRoots) {
+      const what =
+        staleNode !== undefined
+          ? `node "${staleNode[0]}"`
+          : staleSurface !== undefined
+            ? `surface "${staleSurface[0]}"`
+            : 'the root order';
+      const entityId = staleNode?.[0] ?? staleSurface?.[0];
       return this.#reject(
         transactionId,
         new RejectionSignal(
           'CONFLICT',
-          `cannot ${action} transaction ${record.entry.transactionId}: ` +
-            (stale === undefined ? 'the root order' : `node "${stale[0]}"`) +
-            ' has changed since',
+          `cannot ${action} transaction ${record.entry.transactionId}: ${what} has changed since`,
           {
-            ...(stale === undefined ? {} : { entityId: stale[0] }),
+            ...(entityId === undefined ? {} : { entityId }),
             details: { currentRevision: state.revision },
           },
         ),
         { ...meta, commands: [] },
       );
     }
-    const nodes = state.nodes.edit();
-    for (const [id, value] of target) {
-      if (value === undefined) {
-        nodes.delete(id);
-      } else {
-        nodes.set(id, value);
-      }
-    }
-    const restored = nodes.freeze();
+    const restored = restoreRecords(state.nodes, nodesTarget);
     const selectable = (id: Id) => effectiveState(restored, id)?.selectable === true;
     const selection = state.selection.filter(selectable);
     stack.pop();
-    (action === 'undo' ? this.#redo : this.#undo).push(record);
+    (undoing ? this.#redo : this.#undo).push(record);
     return this.#commit(
       {
         nodes: restored,
+        surfaces: restoreRecords(state.surfaces, surfacesTarget),
         rootIds: rootsTarget,
         selection:
           selection.length === state.selection.length ? state.selection : Object.freeze(selection),
         focusedId: state.focusedId !== null && selectable(state.focusedId) ? state.focusedId : null,
         commandTypes: record.entry.commandTypes,
         touched: record.entry.changedNodeIds,
+        touchedSurfaces: record.entry.changedSurfaceIds,
         createdIds: Object.freeze([]),
       },
       meta,
@@ -730,10 +802,13 @@ class WorkspaceImpl implements Workspace {
     if (this.#lifecycle !== 'ready') {
       return this.#reject(transactionId, this.#disposedSignal(), null);
     }
-    let state: SceneState;
-    let changed: readonly Id[];
+    let preview: {
+      state: SceneState;
+      changedNodeIds: readonly Id[];
+      changedSurfaceIds: readonly Id[];
+    };
     try {
-      [state, changed] = this.#previewState(commands, options.source);
+      preview = this.#previewState(commands, options.source);
     } catch (error) {
       return this.#reject(transactionId, error, null);
     }
@@ -741,47 +816,58 @@ class WorkspaceImpl implements Workspace {
       commands: commands as readonly SceneCommand[],
       source: options.source,
       causeId: options.causeId,
-      state,
+      state: preview.state,
     });
+    const changed = {
+      changedNodeIds: preview.changedNodeIds,
+      changedSurfaceIds: preview.changedSurfaceIds,
+    };
     this.#emit(
       'transform.preview',
-      { previewId, changedNodeIds: changed },
+      { previewId, ...changed },
       {
         source: options.source,
         causeId: options.causeId ?? previewId,
         phase: 'preview',
       },
     );
-    return Object.freeze({ status: 'previewed', previewId, changedNodeIds: changed });
+    return Object.freeze({ status: 'previewed', previewId, ...changed });
   }
 
-  #previewState(commands: unknown, source: EventSource): [SceneState, readonly Id[]] {
-    const outcome = applyCommands(this.#state, commands, {
-      source,
-      now: this.#now(),
-      createId: this.#createId,
-      constraints: this.#sortedConstraints,
-    });
+  #previewState(
+    commands: unknown,
+    source: EventSource,
+  ): { state: SceneState; changedNodeIds: readonly Id[]; changedSurfaceIds: readonly Id[] } {
+    const outcome = applyCommands(this.#state, commands, this.#applyContext(source, this.#now()));
     const state: SceneState = Object.freeze({
       workspaceId: this.id,
       revision: this.#state.revision,
       rootIds: outcome.rootIds,
       nodes: outcome.nodes,
+      surfaces: outcome.surfaces,
       selection: outcome.selection,
       focusedId: outcome.focusedId,
     });
-    return [state, outcome.touched];
+    return {
+      state,
+      changedNodeIds: outcome.touched,
+      changedSurfaceIds: outcome.touchedSurfaces,
+    };
   }
 
   /** Re-applies open previews to the newly committed scene, ending those that no longer apply. */
   #refreshPreviews(): void {
     for (const [previewId, record] of [...this.#previews]) {
       try {
-        const [state, changed] = this.#previewState(record.commands, record.source);
-        record.state = state;
+        const preview = this.#previewState(record.commands, record.source);
+        record.state = preview.state;
         this.#emit(
           'transform.preview',
-          { previewId, changedNodeIds: changed },
+          {
+            previewId,
+            changedNodeIds: preview.changedNodeIds,
+            changedSurfaceIds: preview.changedSurfaceIds,
+          },
           {
             source: record.source,
             causeId: record.causeId ?? previewId,
@@ -1057,6 +1143,8 @@ interface CheckedOptions {
   readonly now: () => number;
   readonly createId: (() => Id) | undefined;
   readonly constraints: readonly Constraint[];
+  readonly geometry: readonly GeometryProvider[];
+  readonly geometryLimits: GeometryLimits;
   readonly onDiagnostic: ((d: Diagnostic) => void) | undefined;
 }
 
@@ -1094,10 +1182,28 @@ function checkOptions(options: WorkspaceOptions): CheckedOptions {
       throw fail(key, 'must be a function');
     }
   }
-  const constraints = record['constraints'] ?? [];
-  if (!Array.isArray(constraints)) {
-    throw fail('constraints', 'must be an array of constraints');
+  for (const key of ['constraints', 'geometry']) {
+    if (record[key] !== undefined && !Array.isArray(record[key])) {
+      throw fail(key, 'must be an array');
+    }
   }
+  const limits: unknown = record['geometryLimits'] ?? {};
+  if (typeof limits !== 'object' || limits === null || Array.isArray(limits)) {
+    throw fail('geometryLimits', 'must be an object');
+  }
+  const limitRecord = limits as Record<string, unknown>;
+  for (const key of Object.keys(limitRecord)) {
+    if (!(key in DEFAULT_GEOMETRY_LIMITS)) {
+      throw fail(`geometryLimits.${key}`, 'is not a known limit');
+    }
+  }
+  const limit = (key: keyof GeometryLimits): number => {
+    const value = limitRecord[key] ?? DEFAULT_GEOMETRY_LIMITS[key];
+    if (typeof value !== 'number' || !Number.isInteger(value) || value < 1) {
+      throw fail(`geometryLimits.${key}`, 'must be a positive integer');
+    }
+    return value;
+  };
   return {
     id,
     undoCapacity: integer('undoCapacity', 100, 0, 10_000),
@@ -1106,8 +1212,31 @@ function checkOptions(options: WorkspaceOptions): CheckedOptions {
     now: options.now ?? Date.now,
     createId: options.createId,
     constraints: options.constraints ?? [],
+    geometry: options.geometry ?? [],
+    geometryLimits: Object.freeze({
+      maxParamsBytes: limit('maxParamsBytes'),
+      maxPolygonVertices: limit('maxPolygonVertices'),
+    }),
     onDiagnostic: options.onDiagnostic,
   };
+}
+
+/** The records with the given IDs (undefined where absent), for undo. */
+function snapshotOf<T>(table: Table<T>, ids: readonly Id[]): ReadonlyMap<Id, T | undefined> {
+  return new Map(ids.map((id) => [id, table.get(id)]));
+}
+
+/** `table` with the recorded records put back (an undefined record is removed). */
+function restoreRecords<T>(table: Table<T>, records: ReadonlyMap<Id, T | undefined>): Table<T> {
+  const draft = table.edit();
+  for (const [id, value] of records) {
+    if (value === undefined) {
+      draft.delete(id);
+    } else {
+      draft.set(id, value);
+    }
+  }
+  return draft.freeze();
 }
 
 function checkConstraint(constraint: unknown, workspaceId: Id): void {

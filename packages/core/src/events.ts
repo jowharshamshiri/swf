@@ -22,6 +22,18 @@ export type CancelReason =
 /** Node fields reported by `node.updated` (transform, parent and status have their own events). */
 export type NodeField = 'bounds' | 'label' | 'tags' | 'flags' | 'metadata' | 'kind';
 
+/**
+ * Surface fields reported by `surface.updated` (transform, owner and binding have their own
+ * events).
+ */
+export type SurfaceField = 'bounds' | 'geometry' | 'interaction' | 'flags' | 'label' | 'metadata';
+
+/** Which endpoint a surface association names. */
+export interface BindingRef {
+  readonly bindingKey: string | null;
+  readonly adapterTypeId: string;
+}
+
 interface EventPayloads {
   /** The last event of every commit: one per committed revision. */
   'transaction.committed': {
@@ -29,6 +41,8 @@ interface EventPayloads {
     readonly previousRevision: number;
     readonly commandTypes: readonly SceneCommandType[];
     readonly changedNodeIds: readonly Id[];
+    readonly changedSurfaceIds: readonly Id[];
+    /** Nodes and surfaces the commit created. */
     readonly createdIds: readonly Id[];
     readonly idempotencyKey: string | null;
     readonly previewId: string | null;
@@ -60,10 +74,32 @@ interface EventPayloads {
    * for a parent created in the same commit: its children's `node.created` events name it.
    */
   'node.childrenChanged': { readonly parentId: Id | null; readonly childIds: readonly Id[] };
+  /** An existing node's surfaces or their order changed (not sent for a node created alongside). */
+  'node.surfacesChanged': { readonly nodeId: Id; readonly surfaceIds: readonly Id[] };
+  'surface.attached': { readonly surfaceId: Id; readonly ownerNodeId: Id };
+  /** The association was removed; the endpoint itself is the host's and was not touched. */
+  'surface.detached': { readonly surfaceId: Id; readonly ownerNodeId: Id };
+  'surface.moved': { readonly surfaceId: Id; readonly fromOwnerId: Id; readonly toOwnerId: Id };
+  'surface.transformCommitted': {
+    readonly surfaceId: Id;
+    readonly previous: Transform3D;
+    readonly transform: Transform3D;
+  };
+  /** The surface now names another endpoint (or none); its ID, placement and order are kept. */
+  'surface.rebound': {
+    readonly surfaceId: Id;
+    readonly previous: BindingRef;
+    readonly binding: BindingRef;
+  };
+  'surface.updated': { readonly surfaceId: Id; readonly fields: readonly SurfaceField[] };
   'selection.changed': { readonly selection: readonly Id[]; readonly previous: readonly Id[] };
   'focus.changed': { readonly focusedId: Id | null; readonly previous: Id | null };
   /** A preview's proposed scene changed. Read it with `getPreview(previewId)`. */
-  'transform.preview': { readonly previewId: string; readonly changedNodeIds: readonly Id[] };
+  'transform.preview': {
+    readonly previewId: string;
+    readonly changedNodeIds: readonly Id[];
+    readonly changedSurfaceIds: readonly Id[];
+  };
   'preview.cancelled': { readonly previewId: string; readonly reason: CancelReason };
   'workspace.disposed': Readonly<Record<string, never>>;
 }

@@ -2,8 +2,39 @@ import type { Transform3D, Vec3 } from '@swf/math';
 import { isFiniteVec3, isPositiveVec3, isUnitQuat, quatNormalize } from '@swf/math';
 import { RejectionSignal } from './errors.js';
 import { describe } from './json.js';
-import type { Id, NodeFlags } from './model.js';
-import { NODE_FLAG_NAMES } from './model.js';
+import type { EntityFlags, Id, InteractionRegion } from './model.js';
+import { FLAG_NAMES } from './model.js';
+
+/** An adapter type ID: a name and a positive integer version, such as `host.video/1`. */
+export const ADAPTER_TYPE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*\/[1-9][0-9]*$/;
+
+export function expectAdapterTypeId(value: unknown, path: string): string {
+  if (typeof value !== 'string' || !ADAPTER_TYPE_ID.test(value)) {
+    throw invalid(
+      path,
+      `must be an adapter type ID "<name>/<version>", such as "host.video/1" (got ${describe(value)})`,
+    );
+  }
+  return value;
+}
+
+/** A binding key is opaque: any non-blank string, or null for none. It is never interpreted. */
+export function expectBindingKey(value: unknown, path: string): string | null {
+  if (value === null) {
+    return null;
+  }
+  if (typeof value !== 'string' || value.trim() === '') {
+    throw invalid(path, `must be a non-blank string or null (got ${describe(value)})`);
+  }
+  return value;
+}
+
+export function expectInteraction(value: unknown, path: string): InteractionRegion {
+  if (value !== 'content' && value !== 'none') {
+    throw invalid(path, `must be "content" or "none" (got ${describe(value)})`);
+  }
+  return value;
+}
 
 /** Quaternions within this distance of unit length are accepted and stored normalized. */
 export const QUAT_TOLERANCE = 1e-6;
@@ -116,8 +147,8 @@ export function expectTransform(value: unknown, path: string): Transform3D {
   return Object.freeze({ position, rotation, scale });
 }
 
-export function expectFlags(value: unknown, path: string): Partial<NodeFlags> {
-  const record = expectRecord(value, path, NODE_FLAG_NAMES);
+export function expectFlags(value: unknown, path: string): Partial<EntityFlags> {
+  const record = expectRecord(value, path, FLAG_NAMES);
   const out: Record<string, boolean | number> = {};
   for (const [key, item] of Object.entries(record)) {
     if (key === 'presentationPriority') {

@@ -8,11 +8,60 @@ import {
   mat4Multiply,
   rayIntersectAabb,
 } from '@swf/math';
+import type { GeometryRegistry, ResolvedGeometry } from './geometry.js';
+import { resolveGeometry } from './geometry.js';
 import type { Id, NodeRecord, SceneState } from './model.js';
 import type { RecordLookup } from './table.js';
 import { Table } from './table.js';
 
 type NodeLookup = RecordLookup<NodeRecord>;
+
+/** The surface's local-to-world matrix: its owner's world matrix times its own transform. */
+export function surfaceWorldMatrix(state: SceneState, surfaceId: Id): Mat4 | undefined {
+  const surface = state.surfaces.get(surfaceId);
+  const owner = surface === undefined ? undefined : worldMatrix(state.nodes, surface.ownerNodeId);
+  return surface === undefined || owner === undefined
+    ? undefined
+    : mat4Multiply(owner, mat4FromTransform(surface.transform));
+}
+
+/**
+ * A surface's status and flags after inheriting from its owner node: it is active and visible
+ * only when its owner is, and selectable only when it and its owner are.
+ */
+export function surfaceEffectiveState(
+  state: SceneState,
+  surfaceId: Id,
+): EffectiveState | undefined {
+  const surface = state.surfaces.get(surfaceId);
+  const owner =
+    surface === undefined ? undefined : effectiveState(state.nodes, surface.ownerNodeId);
+  if (surface === undefined || owner === undefined) {
+    return undefined;
+  }
+  const visible = owner.visible && surface.flags.visible;
+  return {
+    active: owner.active,
+    visible,
+    selectable: visible && owner.selectable && surface.flags.selectable,
+  };
+}
+
+/**
+ * The surface's presentation geometry placed in the world, as rendering and picking must both use
+ * it, with its fidelity. Undefined for an unknown surface.
+ */
+export function surfaceGeometry(
+  state: SceneState,
+  surfaceId: Id,
+  registry: GeometryRegistry,
+): ResolvedGeometry | undefined {
+  const surface = state.surfaces.get(surfaceId);
+  const world = surfaceWorldMatrix(state, surfaceId);
+  return surface === undefined || world === undefined
+    ? undefined
+    : resolveGeometry(surfaceId, surface.geometry, surface.bounds, world, registry);
+}
 
 const worldCache = new WeakMap<NodeLookup, Map<Id, Mat4>>();
 
