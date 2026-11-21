@@ -289,6 +289,22 @@ describe('settings (FR-004, CFG-001)', () => {
     expect(router.settings()).toBe(before);
   });
 
+  it('announce every change, so a host can save them (CFG-003), and only changes that hold', () => {
+    const { router } = world([]);
+    const heard: unknown[] = [];
+    router.subscribe((e) => {
+      if (e.type === 'settings.changed') {
+        heard.push(e.settings);
+      }
+    });
+    codeOf(() => router.configure({ slopPx: -1 }));
+    expect(heard).toEqual([]);
+    const next = router.configure({ slopPx: 7 });
+    expect(heard).toEqual([next]);
+    // They are JSON data: a host stores them as they are.
+    expect(JSON.parse(JSON.stringify(next))).toEqual(next);
+  });
+
   it('take effect when valid', () => {
     const { ws, input, router } = world(two);
     router.configure({

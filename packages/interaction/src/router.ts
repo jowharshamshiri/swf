@@ -102,7 +102,9 @@ export type InteractionEvent =
       readonly pointerId: number;
       readonly deviceId: string;
       readonly viewportId: Id;
-    };
+    }
+  /** `configure` changed the settings; they are layout-relevant, so a host may save them. */
+  | { readonly type: 'settings.changed'; readonly settings: InteractionSettings };
 
 /** A device's connection to the router. */
 export interface InputAdapter {
@@ -235,6 +237,7 @@ export class InteractionRouter {
       throw failure('INVALID_INPUT', `settings.keymap binds unknown command "${unknown.command}"`);
     }
     this.#settings = next;
+    this.#emit({ type: 'settings.changed', settings: next });
     return next;
   }
 

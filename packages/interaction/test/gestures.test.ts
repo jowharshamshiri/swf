@@ -22,6 +22,7 @@ function story(events: readonly InteractionEvent[]): string[] {
           `end ${e.finish.outcome}${e.finish.outcome === 'cancelled' ? ` ${e.finish.reason}` : ''}`,
         ];
       case 'capture.released':
+      case 'settings.changed':
         return [];
     }
   });

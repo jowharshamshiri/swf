@@ -30,6 +30,9 @@
     },
     {
       "path": "packages/diagnostics/tsconfig.build.json"
+    },
+    {
+      "path": "packages/persistence/tsconfig.build.json"
     }
   ]
 }

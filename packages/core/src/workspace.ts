@@ -22,6 +22,8 @@ import type {
 } from './model.js';
 import type { ProjectionKind } from './projection-kinds.js';
 import { ProjectionKindRegistry } from './projection-kinds.js';
+import type { SceneSnapshot } from './snapshot.js';
+import { serializeScene } from './snapshot.js';
 import type { NodeQuery } from './query.js';
 import { effectiveState, findNodes, surfaceGeometry } from './query.js';
 import { Table } from './table.js';
@@ -175,6 +177,20 @@ export interface WorkspaceReader {
  * every scope, this is a software interface that makes a module's reach explicit, not a security
  * boundary: code running in the host stays under the host's own security model.
  */
+/**
+ * What a module that manages persistence may do: read the committed revision, take the scene's
+ * canonical snapshot and hear of changes. It cannot change the scene. Like every scope, it makes a
+ * module's reach explicit; it is not a security boundary.
+ */
+export interface WorkspacePersistence {
+  readonly id: Id;
+  /** The committed scene's revision. */
+  revision(): number;
+  /** The committed scene as a canonical snapshot: data only, never a handle or callback. */
+  serialize(): SceneSnapshot;
+  subscribe(listener: Listener): () => void;
+}
+
 export interface WorkspaceMutator {
   readonly id: Id;
   /** Applies `commands` atomically: all commit as one revision, or none do. */
@@ -223,6 +239,10 @@ export interface Workspace extends WorkspaceReader, WorkspaceMutator {
   reader(): WorkspaceReader;
   /** The scene-changing scope: transactions, previews, undo and scene configuration. */
   mutator(): WorkspaceMutator;
+  /** The committed scene as a canonical snapshot (open previews are not part of it). */
+  serialize(): SceneSnapshot;
+  /** The persistence scope: the revision, snapshots and change notifications, but no changes. */
+  persistence(): WorkspacePersistence;
   /**
    * Releases the workspace's listeners, previews and history. It never touches anything the host
    * owns. Safe to call more than once.
@@ -370,6 +390,10 @@ class WorkspaceImpl implements Workspace {
     return this.#state;
   }
 
+  serialize(): SceneSnapshot {
+    return serializeScene(this.#state);
+  }
+
   getPreview(previewId: string): SceneState | undefined {
     return this.#previews.get(previewId)?.state;
   }
@@ -445,6 +469,15 @@ class WorkspaceImpl implements Workspace {
       registerConstraint: (constraint: Constraint) => this.registerConstraint(constraint),
       registerGeometry: (provider: GeometryProvider) => this.registerGeometry(provider),
       registerProjectionKind: (kind: ProjectionKind) => this.registerProjectionKind(kind),
+    });
+  }
+
+  persistence(): WorkspacePersistence {
+    return Object.freeze({
+      id: this.id,
+      revision: () => this.#state.revision,
+      serialize: () => this.serialize(),
+      subscribe: (listener: Listener) => this.subscribe(listener),
     });
   }
 

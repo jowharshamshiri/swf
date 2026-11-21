@@ -44,6 +44,9 @@ interaction; the host owns whatever is presented.
 - `@swf/diagnostics`: what a running presentation can report locally: each viewport's backend
   and capabilities, the fallbacks chosen and why, frame and attachment measures, scene density,
   resource health and the last typed errors.
+- `@swf/persistence`: versioned, canonical workspace snapshots with a published JSON Schema and
+  a validator that matches it, policy parameters and opaque extension state with size limits, a
+  replaceable storage interface with an in-memory store, and the save state machine.
 
 ## Using the kernel
 
@@ -223,7 +226,8 @@ longitude of a drag, the longitude is unwrapped so it stays continuous across th
 
 Renderers, compositors and projectors register by versioned ID with
 `createPresentationRegistry()`. Each module can be handed only the scope it needs:
-`workspace.reader()`, `workspace.mutator()`, `surfaces.binder()` and `registry.registrar()`.
+`workspace.reader()`, `workspace.mutator()`, `workspace.persistence()`, `surfaces.binder()` and
+`registry.registrar()`.
 
 ## Interaction
 
@@ -279,7 +283,9 @@ viewport's `navigation` setting says.
 Every operation a gesture performs is also a command (`node.move`, `node.resize`,
 `node.rotate`, `camera.turn`, `orbit.turn`, `selection.set`, `focus.set` and more), and a policy
 is registered only if its operations are. The default keymap moves, turns, resizes and selects
-with the keyboard; `configure` changes it and the other settings, validating every field.
+with the keyboard; `configure` changes it and the other settings, validating every field, and
+announces each change as a `settings.changed` event so a host can save the settings with the
+layout.
 
 ## Presenting in the browser
 
@@ -465,6 +471,76 @@ density (nodes, surfaces, and per viewport the candidates, mounted surfaces and 
 resource health (sessions, listeners and subscriptions held, handoffs under way) and the last
 typed errors. It holds identifiers, counts and timings only, never content, and sends nothing
 anywhere.
+
+## Saving layouts
+
+```ts
+import { createMemoryStore, createPersistence, createSaver } from '@swf/persistence';
+
+const persistence = createPersistence({ workspace: workspace.persistence() });
+
+// Layout-relevant settings are saved with the layout.
+persistence.registerPolicy({
+  id: 'swf.interaction/1',
+  capture: () => router.settings(),
+  watch: (changed) =>
+    router.subscribe((event) => {
+      if (event.type === 'settings.changed') changed();
+    }),
+});
+
+// An extension keeps its own state, opaque to the framework, under its namespace.
+persistence.registerExtension({
+  namespace: 'ext.notes',
+  version: 1,
+  capture: () => notes.state(),
+  restore: (data) => notes.load(data),
+});
+
+const saver = createSaver({ persistence, store: createMemoryStore(), key: 'main' });
+saver.subscribe((state) => console.log('layout is', state));
+await saver.save();
+
+const text = persistence.export((await persistence.capture()).document); // portable JSON
+const document = persistence.import(text); // validated, or a SNAPSHOT_INVALID error with a path
+```
+
+`workspace.serialize()` gives the committed scene as a canonical snapshot: every node with its
+hierarchy, transform, bounds, flags, label, tags and metadata (archived ones included), every
+surface with its binding key, adapter type, geometry and flags, every camera and viewport, the orbit
+root, the selection and focus. Entities are ordered by ID, fields in a fixed order and object keys
+sorted, so the same scene always gives the same text. It holds no runtime handle, element,
+callback or content: those are never part of the scene. `workspace.persistence()` is the scope for
+modules that manage persistence; it offers the revision, `serialize` and change notifications and
+nothing that changes the scene.
+
+A snapshot document adds the format (`swf.workspace/1`), the engine that wrote it, when it was
+taken, the policies' parameters and the extensions' state. Its JSON Schema is published with the
+package (`@swf/persistence/schema/swf.workspace-1.schema.json`, also `SNAPSHOT_SCHEMA`), and the
+validator enforces everything the schema says, plus what a schema cannot: unit rotations, a
+camera's far beyond its near, unique IDs, references that hold, a hierarchy without cycles, data
+nested at most 64 levels deep, and the size limits. Reading a snapshot checks its size before
+parsing it, and rejects non-finite numbers, unknown or missing fields, cycles and keys that could
+reach an object's prototype, naming the failing path. Nothing in a snapshot is ever run.
+
+Each extension's state is captured on its own, within a timeout (`hookTimeoutMs`, 5 s by
+default) and the size limits (1 MiB per namespace and 10 MiB in all by default, set with
+`limits`). One that throws, runs out of time or goes over its limit is reported in the capture's
+`failures`, and the snapshot carries its last known state; the layout is always captured.
+`persistence.retain(document)` keeps a loaded snapshot's policy and extension state, so the state
+of namespaces whose owner is not registered goes into later snapshots exactly as it was.
+
+A store is the host's: `load`, `save`, `list` and `delete`, declaring whether its saves are atomic
+and compare-and-swap. A save names the revision it expects the store to hold; a store refuses a
+stale expectation or an older revision than it holds, and keeps what it held when a save fails.
+`createMemoryStore` is atomic and compare-and-swap, with an optional size limit.
+
+A saver is `clean`, `dirty`, `saving` or `failed`. A commit, a policy's parameters changing or
+an extension reporting a change makes it `dirty`. Only the store's acknowledgement of exactly the
+saved key and revision makes it `clean`, and only when nothing changed meanwhile; otherwise it is
+`dirty` again. A save the store does not acknowledge makes it `failed`, still unsaved, with the
+store holding what it held before. A retry captures afresh, so it never stores an older revision,
+and a store that holds a newer one, saved elsewhere, refuses it with `CONFLICT`.
 
 ## Development
 

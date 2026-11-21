@@ -21,7 +21,12 @@ function isPlainObject(value: object): boolean {
  * non-finite numbers, cycles, prototype-polluting keys and nesting deeper than 64 levels, naming the
  * failing path.
  */
-export function copyJson(value: unknown, path: string, depth = 0): JsonValue {
+export function copyJson(
+  value: unknown,
+  path: string,
+  depth = 0,
+  ancestors = new WeakSet<object>(),
+): JsonValue {
   if (depth > MAX_DEPTH) {
     throw new RejectionSignal('INVALID_INPUT', `${path} nests deeper than ${MAX_DEPTH} levels`, {
       path,
@@ -36,10 +41,17 @@ export function copyJson(value: unknown, path: string, depth = 0): JsonValue {
     }
     return value;
   }
+  if (typeof value === 'object' && ancestors.has(value)) {
+    throw new RejectionSignal('INVALID_INPUT', `${path} contains itself (a cycle)`, { path });
+  }
   if (Array.isArray(value)) {
-    return Object.freeze(value.map((item, i) => copyJson(item, `${path}[${i}]`, depth + 1)));
+    ancestors.add(value);
+    const out = value.map((item, i) => copyJson(item, `${path}[${i}]`, depth + 1, ancestors));
+    ancestors.delete(value);
+    return Object.freeze(out);
   }
   if (typeof value === 'object' && isPlainObject(value)) {
+    ancestors.add(value);
     const out: Record<string, JsonValue> = {};
     for (const [key, item] of Object.entries(value)) {
       if (FORBIDDEN_KEYS.has(key)) {
@@ -48,10 +60,11 @@ export function copyJson(value: unknown, path: string, depth = 0): JsonValue {
         });
       }
       Object.defineProperty(out, key, {
-        value: copyJson(item, `${path}.${key}`, depth + 1),
+        value: copyJson(item, `${path}.${key}`, depth + 1, ancestors),
         enumerable: true,
       });
     }
+    ancestors.delete(value);
     return Object.freeze(out);
   }
   throw new RejectionSignal('INVALID_INPUT', `${path} must be JSON data (got ${describe(value)})`, {
@@ -74,6 +87,27 @@ export function jsonValue(value: unknown, path: string): JsonValue {
     }
     throw error;
   }
+}
+
+/**
+ * A frozen copy of JSON data in canonical form: object keys sorted, arrays in their order. Two
+ * equal values have identical canonical forms, so their JSON texts compare equal.
+ */
+export function canonicalJson(value: JsonValue): JsonValue {
+  if (Array.isArray(value)) {
+    return Object.freeze((value as readonly JsonValue[]).map(canonicalJson));
+  }
+  if (typeof value === 'object' && value !== null) {
+    const out: Record<string, JsonValue> = {};
+    for (const key of Object.keys(value).sort()) {
+      Object.defineProperty(out, key, {
+        value: canonicalJson((value as Readonly<Record<string, JsonValue>>)[key] ?? null),
+        enumerable: true,
+      });
+    }
+    return Object.freeze(out);
+  }
+  return value;
 }
 
 /** Validates and copies a metadata map: namespaced keys and JSON values. */

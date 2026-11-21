@@ -9,6 +9,12 @@ export type SwfErrorCode =
   | 'UNSUPPORTED_CAPABILITY'
   | 'BIND_FAILED'
   | 'BACKEND_SWITCH_FAILED'
+  /** An extension's persistence hook threw, timed out or returned what cannot be stored. */
+  | 'EXTENSION_FAILED'
+  /** A size limit was reached: a snapshot, an extension's state or a store's capacity. */
+  | 'QUOTA_EXCEEDED'
+  /** A store could not load, save or delete; what it held before is unchanged. */
+  | 'STORAGE_FAILED'
   | 'SNAPSHOT_INVALID'
   | 'MIGRATION_FAILED'
   | 'CANCELLED'

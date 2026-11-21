@@ -90,7 +90,7 @@ export {
   rectGeometry,
 } from './geometry.js';
 export type { JsonValue, Metadata } from './json.js';
-export { jsonValue } from './json.js';
+export { canonicalJson, jsonValue } from './json.js';
 export type {
   CameraRecord,
   EntityFlags,
@@ -121,6 +121,8 @@ export {
   worldMatrix,
   worldTransform,
 } from './query.js';
+export type { SceneSnapshot } from './snapshot.js';
+export { SCENE_SNAPSHOT_FIELDS, serializeScene, validateSceneSnapshot } from './snapshot.js';
 export type { RecordLookup, Table } from './table.js';
 export { VERSIONED_ID } from './validate.js';
 export type {
@@ -140,6 +142,7 @@ export type {
   WorkspaceLifecycle,
   WorkspaceMutator,
   WorkspaceOptions,
+  WorkspacePersistence,
   WorkspaceReader,
 } from './workspace.js';
 export { createWorkspace } from './workspace.js';
