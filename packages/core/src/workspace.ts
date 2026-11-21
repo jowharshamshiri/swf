@@ -1,6 +1,6 @@
 import type { ApplyContext, ApplyOutcome } from './apply.js';
 import { applyCommands } from './apply.js';
-import type { EventSource, SceneCommand, SceneCommandType } from './commands.js';
+import type { EventSource, OperationType, SceneCommand } from './commands.js';
 import { SCENE_COMMAND_TYPES } from './commands.js';
 import type { Constraint } from './constraints.js';
 import { sortConstraints } from './constraints.js';
@@ -23,7 +23,14 @@ import type {
 import type { ProjectionKind } from './projection-kinds.js';
 import { ProjectionKindRegistry } from './projection-kinds.js';
 import type { SceneSnapshot } from './snapshot.js';
-import { serializeScene } from './snapshot.js';
+import {
+  cameraSnapshot,
+  nodeSnapshot,
+  serializeScene,
+  surfaceSnapshot,
+  validateSceneSnapshot,
+  viewportSnapshot,
+} from './snapshot.js';
 import type { NodeQuery } from './query.js';
 import { effectiveState, findNodes, surfaceGeometry } from './query.js';
 import { Table } from './table.js';
@@ -131,7 +138,7 @@ export interface HistoryEntry {
   readonly source: EventSource;
   readonly previousRevision: number;
   readonly revision: number;
-  readonly commandTypes: readonly SceneCommandType[];
+  readonly commandTypes: readonly OperationType[];
   readonly changedNodeIds: readonly Id[];
   readonly changedSurfaceIds: readonly Id[];
 }
@@ -188,8 +195,13 @@ export interface WorkspacePersistence {
   revision(): number;
   /** The committed scene as a canonical snapshot: data only, never a handle or callback. */
   serialize(): SceneSnapshot;
+  /** Replaces the scene with a snapshot's, as {@link Workspace.restore} does. */
+  restore(snapshot: SceneSnapshot, options?: RestoreOptions): TxResult;
   subscribe(listener: Listener): () => void;
 }
+
+/** Options of a restore: `source` defaults to `restore`. */
+export type RestoreOptions = Pick<TxOptions, 'expectedRevision' | 'source' | 'causeId'>;
 
 export interface WorkspaceMutator {
   readonly id: Id;
@@ -241,6 +253,18 @@ export interface Workspace extends WorkspaceReader, WorkspaceMutator {
   mutator(): WorkspaceMutator;
   /** The committed scene as a canonical snapshot (open previews are not part of it). */
   serialize(): SceneSnapshot;
+  /**
+   * Replaces the whole scene (nodes, surfaces, cameras, viewports, orbit root, selection and
+   * focus) with a snapshot's, as one undoable revision. Nothing is replaced unless the snapshot is
+   * valid and everything it names is usable here: its geometry and projection kinds registered,
+   * their parameters accepted. A failure (`SNAPSHOT_INVALID` naming the path, `CONFLICT` for a
+   * stale `expectedRevision`) leaves the workspace exactly as it was. Restoring the same snapshot
+   * again changes nothing: the scene is replaced, never added to. Records equal to the current ones
+   * are kept as they are, so they report no change. The revision never goes back: it becomes the
+   * snapshot's when that is later than the next one. Undo puts the previous nodes and surfaces
+   * back; cameras and viewports, being view state, are not undone.
+   */
+  restore(snapshot: SceneSnapshot, options?: RestoreOptions): TxResult;
   /** The persistence scope: the revision, snapshots and change notifications, but no changes. */
   persistence(): WorkspacePersistence;
   /**
@@ -477,6 +501,8 @@ class WorkspaceImpl implements Workspace {
       id: this.id,
       revision: () => this.#state.revision,
       serialize: () => this.serialize(),
+      restore: (snapshot: SceneSnapshot, options?: RestoreOptions) =>
+        this.restore(snapshot, options),
       subscribe: (listener: Listener) => this.subscribe(listener),
     });
   }
@@ -617,6 +643,10 @@ class WorkspaceImpl implements Workspace {
     return this.#schedule(() => this.#travel('undo', options));
   }
 
+  restore(snapshot: SceneSnapshot, options: RestoreOptions = {}): TxResult {
+    return this.#schedule(() => this.#restore(snapshot, options));
+  }
+
   redo(options: Pick<TxOptions, 'source' | 'causeId'> = {}): TxResult {
     return this.#schedule(() => this.#travel('redo', options));
   }
@@ -739,6 +769,132 @@ class WorkspaceImpl implements Workspace {
     return result;
   }
 
+  #restore(snapshot: unknown, rawOptions: unknown): TxOutcome {
+    const transactionId = this.#nextTransactionId();
+    const commands = [{ type: 'scene.restore' }];
+    let options: CheckedTxOptions;
+    try {
+      options = checkTxOptions(rawOptions, ['expectedRevision', 'source', 'causeId']);
+    } catch (error) {
+      return this.#reject(transactionId, error, { source: 'restore', causeId: null, commands });
+    }
+    const source =
+      (rawOptions as { source?: unknown }).source === undefined ? 'restore' : options.source;
+    const meta: Meta = { transactionId, source, causeId: options.causeId, timestamp: this.#now() };
+    if (this.#lifecycle !== 'ready') {
+      return this.#reject(transactionId, this.#disposedSignal(), { ...meta, commands });
+    }
+    const before = this.#state;
+    if (options.expectedRevision !== null && options.expectedRevision !== before.revision) {
+      return this.#reject(
+        transactionId,
+        new RejectionSignal(
+          'CONFLICT',
+          `the scene is at revision ${before.revision}, not the expected ${options.expectedRevision}`,
+          { path: 'options.expectedRevision', details: { currentRevision: before.revision } },
+        ),
+        { ...meta, commands },
+      );
+    }
+    let scene: SceneSnapshot;
+    try {
+      scene = validateSceneSnapshot(snapshot);
+      this.#checkUsable(scene, snapshot);
+    } catch (error) {
+      const signal =
+        error instanceof SwfFailure
+          ? new RejectionSignal(error.error.code, error.message, {
+              ...(error.error.path === undefined ? {} : { path: error.error.path }),
+            })
+          : error;
+      return this.#reject(transactionId, signal, { ...meta, commands });
+    }
+    const nodes = replaceRecords(before.nodes, scene.nodes, nodeSnapshot);
+    const surfaces = replaceRecords(before.surfaces, scene.surfaces, surfaceSnapshot);
+    const cameras = replaceRecords(before.cameras, scene.cameras, cameraSnapshot);
+    const viewports = replaceRecords(before.viewports, scene.viewports, viewportSnapshot);
+    const selectable = (id: Id) => effectiveState(nodes.table, id)?.selectable === true;
+    const sameRoots =
+      before.rootIds.length === scene.rootIds.length &&
+      before.rootIds.every((id, i) => scene.rootIds[i] === id);
+    return this.#commit(
+      {
+        nodes: nodes.table,
+        surfaces: surfaces.table,
+        cameras: cameras.table,
+        viewports: viewports.table,
+        orbitRootId: scene.orbitRootId,
+        rootIds: sameRoots ? before.rootIds : scene.rootIds,
+        selection: Object.freeze(scene.selection.filter(selectable)),
+        focusedId: scene.focusedId !== null && selectable(scene.focusedId) ? scene.focusedId : null,
+        commandTypes: Object.freeze(['scene.restore' as const]),
+        touched: nodes.changed,
+        touchedSurfaces: surfaces.changed,
+        touchedCameras: cameras.changed,
+        touchedViewports: viewports.changed,
+        createdIds: Object.freeze([]),
+      },
+      meta,
+      {
+        idempotencyKey: null,
+        previewId: null,
+        history: null,
+        // The revision never goes back, and a restored scene is never older than its snapshot.
+        revision: Math.max(before.revision + 1, scene.revision),
+      },
+    );
+  }
+
+  /**
+   * Throws `SNAPSHOT_INVALID` when the snapshot names a geometry or projection kind this
+   * workspace does not have, or parameters the kind refuses. Paths name the snapshot as given.
+   */
+  #checkUsable(scene: SceneSnapshot, raw: unknown): void {
+    const at = (list: 'surfaces' | 'viewports', id: Id): number => {
+      const items = (raw as Record<string, unknown>)[list];
+      const index = Array.isArray(items)
+        ? items.findIndex((item: unknown) => (item as { id?: unknown } | null)?.id === id)
+        : -1;
+      return index;
+    };
+    const fail = (path: string, message: string) =>
+      new RejectionSignal('SNAPSHOT_INVALID', `${path} ${message}`, { path });
+    for (const surface of scene.surfaces) {
+      const path = `surfaces[${String(at('surfaces', surface.id))}].geometry`;
+      const { kind, params } = surface.geometry;
+      const provider = this.#geometry.get(kind);
+      if (provider === undefined) {
+        throw fail(`${path}.kind`, `names geometry kind "${kind}", which is not registered here`);
+      }
+      let issue: string | null;
+      try {
+        issue = provider.validate(params, surface.bounds, this.#geometryLimits);
+      } catch (error) {
+        issue = `geometry provider "${kind}" failed: ${error instanceof Error ? error.message : String(error)}`;
+      }
+      if (issue !== null) {
+        throw fail(`${path}.params`, `is invalid: ${issue}`);
+      }
+    }
+    for (const viewport of scene.viewports) {
+      const path = `viewports[${String(at('viewports', viewport.id))}].projection`;
+      const { id, config } = viewport.projection;
+      const kind = this.#projectionKinds.get(id);
+      if (kind === undefined) {
+        throw fail(`${path}.id`, `names projection "${id}", which is not registered here`);
+      }
+      let issue: string | null;
+      try {
+        issue = kind.configIssue(config);
+      } catch (error) {
+        issue = `projection "${id}" failed: ${error instanceof Error ? error.message : String(error)}`;
+      }
+      if (issue !== null) {
+        throw fail(`${path}.config`, `is invalid: ${issue}`);
+      }
+    }
+  }
+
   #applyContext(source: EventSource, now: number): ApplyContext {
     return {
       source,
@@ -758,12 +914,14 @@ class WorkspaceImpl implements Workspace {
       idempotencyKey: string | null;
       previewId: string | null;
       history: { action: 'undo' | 'redo'; transactionId: string } | null;
+      /** The new revision, when not the next one. */
+      revision?: number;
     },
   ): TxCommitted {
     const before = this.#state;
     const after: SceneState = Object.freeze({
       workspaceId: this.id,
-      revision: before.revision + 1,
+      revision: extra.revision ?? before.revision + 1,
       rootIds: outcome.rootIds,
       nodes: outcome.nodes,
       surfaces: outcome.surfaces,
@@ -1511,6 +1669,35 @@ function snapshotOf<T>(table: Table<T>, ids: readonly Id[]): ReadonlyMap<Id, T |
   return new Map(ids.map((id) => [id, table.get(id)]));
 }
 
+/**
+ * A table holding exactly `records`, keeping each current record whose canonical form equals the
+ * new one, so unchanged entities stay the same objects and report no change. Returns the IDs whose
+ * record was added, removed or replaced.
+ */
+function replaceRecords<T extends { readonly id: Id }>(
+  table: Table<T>,
+  records: readonly T[],
+  canonical: (record: T) => T,
+): { table: Table<T>; changed: readonly Id[] } {
+  const draft = Table.empty<T>().edit();
+  const changed: Id[] = [];
+  for (const record of records) {
+    const current = table.get(record.id);
+    const same =
+      current !== undefined && JSON.stringify(canonical(current)) === JSON.stringify(record);
+    draft.set(record.id, same ? current : record);
+    if (!same) {
+      changed.push(record.id);
+    }
+  }
+  for (const id of table.ids()) {
+    if (!draft.has(id)) {
+      changed.push(id);
+    }
+  }
+  return { table: changed.length === 0 ? table : draft.freeze(), changed: Object.freeze(changed) };
+}
+
 /** `table` with the recorded records put back (an undefined record is removed). */
 function restoreRecords<T>(table: Table<T>, records: ReadonlyMap<Id, T | undefined>): Table<T> {
   const draft = table.edit();
@@ -1548,7 +1735,7 @@ function checkConstraint(constraint: unknown, workspaceId: Id): void {
   }
 }
 
-function commandTypesOf(commands: unknown): readonly SceneCommandType[] {
+function commandTypesOf(commands: unknown): readonly OperationType[] {
   if (!Array.isArray(commands)) {
     return [];
   }
@@ -1557,7 +1744,7 @@ function commandTypesOf(commands: unknown): readonly SceneCommandType[] {
       typeof command === 'object' && command !== null
         ? (command as { type?: unknown }).type
         : undefined;
-    return SCENE_COMMAND_TYPES.filter((known) => known === type);
+    return [...SCENE_COMMAND_TYPES, 'scene.restore' as const].filter((known) => known === type);
   });
 }
 

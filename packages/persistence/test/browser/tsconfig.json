@@ -1,0 +1,14 @@
+{
+  "extends": "../../../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "resolveJsonModule": true,
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "paths": {
+      "@swf/math": ["../../../math/src/index.ts"],
+      "@swf/core": ["../../../core/src/index.ts"],
+      "@swf/persistence": ["../../src/index.ts"]
+    }
+  },
+  "include": [".", "../fixtures.ts", "../../src", "../../src/schema/*.json"]
+}

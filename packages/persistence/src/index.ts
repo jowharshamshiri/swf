@@ -5,12 +5,20 @@
  * extension state; a replaceable storage interface with an in-memory store; and the save state
  * machine. Snapshots hold layout only: never runtime handles, elements, callbacks or content.
  */
+export type {
+  IdbFactory,
+  IndexedDbStoreOptions,
+  WebStorage,
+  WebStorageStoreOptions,
+} from './browser.js';
+export { createIndexedDbStore, createWebStorageStore } from './browser.js';
 export type { ExtensionEntry, SnapshotLimits, WorkspaceDocument } from './document.js';
 export {
   DEFAULT_SNAPSHOT_LIMITS,
   exportDocument,
   NAMESPACE,
   parseDocument,
+  parseJson,
   SNAPSHOT_ENGINE,
   SNAPSHOT_SCHEMA,
   SNAPSHOT_SCHEMA_ID,
@@ -18,6 +26,8 @@ export {
   utf8Length,
   validateDocument,
 } from './document.js';
+export type { Migrated, MigrationStep, SchemaMigration } from './migrations.js';
+export { migrateDocument, SNAPSHOT_MIGRATIONS } from './migrations.js';
 export type {
   Capture,
   CaptureFailure,
@@ -27,6 +37,8 @@ export type {
   PersistenceExtension,
   PersistenceOptions,
   PolicySource,
+  RestoreFailure,
+  RestoreOutcome,
 } from './persistence.js';
 export { createPersistence } from './persistence.js';
 export type { SaveOutcome, Saver, SaverOptions, SaveState } from './saver.js';

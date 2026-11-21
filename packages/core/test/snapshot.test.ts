@@ -147,7 +147,13 @@ describe('scene snapshots (FR-002, FR-160, FR-161)', () => {
   it('is offered alone by the persistence scope, frozen and with no other operation (SEC-002)', () => {
     const ws = scene();
     const scope = ws.persistence();
-    expect(Object.keys(scope).sort()).toEqual(['id', 'revision', 'serialize', 'subscribe']);
+    expect(Object.keys(scope).sort()).toEqual([
+      'id',
+      'restore',
+      'revision',
+      'serialize',
+      'subscribe',
+    ]);
     expect(Object.isFrozen(scope)).toBe(true);
     expect(scope.revision()).toBe(1);
     expect(scope.serialize()).toEqual(ws.serialize());

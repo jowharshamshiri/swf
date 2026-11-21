@@ -154,6 +154,17 @@ export function parseDocument(
   text: unknown,
   limits: SnapshotLimits = DEFAULT_SNAPSHOT_LIMITS,
 ): WorkspaceDocument {
+  return validateDocument(parseJson(text, limits), limits);
+}
+
+/**
+ * JSON text read safely: its UTF-8 size is checked against `limits.maxBytes` before it is parsed.
+ * Throws {@link SwfFailure} (`SNAPSHOT_INVALID`) for text over the limit or not JSON.
+ */
+export function parseJson(
+  text: unknown,
+  limits: SnapshotLimits = DEFAULT_SNAPSHOT_LIMITS,
+): unknown {
   if (typeof text !== 'string') {
     throw invalidSnapshot('a snapshot must be JSON text', undefined);
   }
@@ -165,16 +176,14 @@ export function parseDocument(
       { bytes, limit: limits.maxBytes },
     );
   }
-  let parsed: unknown;
   try {
-    parsed = JSON.parse(text);
+    return JSON.parse(text) as unknown;
   } catch (error) {
     throw invalidSnapshot(
       `the snapshot is not JSON: ${error instanceof Error ? error.message : String(error)}`,
       undefined,
     );
   }
-  return validateDocument(parsed, limits);
 }
 
 /**

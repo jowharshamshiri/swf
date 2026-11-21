@@ -5,6 +5,7 @@
  */
 export type {
   ArchiveNodeCommand,
+  OperationType,
   AttachSurfaceCommand,
   CameraSpec,
   CreateCameraCommand,
@@ -142,6 +143,7 @@ export type {
   WorkspaceLifecycle,
   WorkspaceMutator,
   WorkspaceOptions,
+  RestoreOptions,
   WorkspacePersistence,
   WorkspaceReader,
 } from './workspace.js';

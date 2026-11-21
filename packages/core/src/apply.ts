@@ -11,7 +11,7 @@ import {
   mat4Multiply,
   ONE_VEC3,
 } from '@swf/math';
-import type { EventSource, KeepMode, SceneCommandType } from './commands.js';
+import type { EventSource, KeepMode, OperationType, SceneCommandType } from './commands.js';
 import { SCENE_COMMAND_TYPES } from './commands.js';
 import type { Constraint } from './constraints.js';
 import { resolveConstraints } from './constraints.js';
@@ -84,7 +84,7 @@ export interface ApplyOutcome {
   readonly rootIds: readonly Id[];
   readonly selection: readonly Id[];
   readonly focusedId: Id | null;
-  readonly commandTypes: readonly SceneCommandType[];
+  readonly commandTypes: readonly OperationType[];
   /** Nodes created, changed or removed, in the order they were first touched. */
   readonly touched: readonly Id[];
   /** Surfaces created, changed or removed, in the order they were first touched. */

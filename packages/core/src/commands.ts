@@ -347,6 +347,9 @@ export type SceneCommand =
 
 export type SceneCommandType = SceneCommand['type'];
 
+/** What a committed revision did: the scene commands it applied, or a restore of a snapshot. */
+export type OperationType = SceneCommandType | 'scene.restore';
+
 export const SCENE_COMMAND_TYPES: readonly SceneCommandType[] = Object.freeze([
   'node.create',
   'node.patch',

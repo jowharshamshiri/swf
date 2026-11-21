@@ -16,7 +16,7 @@
     "src"
   ],
   "scripts": {
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json && tsc -p test/browser/tsconfig.json"
   },
   "dependencies": {
     "@swf/core": "0.0.0",

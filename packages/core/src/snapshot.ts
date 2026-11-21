@@ -169,7 +169,7 @@ export function validateSceneSnapshot(value: unknown): SceneSnapshot {
   }
 }
 
-function nodeSnapshot(node: NodeRecord): NodeRecord {
+export function nodeSnapshot(node: NodeRecord): NodeRecord {
   return {
     id: node.id,
     kind: node.kind,
@@ -188,7 +188,7 @@ function nodeSnapshot(node: NodeRecord): NodeRecord {
   };
 }
 
-function surfaceSnapshot(surface: SurfaceRecord): SurfaceRecord {
+export function surfaceSnapshot(surface: SurfaceRecord): SurfaceRecord {
   return {
     id: surface.id,
     ownerNodeId: surface.ownerNodeId,
@@ -206,7 +206,7 @@ function surfaceSnapshot(surface: SurfaceRecord): SurfaceRecord {
   };
 }
 
-function cameraSnapshot(camera: CameraRecord): CameraRecord {
+export function cameraSnapshot(camera: CameraRecord): CameraRecord {
   return {
     id: camera.id,
     position: [...camera.position],
@@ -220,7 +220,7 @@ function cameraSnapshot(camera: CameraRecord): CameraRecord {
   };
 }
 
-function viewportSnapshot(viewport: ViewportRecord): ViewportRecord {
+export function viewportSnapshot(viewport: ViewportRecord): ViewportRecord {
   return {
     id: viewport.id,
     cameraId: viewport.cameraId,

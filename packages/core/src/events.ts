@@ -1,5 +1,5 @@
 import type { Transform3D } from '@swf/math';
-import type { EventSource, SceneCommandType } from './commands.js';
+import type { EventSource, OperationType } from './commands.js';
 import type { SwfError } from './errors.js';
 import type { Id } from './model.js';
 
@@ -54,7 +54,7 @@ interface EventPayloads {
   'transaction.committed': {
     readonly transactionId: string;
     readonly previousRevision: number;
-    readonly commandTypes: readonly SceneCommandType[];
+    readonly commandTypes: readonly OperationType[];
     readonly changedNodeIds: readonly Id[];
     readonly changedSurfaceIds: readonly Id[];
     /** Nodes and surfaces the commit created. */
@@ -66,7 +66,7 @@ interface EventPayloads {
   };
   'transaction.rejected': {
     readonly transactionId: string;
-    readonly commandTypes: readonly SceneCommandType[];
+    readonly commandTypes: readonly OperationType[];
     readonly error: SwfError;
   };
   'node.created': { readonly nodeId: Id; readonly parentId: Id | null };

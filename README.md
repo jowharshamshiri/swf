@@ -45,8 +45,9 @@ interaction; the host owns whatever is presented.
   and capabilities, the fallbacks chosen and why, frame and attachment measures, scene density,
   resource health and the last typed errors.
 - `@swf/persistence`: versioned, canonical workspace snapshots with a published JSON Schema and
-  a validator that matches it, policy parameters and opaque extension state with size limits, a
-  replaceable storage interface with an in-memory store, and the save state machine.
+  a validator that matches it, policy parameters and opaque extension state with size limits,
+  two-phase restore with format migrations, a replaceable storage interface with in-memory, Web
+  Storage and IndexedDB stores, and the save state machine.
 
 ## Using the kernel
 
@@ -475,7 +476,7 @@ anywhere.
 ## Saving layouts
 
 ```ts
-import { createMemoryStore, createPersistence, createSaver } from '@swf/persistence';
+import { createIndexedDbStore, createPersistence, createSaver } from '@swf/persistence';
 
 const persistence = createPersistence({ workspace: workspace.persistence() });
 
@@ -483,6 +484,7 @@ const persistence = createPersistence({ workspace: workspace.persistence() });
 persistence.registerPolicy({
   id: 'swf.interaction/1',
   capture: () => router.settings(),
+  restore: (settings) => router.configure(settings),
   watch: (changed) =>
     router.subscribe((event) => {
       if (event.type === 'settings.changed') changed();
@@ -497,7 +499,23 @@ persistence.registerExtension({
   restore: (data) => notes.load(data),
 });
 
-const saver = createSaver({ persistence, store: createMemoryStore(), key: 'main' });
+const store = createIndexedDbStore(indexedDB, { database: 'my-app' });
+
+// On start: restore the last good layout, if there is one.
+const stored = await store.load('main');
+if (stored !== null) {
+  const outcome = await persistence.restore(stored.document);
+  if (outcome.status === 'rejected') console.error(outcome.error.path, outcome.error.message);
+}
+
+const saver = createSaver({
+  persistence,
+  store,
+  key: 'main',
+  ...(stored === null
+    ? {}
+    : { saved: { revision: stored.revision, changes: persistence.changes() } }),
+});
 saver.subscribe((state) => console.log('layout is', state));
 await saver.save();
 
@@ -511,8 +529,17 @@ surface with its binding key, adapter type, geometry and flags, every camera and
 root, the selection and focus. Entities are ordered by ID, fields in a fixed order and object keys
 sorted, so the same scene always gives the same text. It holds no runtime handle, element,
 callback or content: those are never part of the scene. `workspace.persistence()` is the scope for
-modules that manage persistence; it offers the revision, `serialize` and change notifications and
-nothing that changes the scene.
+modules that manage persistence; it offers the revision, `serialize`, `restore` and change
+notifications, and nothing else that changes the scene.
+
+`workspace.restore(snapshot)` replaces the whole scene with a snapshot's, as one revision. Nothing is
+replaced unless the snapshot is valid and everything it names is usable in this workspace: its
+geometry and projection kinds registered and their parameters accepted. A failure leaves the
+workspace exactly as it was, with `SNAPSHOT_INVALID` naming the failing path. Records equal to the
+current ones are kept as they are, so restoring the same snapshot again changes nothing: a restore
+replaces, never adds. The revision never goes back (it becomes the snapshot's when that is later),
+and the restore is one undoable step, with the history before it still coherent: undo puts the
+previous nodes and surfaces back, while cameras and viewports, being view state, stay.
 
 A snapshot document adds the format (`swf.workspace/1`), the engine that wrote it, when it was
 taken, the policies' parameters and the extensions' state. Its JSON Schema is published with the
@@ -530,10 +557,43 @@ default) and the size limits (1 MiB per namespace and 10 MiB in all by default, 
 `persistence.retain(document)` keeps a loaded snapshot's policy and extension state, so the state
 of namespaces whose owner is not registered goes into later snapshots exactly as it was.
 
+`persistence.restore(input)`, given JSON text or a document, restores in two phases. First, changing
+nothing, it reads the snapshot within the size limits, brings it to the current format on a copy
+and validates it, and has each registered extension migrate its state on a copy when the snapshot
+holds an older version of it. Then the workspace's scene is replaced in one revision. Its surfaces
+come back as placeholders that keep their binding keys and bind in place as soon as their adapters
+resolve them, in the same window, with the same Surface ID. The policies and extensions then take
+back their state, each alone within the hook timeout. A failure in the first phase, or the
+workspace refusing the scene, returns `rejected` with nothing changed and an error naming the path
+and `details.sourceVersion`, the format the snapshot was in. An extension that cannot take its
+state back (a newer version than it reads, no migration, or a failing hook) is reported, and its
+state from the snapshot is held: later snapshots carry it unchanged, never overwritten by what the
+extension holds instead, until a restore it takes back. The outcome lists the format the snapshot
+was in, every migration step with its warnings, and anything kept for an absent owner.
+
+Snapshot formats move forward by migration steps (`SchemaMigration`), each reading one format and
+writing the next on a copy of its own; `migrateDocument` follows them to the current format and
+validates the result. `swf.workspace/1` is the first published format, so the built-in list
+(`SNAPSHOT_MIGRATIONS`) is empty: every later format adds its step, and the fixtures in
+`packages/persistence/fixtures` of each format still read must restore and write back byte for
+byte. A host can add steps of its own with `migrations`, such as a converter of its earlier layout
+format.
+
 A store is the host's: `load`, `save`, `list` and `delete`, declaring whether its saves are atomic
 and compare-and-swap. A save names the revision it expects the store to hold; a store refuses a
 stale expectation or an older revision than it holds, and keeps what it held when a save fails.
 `createMemoryStore` is atomic and compare-and-swap, with an optional size limit.
+
+For browsers there are two stores, both atomic and compare-and-swap. `createWebStorageStore` keeps
+layouts of a few megabytes in `localStorage`: each key has two slots and a commit marker naming the
+slot with its last good snapshot. A save writes the candidate into the other slot, reads it back,
+and only then rewrites the marker in one write, so a save cut short or refused for lack of room
+never replaces the last good snapshot. `createIndexedDbStore` keeps large layouts in IndexedDB,
+checking the stored revision and writing the new snapshot in one transaction, which either
+commits whole or leaves the store as it was. Either one reports a full storage as
+`QUOTA_EXCEEDED` and anything else as `STORAGE_FAILED`, and never acknowledges a save that did not
+land. They store only the snapshot text: layout metadata and the extensions' own state, never
+anything presented.
 
 A saver is `clean`, `dirty`, `saving` or `failed`. A commit, a policy's parameters changing or
 an extension reporting a change makes it `dirty`. Only the store's acknowledgement of exactly the

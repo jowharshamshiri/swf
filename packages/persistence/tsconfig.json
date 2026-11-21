@@ -12,5 +12,6 @@
       "@swf/persistence": ["./src/index.ts"]
     }
   },
-  "include": ["src", "src/schema/*.json", "test", "../surfaces/src/platform.d.ts"]
+  "include": ["src", "src/schema/*.json", "test", "../surfaces/src/platform.d.ts"],
+  "exclude": ["test/browser"]
 }
