@@ -1,6 +1,7 @@
 import type { Id, JsonValue, SceneState } from '@swf/core';
 import { makeError, SwfFailure } from '@swf/core';
 import type { Mat4 } from '@swf/math';
+import { mat4FromTransform } from '@swf/math';
 
 /** [x, y, width, height] in viewport CSS pixels. */
 export type ScreenRect = readonly [number, number, number, number];
@@ -245,4 +246,40 @@ export function viewGeometryIssue(view: ViewGeometry): string | null {
     return 'far must be null or a finite number greater than near';
   }
   return null;
+}
+
+/**
+ * The view a viewport shows in a scene: its size, its camera's placement and depth range, and its
+ * projection setting. Throws {@link SwfFailure} (`UNKNOWN_ENTITY`) when the viewport, or its
+ * camera, is not in the scene.
+ */
+export function viewGeometryOf(scene: SceneState, viewportId: Id): ViewGeometry {
+  const unknown = (message: string, entityId: Id): never => {
+    throw new SwfFailure(
+      makeError('UNKNOWN_ENTITY', message, { workspaceId: scene.workspaceId, entityId }),
+    );
+  };
+  const viewport =
+    scene.viewports.get(viewportId) ?? unknown(`no viewport "${viewportId}"`, viewportId);
+  const camera =
+    scene.cameras.get(viewport.cameraId) ??
+    unknown(
+      `viewport "${viewportId}" refers to missing camera "${viewport.cameraId}"`,
+      viewport.cameraId,
+    );
+  return Object.freeze({
+    viewportId,
+    width: viewport.size.width,
+    height: viewport.size.height,
+    devicePixelRatio: viewport.size.devicePixelRatio,
+    camera: mat4FromTransform({
+      position: camera.position,
+      rotation: camera.rotation,
+      scale: [1, 1, 1],
+    }),
+    near: camera.near,
+    far: camera.far,
+    projectionId: viewport.projection.id,
+    projectionConfig: viewport.projection.config,
+  });
 }

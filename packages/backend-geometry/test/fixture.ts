@@ -2,14 +2,14 @@ import type { Id, SceneCommand, Workspace } from '@swf/core';
 import { createWorkspace } from '@swf/core';
 import { quatFromAxisAngle } from '@swf/math';
 import type { CompositorCapabilities, RenderFrame, RendererCapabilities } from '@swf/presentation';
-import { createPresentationRegistry, createViewOutput, planFrame } from '@swf/presentation';
-import type { ProjectionRegistry } from '@swf/projections';
 import {
-  createProjectionRegistry,
-  equirectangular,
-  projectorOf,
+  createPresentationRegistry,
+  createViewOutput,
+  planFrame,
   viewGeometryOf,
-} from '@swf/projections';
+} from '@swf/presentation';
+import type { ProjectionRegistry } from '@swf/projections';
+import { createProjectionRegistry, equirectangular, projectorOf } from '@swf/projections';
 import type { SurfaceCapabilities } from '@swf/surfaces';
 
 export const W = 800;

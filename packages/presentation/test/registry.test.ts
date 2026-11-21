@@ -33,6 +33,40 @@ describe('presentation registry', () => {
     expect(registry.rendererIds()).toEqual([]);
   });
 
+  it('tells its listeners of every registration and unregistration, in order', () => {
+    const registry = createPresentationRegistry();
+    const heard: string[] = [];
+    const stop = registry.subscribe((c) => {
+      heard.push(`${c.registered ? '+' : '-'}${c.kind}:${c.id}`);
+    });
+    registry.subscribe(() => {
+      throw new Error('listener bug');
+    });
+    const removeRenderer = registry.registerRenderer(new MockRenderer());
+    registry.registerProjector(projector);
+    removeRenderer();
+    removeRenderer();
+    // A refused registration changes nothing, so nobody hears of it.
+    expect(() => registry.registerProjector(projector)).toThrow(SwfFailure);
+    stop();
+    stop();
+    registry.registerCompositor(new MockCompositor());
+    expect(heard).toEqual([
+      '+renderer:mock.renderer/1',
+      '+projector:test.panorama/1',
+      '-renderer:mock.renderer/1',
+    ]);
+    // The throwing listener stopped nothing; its failures are kept.
+    expect(registry.rendererIds()).toEqual([]);
+    expect(registry.compositorIds()).toEqual(['mock.compositor/1']);
+    expect(registry.getDiagnostics()).toHaveLength(4);
+    expect(registry.getDiagnostics()[0]).toEqual({
+      code: 'LISTENER_THREW',
+      message: 'a listener threw while handling the registration of renderer "mock.renderer/1"',
+      details: { reason: 'listener bug' },
+    });
+  });
+
   it('rejects collisions, malformed modules, other contract versions and invalid capabilities', () => {
     const registry = createPresentationRegistry();
     registry.registerRenderer(new MockRenderer());
@@ -103,10 +137,12 @@ describe('capability-scoped handles', () => {
     const mutator = workspace.mutator();
     expect(Object.keys(reader).sort()).toEqual([
       'findNodes',
+      'getPresented',
       'getPreview',
       'getState',
       'history',
       'id',
+      'presentedGeometry',
       'subscribe',
       'surfaceGeometry',
       'watch',

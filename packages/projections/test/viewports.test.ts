@@ -7,7 +7,12 @@ import type { SceneCommand, ViewportSpec, Workspace } from '@swf/core';
 import { createWorkspace, SwfFailure } from '@swf/core';
 import { quatFromAxisAngle, quatRotate, quatSameRotation } from '@swf/math';
 import type { ViewGeometry } from '@swf/presentation';
-import { createPresentationRegistry, createViewOutput, planFrame } from '@swf/presentation';
+import {
+  createPresentationRegistry,
+  createViewOutput,
+  planFrame,
+  viewGeometryOf,
+} from '@swf/presentation';
 import { createSurfaceRuntime } from '@swf/surfaces';
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
@@ -18,7 +23,6 @@ import {
   headingPitchOf,
   pickAt,
   projectionFor,
-  viewGeometryOf,
 } from '../src/index.js';
 import { placedCommands } from './fixtures.js';
 

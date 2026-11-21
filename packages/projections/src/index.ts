@@ -20,4 +20,4 @@ export type { Pick, PickCandidate } from './projector.js';
 export { pickAt, projectionFor, projectorOf } from './projector.js';
 export type { ProjectionRegistry, ProjectionTargets } from './registry.js';
 export { createProjectionRegistry, validateProjectionModule } from './registry.js';
-export { cameraRotation, headingPitchOf, viewGeometryOf } from './view.js';
+export { cameraRotation, headingPitchOf } from './view.js';

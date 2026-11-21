@@ -9,7 +9,7 @@ import type {
   Workspace,
   WorkspaceEvent,
 } from '@swf/core';
-import { makeError, SwfFailure } from '@swf/core';
+import { makeError, surfaceEffectiveState, SwfFailure } from '@swf/core';
 import type {
   BindingContext,
   PresentationHint,
@@ -134,6 +134,14 @@ export interface SurfaceRuntime {
     viewportId: Id,
     options?: { release?: boolean },
   ): Promise<PresentationOutcome>;
+  /**
+   * Moves a surface's attachment in a viewport to another container, as when the viewport's
+   * presentation resources are replaced: it is released from the old container and attached to
+   * the new one, shown or hidden as it was. Only a handle that declares safe detachment moves
+   * (`UNSUPPORTED_CAPABILITY` otherwise). When the new attachment fails, the attachment goes back
+   * where it was and `BIND_FAILED` is returned; when even that fails, the surface is in error.
+   */
+  move(surfaceId: Id, viewportId: Id, container: unknown): Promise<PresentationOutcome>;
   /** Passes an advisory hint to the adapter; a hint equal to the last one is coalesced away. */
   deliverHint(hint: PresentationHint): HintOutcome;
   /**
@@ -483,6 +491,103 @@ class Runtime implements SurfaceRuntime {
       visible: true,
     });
     this.#settleVisibility(entry);
+    return this.#ok(entry);
+  }
+
+  async move(surfaceId: Id, viewportId: Id, container: unknown): Promise<PresentationOutcome> {
+    const entry = this.#entries.get(surfaceId);
+    if (entry === undefined) {
+      return this.#rejected(this.#unknown(surfaceId));
+    }
+    if (this.#disposed !== null) {
+      return this.#rejected(this.#disposedError());
+    }
+    const attachment = entry.attachments.get(viewportId);
+    const adapter = entry.adapter;
+    if (attachment === undefined || adapter === null || entry.pending.has(viewportId)) {
+      return this.#rejected(
+        this.#error(
+          'INVALID_TRANSITION',
+          `surface "${surfaceId}" is not attached in viewport "${viewportId}"`,
+          surfaceId,
+        ),
+      );
+    }
+    if (entry.replacing !== null) {
+      return this.#rejected(
+        this.#error(
+          'INVALID_TRANSITION',
+          `surface "${surfaceId}" is replacing its binding`,
+          surfaceId,
+        ),
+      );
+    }
+    if (attachment.target.container === container) {
+      return this.#ok(entry);
+    }
+    const geometry = this.#workspace.surfaceGeometry(surfaceId);
+    if (geometry === undefined) {
+      return this.#rejected(this.#unknown(surfaceId));
+    }
+    if (entry.capabilities?.safeDetach !== true) {
+      return this.#rejected(
+        this.#error(
+          'UNSUPPORTED_CAPABILITY',
+          `surface "${surfaceId}" cannot move to another container in viewport "${viewportId}": its endpoint does not allow safe detachment`,
+          surfaceId,
+        ),
+      );
+    }
+    const previous = attachment.target;
+    const target: PresentationTarget = Object.freeze({
+      surfaceId,
+      viewportId,
+      container,
+      geometry,
+    });
+    const generation = entry.generation;
+    const handle = entry.handle;
+    entry.pending.add(viewportId);
+    let failure: unknown = null;
+    try {
+      await this.#detachQuietly(adapter, handle, previous, surfaceId);
+      try {
+        await adapter.attach(handle, target);
+      } catch (error) {
+        failure = error;
+      }
+    } finally {
+      entry.pending.delete(viewportId);
+    }
+    if (entry.generation !== generation || entry.removed) {
+      if (failure === null) {
+        await this.#detachQuietly(adapter, handle, target, surfaceId);
+      }
+      return this.#rejected(this.#changedWhile(surfaceId, 'moving'));
+    }
+    if (failure !== null) {
+      const failed = this.#error(
+        'BIND_FAILED',
+        `adapter "${adapter.id}" could not move surface "${surfaceId}" to another container in viewport "${viewportId}"`,
+        surfaceId,
+        { retryable: true, details: { phase: 'move', reason: describeError(failure) } },
+      );
+      try {
+        await adapter.attach(handle, previous);
+      } catch (error) {
+        await this.#fail(
+          entry,
+          this.#error(
+            'BIND_FAILED',
+            `adapter "${adapter.id}" could not put surface "${surfaceId}" back in viewport "${viewportId}" after a failed move`,
+            surfaceId,
+            { retryable: true, details: { phase: 'move', reason: describeError(error) } },
+          ),
+        );
+      }
+      return this.#rejected(failed);
+    }
+    entry.attachments.set(viewportId, { target, visible: attachment.visible, lastHint: null });
     return this.#ok(entry);
   }
 
@@ -1507,6 +1612,8 @@ function hiddenHint(
       requestedIntrinsicSize: null,
     }),
     visible: false,
+    mounted: false,
+    sceneVisible: surfaceEffectiveState(workspace.getState(), surfaceId)?.visible === true,
     intersectionRatio: 0,
     tier: 'hidden',
     attention: 'background',

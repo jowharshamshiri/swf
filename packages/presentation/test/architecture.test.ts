@@ -28,6 +28,7 @@ const ALLOWED: Readonly<Record<string, readonly string[]>> = {
     '@swf/projections',
   ],
   conformance: ['@swf/math', '@swf/core', '@swf/surfaces', '@swf/presentation'],
+  diagnostics: ['@swf/core', '@swf/surfaces', '@swf/presentation'],
 };
 
 const sources = import.meta.glob<string>('../../*/src/**/*.ts', {

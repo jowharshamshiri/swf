@@ -9,6 +9,11 @@ export interface Drawable {
   readonly source: CanvasImageSource;
   readonly width: number;
   readonly height: number;
+  /**
+   * Changes whenever the drawable's pixels change, so the renderer redraws it only then. A
+   * drawable without one (live media, say) is redrawn every frame.
+   */
+  readonly revision?: number;
 }
 
 /** Why a value is not a drawable, or null when it is. */
@@ -26,6 +31,10 @@ export function drawableIssue(value: unknown): string | null {
     if (typeof v !== 'number' || !(v > 0) || !Number.isFinite(v)) {
       return `a drawable's ${key} must be a positive finite number`;
     }
+  }
+  const revision = d['revision'];
+  if (revision !== undefined && (typeof revision !== 'number' || !Number.isFinite(revision))) {
+    return "a drawable's revision must be a finite number when given";
   }
   return null;
 }

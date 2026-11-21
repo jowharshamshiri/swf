@@ -20,8 +20,10 @@ interaction; the host owns whatever is presented.
   and releasing a surface never stops the endpoint's producer.
 - `@swf/presentation`: the contracts between the scene and whatever draws it. What renderers,
   compositors and projections advertise; how each surface's presentation is negotiated from
-  their capabilities; the fragments a view is made of; and the stages from a committed scene to a
-  presented frame. It depends on no concrete renderer or compositor.
+  their capabilities; the fragments a view is made of; the stages from a committed scene to a
+  presented frame; and the presenter, which runs those stages frame by frame within a budget,
+  delivers advisory hints, and hands viewports between backends transactionally. It depends on no
+  concrete renderer or compositor.
 - `@swf/projections`: the projection contract (forward and inverse mapping, placing surfaces as
   fragments, visibility, interaction rays), registration that validates a projection before use,
   and the equirectangular reference projection with seam-continuous inverse mapping.
@@ -39,6 +41,9 @@ interaction; the host owns whatever is presented.
   its `LayerCompositor` stacks live and drawn layers in one explicit order.
 - `@swf/conformance`: suites that check an adapter, a renderer or a compositor against the
   contracts, with reference mocks to run them against.
+- `@swf/diagnostics`: what a running presentation can report locally: each viewport's backend
+  and capabilities, the fallbacks chosen and why, frame and attachment measures, scene density,
+  resource health and the last typed errors.
 
 ## Using the kernel
 
@@ -279,27 +284,92 @@ with the keyboard; `configure` changes it and the other settings, validating eve
 ## Presenting in the browser
 
 ```ts
-import { createDomInput, createDomView, DomCompositor, DomRenderer } from '@swf/backend-dom';
+import { createWorkspace } from '@swf/core';
+import {
+  animationFrames,
+  createDomInput,
+  DOM_COMPOSITOR_ID,
+  DOM_RENDERER_ID,
+  DomCompositor,
+  DomRenderer,
+  showDegraded,
+} from '@swf/backend-dom';
+import { createPresenter } from '@swf/presentation';
 
-const view = await createDomView({
+// Drag previews are announced once per animation frame, not once per pointer move.
+const workspace = createWorkspace({
+  id: 'main',
+  frameBoundary: (flush) => requestAnimationFrame(flush),
+});
+// … projections, the surface runtime and the presentation registry as above …
+
+presentation.registerRenderer(new DomRenderer({ document, chrome: { projections } }));
+presentation.registerCompositor(new DomCompositor());
+
+const presenter = createPresenter({
   workspace,
   runtime: surfaces,
-  projections,
-  renderer: new DomRenderer({ document, chrome: { projections } }),
-  compositor: new DomCompositor(),
-  container: document.querySelector('#main'),
-  viewportId: 'main-viewport',
+  registry: presentation,
+  frames: animationFrames(window),
+  showDegraded,
 });
-await view.update(); // again whenever the scene or the view changes
+const container = document.querySelector('#main');
+const view = await presenter.open({
+  viewportId: 'main-viewport',
+  container,
+  backends: [{ renderer: DOM_RENDERER_ID, compositor: DOM_COMPOSITOR_ID }],
+});
 
 router.registerInputAdapter(
   createDomInput({
-    root: view.root,
+    root: container,
     viewportId: 'main-viewport',
     events: (listener) => router.subscribe(listener),
   }),
 );
 ```
+
+The presenter brings each open viewport up to date at frame boundaries: it projects the presented
+scene (the committed scene with every open preview applied, so a drag shows before it commits),
+plans, renders and composes it, attaches what is live and hides what no longer is, then delivers
+the hints and publishes the frame's measures. A viewport is presented only when something it reads
+changed (its view, the windows and surfaces, selection, focus, or the surfaces' bindings), and
+however many changes arrive between two boundaries, it gets one frame with the latest state.
+Another viewport's camera moving leaves it alone. `interactive` viewports are presented every
+frame they are due; `background` ones (an overview, say) wait while the frame budget (`budgetMs`,
+8 by default) is spent, and are counted as skipped. A hidden tab gets no animation frames, so work
+waits there and resumes from the latest state. `view.update()` presents a frame at once, for
+code that cannot wait.
+
+Unchanged objects cause no writes: the DOM renderer and compositor write an element's properties
+only when they change, the geometry renderer redraws a layer only when what it shows changed
+(give a drawable a `revision` that changes with its pixels; one without is redrawn every frame),
+and every frame reports how many writes it made.
+
+Each surface attached in a viewport gets one advisory hint per frame, and a hint equal to the
+last is not sent again. A hint keeps apart whether the frame shows the surface at all
+(`visible`), whether its own content is attached and shown (`mounted`), the scene's own flag
+(`sceneVisible`), how much of it is in the view (`intersectionRatio`), how much is covered by
+what is in front (`occlusion`, `exact`, `estimated` or `unknown`), and how much attention it
+has (`active` when its window has focus). Hints never stop, pause or reconfigure a producer, and
+nothing the framework does to presentation calls the adapter for anything but attaching, hints and
+releasing an attachment.
+
+`maxLive` caps how many surfaces show their own content in a viewport (the focused window first,
+then the selection, then the largest on screen); the rest are shown as proxies. With `release`,
+a surface that stops being live releases its attachment, but only when its endpoint declares safe
+detachment; otherwise it stays attached, hidden.
+
+`view.switchBackend` hands a viewport to another renderer and compositor: the new pair is
+prepared (`preparing`), the scene is planned with its capabilities (`validating`), the view is
+rebuilt in it and live content is moved over (`swapping`), and only then does it become active and
+the old pair is released. Any failure on the way puts back what was moved and keeps the old pair;
+a switch that would strand content whose endpoint cannot be detached safely is refused. When the
+backend in use is unregistered, or loses its resources (a canvas's 2D context, say), the viewport
+falls back through its `backends` in order. When none works it is `presentation-degraded`:
+`showDegraded` puts a status line in its container saying why, the scene keeps taking commands and
+input, and when a preferred backend is registered again (or `view.restore()` is called after a
+loss) the viewport returns to it with whatever was committed meanwhile.
 
 Each live surface gets a slot of its own in each view, laid out at the surface's size
 (`pixelsPerUnit` CSS pixels per world unit, 400 by default) and mapped onto its projected corners
@@ -310,11 +380,9 @@ are stacked by `z-index` in the planned order. Every live slot declares how it i
 planar element, so there it is placed exactly by its corners and its shape is declared
 approximate, and a slot that cannot follow its corners is never declared exact.
 
-`createDomView` attaches each surface that is live in the view through the surface runtime and
-hides those that no longer are. A surface whose endpoint has a single owner is live in one view
-only, and in one fragment of it: another view, or the other side of a seam, shows a proxy with
-the surface's label instead. If two views race for the same endpoint, the runtime refuses the
-second, and that view shows the proxy.
+A surface whose endpoint has a single owner is live in one view only, and in one fragment of it:
+another view, or the other side of a seam, shows a proxy with the surface's label instead. If two
+views race for the same endpoint, the runtime refuses the second, and that view shows the proxy.
 
 Window chrome (frame outline and title) is a layer of its own that takes no pointer input, so it
 never intercepts content; only the resize handles along a window's edges take input, so a press
@@ -369,7 +437,34 @@ const results = await runConformance(
 
 Each case also runs on its own (`case.run()` throws on failure), so the suites fit any test
 framework. `backendConformance` checks a renderer and a compositor the same way; the DOM backend,
-the geometry backend and the two layered together all pass the same suite.
+the geometry backend and the two layered together all pass the same suite. `handoffConformance`
+runs a backend in a presenter beside the reference mocks: a handoff to it and away from it, a
+failed handoff that rolls back, the loss of its graphics context (given `loseContext`, which says
+how the backend loses it), and the fallback it chose shown in a running viewport, or the viewport
+visibly degraded when nothing works.
+
+## Diagnostics
+
+```ts
+import { createDiagnostics } from '@swf/diagnostics';
+
+const diagnostics = createDiagnostics({
+  workspace,
+  runtime: surfaces,
+  presenter,
+  registry: presentation,
+});
+const report = diagnostics.read();
+```
+
+A report gives each viewport's backend with its capabilities and state, the fallbacks its last
+frame chose grouped by their reasons, frame measures per viewport (frames, skipped frames, last
+and longest duration, why the last frame was due, fragments drawn and writes made), attachment
+measures per adapter type (bound, presented, failed, binding time and fallback modes), scene
+density (nodes, surfaces, and per viewport the candidates, mounted surfaces and culled ones),
+resource health (sessions, listeners and subscriptions held, handoffs under way) and the last
+typed errors. It holds identifiers, counts and timings only, never content, and sends nothing
+anywhere.
 
 ## Development
 

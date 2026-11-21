@@ -55,6 +55,15 @@ export interface WorkspaceOptions {
   readonly projectionKinds?: readonly ProjectionKind[];
   /** Receives every diagnostic as it is recorded. A sink that throws is ignored. */
   readonly onDiagnostic?: (diagnostic: Diagnostic) => void;
+  /**
+   * Coalesces high-frequency events to frame boundaries: given, `transform.preview` events are
+   * held and delivered once per boundary (the latest of each preview, with every changed ID since
+   * it was last delivered), and the workspace calls it with the function that delivers them, to be
+   * run at the next boundary (such as an animation frame). Every other event is delivered at once,
+   * after any held ones, so the order of events is kept and none is dropped. Without it every
+   * event is delivered as it happens.
+   */
+  readonly frameBoundary?: (flush: () => void) => void;
 }
 
 export interface TxOptions {
@@ -152,6 +161,13 @@ export interface WorkspaceReader {
    * Undefined for an unknown surface.
    */
   surfaceGeometry(surfaceId: Id): ResolvedGeometry | undefined;
+  /**
+   * The committed scene with every open preview applied, in the order they were opened: what
+   * views show while gestures run. It is the committed scene when no preview is open.
+   */
+  getPresented(): SceneState;
+  /** A surface's geometry placed in the presented scene; undefined for an unknown surface. */
+  presentedGeometry(surfaceId: Id): ResolvedGeometry | undefined;
 }
 
 /**
@@ -227,6 +243,7 @@ const OPTION_KEYS = [
   'geometryLimits',
   'projectionKinds',
   'onDiagnostic',
+  'frameBoundary',
 ];
 
 /** Creates an empty, independent workspace. Throws {@link SwfFailure} for invalid options. */
@@ -269,6 +286,16 @@ class WorkspaceImpl implements Workspace {
   readonly #now: () => number;
   readonly #createId: (inUse: (id: Id) => boolean) => Id;
   readonly #onDiagnostic: ((d: Diagnostic) => void) | undefined;
+  readonly #frameBoundary: ((flush: () => void) => void) | undefined;
+  /** Preview events held for the next frame boundary, by preview, in the order first held. */
+  readonly #held = new Map<string, WorkspaceEvent>();
+  #flushRequested = false;
+  /** The committed scene with every open preview applied, cached until either changes. */
+  #presented: {
+    state: SceneState;
+    previews: readonly PreviewRecord[];
+    result: SceneState;
+  } | null = null;
   readonly #constraints = new Map<string, Constraint>();
   #sortedConstraints: readonly Constraint[] = [];
   readonly #geometry = new GeometryRegistry();
@@ -310,6 +337,7 @@ class WorkspaceImpl implements Workspace {
           }
         : () => hostCreateId();
     this.#onDiagnostic = record.onDiagnostic;
+    this.#frameBoundary = record.frameBoundary;
     this.#geometryLimits = record.geometryLimits;
     for (const constraint of record.constraints) {
       this.#addConstraint(constraint);
@@ -358,6 +386,14 @@ class WorkspaceImpl implements Workspace {
     return surfaceGeometry(this.#state, surfaceId, this.#geometry);
   }
 
+  getPresented(): SceneState {
+    return this.#combined();
+  }
+
+  presentedGeometry(surfaceId: Id): ResolvedGeometry | undefined {
+    return surfaceGeometry(this.#combined(), surfaceId, this.#geometry);
+  }
+
   canUndo(): boolean {
     return this.#lifecycle === 'ready' && this.#undo.length > 0;
   }
@@ -384,6 +420,8 @@ class WorkspaceImpl implements Workspace {
       findNodes: (query: NodeQuery) => this.findNodes(query),
       history: () => this.history(),
       surfaceGeometry: (surfaceId: Id) => this.surfaceGeometry(surfaceId),
+      getPresented: () => this.getPresented(),
+      presentedGeometry: (surfaceId: Id) => this.presentedGeometry(surfaceId),
     });
   }
 
@@ -903,12 +941,24 @@ class WorkspaceImpl implements Workspace {
     } catch (error) {
       return this.#reject(transactionId, error, null);
     }
+    const previous = this.#previews.get(previewId);
     this.#previews.set(previewId, {
       commands: commands as readonly SceneCommand[],
       source: options.source,
       causeId: options.causeId,
       state: preview.state,
     });
+    // Open previews are presented together; one that cannot join the others is refused.
+    try {
+      this.#combined();
+    } catch (error) {
+      if (previous === undefined) {
+        this.#previews.delete(previewId);
+      } else {
+        this.#previews.set(previewId, previous);
+      }
+      return this.#reject(transactionId, error, null);
+    }
     const changed = {
       changedNodeIds: preview.changedNodeIds,
       changedSurfaceIds: preview.changedSurfaceIds,
@@ -929,7 +979,16 @@ class WorkspaceImpl implements Workspace {
     commands: unknown,
     source: EventSource,
   ): { state: SceneState; changedNodeIds: readonly Id[]; changedSurfaceIds: readonly Id[] } {
-    const outcome = applyCommands(this.#state, commands, this.#applyContext(source, this.#now()));
+    return this.#applyOnto(this.#state, commands, source);
+  }
+
+  /** `commands` applied to `base` as a preview: a scene at the committed revision. */
+  #applyOnto(
+    base: SceneState,
+    commands: unknown,
+    source: EventSource,
+  ): { state: SceneState; changedNodeIds: readonly Id[]; changedSurfaceIds: readonly Id[] } {
+    const outcome = applyCommands(base, commands, this.#applyContext(source, this.#now()));
     const state: SceneState = Object.freeze({
       workspaceId: this.id,
       revision: this.#state.revision,
@@ -986,6 +1045,52 @@ class WorkspaceImpl implements Workspace {
         );
       }
     }
+    // The previews that still apply each on their own must also apply together: drop the newest
+    // until they do.
+    for (;;) {
+      try {
+        this.#combined();
+        return;
+      } catch {
+        const newest = [...this.#previews.entries()].at(-1);
+        if (newest === undefined) {
+          return;
+        }
+        const [previewId, record] = newest;
+        this.#previews.delete(previewId);
+        this.#emit(
+          'preview.cancelled',
+          { previewId, reason: 'invalidated' },
+          { source: record.source, causeId: previewId, phase: 'cancelled' },
+        );
+      }
+    }
+  }
+
+  /**
+   * The committed scene with every open preview applied, in the order they were opened. Throws
+   * the rejection when they do not apply together.
+   */
+  #combined(): SceneState {
+    const records = [...this.#previews.values()];
+    if (records.length === 0) {
+      return this.#state;
+    }
+    const cached = this.#presented;
+    if (
+      cached !== null &&
+      cached.state === this.#state &&
+      cached.previews.length === records.length &&
+      cached.previews.every((r, i) => r === records[i])
+    ) {
+      return cached.result;
+    }
+    let state = this.#state;
+    for (const record of records) {
+      state = this.#applyOnto(state, record.commands, record.source).state;
+    }
+    this.#presented = { state: this.#state, previews: records, result: state };
+    return state;
   }
 
   #reject(
@@ -1049,19 +1154,68 @@ class WorkspaceImpl implements Workspace {
     how: { source: EventSource; causeId: string | null; phase: OperationPhase },
   ): void {
     this.#eventSeq += 1;
-    this.#outbox.push(
-      Object.freeze({
-        id: `${this.id}/ev-${String(this.#eventSeq)}`,
-        type: event.type,
-        workspaceId: this.id,
-        revision: this.#state.revision,
-        timestamp: this.#now(),
-        source: how.source,
-        causationId: how.causeId,
-        phase: how.phase,
-        payload: event.payload,
-      }) as WorkspaceEvent,
-    );
+    const built = Object.freeze({
+      id: `${this.id}/ev-${String(this.#eventSeq)}`,
+      type: event.type,
+      workspaceId: this.id,
+      revision: this.#state.revision,
+      timestamp: this.#now(),
+      source: how.source,
+      causationId: how.causeId,
+      phase: how.phase,
+      payload: event.payload,
+    }) as WorkspaceEvent;
+    if (this.#frameBoundary !== undefined && built.type === 'transform.preview') {
+      this.#hold(built);
+      return;
+    }
+    // Held previews go first: events keep the order they happened in.
+    this.#releaseHeld();
+    this.#outbox.push(built);
+  }
+
+  /** Holds a preview event for the next frame boundary, merging it with one already held. */
+  #hold(event: Extract<WorkspaceEvent, { type: 'transform.preview' }>): void {
+    const previewId = event.payload.previewId;
+    const held = this.#held.get(previewId);
+    if (held?.type === 'transform.preview') {
+      const union = (a: readonly Id[], b: readonly Id[]) =>
+        Object.freeze([...new Set([...a, ...b])]);
+      this.#held.set(
+        previewId,
+        Object.freeze({
+          ...event,
+          payload: Object.freeze({
+            previewId,
+            changedNodeIds: union(held.payload.changedNodeIds, event.payload.changedNodeIds),
+            changedSurfaceIds: union(
+              held.payload.changedSurfaceIds,
+              event.payload.changedSurfaceIds,
+            ),
+          }),
+        }),
+      );
+    } else {
+      this.#held.set(previewId, event);
+    }
+    if (!this.#flushRequested && this.#frameBoundary !== undefined) {
+      this.#flushRequested = true;
+      this.#frameBoundary(() => {
+        this.#flushRequested = false;
+        if (this.#held.size > 0 && this.#lifecycle !== 'disposed') {
+          this.#releaseHeld();
+          this.#drain();
+        }
+      });
+    }
+  }
+
+  /** Moves held preview events into the outbox, in the order they were first held. */
+  #releaseHeld(): void {
+    for (const event of this.#held.values()) {
+      this.#outbox.push(event);
+    }
+    this.#held.clear();
   }
 
   /**
@@ -1241,6 +1395,7 @@ interface CheckedOptions {
   readonly geometryLimits: GeometryLimits;
   readonly projectionKinds: readonly ProjectionKind[];
   readonly onDiagnostic: ((d: Diagnostic) => void) | undefined;
+  readonly frameBoundary: ((flush: () => void) => void) | undefined;
 }
 
 /** Checks options passed from JavaScript, where the declared types are not enforced. */
@@ -1272,7 +1427,7 @@ function checkOptions(options: WorkspaceOptions): CheckedOptions {
     }
     return value;
   };
-  for (const key of ['now', 'createId', 'onDiagnostic']) {
+  for (const key of ['now', 'createId', 'onDiagnostic', 'frameBoundary']) {
     if (record[key] !== undefined && typeof record[key] !== 'function') {
       throw fail(key, 'must be a function');
     }
@@ -1314,6 +1469,7 @@ function checkOptions(options: WorkspaceOptions): CheckedOptions {
       maxPolygonVertices: limit('maxPolygonVertices'),
     }),
     onDiagnostic: options.onDiagnostic,
+    frameBoundary: options.frameBoundary,
   };
 }
 

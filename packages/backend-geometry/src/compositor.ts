@@ -8,6 +8,7 @@ import type {
   CompositorCapabilities,
   CompositorSession,
   RenderedFrame,
+  LossListener,
   RendererSession,
   ViewSize,
 } from '@swf/presentation';
@@ -87,6 +88,15 @@ export class LayerCompositorSession implements CompositorSession {
   /** The view's root: canvases and live elements are its children. */
   readonly root: HTMLElement;
   readonly #canvases: HTMLCanvasElement[] = [];
+  /** What each canvas last showed, and each element's last stacking: unchanged ones are left be. */
+  readonly #painted = new WeakMap<
+    HTMLCanvasElement,
+    { layers: readonly GeometryLayer[]; size: string }
+  >();
+  readonly #stacked = new WeakMap<HTMLElement, string>();
+  #size = '';
+  #writes = 0;
+  readonly #lossListeners = new Set<LossListener>();
   #released = false;
 
   constructor(compositorId: string, viewportId: Id, root: HTMLElement) {
@@ -135,6 +145,7 @@ export class LayerCompositorSession implements CompositorSession {
         );
       }
     });
+    this.#writes = 0;
     let canvasIndex = 0;
     for (const run of runs) {
       if (run.kind === 'live') {
@@ -148,30 +159,70 @@ export class LayerCompositorSession implements CompositorSession {
             );
           }
           this.root.append(run.element);
+          this.#writes += 1;
         }
-        run.element.style.setProperty('z-index', String(run.start + 1));
+        this.#stack(run.element, run.start);
         continue;
       }
       const canvas = this.#canvas(canvasIndex++);
-      canvas.style.setProperty('z-index', String(run.start + 1));
-      paint(
-        canvas,
-        frame.size,
-        run.layers.map((l) => l.content as GeometryLayer),
-      );
+      this.#stack(canvas, run.start);
+      const layers = run.layers.map((l) => l.content as GeometryLayer);
+      const size = `${String(frame.size.width)}x${String(frame.size.height)}@${String(frame.size.devicePixelRatio)}`;
+      const painted = this.#painted.get(canvas);
+      // A canvas showing exactly these layers at this size is not repainted.
+      if (
+        painted?.size !== size ||
+        painted.layers.length !== layers.length ||
+        painted.layers.some((l, i) => l !== layers[i])
+      ) {
+        paint(canvas, frame.size, layers);
+        this.#painted.set(canvas, { layers, size });
+        this.#writes += 1;
+      }
     }
     // Canvases this frame did not need go.
     for (const canvas of this.#canvases.splice(canvasIndex)) {
       canvas.remove();
+      this.#writes += 1;
     }
-    this.root.style.setProperty('width', `${String(frame.size.width)}px`);
-    this.root.style.setProperty('height', `${String(frame.size.height)}px`);
+    const rootSize = `${String(frame.size.width)}x${String(frame.size.height)}`;
+    if (rootSize !== this.#size) {
+      this.root.style.setProperty('width', `${String(frame.size.width)}px`);
+      this.root.style.setProperty('height', `${String(frame.size.height)}px`);
+      this.#size = rootSize;
+      this.#writes += 1;
+    }
     return Object.freeze({
       viewportId: frame.viewportId,
       sceneRevision: frame.sceneRevision,
       order: Object.freeze(frame.layers.map((l) => l.id)),
       occlusion: LAYER_COMPOSITOR_CAPABILITIES.occlusion,
+      writes: this.#writes,
     });
+  }
+
+  /** Puts an element at its place in the stack, writing only when the place changed. */
+  #stack(element: HTMLElement, index: number): void {
+    const z = String(index + 1);
+    if (this.#stacked.get(element) !== z) {
+      element.style.setProperty('z-index', z);
+      this.#stacked.set(element, z);
+      this.#writes += 1;
+    }
+  }
+
+  /**
+   * Calls `listener` when the browser takes a canvas's 2D context away (it fires `contextlost`
+   * under memory pressure or a lost GPU): what is drawn is gone until the session is replaced.
+   */
+  watchLoss(listener: LossListener): () => void {
+    const entry: LossListener = (reason) => {
+      listener(reason);
+    };
+    this.#lossListeners.add(entry);
+    return () => {
+      this.#lossListeners.delete(entry);
+    };
   }
 
   /** Takes the view's root out of its container. Safe to call more than once. */
@@ -180,6 +231,7 @@ export class LayerCompositorSession implements CompositorSession {
       this.#released = true;
       this.root.remove();
       this.#canvases.length = 0;
+      this.#lossListeners.clear();
     }
     return Promise.resolve();
   }
@@ -194,8 +246,17 @@ export class LayerCompositorSession implements CompositorSession {
       canvas.style.setProperty('top', '0px');
       // Drawn layers show; they never take input from what lies under them.
       canvas.style.setProperty('pointer-events', 'none');
+      canvas.addEventListener('contextlost', () => {
+        if (this.#released) {
+          return;
+        }
+        for (const listener of [...this.#lossListeners]) {
+          listener('the 2D context of a drawn layer was lost');
+        }
+      });
       this.root.append(canvas);
       this.#canvases.push(canvas);
+      this.#writes += 1;
     }
     return canvas;
   }

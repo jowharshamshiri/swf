@@ -11,6 +11,7 @@ import type {
 } from '@swf/presentation';
 import { PRESENTATION_API_VERSION } from '@swf/presentation';
 import { DomRendererSession } from './renderer.js';
+import { DomWriter } from './writer.js';
 
 export const DOM_COMPOSITOR_ID = 'swf.dom-compositor/1';
 
@@ -81,6 +82,7 @@ export class DomCompositorSession implements CompositorSession {
   readonly compositorId: string;
   readonly viewportId: Id;
   readonly #renderer: DomRendererSession;
+  readonly #write = new DomWriter();
   #released = false;
 
   constructor(compositorId: string, renderer: DomRendererSession) {
@@ -130,15 +132,22 @@ export class DomCompositorSession implements CompositorSession {
           );
         }
         root.append(element);
+        this.#write.structure();
       }
-      element.style.setProperty('z-index', String(index + 1));
+      this.#write.style(element, { 'z-index': String(index + 1) });
     });
     return Object.freeze({
       viewportId: frame.viewportId,
       sceneRevision: frame.sceneRevision,
       order: Object.freeze(frame.layers.map((layer) => layer.id)),
       occlusion: DOM_COMPOSITOR_CAPABILITIES.occlusion,
+      writes: this.#write.take(),
     });
+  }
+
+  /** DOM elements are never lost, so this never calls `listener`. */
+  watchLoss(): () => void {
+    return () => undefined;
   }
 
   /** Takes the view's root out of the container. Safe to call more than once. */

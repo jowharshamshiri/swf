@@ -13,8 +13,9 @@ import type {
 } from '@swf/core';
 import { descendantIds, makeError, SwfFailure, VERSIONED_ID } from '@swf/core';
 import type { ViewGeometry } from '@swf/presentation';
+import { viewGeometryOf } from '@swf/presentation';
 import type { Continuity, Projection, ProjectionModule, RayResult } from '@swf/projections';
-import { projectionFor, viewGeometryOf } from '@swf/projections';
+import { projectionFor } from '@swf/projections';
 import type { CommandContext, CommandOutcome, InteractionCommand } from './commands.js';
 import { BUILT_IN_COMMANDS, commandIssue } from './commands.js';
 import type {

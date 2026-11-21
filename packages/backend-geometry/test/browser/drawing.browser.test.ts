@@ -1,9 +1,10 @@
 import { DomRenderer } from '@swf/backend-dom';
+import { viewGeometryOf } from '@swf/presentation';
 import { worldMatrix } from '@swf/core';
 import type { Vec3 } from '@swf/math';
 import { mat4TransformPoint, sub } from '@swf/math';
-import { equirectangular, viewGeometryOf } from '@swf/projections';
-import { afterEach, describe, expect, it } from 'vitest';
+import { equirectangular } from '@swf/projections';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { LayeredRendererSession, LayerCompositorSession } from '../../src/index.js';
 import {
   GeometryRenderer,
@@ -78,11 +79,16 @@ function near(actual: readonly number[], expected: readonly number[], tolerance 
   return ok;
 }
 
-async function drawn(placed: readonly Placed[]) {
+async function drawn(placed: readonly Placed[], revision: () => number | undefined = () => 1) {
   const { ws, projections, kinds } = scene(placed);
   const source = quadrants();
   const renderer = new GeometryRenderer({
-    drawables: () => ({ source, width: 64, height: 32 }),
+    drawables: () => {
+      const r = revision();
+      return r === undefined
+        ? { source, width: 64, height: 32 }
+        : { source, width: 64, height: 32, revision: r };
+    },
     projections,
   });
   const frame = plan(
@@ -115,7 +121,7 @@ async function drawn(placed: readonly Placed[]) {
     }
     return [best[0], best[1]];
   };
-  return { ws, frame, compositor, composed, screen };
+  return { ws, frame, session, compositor, composed, screen };
 }
 
 describe('drawn content (ARCH-011)', () => {
@@ -169,6 +175,37 @@ describe('drawn content (ARCH-011)', () => {
     expect(fx).toBeLessThan(6);
     expect(near(pixelAt(compositor.root, ex, ey), [...QUADRANTS.tl, 255])).toBe(true);
     expect(near(pixelAt(compositor.root, fx, fy), [...QUADRANTS.tr, 255])).toBe(true);
+  });
+
+  it('redraws a drawable only when its revision changes, and one without a revision every frame (NFR-005)', async () => {
+    let revision: number | undefined = 1;
+    const s = await drawn([{ id: 'a', kind: 'drawn', heading: 0.4, distance: 3 }], () => revision);
+    const canvas = s.compositor.root.querySelector('canvas');
+    const again = () => s.compositor.compose(s.session.render(s.frame));
+    // Each repaint of a canvas starts by clearing it.
+    const painted = vi.spyOn(CanvasRenderingContext2D.prototype, 'clearRect');
+    try {
+      // Unchanged: no layer is redrawn and the canvas is left alone.
+      const rendered = s.session.render(s.frame);
+      expect(rendered.writes).toBe(0);
+      expect(s.compositor.compose(rendered).writes).toBe(0);
+      expect(painted).not.toHaveBeenCalled();
+      // A new revision redraws its layer, and only that canvas is painted again.
+      revision = 2;
+      const changed = s.session.render(s.frame);
+      expect(changed.writes).toBe(1);
+      expect(s.compositor.compose(changed).writes).toBe(1);
+      expect(painted).toHaveBeenCalledTimes(1);
+      // Without a revision the content may change at any time (live media), so every frame redraws.
+      revision = undefined;
+      again();
+      painted.mockClear();
+      expect(again().writes).toBe(1);
+      expect(painted).toHaveBeenCalledTimes(1);
+    } finally {
+      painted.mockRestore();
+    }
+    expect(s.compositor.root.querySelector('canvas')).toBe(canvas);
   });
 
   it('draws proxies, placeholders, chrome and out-of-view indicators', async () => {

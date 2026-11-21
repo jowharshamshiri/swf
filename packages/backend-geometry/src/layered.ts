@@ -3,6 +3,7 @@ import { makeError, SwfFailure, VERSIONED_ID } from '@swf/core';
 import type {
   CompositionLayer,
   RenderedFrame,
+  LossListener,
   RendererBackend,
   RendererCapabilities,
   RendererSession,
@@ -169,7 +170,18 @@ export class LayeredRendererSession implements RendererSession {
       sceneRevision: frame.sceneRevision,
       size: drawn.size,
       layers: Object.freeze(layers),
+      writes: native.writes + drawn.writes,
     });
+  }
+
+  /** Live content attaches where the native renderer puts it. */
+  targetOf(surfaceId: Id): unknown {
+    return this.native.targetOf(surfaceId);
+  }
+
+  /** The native renderer may lose its resources; the geometry renderer holds none to lose. */
+  watchLoss(listener: LossListener): () => void {
+    return this.native.watchLoss(listener);
   }
 
   async release(): Promise<void> {

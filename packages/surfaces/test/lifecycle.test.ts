@@ -34,6 +34,8 @@ function hint(viewportId: string, over: Partial<PresentationHint> = {}): Present
     viewportId,
     sceneRevision: 2,
     visible: true,
+    mounted: true,
+    sceneVisible: true,
     intersectionRatio: 1,
     occlusion: { value: 0, confidence: 'estimated' },
     projectedBounds: [10, 10, 320, 180],
@@ -153,6 +155,80 @@ describe('presentation lifecycle', () => {
       presentation: { state: 'hidden', viewports: [{ viewportId: 'v1', visible: false }] },
     });
     expect(unsafe.adapter.methods()).not.toContain('detach');
+  });
+
+  it('moves an attachment to another container in its viewport, keeping it shown or hidden', async () => {
+    const { runtime, adapter } = await bound();
+    const before = { layer: 'old' };
+    const after = { layer: 'new' };
+    await runtime.present('s', 'v1', before);
+    expect(await runtime.move('s', 'v1', after)).toMatchObject({
+      status: 'ok',
+      presentation: { state: 'presented', viewports: [{ viewportId: 'v1', visible: true }] },
+    });
+    const targets = adapter.calls.flatMap((c) =>
+      c.method === 'attach' || c.method === 'detach'
+        ? [`${c.method}:${(c.target?.container as { layer: string }).layer}`]
+        : [],
+    );
+    expect(targets).toEqual(['attach:old', 'detach:old', 'attach:new']);
+    // Moving to where it already is changes nothing.
+    await runtime.move('s', 'v1', after);
+    expect(adapter.methods().filter((m) => m === 'attach' || m === 'detach')).toHaveLength(3);
+    // A hidden attachment stays hidden where it goes.
+    await runtime.hide('s', 'v1');
+    await runtime.move('s', 'v1', before);
+    expect(runtime.get('s')).toMatchObject({
+      state: 'hidden',
+      viewports: [{ viewportId: 'v1', visible: false }],
+    });
+    expect(adapter.producerTouched).toBe(0);
+  });
+
+  it('refuses to move what is not attached there or cannot be detached safely', async () => {
+    const { runtime } = await bound();
+    expect(await runtime.move('s', 'v1', {})).toMatchObject({
+      status: 'rejected',
+      error: { code: 'INVALID_TRANSITION', entityId: 's' },
+    });
+    const unsafe = await bound(
+      new MockOpaqueAdapter(
+        'host.view/1',
+        mockCapabilities({ safeDetach: false, rebinding: false }),
+      ),
+    );
+    await unsafe.runtime.present('s', 'v1', {});
+    expect(await unsafe.runtime.move('s', 'v1', {})).toMatchObject({
+      status: 'rejected',
+      error: { code: 'UNSUPPORTED_CAPABILITY', entityId: 's' },
+    });
+    expect(unsafe.adapter.methods()).not.toContain('detach');
+  });
+
+  it('puts a surface back where it was when attaching it in the new container fails', async () => {
+    const { runtime, adapter } = await bound();
+    const before = { layer: 'old' };
+    await runtime.present('s', 'v1', before);
+    const original = adapter.attach.bind(adapter);
+    adapter.attach = (handle, target) =>
+      target.container === before ? original(handle, target) : Promise.reject(new Error('no room'));
+    expect(await runtime.move('s', 'v1', { layer: 'new' })).toMatchObject({
+      status: 'rejected',
+      error: { code: 'BIND_FAILED', retryable: true, details: { phase: 'move' } },
+    });
+    expect(runtime.get('s')).toMatchObject({ state: 'presented', viewports: [{ visible: true }] });
+    // Its attachment is the old one again: hiding it with release detaches it from there.
+    await runtime.hide('s', 'v1', { release: true });
+    const last = adapter.calls.at(-1);
+    expect(last?.method).toBe('detach');
+    expect(last?.target?.container).toBe(before);
+
+    // When even going back fails, the surface is in error and holds no attachment.
+    const broken = await bound();
+    await broken.runtime.present('s', 'v1', {});
+    broken.adapter.attachFailing.add('k');
+    expect(await broken.runtime.move('s', 'v1', {})).toMatchObject({ status: 'rejected' });
+    expect(broken.runtime.get('s')).toMatchObject({ state: 'error', viewports: [] });
   });
 
   it('sends the adapter an advisory hidden hint when a surface is hidden', async () => {

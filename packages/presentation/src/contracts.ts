@@ -57,6 +57,11 @@ export interface RenderedFrame {
   readonly sceneRevision: number;
   /** The frame's view size, for a compositor sizing what it assembles. */
   readonly size: ViewSize;
+  /**
+   * How many changes this render made to what it presents (element properties, layer content):
+   * a view that did not change makes none.
+   */
+  readonly writes: number;
   readonly layers: readonly CompositionLayer[];
 }
 
@@ -69,9 +74,22 @@ export interface RendererSession {
    * order: the order follows the plan, never incidental insertion order.
    */
   render(frame: RenderFrame): RenderedFrame;
+  /**
+   * Where a surface's own content attaches in this view (the container of its presentation
+   * target), once a render has planned it live here; undefined before that.
+   */
+  targetOf(surfaceId: Id): unknown;
+  /**
+   * Calls `listener` when the session loses resources it cannot present without (a graphics
+   * context, say), with what was lost. Returns a function that stops listening.
+   */
+  watchLoss(listener: LossListener): () => void;
   /** Releases what the session created. Safe to call more than once. */
   release(): Promise<void>;
 }
+
+/** Told what a session lost; the session cannot present until it is replaced. */
+export type LossListener = (reason: string) => void;
 
 /**
  * Realizes views. It reads the scene but never changes it, and never manages the producers of
@@ -98,6 +116,8 @@ export interface ComposedFrame {
   readonly order: readonly string[];
   /** How this frame's overlapping layers occlude each other, as the compositor declares. */
   readonly occlusion: Occlusion;
+  /** How many changes composing made (stacking, placement, repaints): none for an unchanged frame. */
+  readonly writes: number;
 }
 
 export interface CompositorSession {
@@ -108,6 +128,8 @@ export interface CompositorSession {
    * `dom-order` compositor declares that its order is the DOM's.
    */
   compose(frame: RenderedFrame): ComposedFrame;
+  /** As {@link RendererSession.watchLoss}: calls `listener` when the session loses resources. */
+  watchLoss(listener: LossListener): () => void;
   /** Releases what the session created. Safe to call more than once. */
   release(): Promise<void>;
 }

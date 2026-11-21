@@ -6,6 +6,7 @@ import type {
   Compositor,
   CompositorCapabilities,
   CompositorSession,
+  LossListener,
   RenderedFrame,
   RendererBackend,
   RendererCapabilities,
@@ -46,15 +47,43 @@ export const MOCK_COMPOSITOR_CAPABILITIES: CompositorCapabilities = Object.freez
   occlusion: 'layer-order',
 });
 
+/** Listeners for a session's loss of resources, and a way to make the loss happen. */
+class Loss {
+  readonly #listeners = new Set<LossListener>();
+
+  watch(listener: LossListener): () => void {
+    const entry: LossListener = (reason) => {
+      listener(reason);
+    };
+    this.#listeners.add(entry);
+    return () => {
+      this.#listeners.delete(entry);
+    };
+  }
+
+  lose(reason: string): void {
+    for (const listener of [...this.#listeners]) {
+      listener(reason);
+    }
+  }
+
+  get watchers(): number {
+    return this.#listeners.size;
+  }
+}
+
 /**
  * A reference renderer that realizes each planned fragment as one layer of the category its
- * negotiation chose, in plan order, with no real resources.
+ * negotiation chose, in plan order, with no real resources. Live content attaches to a target
+ * object of the session's own, one per surface.
  */
 export class MockRenderer implements RendererBackend {
   readonly id: string;
   readonly apiVersion = 1;
   readonly #capabilities: RendererCapabilities;
   readonly sessions: MockRendererSession[] = [];
+  /** When set, preparing fails with this message. */
+  failPrepare: string | null = null;
 
   constructor(id = 'mock.renderer/1', capabilities = MOCK_RENDERER_CAPABILITIES) {
     this.id = id;
@@ -66,6 +95,9 @@ export class MockRenderer implements RendererBackend {
   }
 
   prepare(_scene: SceneState, view: ViewGeometry): Promise<RendererSession> {
+    if (this.failPrepare !== null) {
+      return Promise.reject(new Error(this.failPrepare));
+    }
     const session = new MockRendererSession(this.id, view.viewportId);
     this.sessions.push(session);
     return Promise.resolve(session);
@@ -76,13 +108,47 @@ export class MockRendererSession implements RendererSession {
   readonly rendererId: string;
   readonly viewportId: Id;
   released = 0;
+  /** When set, rendering throws with this message. */
+  failRender: string | null = null;
+  readonly #loss = new Loss();
+  readonly #targets = new Map<Id, object>();
+  #live = new Set<Id>();
 
   constructor(rendererId: string, viewportId: Id) {
     this.rendererId = rendererId;
     this.viewportId = viewportId;
   }
 
+  targetOf(surfaceId: Id): unknown {
+    if (!this.#live.has(surfaceId)) {
+      return undefined;
+    }
+    let target = this.#targets.get(surfaceId);
+    if (target === undefined) {
+      target = Object.freeze({ rendererId: this.rendererId, surfaceId, session: this });
+      this.#targets.set(surfaceId, target);
+    }
+    return target;
+  }
+
+  watchLoss(listener: LossListener): () => void {
+    return this.#loss.watch(listener);
+  }
+
+  /** Makes the session lose its resources, as a lost graphics context would. */
+  lose(reason: string): void {
+    this.#loss.lose(reason);
+  }
+
+  /** How many are listening for its loss. */
+  get lossWatchers(): number {
+    return this.#loss.watchers;
+  }
+
   render(frame: RenderFrame): RenderedFrame {
+    if (this.failRender !== null) {
+      throw new Error(this.failRender);
+    }
     if (this.released > 0) {
       throw new Error(`renderer session for viewport "${this.viewportId}" was released`);
     }
@@ -95,6 +161,11 @@ export class MockRendererSession implements RendererSession {
         content: Object.freeze({ fragmentId: p.fragment.id }),
       }),
     );
+    this.#live = new Set(
+      layers.flatMap((l) =>
+        l.category === 'content-native' && l.surfaceId !== null ? [l.surfaceId] : [],
+      ),
+    );
     return Object.freeze({
       viewportId: frame.viewportId,
       sceneRevision: frame.sceneRevision,
@@ -104,6 +175,7 @@ export class MockRendererSession implements RendererSession {
         devicePixelRatio: frame.view.devicePixelRatio,
       }),
       layers: Object.freeze(layers),
+      writes: 0,
     });
   }
 
@@ -118,6 +190,9 @@ export class MockCompositor implements Compositor {
   readonly id: string;
   readonly apiVersion = 1;
   readonly #capabilities: CompositorCapabilities;
+  readonly sessions: MockCompositorSession[] = [];
+  /** When set, preparing fails with this message. */
+  failPrepare: string | null = null;
 
   constructor(id = 'mock.compositor/1', capabilities = MOCK_COMPOSITOR_CAPABILITIES) {
     this.id = id;
@@ -132,7 +207,12 @@ export class MockCompositor implements Compositor {
     if (renderer.viewportId !== target.viewportId) {
       return Promise.reject(new Error('the renderer session belongs to another viewport'));
     }
-    return Promise.resolve(new MockCompositorSession(this.id, target.viewportId));
+    if (this.failPrepare !== null) {
+      return Promise.reject(new Error(this.failPrepare));
+    }
+    const session = new MockCompositorSession(this.id, target.viewportId);
+    this.sessions.push(session);
+    return Promise.resolve(session);
   }
 }
 
@@ -140,10 +220,24 @@ export class MockCompositorSession implements CompositorSession {
   readonly compositorId: string;
   readonly viewportId: Id;
   released = 0;
+  readonly #loss = new Loss();
 
   constructor(compositorId: string, viewportId: Id) {
     this.compositorId = compositorId;
     this.viewportId = viewportId;
+  }
+
+  watchLoss(listener: LossListener): () => void {
+    return this.#loss.watch(listener);
+  }
+
+  /** Makes the session lose its resources, as a lost graphics context would. */
+  lose(reason: string): void {
+    this.#loss.lose(reason);
+  }
+
+  get lossWatchers(): number {
+    return this.#loss.watchers;
   }
 
   compose(frame: RenderedFrame): ComposedFrame {
@@ -155,6 +249,7 @@ export class MockCompositorSession implements CompositorSession {
       sceneRevision: frame.sceneRevision,
       order: Object.freeze(frame.layers.map((layer) => layer.id)),
       occlusion: MOCK_COMPOSITOR_CAPABILITIES.occlusion,
+      writes: 0,
     });
   }
 

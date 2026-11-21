@@ -18,6 +18,7 @@ import { projectionFor } from '@swf/projections';
 import type { Quad2 } from '@swf/math';
 import { offsetQuad, rectQuad } from '@swf/math';
 import { cssTransform, quadMatrix } from './placement.js';
+import { DomWriter } from './writer.js';
 
 export const DOM_RENDERER_ID = 'swf.dom-renderer/1';
 
@@ -69,6 +70,7 @@ export const DOM_ATTRIBUTES = Object.freeze({
   selected: 'data-swf-selected',
   focused: 'data-swf-focused',
   label: 'data-swf-label',
+  degraded: 'data-swf-degraded',
 });
 
 /** Each resize handle and the frame sides it lies on. */
@@ -143,6 +145,7 @@ export class DomRendererSession implements RendererSession {
   readonly #chrome: Required<ChromeOptions> | null;
   readonly #slots = new Map<Id, NativeSlot>();
   readonly #elements = new Map<string, HTMLElement>();
+  readonly #write = new DomWriter();
   #released = false;
 
   constructor(
@@ -173,8 +176,13 @@ export class DomRendererSession implements RendererSession {
    * here, and stays the same element for as long as the session keeps it, so content mounted in it
    * is never moved to another parent.
    */
-  slotOf(surfaceId: Id): HTMLElement | undefined {
+  targetOf(surfaceId: Id): HTMLElement | undefined {
     return this.#slots.get(surfaceId)?.slot;
+  }
+
+  /** DOM elements are never lost, so this never calls `listener`. */
+  watchLoss(): () => void {
+    return () => undefined;
   }
 
   /** The surfaces that have a live slot in this view. */
@@ -214,7 +222,7 @@ export class DomRendererSession implements RendererSession {
     if (frame.scene.revision !== frame.sceneRevision) {
       throw new SwfFailure(makeError('INVALID_INPUT', 'the frame’s scene is not at its revision'));
     }
-    style(this.root, {
+    this.#write.style(this.root, {
       width: `${String(frame.view.width)}px`,
       height: `${String(frame.view.height)}px`,
     });
@@ -242,13 +250,14 @@ export class DomRendererSession implements RendererSession {
     // moved or reloaded; everything else unused goes.
     for (const [surfaceId, slot] of this.#slots) {
       if (!usedSlots.has(surfaceId)) {
-        slot.clip.style.display = 'none';
+        this.#write.style(slot.clip, { display: 'none' });
       }
     }
     for (const [key, element] of this.#elements) {
       if (!usedElements.has(key)) {
         element.remove();
         this.#elements.delete(key);
+        this.#write.structure();
       }
     }
     return Object.freeze({
@@ -260,6 +269,7 @@ export class DomRendererSession implements RendererSession {
         devicePixelRatio: frame.view.devicePixelRatio,
       }),
       layers: Object.freeze(layers),
+      writes: this.#write.take(),
     });
   }
 
@@ -302,20 +312,14 @@ export class DomRendererSession implements RendererSession {
       case 'placeholder': {
         usedElements.add(id);
         const element = this.#element(id, () => this.#representation(category, fragment));
-        element.textContent = '';
-        const label = this.#document.createElement('span');
-        label.setAttribute(DOM_ATTRIBUTES.label, '');
-        // Labels are text, never markup.
-        label.textContent = labelOf(frame.scene, fragment.surfaceId);
-        element.append(label);
-        if (category === 'placeholder') {
-          const state = this.#document.createElement('span');
-          state.textContent = 'Not presented';
-          element.append(state);
+        const label = element.firstElementChild;
+        if (label !== null) {
+          // Labels are text, never markup.
+          this.#write.text(label, labelOf(frame.scene, fragment.surfaceId));
         }
-        element.setAttribute(DOM_ATTRIBUTES.mode, negotiation.mode);
-        element.setAttribute(DOM_ATTRIBUTES.shape, negotiation.shapeFidelity);
-        placeBox(element, fragment.bounds);
+        this.#write.attribute(element, DOM_ATTRIBUTES.mode, negotiation.mode);
+        this.#write.attribute(element, DOM_ATTRIBUTES.shape, negotiation.shapeFidelity);
+        this.#write.style(element, boxOf(fragment.bounds));
         return Object.freeze({ ...base, content: element });
       }
       case 'content-raster':
@@ -376,27 +380,32 @@ export class DomRendererSession implements RendererSession {
     const followsCorners = cornerMatrix !== null;
     const matrix =
       cornerMatrix ?? quadMatrix(width, height, offsetQuad(rectQuad(fragment.bounds), x, y));
-    style(slot.clip, {
+    this.#write.style(slot.clip, {
       display: '',
       left: `${String(x)}px`,
       top: `${String(y)}px`,
       width: `${String(w)}px`,
       height: `${String(h)}px`,
     });
-    style(slot.slot, {
+    this.#write.style(slot.slot, {
       width: `${String(width)}px`,
       height: `${String(height)}px`,
       transform: matrix === null ? 'scale(0)' : cssTransform(matrix),
     });
-    slot.clip.setAttribute(DOM_ATTRIBUTES.fragment, fragment.id);
-    slot.clip.setAttribute(DOM_ATTRIBUTES.mode, negotiation.mode);
-    slot.clip.setAttribute(DOM_ATTRIBUTES.anchor, negotiation.anchorFidelity);
+    this.#write.attribute(slot.clip, DOM_ATTRIBUTES.fragment, fragment.id);
+    this.#write.attribute(slot.clip, DOM_ATTRIBUTES.mode, negotiation.mode);
+    this.#write.attribute(slot.clip, DOM_ATTRIBUTES.anchor, negotiation.anchorFidelity);
     // A slot that could not follow the corners is never declared exact.
-    slot.clip.setAttribute(
+    this.#write.attribute(
+      slot.clip,
       DOM_ATTRIBUTES.shape,
       followsCorners ? negotiation.shapeFidelity : 'approximate',
     );
-    slot.clip.setAttribute(DOM_ATTRIBUTES.placement, followsCorners ? 'corners' : 'bounds');
+    this.#write.attribute(
+      slot.clip,
+      DOM_ATTRIBUTES.placement,
+      followsCorners ? 'corners' : 'bounds',
+    );
     return slot.clip;
   }
 
@@ -407,6 +416,14 @@ export class DomRendererSession implements RendererSession {
     element.setAttribute(DOM_ATTRIBUTES.fragment, fragment.id);
     // A representation hides what lies behind it, so it takes input (for the framework to route).
     style(element, { position: 'absolute', overflow: 'hidden', 'pointer-events': 'auto' });
+    const label = this.#document.createElement('span');
+    label.setAttribute(DOM_ATTRIBUTES.label, '');
+    element.append(label);
+    if (category === 'placeholder') {
+      const state = this.#document.createElement('span');
+      state.textContent = 'Not presented';
+      element.append(state);
+    }
     return element;
   }
 
@@ -417,6 +434,39 @@ export class DomRendererSession implements RendererSession {
       this.#elements.set(key, element);
     }
     return element;
+  }
+
+  /**
+   * A window's chrome element, built once: a frame outline with its title (taking no input) and
+   * the eight resize handles (taking input), shown or hidden as the window's edges allow.
+   */
+  #chromeElement(nodeId: Id): HTMLElement {
+    const e = this.#document.createElement('div');
+    e.setAttribute(DOM_ATTRIBUTES.layer, 'chrome');
+    e.setAttribute(DOM_ATTRIBUTES.node, nodeId);
+    style(e, { position: 'absolute', 'pointer-events': 'none' });
+    const outline = this.#document.createElement('div');
+    outline.setAttribute(DOM_ATTRIBUTES.layer, 'chrome-frame');
+    style(outline, {
+      position: 'absolute',
+      left: '0px',
+      top: '0px',
+      'transform-origin': '0 0',
+      'pointer-events': 'none',
+      'box-sizing': 'border-box',
+    });
+    const title = this.#document.createElement('div');
+    title.setAttribute(DOM_ATTRIBUTES.label, '');
+    style(title, { position: 'absolute', left: '0px', top: '0px', 'pointer-events': 'none' });
+    outline.append(title);
+    e.append(outline);
+    for (const edge of Object.keys(RESIZE_EDGES)) {
+      const handle = this.#document.createElement('div');
+      handle.setAttribute(DOM_ATTRIBUTES.handle, edge);
+      style(handle, { position: 'absolute', 'pointer-events': 'auto', cursor: `${edge}-resize` });
+      e.append(handle);
+    }
+    return e;
   }
 
   /** Each window's projected frame (its native-owner piece), when chrome is drawn. */
@@ -473,77 +523,60 @@ export class DomRendererSession implements RendererSession {
     }
     const id = `chrome:${nodeId}`;
     usedElements.add(id);
-    const element = this.#element(id, () => {
-      const e = this.#document.createElement('div');
-      e.setAttribute(DOM_ATTRIBUTES.layer, 'chrome');
-      e.setAttribute(DOM_ATTRIBUTES.node, nodeId);
-      style(e, { position: 'absolute', 'pointer-events': 'none' });
-      return e;
-    });
-    element.textContent = '';
+    const element = this.#element(id, () => this.#chromeElement(nodeId));
+    const outline = element.firstElementChild as HTMLElement | null;
+    const title = outline?.firstElementChild ?? null;
+    if (outline === null || title === null) {
+      throw new Error(`the chrome of window "${nodeId}" lost its frame`);
+    }
     const [x, y, w, h] = piece.bounds;
-    placeBox(element, piece.bounds);
+    this.#write.style(element, boxOf(piece.bounds));
     const width = node.bounds[0] * this.#ppu;
     const height = node.bounds[1] * this.#ppu;
     const corners: Quad2 = piece.corners ?? rectQuad(piece.bounds);
     const matrix =
       quadMatrix(width, height, offsetQuad(corners, x, y)) ??
       quadMatrix(width, height, offsetQuad(rectQuad(piece.bounds), x, y));
-    const outline = this.#document.createElement('div');
-    outline.setAttribute(DOM_ATTRIBUTES.layer, 'chrome-frame');
-    style(outline, {
-      position: 'absolute',
-      left: '0px',
-      top: '0px',
+    this.#write.style(outline, {
       width: `${String(width)}px`,
       height: `${String(height)}px`,
-      'transform-origin': '0 0',
       transform: matrix === null ? 'scale(0)' : cssTransform(matrix),
-      'pointer-events': 'none',
-      'box-sizing': 'border-box',
     });
-    const title = this.#document.createElement('div');
-    title.setAttribute(DOM_ATTRIBUTES.label, '');
-    style(title, { position: 'absolute', left: '0px', top: '0px', 'pointer-events': 'none' });
     // Labels are text, never markup.
-    title.textContent = node.label ?? '';
-    outline.append(title);
-    element.append(outline);
-    element.toggleAttribute(DOM_ATTRIBUTES.selected, scene.selection.includes(nodeId));
-    element.toggleAttribute(DOM_ATTRIBUTES.focused, scene.focusedId === nodeId);
-    if (node.flags.resizable && !node.flags.locked) {
-      const t = chrome.handlePx;
-      const [tl, tr, br, bl] = corners;
-      // An edge is the window's own only where the piece is not cut there by the view or a seam.
-      const inside = (value: number, lo: number, hi: number) =>
-        value >= lo - 0.5 && value <= hi + 0.5;
-      const has = {
-        n: inside(Math.min(tl[1], tr[1]), y, y + h),
-        s: inside(Math.max(bl[1], br[1]), y, y + h),
-        w: inside(Math.min(tl[0], bl[0]), x, x + w),
-        e: inside(Math.max(tr[0], br[0]), x, x + w),
-      };
-      for (const [edge, sides] of Object.entries(RESIZE_EDGES)) {
-        if (!sides.every((side) => has[side])) {
-          continue;
-        }
-        const handle = this.#document.createElement('div');
-        handle.setAttribute(DOM_ATTRIBUTES.handle, edge);
-        const north = edge.includes('n');
-        const south = edge.includes('s');
-        const east = edge.includes('e');
-        const west = edge.includes('w');
-        style(handle, {
-          position: 'absolute',
-          'pointer-events': 'auto',
-          left: `${String(east ? w - t : 0)}px`,
-          top: `${String(south ? h - t : 0)}px`,
-          width: `${String(east || west ? t : w)}px`,
-          height: `${String(north || south ? t : h)}px`,
-          cursor: `${edge}-resize`,
-        });
-        element.append(handle);
-      }
+    this.#write.text(title, node.label ?? '');
+    this.#write.toggle(element, DOM_ATTRIBUTES.selected, scene.selection.includes(nodeId));
+    this.#write.toggle(element, DOM_ATTRIBUTES.focused, scene.focusedId === nodeId);
+    const resizable = node.flags.resizable && !node.flags.locked;
+    const t = chrome.handlePx;
+    const [tl, tr, br, bl] = corners;
+    // An edge is the window's own only where the piece is not cut there by the view or a seam.
+    const inside = (value: number, lo: number, hi: number) =>
+      value >= lo - 0.5 && value <= hi + 0.5;
+    const has = {
+      n: inside(Math.min(tl[1], tr[1]), y, y + h),
+      s: inside(Math.max(bl[1], br[1]), y, y + h),
+      w: inside(Math.min(tl[0], bl[0]), x, x + w),
+      e: inside(Math.max(tr[0], br[0]), x, x + w),
+    };
+    for (const handle of element.querySelectorAll<HTMLElement>(`[${DOM_ATTRIBUTES.handle}]`)) {
+      const edge = handle.getAttribute(DOM_ATTRIBUTES.handle) as keyof typeof RESIZE_EDGES;
+      const shown = resizable && RESIZE_EDGES[edge].every((side) => has[side]);
+      const north = edge.includes('n');
+      const south = edge.includes('s');
+      const east = edge.includes('e');
+      const west = edge.includes('w');
+      this.#write.style(
+        handle,
+        shown
+          ? {
+              display: '',
+              left: `${String(east ? w - t : 0)}px`,
+              top: `${String(south ? h - t : 0)}px`,
+              width: `${String(east || west ? t : w)}px`,
+              height: `${String(north || south ? t : h)}px`,
+            }
+          : { display: 'none' },
+      );
     }
     return Object.freeze({
       id,
@@ -562,13 +595,13 @@ function labelOf(scene: SceneState, surfaceId: Id): string {
   return surface?.label ?? owner?.label ?? surfaceId;
 }
 
-function placeBox(element: HTMLElement, [x, y, w, h]: ScreenRect): void {
-  style(element, {
+function boxOf([x, y, w, h]: ScreenRect): Record<string, string> {
+  return {
     left: `${String(x)}px`,
     top: `${String(y)}px`,
     width: `${String(w)}px`,
     height: `${String(h)}px`,
-  });
+  };
 }
 
 function style(element: HTMLElement, properties: Readonly<Record<string, string>>): void {

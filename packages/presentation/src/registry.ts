@@ -33,6 +33,20 @@ export interface BackendRegistrar {
   registerProjector(projector: ViewProjector): () => void;
 }
 
+/** A listener that threw: the change it was told of stands, and the other listeners heard it. */
+export interface RegistryDiagnostic {
+  readonly code: 'LISTENER_THREW';
+  readonly message: string;
+  readonly details: Readonly<Record<string, string>>;
+}
+
+/** A module registered or unregistered. */
+export interface RegistryChange {
+  readonly kind: 'renderer' | 'compositor' | 'projector';
+  readonly id: string;
+  readonly registered: boolean;
+}
+
 /** The renderers, compositors and projectors available to a host's viewports. */
 export interface PresentationRegistry extends BackendRegistrar {
   renderer(id: string): Registered<RendererBackend, RendererCapabilities> | undefined;
@@ -43,6 +57,14 @@ export interface PresentationRegistry extends BackendRegistrar {
   projectorIds(): string[];
   /** A handle that can register and unregister backends but not read or use them. */
   registrar(): BackendRegistrar;
+  /**
+   * Calls `listener` after every registration and unregistration, in order. A listener that
+   * throws does not stop the others; its failure is kept in {@link getDiagnostics}. Returns a
+   * function that stops listening (safe to call twice).
+   */
+  subscribe(listener: (change: RegistryChange) => void): () => void;
+  /** The last 100 listener failures, oldest first. */
+  getDiagnostics(): readonly RegistryDiagnostic[];
 }
 
 export function createPresentationRegistry(): PresentationRegistry {
@@ -79,6 +101,8 @@ class Registry implements PresentationRegistry {
   readonly #renderers = new Map<string, Registered<RendererBackend, RendererCapabilities>>();
   readonly #compositors = new Map<string, Registered<Compositor, CompositorCapabilities>>();
   readonly #projectors = new Map<string, Registered<ViewProjector, ProjectionProfile>>();
+  readonly #listeners = new Set<(change: RegistryChange) => void>();
+  readonly #diagnostics: RegistryDiagnostic[] = [];
 
   renderer(id: string) {
     return this.#renderers.get(id);
@@ -107,7 +131,10 @@ class Registry implements PresentationRegistry {
   registerRenderer(renderer: RendererBackend): () => void {
     this.#check(moduleIssue(renderer, 'renderer', ['capabilities', 'prepare']));
     const capabilities = this.#declared(renderer, 'renderer', rendererCapabilitiesIssue);
-    return this.#add(this.#renderers, renderer.id, 'renderer', { module: renderer, capabilities });
+    return this.#add(this.#renderers, renderer.id, 'renderer', {
+      module: renderer,
+      capabilities,
+    });
   }
 
   registerCompositor(compositor: Compositor): () => void {
@@ -136,6 +163,21 @@ class Registry implements PresentationRegistry {
       module: projector,
       capabilities: profile,
     });
+  }
+
+  subscribe(listener: (change: RegistryChange) => void): () => void {
+    // Each subscription is its own entry, so subscribing one function twice needs two removals.
+    const entry = (change: RegistryChange) => {
+      listener(change);
+    };
+    this.#listeners.add(entry);
+    return () => {
+      this.#listeners.delete(entry);
+    };
+  }
+
+  getDiagnostics(): readonly RegistryDiagnostic[] {
+    return Object.freeze([...this.#diagnostics]);
   }
 
   registrar(): BackendRegistrar {
@@ -167,16 +209,39 @@ class Registry implements PresentationRegistry {
     return deepFreeze(structuredCopy(declared)) as C;
   }
 
-  #add<T>(map: Map<string, T>, id: string, kind: string, entry: T): () => void {
+  #add<T>(map: Map<string, T>, id: string, kind: RegistryChange['kind'], entry: T): () => void {
     if (map.has(id)) {
       this.#check({ code: 'INVALID_INPUT', message: `a ${kind} "${id}" is already registered` });
     }
     map.set(id, entry);
+    this.#notify({ kind, id, registered: true });
     return () => {
       if (map.get(id) === entry) {
         map.delete(id);
+        this.#notify({ kind, id, registered: false });
       }
     };
+  }
+
+  #notify(change: RegistryChange): void {
+    const frozen = Object.freeze(change);
+    for (const listener of [...this.#listeners]) {
+      try {
+        listener(frozen);
+      } catch (error) {
+        // The registration stands and the other listeners still hear of it.
+        this.#diagnostics.push(
+          Object.freeze({
+            code: 'LISTENER_THREW' as const,
+            message: `a listener threw while handling the ${frozen.registered ? 'registration' : 'unregistration'} of ${frozen.kind} "${frozen.id}"`,
+            details: Object.freeze({
+              reason: error instanceof Error ? error.message : String(error),
+            }),
+          }),
+        );
+        this.#diagnostics.splice(0, this.#diagnostics.length - 100);
+      }
+    }
   }
 
   #check(issue: Issue): void {

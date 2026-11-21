@@ -2,9 +2,9 @@ import type { SceneCommand, Workspace, WorkspaceOptions } from '@swf/core';
 import { createWorkspace, worldMatrix } from '@swf/core';
 import type { Quat, Vec3 } from '@swf/math';
 import { mat4TransformPoint, quatFromAxisAngle } from '@swf/math';
-import { createPresentationRegistry } from '@swf/presentation';
+import { createPresentationRegistry, viewGeometryOf } from '@swf/presentation';
 import type { ProjectionRegistry } from '@swf/projections';
-import { createProjectionRegistry, equirectangular, viewGeometryOf } from '@swf/projections';
+import { createProjectionRegistry, equirectangular } from '@swf/projections';
 import type {
   InteractionEvent,
   InteractionRouter,

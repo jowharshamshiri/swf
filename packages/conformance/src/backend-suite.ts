@@ -329,6 +329,25 @@ export function backendConformance(fixture: BackendFixture): ConformanceCase[] {
         await release(p);
       },
     ),
+    forEachProfile(
+      'writes nothing when the same frame is rendered and composed again (NFR-005)',
+      async (profile) => {
+        const p = await prepared(profile);
+        const frame = plan(p.workspace, p.state, p.renderer, p.compositor, profile);
+        p.compositorSession.compose(p.rendererSession.render(frame));
+        const rendered = p.rendererSession.render(frame);
+        const composed = p.compositorSession.compose(rendered);
+        check(
+          rendered.writes === 0,
+          `rendering an unchanged frame made ${String(rendered.writes)} writes`,
+        );
+        check(
+          composed.writes === 0,
+          `composing an unchanged frame made ${String(composed.writes)} writes`,
+        );
+        await release(p);
+      },
+    ),
     forEachProfile('leaves the scene unchanged', async (profile) => {
       const p = await prepared(profile);
       const before = p.workspace.getState();

@@ -7,6 +7,7 @@
  */
 export type { DomCompositorSession } from './compositor.js';
 export { DOM_COMPOSITOR_CAPABILITIES, DOM_COMPOSITOR_ID, DomCompositor } from './compositor.js';
+export { animationFrames, showDegraded } from './host.js';
 export type { DomInputOptions } from './input.js';
 export { createDomInput } from './input.js';
 export type { CssMatrix } from './placement.js';
@@ -18,5 +19,3 @@ export {
   DOM_RENDERER_ID,
   DomRenderer,
 } from './renderer.js';
-export type { DomView, DomViewOptions, DomViewUpdate } from './view.js';
-export { createDomView } from './view.js';

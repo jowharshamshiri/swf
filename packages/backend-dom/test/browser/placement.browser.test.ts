@@ -1,6 +1,6 @@
 import type { ProjectedFragment } from '@swf/presentation';
 import { afterEach, describe, expect, it } from 'vitest';
-import type { DomViewUpdate } from '../../src/index.js';
+import type { ViewportFrame } from '@swf/presentation';
 import { DOM_ATTRIBUTES } from '../../src/index.js';
 import type { Stage } from './fixture.js';
 import { onWindow, pageOf, screenOf, stage, W } from './fixture.js';
@@ -36,7 +36,7 @@ function slotCorners(slot: HTMLElement): [number, number][] {
   });
 }
 
-function nativeFragment(update: DomViewUpdate, surfaceId: string): ProjectedFragment {
+function nativeFragment(update: ViewportFrame, surfaceId: string): ProjectedFragment {
   const planned = update.frame.planned.find(
     (p) => p.fragment.surfaceId === surfaceId && p.negotiation.layer === 'content-native',
   );

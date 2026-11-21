@@ -26,6 +26,7 @@ export type {
   CompositionTarget,
   Compositor,
   CompositorSession,
+  LossListener,
   PlannedFragment,
   RenderedFrame,
   RendererBackend,
@@ -41,7 +42,7 @@ export type {
   ViewGeometry,
   ViewOutput,
 } from './fragments.js';
-export { createViewOutput, fragmentId, viewGeometryIssue } from './fragments.js';
+export { createViewOutput, fragmentId, viewGeometryIssue, viewGeometryOf } from './fragments.js';
 export type {
   CapabilityGap,
   FallbackDiagnostic,
@@ -57,7 +58,34 @@ export {
   negotiate,
   PRESENTATION_MODES,
 } from './negotiation.js';
-export type { BackendRegistrar, PresentationRegistry, Registered } from './registry.js';
+export type {
+  BackendCapabilities,
+  BackendChoice,
+  DegradedFrame,
+  DirtyFlag,
+  FrameMetrics,
+  FrameSource,
+  PresentedViewport,
+  Presenter,
+  PresenterDiagnostic,
+  PresenterEvent,
+  PresenterOptions,
+  PresenterResources,
+  SwitchOutcome,
+  SwitchReason,
+  ViewportFrame,
+  ViewportOptions,
+  ViewportState,
+  ViewportUpdate,
+} from './presenter.js';
+export { createPresenter } from './presenter.js';
+export type {
+  BackendRegistrar,
+  PresentationRegistry,
+  Registered,
+  RegistryChange,
+  RegistryDiagnostic,
+} from './registry.js';
 export { createPresentationRegistry } from './registry.js';
 export type { FrameInput, ViewProjector } from './stages.js';
 export { groupFallbacks, planFrame, PRESENTATION_STAGES } from './stages.js';

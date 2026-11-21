@@ -23,15 +23,24 @@ export type OcclusionConfidence = 'exact' | 'estimated' | 'unknown';
 
 /**
  * Advisory presentation state for one surface in one viewport. It never mandates anything of the
- * endpoint's producer: an adapter may ignore what it does not support. The three sizes are kept
- * apart: the surface's spatial bounds, its projected size in the viewport, and an optional
- * requested intrinsic presentation size.
+ * endpoint's producer: an adapter may ignore what it does not support. Conditions that one
+ * boolean would conflate are kept apart: whether the surface is shown in the view at all
+ * (`visible`), whether its own content is attached and shown there (`mounted`), whether the
+ * scene marks it visible (`sceneVisible`), how much of it lies inside the viewport, how much is
+ * occluded and how sure that estimate is, and how much attention it has. So are the three sizes:
+ * the surface's spatial bounds, its projected size in the viewport, and an optional requested
+ * intrinsic presentation size.
  */
 export interface PresentationHint {
   readonly surfaceId: Id;
   readonly viewportId: Id;
   readonly sceneRevision: number;
+  /** Shown in this view this frame, as its own content or as a proxy or placeholder. */
   readonly visible: boolean;
+  /** Its own content is attached and shown in this view (not hidden, not represented). */
+  readonly mounted: boolean;
+  /** The scene marks it (and every ancestor) visible. */
+  readonly sceneVisible: boolean;
   /** Share of the surface inside the viewport, 0 to 1. */
   readonly intersectionRatio: number;
   readonly occlusion: { readonly value: number | null; readonly confidence: OcclusionConfidence };

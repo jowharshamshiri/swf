@@ -4,14 +4,29 @@ import type { InteractionEvent, InteractionRouter } from '@swf/interaction';
 import { createInteractionRouter } from '@swf/interaction';
 import type { Vec3 } from '@swf/math';
 import { mat4TransformPoint, quatFromAxisAngle, sub } from '@swf/math';
+import { ManualFrames } from '@swf/conformance';
 import type { ProjectionRegistry } from '@swf/projections';
-import { createPresentationRegistry } from '@swf/presentation';
-import { createProjectionRegistry, equirectangular, viewGeometryOf } from '@swf/projections';
+import type {
+  FrameSource,
+  PresentationRegistry,
+  PresentedViewport,
+  Presenter,
+  ViewportFrame,
+} from '@swf/presentation';
+import { createPresentationRegistry, createPresenter, viewGeometryOf } from '@swf/presentation';
+import { createProjectionRegistry, equirectangular } from '@swf/projections';
 import type { SurfaceAdapter, SurfaceCapabilities, SurfaceRuntime } from '@swf/surfaces';
 import { createSurfaceRuntime } from '@swf/surfaces';
 import { commands } from 'vitest/browser';
-import type { DomView } from '../../src/index.js';
-import { createDomInput, createDomView, DomCompositor, DomRenderer } from '../../src/index.js';
+import {
+  animationFrames,
+  createDomInput,
+  DOM_COMPOSITOR_ID,
+  DOM_RENDERER_ID,
+  DomCompositor,
+  DomRenderer,
+  showDegraded,
+} from '../../src/index.js';
 
 declare module 'vitest/browser' {
   interface BrowserCommands {
@@ -152,12 +167,30 @@ export function windowCommands(placements: readonly WindowPlacement[]): SceneCom
   });
 }
 
+/** One viewport presented in its own container on the page. */
+export interface View {
+  readonly viewportId: string;
+  /** The viewport's container: input is taken over it, and the view is assembled in it. */
+  readonly root: HTMLElement;
+  readonly viewport: PresentedViewport;
+  /** Presents a frame now; throws when the viewport is degraded. */
+  update(): Promise<ViewportFrame>;
+  presentation(surfaceId: string): 'live' | 'proxy';
+  dispose(): Promise<{ readonly retained: readonly string[] }>;
+}
+
 export interface Stage {
   readonly ws: Workspace;
   readonly runtime: SurfaceRuntime;
   readonly projections: ProjectionRegistry;
+  readonly registry: PresentationRegistry;
+  readonly presenter: Presenter;
+  /** The frame source: manual, unless the stage runs on animation frames. */
+  readonly frames: ManualFrames | FrameSource;
+  /** The DOM renderer every viewport uses, and what unregisters it. */
+  readonly backend: { readonly renderer: DomRenderer; readonly unregister: () => void };
   readonly lives: Map<string, Live>;
-  readonly views: Map<string, DomView>;
+  readonly views: Map<string, View>;
   readonly containers: Map<string, HTMLElement>;
   readonly router: InteractionRouter;
   readonly events: InteractionEvent[];
@@ -166,8 +199,9 @@ export interface Stage {
 
 /**
  * A workspace with the equirectangular projection, the given windows bound to live DOM endpoints,
- * and one DOM view per viewport (each 800×400, 360°×120°) in its own container on the page. The
- * router takes input from viewport `v` only.
+ * and one viewport (each 800×400, 360°×120°) presented with the DOM backend in its own container
+ * on the page. Frames come only when the test asks (`update` or `frames.flush`). The router
+ * takes input from viewport `v` only.
  */
 export async function stage(
   placements: readonly WindowPlacement[],
@@ -175,10 +209,16 @@ export async function stage(
     readonly viewports?: readonly string[];
     readonly sharing?: SurfaceCapabilities['viewportSharing'];
     readonly update?: boolean;
+    /** Run frames, and the workspace's preview coalescing, on the browser's animation frames. */
+    readonly animationFrames?: boolean;
   } = {},
 ): Promise<Stage> {
   const viewports = options.viewports ?? ['v'];
-  const ws = createWorkspace({ id: 'ws' });
+  const animated = options.animationFrames === true;
+  const ws = createWorkspace({
+    id: 'ws',
+    ...(animated ? { frameBoundary: (flush: () => void) => requestAnimationFrame(flush) } : {}),
+  });
   const presentation = createPresentationRegistry();
   const projections = createProjectionRegistry({
     kinds: ws.mutator(),
@@ -211,26 +251,44 @@ export async function stage(
     }
   }
   const renderer = new DomRenderer({ document, chrome: { projections } });
-  const compositor = new DomCompositor();
-  const views = new Map<string, DomView>();
+  const unregister = presentation.registerRenderer(renderer);
+  presentation.registerCompositor(new DomCompositor());
+  const frames = animated ? animationFrames(window) : new ManualFrames();
+  const presenter = createPresenter({
+    workspace: ws,
+    runtime,
+    registry: presentation,
+    frames,
+    showDegraded,
+  });
+  const views = new Map<string, View>();
   const containers = new Map<string, HTMLElement>();
   for (const viewportId of viewports) {
     const container = document.createElement('div');
     container.style.setProperty('margin', '0');
+    container.style.setProperty('width', `${String(W)}px`);
+    container.style.setProperty('height', `${String(H)}px`);
     document.body.append(container);
     containers.set(viewportId, container);
-    views.set(
+    const viewport = await presenter.open({
       viewportId,
-      await createDomView({
-        workspace: ws,
-        runtime,
-        projections,
-        renderer,
-        compositor,
-        container,
-        viewportId,
-      }),
-    );
+      container,
+      backends: [{ renderer: DOM_RENDERER_ID, compositor: DOM_COMPOSITOR_ID }],
+    });
+    views.set(viewportId, {
+      viewportId,
+      root: container,
+      viewport,
+      async update() {
+        const update = await viewport.update();
+        if (update.status !== 'presented') {
+          throw new Error(`viewport "${viewportId}" is degraded: ${update.error.message}`);
+        }
+        return update;
+      },
+      presentation: (surfaceId) => viewport.presentation(surfaceId),
+      dispose: () => viewport.dispose(),
+    });
   }
   const main = views.get(viewports[0] ?? 'v');
   if (main === undefined) {
@@ -259,6 +317,10 @@ export async function stage(
     ws,
     runtime,
     projections,
+    registry: presentation,
+    presenter,
+    frames,
+    backend: { renderer, unregister },
     lives,
     views,
     containers,
@@ -266,9 +328,7 @@ export async function stage(
     events,
     async dispose() {
       router.dispose();
-      for (const view of views.values()) {
-        await view.dispose();
-      }
+      await presenter.dispose();
       await runtime.dispose();
       for (const container of containers.values()) {
         container.remove();

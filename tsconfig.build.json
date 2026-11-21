@@ -27,6 +27,9 @@
     },
     {
       "path": "packages/conformance/tsconfig.build.json"
+    },
+    {
+      "path": "packages/diagnostics/tsconfig.build.json"
     }
   ]
 }

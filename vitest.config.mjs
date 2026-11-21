@@ -16,6 +16,7 @@ export default defineConfig({
       '@swf/backend-dom': source('backend-dom'),
       '@swf/backend-geometry': source('backend-geometry'),
       '@swf/conformance': source('conformance'),
+      '@swf/diagnostics': source('diagnostics'),
     },
   },
   test: {

@@ -104,6 +104,13 @@ export class GeometryRendererSession implements RendererSession {
   readonly viewportId: Id;
   readonly #options: GeometryRendererOptions;
   readonly #cells: number;
+  /** Each layer of the last render, with the inputs it was drawn from. */
+  readonly #kept = new Map<
+    string,
+    { readonly signature: string | null; readonly content: GeometryLayer }
+  >();
+  #used = new Set<string>();
+  #writes = 0;
   #released = false;
 
   constructor(rendererId: string, viewportId: Id, options: GeometryRendererOptions, cells: number) {
@@ -139,6 +146,8 @@ export class GeometryRendererSession implements RendererSession {
       );
     }
     const projection = this.#projection(frame.view);
+    this.#used = new Set();
+    this.#writes = 0;
     const layers: CompositionLayer[] = [];
     const lastOfNode = new Map<Id, string>();
     for (const p of frame.planned) {
@@ -187,7 +196,49 @@ export class GeometryRendererSession implements RendererSession {
         devicePixelRatio: frame.view.devicePixelRatio,
       }),
       layers: Object.freeze(layers),
+      writes: this.#writes + this.#forgetUnused(),
     });
+  }
+
+  /**
+   * The layer drawn from these inputs: the same object as last time when its inputs did not
+   * change (so nothing is redrawn), or a new one. A null signature always draws anew.
+   */
+  #keep(id: string, signature: string | null, make: () => GeometryLayer): GeometryLayer {
+    this.#used.add(id);
+    const kept = this.#kept.get(id);
+    if (kept !== undefined && signature !== null && kept.signature === signature) {
+      return kept.content;
+    }
+    const content = make();
+    this.#kept.set(id, { signature, content });
+    this.#writes += 1;
+    return content;
+  }
+
+  /** Forgets the layers this render did not draw; each one gone is a change. */
+  #forgetUnused(): number {
+    let gone = 0;
+    for (const id of [...this.#kept.keys()]) {
+      if (!this.#used.has(id)) {
+        this.#kept.delete(id);
+        gone += 1;
+      }
+    }
+    return gone;
+  }
+
+  /** It draws everything it shows, so no surface's own content attaches here. */
+  targetOf(): undefined {
+    return undefined;
+  }
+
+  /**
+   * It holds no graphics resources (it draws into the compositor's canvases), so this never calls
+   * `listener`.
+   */
+  watchLoss(): () => void {
+    return () => undefined;
   }
 
   release(): Promise<void> {
@@ -221,10 +272,23 @@ export class GeometryRendererSession implements RendererSession {
     const category = negotiation.layer;
     const label = labelOf(frame.scene, fragment.surfaceId);
     let draw: (ctx: CanvasRenderingContext2D) => void;
+    let signature: string | null;
     switch (category) {
       case 'content-raster': {
         const drawable = this.#drawable(fragment.surfaceId);
         const mesh = this.#mesh(frame, fragment, drawable, projection);
+        signature =
+          drawable.revision === undefined
+            ? null
+            : JSON.stringify([
+                'raster',
+                fragment.bounds,
+                mesh.points,
+                identity(drawable.source),
+                drawable.width,
+                drawable.height,
+                drawable.revision,
+              ]);
         draw = (ctx) => {
           clipTo(ctx, fragment.bounds);
           drawMesh(ctx, drawable, mesh);
@@ -232,6 +296,7 @@ export class GeometryRendererSession implements RendererSession {
         break;
       }
       case 'proxy':
+        signature = JSON.stringify(['proxy', fragment.bounds, fragment.corners, label]);
         draw = (ctx) => {
           clipTo(ctx, fragment.bounds);
           outline(ctx, fragment.corners ?? rectQuad(fragment.bounds));
@@ -244,6 +309,7 @@ export class GeometryRendererSession implements RendererSession {
         };
         break;
       case 'placeholder':
+        signature = JSON.stringify(['placeholder', fragment.bounds, fragment.corners, label]);
         draw = (ctx) => {
           clipTo(ctx, fragment.bounds);
           outline(ctx, fragment.corners ?? rectQuad(fragment.bounds));
@@ -267,12 +333,13 @@ export class GeometryRendererSession implements RendererSession {
           ),
         );
     }
+    const id = `${category}:${fragment.id}`;
     return Object.freeze({
-      id: `${category}:${fragment.id}`,
+      id,
       category,
       fragmentId: fragment.id,
       surfaceId: fragment.surfaceId,
-      content: layer(null, draw),
+      content: this.#keep(id, signature, () => layer(null, draw)),
     });
   }
 
@@ -368,33 +435,36 @@ export class GeometryRendererSession implements RendererSession {
     const label = node.label ?? '';
     const handles = selected && node.flags.resizable && !node.flags.locked;
     const corners = [0, 12, 24, 36].flatMap((i) => (points[i] === undefined ? [] : [points[i]]));
+    const signature = JSON.stringify([points, label, selected, focused, handles, after]);
     return Object.freeze({
       id: `chrome:${nodeId}`,
       category: 'chrome',
       fragmentId: null,
       surfaceId: null,
-      content: layer(after, (ctx) => {
-        outline(ctx, points);
-        ctx.strokeStyle = focused
-          ? 'rgb(255, 196, 0)'
-          : selected
-            ? 'rgb(0, 120, 215)'
-            : 'rgb(70, 70, 70)';
-        ctx.lineWidth = selected || focused ? 3 : 1.5;
-        ctx.stroke();
-        const [tx, ty] = points[0] ?? [0, 0];
-        ctx.fillStyle = 'rgb(30, 30, 30)';
-        ctx.font = '12px sans-serif';
-        ctx.textBaseline = 'bottom';
-        // Text drawn on a canvas is only ever text.
-        ctx.fillText(label, tx, ty - 3);
-        if (handles) {
-          ctx.fillStyle = 'rgb(0, 120, 215)';
-          for (const [x, y] of corners) {
-            ctx.fillRect(x - 4, y - 4, 8, 8);
+      content: this.#keep(`chrome:${nodeId}`, signature, () =>
+        layer(after, (ctx) => {
+          outline(ctx, points);
+          ctx.strokeStyle = focused
+            ? 'rgb(255, 196, 0)'
+            : selected
+              ? 'rgb(0, 120, 215)'
+              : 'rgb(70, 70, 70)';
+          ctx.lineWidth = selected || focused ? 3 : 1.5;
+          ctx.stroke();
+          const [tx, ty] = points[0] ?? [0, 0];
+          ctx.fillStyle = 'rgb(30, 30, 30)';
+          ctx.font = '12px sans-serif';
+          ctx.textBaseline = 'bottom';
+          // Text drawn on a canvas is only ever text.
+          ctx.fillText(label, tx, ty - 3);
+          if (handles) {
+            ctx.fillStyle = 'rgb(0, 120, 215)';
+            for (const [x, y] of corners) {
+              ctx.fillRect(x - 4, y - 4, 8, 8);
+            }
           }
-        }
-      }),
+        }),
+      ),
     });
   }
 
@@ -437,27 +507,30 @@ export class GeometryRendererSession implements RendererSession {
     if (marks.length === 0) {
       return null;
     }
+    const signature = JSON.stringify(marks);
     return Object.freeze({
       id: 'overlay:indicators',
       category: 'overlay',
       fragmentId: null,
       surfaceId: null,
-      content: layer(null, (ctx) => {
-        for (const { at, toward, label } of marks) {
-          const [x, y] = at;
-          const [dx, dy] = toward;
-          ctx.beginPath();
-          ctx.moveTo(x + dx * 10, y + dy * 10);
-          ctx.lineTo(x - dy * 6, y + dx * 6);
-          ctx.lineTo(x + dy * 6, y - dx * 6);
-          ctx.closePath();
-          ctx.fillStyle = 'rgb(0, 120, 215)';
-          ctx.fill();
-          ctx.font = '11px sans-serif';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(label, x - dx * 40 - 20, y - dy * 14);
-        }
-      }),
+      content: this.#keep('overlay:indicators', signature, () =>
+        layer(null, (ctx) => {
+          for (const { at, toward, label } of marks) {
+            const [x, y] = at;
+            const [dx, dy] = toward;
+            ctx.beginPath();
+            ctx.moveTo(x + dx * 10, y + dy * 10);
+            ctx.lineTo(x - dy * 6, y + dx * 6);
+            ctx.lineTo(x + dy * 6, y - dx * 6);
+            ctx.closePath();
+            ctx.fillStyle = 'rgb(0, 120, 215)';
+            ctx.fill();
+            ctx.font = '11px sans-serif';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(label, x - dx * 40 - 20, y - dy * 14);
+          }
+        }),
+      ),
     });
   }
 }
@@ -508,6 +581,19 @@ function edgeMark(
 
 function layer(after: string | null, draw: (ctx: CanvasRenderingContext2D) => void): GeometryLayer {
   return Object.freeze({ kind: GEOMETRY_LAYER, after, draw });
+}
+
+const identities = new WeakMap<object, number>();
+let nextIdentity = 1;
+
+/** A number that stands for one object for as long as it lives. */
+function identity(object: object): number {
+  let id = identities.get(object);
+  if (id === undefined) {
+    id = nextIdentity++;
+    identities.set(object, id);
+  }
+  return id;
 }
 
 function labelOf(scene: SceneState, surfaceId: Id): string {

@@ -41,11 +41,14 @@ function brokenRenderer(
               sceneRevision: frame.sceneRevision,
               size: frame.view,
               layers: [],
+              writes: 0,
             };
           }
           calls += 1;
           return change(session.render(frame), calls);
         },
+        targetOf: (surfaceId) => session.targetOf(surfaceId),
+        watchLoss: (listener) => session.watchLoss(listener),
         release() {
           released = true;
           return session.release();
@@ -68,6 +71,7 @@ function brokenCompositor(change: (frame: ComposedFrame) => ComposedFrame): Comp
         compositorId: session.compositorId,
         viewportId: session.viewportId,
         compose: (frame: RenderedFrame) => change(session.compose(frame)),
+        watchLoss: (listener) => session.watchLoss(listener),
         release: () => session.release(),
       };
     },
@@ -110,7 +114,7 @@ describe('backend conformance suite', () => {
       ),
     ]) {
       const results = await runConformance(backendConformance(f));
-      expect(results).toHaveLength(8);
+      expect(results).toHaveLength(9);
       expect(results.filter((r) => r.outcome !== 'passed')).toEqual([]);
     }
   });
@@ -178,6 +182,20 @@ describe('backend conformance suite', () => {
         /^realizes every planned fragment .* :: the layer of fragment ".*" names surface "live"/,
       ),
     );
+  });
+
+  it('catches a renderer or compositor that writes again for a frame that did not change', async () => {
+    const renderer = fixture(() => brokenRenderer((frame) => ({ ...frame, writes: 1 })));
+    expect(await failed(renderer)).toEqual([
+      expect.stringMatching(/^writes nothing when the same frame .* :: rendering .* made 1 writes/),
+    ]);
+    const compositor = fixture(
+      () => new MockRenderer(),
+      () => brokenCompositor((c) => ({ ...c, writes: 2 })),
+    );
+    expect(await failed(compositor)).toEqual([
+      expect.stringMatching(/^writes nothing when the same frame .* :: composing .* made 2 writes/),
+    ]);
   });
 
   it('catches a renderer session that still renders after release', async () => {
