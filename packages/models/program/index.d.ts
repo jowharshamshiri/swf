@@ -79,6 +79,36 @@ export type Travel =
 ;
 export function travelType(): L.Type<Travel>;
 
+/** Lean's Swf.Migration.MigrationPlan. */
+export interface MigrationPlan {
+  readonly steps: Array<bigint>;
+  readonly blocked: L.Option<string>;
+}
+export function migrationPlanType(): L.Type<MigrationPlan>;
+
+/** Lean's Swf.Save.SaveMachine. */
+export interface SaveMachine {
+  readonly state: SaveState;
+  readonly savedRevision: L.Option<bigint>;
+  readonly savedChanges: L.Option<bigint>;
+  readonly changes: bigint;
+}
+export function saveMachineType(): L.Type<SaveMachine>;
+
+/** Lean's Swf.Save.SaveAnswer. */
+export type SaveAnswer =
+  | { readonly kind: "acknowledged"; readonly confirmed: boolean; readonly revision: bigint }
+  | { readonly kind: "failed" }
+;
+export function saveAnswerType(): L.Type<SaveAnswer>;
+
+/** Lean's Swf.Save.SaveEnd. */
+export interface SaveEnd {
+  readonly next: SaveMachine;
+  readonly refused: L.Option<AckRefusal>;
+}
+export function saveEndType(): L.Type<SaveEnd>;
+
 /** Lean's Swf.Surface.Presentation. */
 export type Presentation =
   | { readonly kind: "unbound"; readonly reason: UnboundReason }
@@ -177,6 +207,22 @@ export type ModeTransition =
 ;
 export function modeTransitionType(): L.Type<ModeTransition>;
 
+/** Lean's Swf.Save.SaveState. */
+export type SaveState =
+  | { readonly kind: "clean" }
+  | { readonly kind: "dirty" }
+  | { readonly kind: "saving" }
+  | { readonly kind: "failed" }
+;
+export function saveStateType(): L.Type<SaveState>;
+
+/** Lean's Swf.Save.AckRefusal. */
+export type AckRefusal =
+  | { readonly kind: "mismatch" }
+  | { readonly kind: "older" }
+;
+export function ackRefusalType(): L.Type<AckRefusal>;
+
 /** Lean's Swf.Surface.UnboundReason. */
 export type UnboundReason =
   | { readonly kind: "noBindingKey" }
@@ -262,6 +308,16 @@ export class SwfModels {
   initial(undoCapacity: bigint, keyCapacity: bigint): Ledger;
   /** Lean's Swf.Kernel.travel : Swf.Kernel.Ledger → Swf.Kernel.Direction → Bool → Swf.Kernel.Travel */
   travel(l: Ledger, d: Direction, stale: boolean): Travel;
+  /** Lean's Swf.Migration.migrationPlan : Array (String × String) → String → String → Swf.Migration.MigrationPlan */
+  migrationPlan(steps: Array<[string, string]>, source: string, current: string): MigrationPlan;
+  /** Lean's Swf.Save.saveBegin : Swf.Save.SaveMachine → Int → Option Swf.Save.SaveMachine */
+  saveBegin(m: SaveMachine, changes: bigint): L.Option<SaveMachine>;
+  /** Lean's Swf.Save.saveChanged : Swf.Save.SaveMachine → Int → Swf.Save.SaveMachine */
+  saveChanged(m: SaveMachine, changes: bigint): SaveMachine;
+  /** Lean's Swf.Save.saveEnd : Swf.Save.SaveMachine → Int → Int → Swf.Save.SaveAnswer → Swf.Save.SaveEnd */
+  saveEnd(m: SaveMachine, captured: bigint, changes: bigint, a: SaveAnswer): SaveEnd;
+  /** Lean's Swf.Save.saveOpen : Option Nat → Option Int → Int → Swf.Save.SaveMachine */
+  saveOpen(savedRevision: L.Option<bigint>, savedChanges: L.Option<bigint>, changes: bigint): SaveMachine;
   /** Lean's Swf.Surface.bindGate : Bool → Swf.Surface.Presentation → Option Swf.Surface.SurfaceRefusal */
   bindGate(disposed: boolean, p: Presentation): L.Option<SurfaceRefusal>;
   /** Lean's Swf.Surface.bindsOnAdapter : Swf.Surface.Presentation → Bool */

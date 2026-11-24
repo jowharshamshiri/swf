@@ -684,6 +684,351 @@
       }
     },
     {
+      "name": "Swf.Migration.current_untouched",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Migration.migrationPlan"
+      ],
+      "specifications": [],
+      "statement": "∀ (steps : Array (String × String)) (current : String),\n  Swf.Migration.migrationPlan steps current current = { steps := [], blocked := none }",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "1bd0c8a7f80b7cb69f40e0e77c55713d7dbf852597c0e7ad2777ebd5957692f0",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Migration.lean",
+        "start": {
+          "line": 112,
+          "column": 1
+        },
+        "end": {
+          "line": 116,
+          "column": 33
+        }
+      }
+    },
+    {
+      "name": "Swf.Migration.plan_chains",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Migration.migrationPlan"
+      ],
+      "specifications": [],
+      "statement": "∀ (steps : Array (String × String)) (source current : String),\n  ∃ w,\n    Swf.Migration.Chains steps source (Swf.Migration.migrationPlan steps source current).steps w ∧\n      ((Swf.Migration.migrationPlan steps source current).blocked = none → w = current) ∧\n        ∀ (b : String), (Swf.Migration.migrationPlan steps source current).blocked = some b → b = w",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "ec37580b0e7e8fd6c8fbdc20d7c93eee422cbdace481b3a0f6803455c3959361",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Migration.lean",
+        "start": {
+          "line": 95,
+          "column": 1
+        },
+        "end": {
+          "line": 103,
+          "column": 24
+        }
+      }
+    },
+    {
+      "name": "Swf.Migration.plan_first_match",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Migration.migrationPlan"
+      ],
+      "specifications": [],
+      "statement": "∀ (steps : Array (String × String)) (source current : String) (i : Nat),\n  source ≠ current →\n    Swf.Migration.stepFrom steps source = some i →\n      (Swf.Migration.migrationPlan steps source current).steps.head? = some i ∧\n        ∀ (j : Nat), j < i → steps[j]!.fst ≠ source",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "6304ee798056b897815f0d4baef48195dec3f56d1c6576295212016c537883a9",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Migration.lean",
+        "start": {
+          "line": 125,
+          "column": 1
+        },
+        "end": {
+          "line": 138,
+          "column": 11
+        }
+      }
+    },
+    {
+      "name": "Swf.Migration.plan_no_revisit",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Migration.migrationPlan"
+      ],
+      "specifications": [],
+      "statement": "∀ (steps : Array (String × String)) (source current : String),\n  (List.map (fun i => steps[i]!.fst) (Swf.Migration.migrationPlan steps source current).steps).Nodup",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "9b286431fcce6eeb7bf85bfb333c08f645f63c650aff2db121137dcaf8f4c2d1",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Migration.lean",
+        "start": {
+          "line": 105,
+          "column": 1
+        },
+        "end": {
+          "line": 110,
+          "column": 10
+        }
+      }
+    },
+    {
+      "name": "Swf.Migration.unknown_refused",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Migration.migrationPlan"
+      ],
+      "specifications": [],
+      "statement": "∀ (steps : Array (String × String)) (source current : String),\n  source ≠ current →\n    Swf.Migration.stepFrom steps source = none →\n      Swf.Migration.migrationPlan steps source current = { steps := [], blocked := some source }",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "cfc66f2b635e501190e51993d2ca1a3987bf8d3255a1d5ba9edf50e098989578",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Migration.lean",
+        "start": {
+          "line": 118,
+          "column": 1
+        },
+        "end": {
+          "line": 123,
+          "column": 41
+        }
+      }
+    },
+    {
+      "name": "Swf.Save.ack_cleans_or_dirties",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Save.saveEnd"
+      ],
+      "specifications": [],
+      "statement": "∀ (m : Swf.Save.SaveMachine) (captured changes : Int) (revision : Nat),\n  (∀ (r : Nat), m.savedRevision = some r → r ≤ revision) →\n    have e := Swf.Save.saveEnd m captured changes (Swf.Save.SaveAnswer.acknowledged true revision);\n    e.refused = none ∧\n      e.next.savedRevision = some revision ∧\n        e.next.savedChanges = some captured ∧\n          (e.next.state = Swf.Save.SaveState.clean ↔ changes = captured) ∧ Swf.Save.Consistent e.next",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "e73c3fc00be1164d4073f2e663fc63853ec2265b93eee3c94391305e30b809df",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Save.lean",
+        "start": {
+          "line": 104,
+          "column": 1
+        },
+        "end": {
+          "line": 119,
+          "column": 39
+        }
+      }
+    },
+    {
+      "name": "Swf.Save.change_dirties",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Save.saveChanged"
+      ],
+      "specifications": [],
+      "statement": "∀ (m : Swf.Save.SaveMachine) (c : Int),\n  Swf.Save.Consistent (Swf.Save.saveChanged m c) ∧\n    (m.state = Swf.Save.SaveState.clean → (Swf.Save.saveChanged m c).state = Swf.Save.SaveState.dirty) ∧\n      (m.state ≠ Swf.Save.SaveState.clean → (Swf.Save.saveChanged m c).state = m.state)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "73269edbff666630fca1744dd3bd0b8e311b1cc44bd825881bc26ed18e47d99f",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Save.lean",
+        "start": {
+          "line": 85,
+          "column": 1
+        },
+        "end": {
+          "line": 93,
+          "column": 27
+        }
+      }
+    },
+    {
+      "name": "Swf.Save.failure_keeps_saved",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Save.saveEnd"
+      ],
+      "specifications": [],
+      "statement": "∀ (m : Swf.Save.SaveMachine) (captured changes : Int) (a : Swf.Save.SaveAnswer),\n  (Swf.Save.saveEnd m captured changes a).next.state ≠ Swf.Save.SaveState.clean ∧\n      (Swf.Save.saveEnd m captured changes a).next.state ≠ Swf.Save.SaveState.dirty →\n    (Swf.Save.saveEnd m captured changes a).next.state = Swf.Save.SaveState.failed ∧\n      (Swf.Save.saveEnd m captured changes a).next.savedRevision = m.savedRevision ∧\n        (Swf.Save.saveEnd m captured changes a).next.savedChanges = m.savedChanges",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "b725aa3646f3f3ae8437412459e28f4527ccff9c00c660e621f77962e1248bb6",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Save.lean",
+        "start": {
+          "line": 121,
+          "column": 1
+        },
+        "end": {
+          "line": 138,
+          "column": 32
+        }
+      }
+    },
+    {
+      "name": "Swf.Save.open_clean_iff_saved",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Save.saveOpen"
+      ],
+      "specifications": [],
+      "statement": "∀ (r : Option Nat) (s : Option Int) (c : Int),\n  Swf.Save.Consistent (Swf.Save.saveOpen r s c) ∧\n    ((Swf.Save.saveOpen r s c).state = Swf.Save.SaveState.clean ↔ s = some c)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "9c0e44719ba59712b2a266023e2bc40830312a43b426a751ee7eedd14fb220e6",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Save.lean",
+        "start": {
+          "line": 77,
+          "column": 1
+        },
+        "end": {
+          "line": 83,
+          "column": 45
+        }
+      }
+    },
+    {
+      "name": "Swf.Save.revision_never_goes_back",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Save.saveEnd"
+      ],
+      "specifications": [],
+      "statement": "∀ (m : Swf.Save.SaveMachine) (captured changes : Int) (a : Swf.Save.SaveAnswer) (r : Nat),\n  m.savedRevision = some r → ∃ r', (Swf.Save.saveEnd m captured changes a).next.savedRevision = some r' ∧ r ≤ r'",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "c551fe019a143ef31922ad8f00bac7f68839d052c57bf073f1a028b1c3bfc207",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Save.lean",
+        "start": {
+          "line": 140,
+          "column": 1
+        },
+        "end": {
+          "line": 153,
+          "column": 61
+        }
+      }
+    },
+    {
+      "name": "Swf.Save.save_skips_unchanged",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Save.saveBegin"
+      ],
+      "specifications": [],
+      "statement": "∀ (m : Swf.Save.SaveMachine) (c : Int),\n  (Swf.Save.saveBegin m c = none ↔ m.savedChanges = some c) ∧\n    ∀ (m' : Swf.Save.SaveMachine),\n      Swf.Save.saveBegin m c = some m' → m'.state = Swf.Save.SaveState.saving ∧ m'.savedRevision = m.savedRevision",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "4ad90a9d60f3a210c3c0ad08a5447b193c44a9dcd2e064bec77aeff0ebcd5e8e",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Save.lean",
+        "start": {
+          "line": 95,
+          "column": 1
+        },
+        "end": {
+          "line": 102,
+          "column": 83
+        }
+      }
+    },
+    {
       "name": "Swf.Surface.announces_changes",
       "relation": "lungo.law",
       "subjects": [
@@ -1709,6 +2054,181 @@
         "end": {
           "line": 160,
           "column": 97
+        }
+      }
+    },
+    {
+      "name": "Swf.Migration.migrationPlan",
+      "module": "Swf.Migration",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_array_get",
+          "lean_array_get_borrowed",
+          "lean_array_get_size",
+          "lean_nat_add",
+          "lean_nat_dec_eq",
+          "lean_nat_sub",
+          "lean_string_dec_eq"
+        ]
+      },
+      "claims": [
+        "Swf.Migration.current_untouched",
+        "Swf.Migration.plan_chains",
+        "Swf.Migration.plan_first_match",
+        "Swf.Migration.plan_no_revisit",
+        "Swf.Migration.unknown_refused"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Migration.lean",
+        "start": {
+          "line": 35,
+          "column": 1
+        },
+        "end": {
+          "line": 37,
+          "column": 35
+        }
+      }
+    },
+    {
+      "name": "Swf.Save.saveBegin",
+      "module": "Swf.Save",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_int_dec_eq"
+        ]
+      },
+      "claims": [
+        "Swf.Save.save_skips_unchanged"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Save.lean",
+        "start": {
+          "line": 37,
+          "column": 1
+        },
+        "end": {
+          "line": 40,
+          "column": 92
+        }
+      }
+    },
+    {
+      "name": "Swf.Save.saveChanged",
+      "module": "Swf.Save",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_nat_dec_eq"
+        ]
+      },
+      "claims": [
+        "Swf.Save.change_dirties"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Save.lean",
+        "start": {
+          "line": 33,
+          "column": 1
+        },
+        "end": {
+          "line": 35,
+          "column": 76
+        }
+      }
+    },
+    {
+      "name": "Swf.Save.saveEnd",
+      "module": "Swf.Save",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_int_dec_eq",
+          "lean_nat_dec_lt"
+        ]
+      },
+      "claims": [
+        "Swf.Save.ack_cleans_or_dirties",
+        "Swf.Save.failure_keeps_saved",
+        "Swf.Save.revision_never_goes_back"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Save.lean",
+        "start": {
+          "line": 61,
+          "column": 1
+        },
+        "end": {
+          "line": 70,
+          "column": 58
+        }
+      }
+    },
+    {
+      "name": "Swf.Save.saveOpen",
+      "module": "Swf.Save",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_int_dec_eq"
+        ]
+      },
+      "claims": [
+        "Swf.Save.open_clean_iff_saved"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Save.lean",
+        "start": {
+          "line": 27,
+          "column": 1
+        },
+        "end": {
+          "line": 31,
+          "column": 14
         }
       }
     },

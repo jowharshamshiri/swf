@@ -278,10 +278,96 @@ export function travelType() {
   );
 }
 
+/** Describes Swf.Migration.MigrationPlan for polymorphic functions. */
+export function migrationPlanType() {
+  return new L.Type(
+    L.inductiveExpr(9),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Migration.MigrationPlan");
+      w.u32(0);
+      L.list(L.NAT).encode(w, v.steps);
+      L.option(L.STRING).encode(w, v.blocked);
+    },
+    (r) => {
+      const c = r.u32();
+      if (c !== 0) throw new L.MalformedError(`constructor index ${c} of Swf.Migration.MigrationPlan`);
+      return ({ steps: L.list(L.NAT).decode(r), blocked: L.option(L.STRING).decode(r) });
+    },
+  );
+}
+
+/** Describes Swf.Save.SaveMachine for polymorphic functions. */
+export function saveMachineType() {
+  return new L.Type(
+    L.inductiveExpr(10),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Save.SaveMachine");
+      w.u32(0);
+      saveStateType().encode(w, v.state);
+      L.option(L.NAT).encode(w, v.savedRevision);
+      L.option(L.INT).encode(w, v.savedChanges);
+      L.INT.encode(w, v.changes);
+    },
+    (r) => {
+      const c = r.u32();
+      if (c !== 0) throw new L.MalformedError(`constructor index ${c} of Swf.Save.SaveMachine`);
+      return ({ state: saveStateType().decode(r), savedRevision: L.option(L.NAT).decode(r), savedChanges: L.option(L.INT).decode(r), changes: L.INT.decode(r) });
+    },
+  );
+}
+
+/** Describes Swf.Save.SaveAnswer for polymorphic functions. */
+export function saveAnswerType() {
+  return new L.Type(
+    L.inductiveExpr(11),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Save.SaveAnswer");
+      switch (v.kind) {
+        case "acknowledged":
+          w.u32(0);
+          L.BOOL.encode(w, v.confirmed);
+          L.NAT.encode(w, v.revision);
+          return;
+        case "failed":
+          w.u32(1);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.Save.SaveAnswer`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "acknowledged", confirmed: L.BOOL.decode(r), revision: L.NAT.decode(r) });
+        case 1: return ({ kind: "failed" });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.Save.SaveAnswer`);
+      }
+    },
+  );
+}
+
+/** Describes Swf.Save.SaveEnd for polymorphic functions. */
+export function saveEndType() {
+  return new L.Type(
+    L.inductiveExpr(12),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Save.SaveEnd");
+      w.u32(0);
+      saveMachineType().encode(w, v.next);
+      L.option(ackRefusalType()).encode(w, v.refused);
+    },
+    (r) => {
+      const c = r.u32();
+      if (c !== 0) throw new L.MalformedError(`constructor index ${c} of Swf.Save.SaveEnd`);
+      return ({ next: saveMachineType().decode(r), refused: L.option(ackRefusalType()).decode(r) });
+    },
+  );
+}
+
 /** Describes Swf.Surface.Presentation for polymorphic functions. */
 export function presentationType() {
   return new L.Type(
-    L.inductiveExpr(9),
+    L.inductiveExpr(13),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.Presentation");
       switch (v.kind) {
@@ -334,7 +420,7 @@ export function presentationType() {
 /** Describes Swf.Surface.SurfaceRefusal for polymorphic functions. */
 export function surfaceRefusalType() {
   return new L.Type(
-    L.inductiveExpr(10),
+    L.inductiveExpr(14),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.SurfaceRefusal");
       switch (v.kind) {
@@ -394,7 +480,7 @@ export function surfaceRefusalType() {
 /** Describes Swf.Surface.PresentFacts for polymorphic functions. */
 export function presentFactsType() {
   return new L.Type(
-    L.inductiveExpr(11),
+    L.inductiveExpr(15),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.PresentFacts");
       w.u32(0);
@@ -419,7 +505,7 @@ export function presentFactsType() {
 /** Describes Swf.Surface.SurfaceEvent for polymorphic functions. */
 export function surfaceEventType() {
   return new L.Type(
-    L.inductiveExpr(12),
+    L.inductiveExpr(16),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.SurfaceEvent");
       switch (v.kind) {
@@ -473,7 +559,7 @@ export function surfaceEventType() {
 /** Describes Swf.Surface.SurfaceStep for polymorphic functions. */
 export function surfaceStepType() {
   return new L.Type(
-    L.inductiveExpr(13),
+    L.inductiveExpr(17),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.SurfaceStep");
       w.u32(0);
@@ -491,7 +577,7 @@ export function surfaceStepType() {
 /** Describes Swf.Surface.UnbindGate for polymorphic functions. */
 export function unbindGateType() {
   return new L.Type(
-    L.inductiveExpr(14),
+    L.inductiveExpr(18),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.UnbindGate");
       switch (v.kind) {
@@ -524,7 +610,7 @@ export function unbindGateType() {
 /** Describes Swf.ViewMode.ModeMachine for polymorphic functions. */
 export function modeMachineType() {
   return new L.Type(
-    L.inductiveExpr(15),
+    L.inductiveExpr(19),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.ViewMode.ModeMachine");
       w.u32(0);
@@ -542,7 +628,7 @@ export function modeMachineType() {
 /** Describes Swf.ViewMode.ModeEvent for polymorphic functions. */
 export function modeEventType() {
   return new L.Type(
-    L.inductiveExpr(16),
+    L.inductiveExpr(20),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.ViewMode.ModeEvent");
       switch (v.kind) {
@@ -571,7 +657,7 @@ export function modeEventType() {
 /** Describes Swf.ViewMode.ViewSettings for polymorphic functions. */
 export function viewSettingsType() {
   return new L.Type(
-    L.inductiveExpr(17),
+    L.inductiveExpr(21),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.ViewMode.ViewSettings");
       w.u32(0);
@@ -590,7 +676,7 @@ export function viewSettingsType() {
 /** Describes Swf.ViewMode.ModeTransition for polymorphic functions. */
 export function modeTransitionType() {
   return new L.Type(
-    L.inductiveExpr(18),
+    L.inductiveExpr(22),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.ViewMode.ModeTransition");
       switch (v.kind) {
@@ -620,10 +706,74 @@ export function modeTransitionType() {
   );
 }
 
+/** Describes Swf.Save.SaveState for polymorphic functions. */
+export function saveStateType() {
+  return new L.Type(
+    L.inductiveExpr(23),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Save.SaveState");
+      switch (v.kind) {
+        case "clean":
+          w.u32(0);
+          return;
+        case "dirty":
+          w.u32(1);
+          return;
+        case "saving":
+          w.u32(2);
+          return;
+        case "failed":
+          w.u32(3);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.Save.SaveState`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "clean" });
+        case 1: return ({ kind: "dirty" });
+        case 2: return ({ kind: "saving" });
+        case 3: return ({ kind: "failed" });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.Save.SaveState`);
+      }
+    },
+  );
+}
+
+/** Describes Swf.Save.AckRefusal for polymorphic functions. */
+export function ackRefusalType() {
+  return new L.Type(
+    L.inductiveExpr(24),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Save.AckRefusal");
+      switch (v.kind) {
+        case "mismatch":
+          w.u32(0);
+          return;
+        case "older":
+          w.u32(1);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.Save.AckRefusal`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "mismatch" });
+        case 1: return ({ kind: "older" });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.Save.AckRefusal`);
+      }
+    },
+  );
+}
+
 /** Describes Swf.Surface.UnboundReason for polymorphic functions. */
 export function unboundReasonType() {
   return new L.Type(
-    L.inductiveExpr(19),
+    L.inductiveExpr(25),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.UnboundReason");
       switch (v.kind) {
@@ -659,7 +809,7 @@ export function unboundReasonType() {
 /** Describes Swf.Surface.Resolution for polymorphic functions. */
 export function resolutionType() {
   return new L.Type(
-    L.inductiveExpr(20),
+    L.inductiveExpr(26),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.Resolution");
       switch (v.kind) {
@@ -691,7 +841,7 @@ export function resolutionType() {
 /** Describes Swf.Surface.Release for polymorphic functions. */
 export function releaseType() {
   return new L.Type(
-    L.inductiveExpr(21),
+    L.inductiveExpr(27),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.Release");
       switch (v.kind) {
@@ -720,7 +870,7 @@ export function releaseType() {
 /** Describes Swf.ViewMode.ProjectionSetting for polymorphic functions. */
 export function projectionSettingType() {
   return new L.Type(
-    L.inductiveExpr(22),
+    L.inductiveExpr(28),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.ViewMode.ProjectionSetting");
       w.u32(0);
@@ -738,7 +888,7 @@ export function projectionSettingType() {
 /** Describes Swf.ViewMode.Quat for polymorphic functions. */
 export function quatType() {
   return new L.Type(
-    L.inductiveExpr(23),
+    L.inductiveExpr(29),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.ViewMode.Quat");
       w.u32(0);
@@ -758,7 +908,7 @@ export function quatType() {
 /** Describes Swf.Json for polymorphic functions. */
 export function jsonType() {
   return new L.Type(
-    L.inductiveExpr(24),
+    L.inductiveExpr(30),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Json");
       switch (v.kind) {
@@ -1488,6 +1638,351 @@ export const ASSURANCE = L.parseAssurance({
         "end": {
           "line": 291,
           "column": 35
+        }
+      }
+    },
+    {
+      "name": "Swf.Migration.current_untouched",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Migration.migrationPlan"
+      ],
+      "specifications": [],
+      "statement": "∀ (steps : Array (String × String)) (current : String),\n  Swf.Migration.migrationPlan steps current current = { steps := [], blocked := none }",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "1bd0c8a7f80b7cb69f40e0e77c55713d7dbf852597c0e7ad2777ebd5957692f0",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Migration.lean",
+        "start": {
+          "line": 112,
+          "column": 1
+        },
+        "end": {
+          "line": 116,
+          "column": 33
+        }
+      }
+    },
+    {
+      "name": "Swf.Migration.plan_chains",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Migration.migrationPlan"
+      ],
+      "specifications": [],
+      "statement": "∀ (steps : Array (String × String)) (source current : String),\n  ∃ w,\n    Swf.Migration.Chains steps source (Swf.Migration.migrationPlan steps source current).steps w ∧\n      ((Swf.Migration.migrationPlan steps source current).blocked = none → w = current) ∧\n        ∀ (b : String), (Swf.Migration.migrationPlan steps source current).blocked = some b → b = w",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "ec37580b0e7e8fd6c8fbdc20d7c93eee422cbdace481b3a0f6803455c3959361",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Migration.lean",
+        "start": {
+          "line": 95,
+          "column": 1
+        },
+        "end": {
+          "line": 103,
+          "column": 24
+        }
+      }
+    },
+    {
+      "name": "Swf.Migration.plan_first_match",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Migration.migrationPlan"
+      ],
+      "specifications": [],
+      "statement": "∀ (steps : Array (String × String)) (source current : String) (i : Nat),\n  source ≠ current →\n    Swf.Migration.stepFrom steps source = some i →\n      (Swf.Migration.migrationPlan steps source current).steps.head? = some i ∧\n        ∀ (j : Nat), j < i → steps[j]!.fst ≠ source",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "6304ee798056b897815f0d4baef48195dec3f56d1c6576295212016c537883a9",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Migration.lean",
+        "start": {
+          "line": 125,
+          "column": 1
+        },
+        "end": {
+          "line": 138,
+          "column": 11
+        }
+      }
+    },
+    {
+      "name": "Swf.Migration.plan_no_revisit",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Migration.migrationPlan"
+      ],
+      "specifications": [],
+      "statement": "∀ (steps : Array (String × String)) (source current : String),\n  (List.map (fun i => steps[i]!.fst) (Swf.Migration.migrationPlan steps source current).steps).Nodup",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "9b286431fcce6eeb7bf85bfb333c08f645f63c650aff2db121137dcaf8f4c2d1",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Migration.lean",
+        "start": {
+          "line": 105,
+          "column": 1
+        },
+        "end": {
+          "line": 110,
+          "column": 10
+        }
+      }
+    },
+    {
+      "name": "Swf.Migration.unknown_refused",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Migration.migrationPlan"
+      ],
+      "specifications": [],
+      "statement": "∀ (steps : Array (String × String)) (source current : String),\n  source ≠ current →\n    Swf.Migration.stepFrom steps source = none →\n      Swf.Migration.migrationPlan steps source current = { steps := [], blocked := some source }",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "cfc66f2b635e501190e51993d2ca1a3987bf8d3255a1d5ba9edf50e098989578",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Migration.lean",
+        "start": {
+          "line": 118,
+          "column": 1
+        },
+        "end": {
+          "line": 123,
+          "column": 41
+        }
+      }
+    },
+    {
+      "name": "Swf.Save.ack_cleans_or_dirties",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Save.saveEnd"
+      ],
+      "specifications": [],
+      "statement": "∀ (m : Swf.Save.SaveMachine) (captured changes : Int) (revision : Nat),\n  (∀ (r : Nat), m.savedRevision = some r → r ≤ revision) →\n    have e := Swf.Save.saveEnd m captured changes (Swf.Save.SaveAnswer.acknowledged true revision);\n    e.refused = none ∧\n      e.next.savedRevision = some revision ∧\n        e.next.savedChanges = some captured ∧\n          (e.next.state = Swf.Save.SaveState.clean ↔ changes = captured) ∧ Swf.Save.Consistent e.next",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "e73c3fc00be1164d4073f2e663fc63853ec2265b93eee3c94391305e30b809df",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Save.lean",
+        "start": {
+          "line": 104,
+          "column": 1
+        },
+        "end": {
+          "line": 119,
+          "column": 39
+        }
+      }
+    },
+    {
+      "name": "Swf.Save.change_dirties",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Save.saveChanged"
+      ],
+      "specifications": [],
+      "statement": "∀ (m : Swf.Save.SaveMachine) (c : Int),\n  Swf.Save.Consistent (Swf.Save.saveChanged m c) ∧\n    (m.state = Swf.Save.SaveState.clean → (Swf.Save.saveChanged m c).state = Swf.Save.SaveState.dirty) ∧\n      (m.state ≠ Swf.Save.SaveState.clean → (Swf.Save.saveChanged m c).state = m.state)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "73269edbff666630fca1744dd3bd0b8e311b1cc44bd825881bc26ed18e47d99f",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Save.lean",
+        "start": {
+          "line": 85,
+          "column": 1
+        },
+        "end": {
+          "line": 93,
+          "column": 27
+        }
+      }
+    },
+    {
+      "name": "Swf.Save.failure_keeps_saved",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Save.saveEnd"
+      ],
+      "specifications": [],
+      "statement": "∀ (m : Swf.Save.SaveMachine) (captured changes : Int) (a : Swf.Save.SaveAnswer),\n  (Swf.Save.saveEnd m captured changes a).next.state ≠ Swf.Save.SaveState.clean ∧\n      (Swf.Save.saveEnd m captured changes a).next.state ≠ Swf.Save.SaveState.dirty →\n    (Swf.Save.saveEnd m captured changes a).next.state = Swf.Save.SaveState.failed ∧\n      (Swf.Save.saveEnd m captured changes a).next.savedRevision = m.savedRevision ∧\n        (Swf.Save.saveEnd m captured changes a).next.savedChanges = m.savedChanges",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "b725aa3646f3f3ae8437412459e28f4527ccff9c00c660e621f77962e1248bb6",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Save.lean",
+        "start": {
+          "line": 121,
+          "column": 1
+        },
+        "end": {
+          "line": 138,
+          "column": 32
+        }
+      }
+    },
+    {
+      "name": "Swf.Save.open_clean_iff_saved",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Save.saveOpen"
+      ],
+      "specifications": [],
+      "statement": "∀ (r : Option Nat) (s : Option Int) (c : Int),\n  Swf.Save.Consistent (Swf.Save.saveOpen r s c) ∧\n    ((Swf.Save.saveOpen r s c).state = Swf.Save.SaveState.clean ↔ s = some c)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "9c0e44719ba59712b2a266023e2bc40830312a43b426a751ee7eedd14fb220e6",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Save.lean",
+        "start": {
+          "line": 77,
+          "column": 1
+        },
+        "end": {
+          "line": 83,
+          "column": 45
+        }
+      }
+    },
+    {
+      "name": "Swf.Save.revision_never_goes_back",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Save.saveEnd"
+      ],
+      "specifications": [],
+      "statement": "∀ (m : Swf.Save.SaveMachine) (captured changes : Int) (a : Swf.Save.SaveAnswer) (r : Nat),\n  m.savedRevision = some r → ∃ r', (Swf.Save.saveEnd m captured changes a).next.savedRevision = some r' ∧ r ≤ r'",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "c551fe019a143ef31922ad8f00bac7f68839d052c57bf073f1a028b1c3bfc207",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Save.lean",
+        "start": {
+          "line": 140,
+          "column": 1
+        },
+        "end": {
+          "line": 153,
+          "column": 61
+        }
+      }
+    },
+    {
+      "name": "Swf.Save.save_skips_unchanged",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Save.saveBegin"
+      ],
+      "specifications": [],
+      "statement": "∀ (m : Swf.Save.SaveMachine) (c : Int),\n  (Swf.Save.saveBegin m c = none ↔ m.savedChanges = some c) ∧\n    ∀ (m' : Swf.Save.SaveMachine),\n      Swf.Save.saveBegin m c = some m' → m'.state = Swf.Save.SaveState.saving ∧ m'.savedRevision = m.savedRevision",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "4ad90a9d60f3a210c3c0ad08a5447b193c44a9dcd2e064bec77aeff0ebcd5e8e",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Save.lean",
+        "start": {
+          "line": 95,
+          "column": 1
+        },
+        "end": {
+          "line": 102,
+          "column": 83
         }
       }
     },
@@ -2521,6 +3016,181 @@ export const ASSURANCE = L.parseAssurance({
       }
     },
     {
+      "name": "Swf.Migration.migrationPlan",
+      "module": "Swf.Migration",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_array_get",
+          "lean_array_get_borrowed",
+          "lean_array_get_size",
+          "lean_nat_add",
+          "lean_nat_dec_eq",
+          "lean_nat_sub",
+          "lean_string_dec_eq"
+        ]
+      },
+      "claims": [
+        "Swf.Migration.current_untouched",
+        "Swf.Migration.plan_chains",
+        "Swf.Migration.plan_first_match",
+        "Swf.Migration.plan_no_revisit",
+        "Swf.Migration.unknown_refused"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Migration.lean",
+        "start": {
+          "line": 35,
+          "column": 1
+        },
+        "end": {
+          "line": 37,
+          "column": 35
+        }
+      }
+    },
+    {
+      "name": "Swf.Save.saveBegin",
+      "module": "Swf.Save",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_int_dec_eq"
+        ]
+      },
+      "claims": [
+        "Swf.Save.save_skips_unchanged"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Save.lean",
+        "start": {
+          "line": 37,
+          "column": 1
+        },
+        "end": {
+          "line": 40,
+          "column": 92
+        }
+      }
+    },
+    {
+      "name": "Swf.Save.saveChanged",
+      "module": "Swf.Save",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_nat_dec_eq"
+        ]
+      },
+      "claims": [
+        "Swf.Save.change_dirties"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Save.lean",
+        "start": {
+          "line": 33,
+          "column": 1
+        },
+        "end": {
+          "line": 35,
+          "column": 76
+        }
+      }
+    },
+    {
+      "name": "Swf.Save.saveEnd",
+      "module": "Swf.Save",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_int_dec_eq",
+          "lean_nat_dec_lt"
+        ]
+      },
+      "claims": [
+        "Swf.Save.ack_cleans_or_dirties",
+        "Swf.Save.failure_keeps_saved",
+        "Swf.Save.revision_never_goes_back"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Save.lean",
+        "start": {
+          "line": 61,
+          "column": 1
+        },
+        "end": {
+          "line": 70,
+          "column": 58
+        }
+      }
+    },
+    {
+      "name": "Swf.Save.saveOpen",
+      "module": "Swf.Save",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_int_dec_eq"
+        ]
+      },
+      "claims": [
+        "Swf.Save.open_clean_iff_saved"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Save.lean",
+        "start": {
+          "line": 27,
+          "column": 1
+        },
+        "end": {
+          "line": 31,
+          "column": 14
+        }
+      }
+    },
+    {
       "name": "Swf.Surface.bindGate",
       "module": "Swf.Surface",
       "async": false,
@@ -2925,6 +3595,10 @@ export const leanTypes = Object.freeze({
   "Swf.Kernel.TxGate": Object.freeze({ fingerprint: "5c5785c6e4e9e146c13696dd7cbde448a35f15d669c395f9c81a50e6bf0fb90d", type: txGateType }),
   "Swf.Kernel.IdleStep": Object.freeze({ fingerprint: "86d76c1a0899b0e4705e48b52c236b397fce1702ed61fd67204dc7e88d7a8347", type: idleStepType }),
   "Swf.Kernel.Travel": Object.freeze({ fingerprint: "dd1c26af833a66c6bd4a6f509a862c776e79e39ecdaeeb03ed36de4bff315c13", type: travelType }),
+  "Swf.Migration.MigrationPlan": Object.freeze({ fingerprint: "a44005a666f563c6515e4ebd4721f1e9c2f912ff95189a25908ac337186232a3", type: migrationPlanType }),
+  "Swf.Save.SaveMachine": Object.freeze({ fingerprint: "fc77323305e420093ba1b11bd4207feb75377b2681b8d8446c857b3928ffde0d", type: saveMachineType }),
+  "Swf.Save.SaveAnswer": Object.freeze({ fingerprint: "c969b2e46633b490382458a9908ce2e08ecc71e2453c7fbbde0b6863f2684b02", type: saveAnswerType }),
+  "Swf.Save.SaveEnd": Object.freeze({ fingerprint: "b8048df26d3fc9197b45ff837e6eb4f45bebf6864b9508d08515ad7dd20ce0a2", type: saveEndType }),
   "Swf.Surface.Presentation": Object.freeze({ fingerprint: "31141466da17e7fcd35b80cab4521995c74042b7b9304f4890a27caa44ae6e52", type: presentationType }),
   "Swf.Surface.SurfaceRefusal": Object.freeze({ fingerprint: "c800fe29edb55c96423d80f9c9bd511e5edef8e430024077d1dc7a8aa5a60217", type: surfaceRefusalType }),
   "Swf.Surface.PresentFacts": Object.freeze({ fingerprint: "0011984aa801e49f75368f681c6d3703f4c9602a0327ae962728ce075de0d75b", type: presentFactsType }),
@@ -2935,6 +3609,8 @@ export const leanTypes = Object.freeze({
   "Swf.ViewMode.ModeEvent": Object.freeze({ fingerprint: "feb6feb87a7e30d7693c96d0493a238c99e4e00601abc124d6b93b1888d68a96", type: modeEventType }),
   "Swf.ViewMode.ViewSettings": Object.freeze({ fingerprint: "c065e9ffb7dae7f29c43844de021c3579c10a16cd117a755f99ba60a4c5ef8c3", type: viewSettingsType }),
   "Swf.ViewMode.ModeTransition": Object.freeze({ fingerprint: "0c012f74883ff9576dd75b9011f2066f8c9bbf8813984c19dac02abf04d4888c", type: modeTransitionType }),
+  "Swf.Save.SaveState": Object.freeze({ fingerprint: "ae6ddcd17f2d87663d31fb876b46dd9ea0372d089378bd4509e4e6fae3d9770d", type: saveStateType }),
+  "Swf.Save.AckRefusal": Object.freeze({ fingerprint: "2f6eef547b4857866a273a8b018782b993df476b5a619fa70564b0a935bb0549", type: ackRefusalType }),
   "Swf.Surface.UnboundReason": Object.freeze({ fingerprint: "95fa7fe593058c7d2614587e173ffcc81e640a3b40fdf6ca0ca1edf836cdfd93", type: unboundReasonType }),
   "Swf.Surface.Resolution": Object.freeze({ fingerprint: "e2697939765fdef91752d7e809bf26ceb8684639c2f384a72e2562e02c6beb41", type: resolutionType }),
   "Swf.Surface.Release": Object.freeze({ fingerprint: "c86983c9af4e3ad8cd45eb8729699fbcd25fce764f7d43da2b19763c672fafeb", type: releaseType }),
@@ -2987,6 +3663,21 @@ export class SwfModels {
   }
   travel(l, d, stale) {
     return this.#program.invoke("swf_models__call_l_Swf_dKernel_dtravel", [], [[ledgerType(), l], [directionType(), d], [L.BOOL, stale]], L.value(travelType()));
+  }
+  migrationPlan(steps, source, current) {
+    return this.#program.invoke("swf_models__call_l_Swf_dMigration_dmigrationPlan", [], [[L.array(L.pair(L.STRING, L.STRING)), steps], [L.STRING, source], [L.STRING, current]], L.value(migrationPlanType()));
+  }
+  saveBegin(m, changes) {
+    return this.#program.invoke("swf_models__call_l_Swf_dSave_dsaveBegin", [], [[saveMachineType(), m], [L.INT, changes]], L.value(L.option(saveMachineType())));
+  }
+  saveChanged(m, changes) {
+    return this.#program.invoke("swf_models__call_l_Swf_dSave_dsaveChanged", [], [[saveMachineType(), m], [L.INT, changes]], L.value(saveMachineType()));
+  }
+  saveEnd(m, captured, changes, a) {
+    return this.#program.invoke("swf_models__call_l_Swf_dSave_dsaveEnd", [], [[saveMachineType(), m], [L.INT, captured], [L.INT, changes], [saveAnswerType(), a]], L.value(saveEndType()));
+  }
+  saveOpen(savedRevision, savedChanges, changes) {
+    return this.#program.invoke("swf_models__call_l_Swf_dSave_dsaveOpen", [], [[L.option(L.NAT), savedRevision], [L.option(L.INT), savedChanges], [L.INT, changes]], L.value(saveMachineType()));
   }
   bindGate(disposed, p) {
     return this.#program.invoke("swf_models__call_l_Swf_dSurface_dbindGate", [], [[L.BOOL, disposed], [presentationType(), p]], L.value(L.option(surfaceRefusalType())));

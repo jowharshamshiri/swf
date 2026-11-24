@@ -1,5 +1,6 @@
 import type { SwfError } from '@swf/core';
 import { jsonValue, SwfFailure } from '@swf/core';
+import { models } from '@swf/models';
 import type { SnapshotLimits, WorkspaceDocument } from './document.js';
 import {
   DEFAULT_SNAPSHOT_LIMITS,
@@ -77,21 +78,19 @@ export function migrateDocument(
       ...error,
       details: { ...(error.details ?? {}), ...extra, sourceVersion },
     });
+  // The migration model (`Swf.Migration`) plans the steps; they run here, each on a copy of its own.
+  const plan = models.migrationPlan(
+    migrations.map((m): [string, string] => [m.from, m.to]),
+    sourceVersion,
+    SNAPSHOT_SCHEMA_ID,
+  );
   let current: unknown = value;
-  let version = sourceVersion;
   const steps: MigrationStep[] = [];
-  const seen = new Set<string>();
-  while (version !== SNAPSHOT_SCHEMA_ID) {
-    const step = migrations.find((m) => m.from === version);
-    if (step === undefined || seen.has(version)) {
-      throw failure(
-        'SNAPSHOT_INVALID',
-        `schema "${version}" is not supported: this engine reads "${SNAPSHOT_SCHEMA_ID}" and migrates ${migrations.length === 0 ? 'no older format' : `from ${migrations.map((m) => `"${m.from}"`).join(', ')}`}`,
-        'schema',
-        { sourceVersion },
-      );
+  for (const index of plan.steps) {
+    const step = migrations[Number(index)];
+    if (step === undefined) {
+      throw new Error(`the migration model planned step ${String(index)}, which is not given`);
     }
-    seen.add(version);
     let copy: Record<string, unknown>;
     try {
       // The step's own copy: JSON data only, nothing shared with the input.
@@ -129,7 +128,14 @@ export function migrateDocument(
       }),
     );
     current = result.document;
-    version = step.to;
+  }
+  if (plan.blocked !== null) {
+    throw failure(
+      'SNAPSHOT_INVALID',
+      `schema "${plan.blocked}" is not supported: this engine reads "${SNAPSHOT_SCHEMA_ID}" and migrates ${migrations.length === 0 ? 'no older format' : `from ${migrations.map((m) => `"${m.from}"`).join(', ')}`}`,
+      'schema',
+      { sourceVersion },
+    );
   }
   try {
     return Object.freeze({

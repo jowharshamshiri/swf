@@ -29,6 +29,11 @@ exports = [
   "Swf.Surface.hideReleases",
   "Swf.Surface.holdsBinding",
   "Swf.Surface.bindsOnAdapter",
+  "Swf.Save.saveOpen",
+  "Swf.Save.saveChanged",
+  "Swf.Save.saveBegin",
+  "Swf.Save.saveEnd",
+  "Swf.Migration.migrationPlan",
   "Swf.ViewMode.transition",
   "Swf.ViewMode.observed",
 ]

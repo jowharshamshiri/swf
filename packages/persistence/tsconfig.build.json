@@ -11,7 +11,14 @@
   },
   "include": ["src", "src/schema/*.json", "../surfaces/src/platform.d.ts"],
   "references": [
-    { "path": "../math/tsconfig.build.json" },
-    { "path": "../core/tsconfig.build.json" }
+    {
+      "path": "../math/tsconfig.build.json"
+    },
+    {
+      "path": "../core/tsconfig.build.json"
+    },
+    {
+      "path": "../models/tsconfig.build.json"
+    }
   ]
 }

@@ -1,7 +1,9 @@
 import type { SwfError } from '@swf/core';
 import { makeError, SwfFailure } from '@swf/core';
 import { failure } from './document.js';
-import type { CaptureFailure, Persistence } from './persistence.js';
+import type { AckRefusal, SaveAnswer, SaveMachine } from '@swf/models';
+import { models } from '@swf/models';
+import type { Capture, CaptureFailure, Persistence } from './persistence.js';
 import type { SaveAck, SnapshotStore } from './store.js';
 
 /**
@@ -84,10 +86,8 @@ class SaverImpl implements Saver {
   readonly #key: string;
   readonly #listeners = new Set<(state: SaveState) => void>();
   readonly #diagnostics: string[] = [];
-  #state: SaveState;
-  #savedRevision: number | null;
-  /** The change count the store's snapshot reflects, or null when it holds none of this session. */
-  #savedChanges: number | null;
+  /** The save machine (`Swf.Save`): every state, and what the store holds, is its decision. */
+  #machine: SaveMachine;
   #lastError: SwfError | null = null;
   #queue: Promise<unknown> = Promise.resolve();
   #unsubscribe: (() => void) | null;
@@ -96,22 +96,23 @@ class SaverImpl implements Saver {
     this.#persistence = options.persistence;
     this.#store = options.store;
     this.#key = options.key;
-    this.#savedRevision = options.saved?.revision ?? null;
-    this.#savedChanges = options.saved?.changes ?? null;
-    this.#state = this.#savedChanges === this.#persistence.changes() ? 'clean' : 'dirty';
+    this.#machine = models.saveOpen(
+      options.saved === undefined ? null : BigInt(options.saved.revision),
+      options.saved === undefined ? null : BigInt(options.saved.changes),
+      BigInt(this.#persistence.changes()),
+    );
     this.#unsubscribe = this.#persistence.subscribe(() => {
-      if (this.#state === 'clean') {
-        this.#set('dirty');
-      }
+      this.#move(models.saveChanged(this.#machine, BigInt(this.#persistence.changes())));
     });
   }
 
   get state(): SaveState {
-    return this.#state;
+    return this.#machine.state.kind;
   }
 
   get savedRevision(): number | null {
-    return this.#savedRevision;
+    const revision = this.#machine.savedRevision;
+    return revision === null ? null : Number(revision);
   }
 
   get lastError(): SwfError | null {
@@ -145,50 +146,83 @@ class SaverImpl implements Saver {
   }
 
   async #save(): Promise<SaveOutcome> {
-    if (this.#savedChanges === this.#persistence.changes()) {
+    const begun = models.saveBegin(this.#machine, BigInt(this.#persistence.changes()));
+    if (begun === null) {
       return Object.freeze({ status: 'unchanged' });
     }
-    this.#set('saving');
+    // The store is expected to hold the revision it acknowledged last.
+    const expectedRevision = this.savedRevision;
+    this.#move(begun);
+    let answer: SaveAnswer;
+    let ack: SaveAck | null = null;
+    let capture: Capture | null = null;
+    let failed: unknown = null;
     try {
-      const capture = await this.#persistence.capture();
-      const revision = capture.document.revision;
-      const ack = await this.#store.save({
+      capture = await this.#persistence.capture();
+      ack = await this.#store.save({
         key: this.#key,
         document: this.#persistence.export(capture.document),
-        revision,
-        expectedRevision: this.#savedRevision,
+        revision: capture.document.revision,
+        expectedRevision,
       });
-      if (ack.key !== this.#key || ack.revision !== revision) {
-        throw failure(
-          'STORAGE_FAILED',
-          `the store acknowledged "${ack.key}" at revision ${String(ack.revision)}, not "${this.#key}" at ${String(revision)}`,
-        );
-      }
-      this.#savedRevision = ack.revision;
-      this.#savedChanges = capture.changes;
-      this.#lastError = null;
-      // Changes made while saving leave the workspace unsaved.
-      this.#set(this.#persistence.changes() === capture.changes ? 'clean' : 'dirty');
-      return Object.freeze({ status: 'saved', ack, failures: capture.failures });
+      answer = {
+        kind: 'acknowledged',
+        confirmed: ack.key === this.#key && ack.revision === capture.document.revision,
+        revision: BigInt(ack.revision),
+      };
     } catch (error) {
-      this.#lastError =
-        error instanceof SwfFailure
-          ? error.error
-          : makeError(
-              'STORAGE_FAILED',
-              `saving "${this.#key}" failed: ${error instanceof Error ? error.message : String(error)}`,
-              { retryable: true },
-            );
-      this.#set('failed');
-      return Object.freeze({ status: 'failed', error: this.#lastError });
+      failed = error;
+      answer = { kind: 'failed' };
     }
+    const end = models.saveEnd(
+      this.#machine,
+      BigInt(capture?.changes ?? this.#persistence.changes()),
+      BigInt(this.#persistence.changes()),
+      answer,
+    );
+    if (end.refused === null && failed === null && ack !== null && capture !== null) {
+      this.#lastError = null;
+      this.#move(end.next);
+      return Object.freeze({ status: 'saved', ack, failures: capture.failures });
+    }
+    this.#lastError = this.#failure(failed, end.refused, ack, capture);
+    this.#move(end.next);
+    return Object.freeze({ status: 'failed', error: this.#lastError });
   }
 
-  #set(state: SaveState): void {
-    if (state === this.#state) {
+  /** Why a save failed: the storage's error, or an acknowledgement that does not count. */
+  #failure(
+    error: unknown,
+    refused: AckRefusal | null,
+    ack: SaveAck | null,
+    capture: Capture | null,
+  ): SwfError {
+    if (refused !== null && ack !== null && capture !== null) {
+      const revision = capture.document.revision;
+      return failure(
+        'STORAGE_FAILED',
+        refused.kind === 'mismatch'
+          ? `the store acknowledged "${ack.key}" at revision ${String(ack.revision)}, not "${this.#key}" at ${String(revision)}`
+          : `the store acknowledged revision ${String(ack.revision)}, older than the revision ${String(this.savedRevision)} it holds`,
+      ).error;
+    }
+    return error instanceof SwfFailure
+      ? error.error
+      : makeError(
+          'STORAGE_FAILED',
+          `saving "${this.#key}" failed: ${error instanceof Error ? error.message : String(error)}`,
+          { retryable: true },
+        );
+  }
+
+  /** Puts the machine in the state the model decided, telling the listeners of a new state. */
+  #move(next: SaveMachine): void {
+    const changed = next.state.kind !== this.#machine.state.kind;
+    this.#machine = next;
+    if (!changed) {
       return;
     }
-    this.#state = state;
+    const state = next.state.kind;
     for (const listener of [...this.#listeners]) {
       try {
         listener(state);
