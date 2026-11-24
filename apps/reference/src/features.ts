@@ -1,13 +1,30 @@
 /**
- * The reference application's optional policies, each turned on or off on its own, and the
- * parameters of those that have any. Every policy is a module of its own that reads only these
- * settings and the framework's public contracts; none depends on another, so any one can be off
- * while the rest stay on. Turning a policy off removes its hooks and its controls and never
- * changes the scene's data or its layout.
+ * The reference application's eight behaviour modules (DLV-007, AC-015), each turned on or off on
+ * its own, and the parameters of those that have any. Every module reads only these settings and
+ * the framework's public contracts; none depends on another, so any one can be off while the rest
+ * stay on. Turning a module off removes its hooks and its controls and never changes the scene's
+ * data, its layout or what is saved.
+ * - `focus`: focus and context, the Focus view mode;
+ * - `orbit`: workspace orbit;
+ * - `map`: the spatial map, the Map view mode;
+ * - `cursor`: the wrapped cursor;
+ * - `snap`: magnetic positioning;
+ * - `depth`: semantic depth;
+ * - `composition`: detaching, moving and merging surfaces and regrouping windows;
+ * - `persistence`: saving the workspace as it changes, named workspaces, import and export.
  */
 
-/** The policies, by stable ID. */
-export const FEATURE_IDS = ['orbit', 'depth', 'snap', 'cursor'] as const;
+/** The modules, by stable ID, in the order the specification lists them. */
+export const FEATURE_IDS = [
+  'focus',
+  'orbit',
+  'map',
+  'cursor',
+  'snap',
+  'depth',
+  'composition',
+  'persistence',
+] as const;
 export type FeatureId = (typeof FEATURE_IDS)[number];
 
 /** Magnetic positioning: how near counts as touching, and the gap it keeps between windows. */
@@ -35,9 +52,14 @@ export interface FeatureSettings {
   readonly depth: DepthBands;
 }
 
-/** The combined configuration: every policy on, with the specification's defaults. */
+/** Every module on: the combined preset. */
+export const ALL_ENABLED: Readonly<Record<FeatureId, boolean>> = Object.freeze(
+  Object.fromEntries(FEATURE_IDS.map((id) => [id, true])) as Record<FeatureId, boolean>,
+);
+
+/** The defaults: the combined preset (every module on), with the specification's parameters. */
 export const DEFAULT_FEATURES: FeatureSettings = Object.freeze({
-  enabled: Object.freeze({ orbit: true, depth: true, snap: true, cursor: true }),
+  enabled: ALL_ENABLED,
   snap: Object.freeze({ linear: 0.08, angular: 2, padding: 0.04 }),
   depth: Object.freeze({ full: 4, compact: 5.5 }),
 });

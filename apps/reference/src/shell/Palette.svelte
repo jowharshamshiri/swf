@@ -61,7 +61,7 @@
         { mode: mode.id },
       ),
     ),
-    ...(model.selected === null
+    ...(model.selected === null || model.policies?.features.enabled.focus !== true
       ? []
       : [
           command(
@@ -71,6 +71,21 @@
             { id: model.selected.id },
           ),
         ]),
+    ...(model.selected === null
+      ? []
+      : [
+          {
+            value: 'window.remove',
+            label: t('command.window.remove.named', {
+              label: model.selected.label ?? model.selected.id,
+            }),
+            detail: t('palette.command'),
+            run: () => (model.selected === null ? Promise.resolve(false) : model.removeWindow(model.selected.id)),
+          },
+        ]),
+    ...(model.policies?.features.enabled.persistence === true
+      ? [command('workspace.export', t('command.workspace.export'), 'reference.workspace.export', {})]
+      : []),
     ...(model.status?.mode === FOCUS_ID
       ? [
           command('focus.exit', t('command.focus.exit'), 'reference.focus.exit', {}),
@@ -99,6 +114,7 @@
         { feature, enabled: !on },
       );
     }),
+    command('feature.combine', t('command.feature.combine'), 'reference.feature.combine', {}),
     command('feature.reset', t('command.feature.reset'), 'reference.feature.reset', {}),
     ...(model.policies?.features.enabled.orbit === true
       ? [

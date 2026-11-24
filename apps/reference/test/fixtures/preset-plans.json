@@ -3321,5 +3321,79 @@
       "height": 1,
       "hue": 275
     }
+  ],
+  "composed@1": [
+    {
+      "id": "window-01",
+      "label": "Note 01",
+      "content": "note",
+      "bindingKey": "composed/note/1/01",
+      "heading": 0,
+      "elevation": 0,
+      "distance": 3.2,
+      "width": 1.29,
+      "height": 0.8,
+      "hue": 189,
+      "composedInto": {
+        "id": "board",
+        "label": "Board"
+      }
+    },
+    {
+      "id": "window-02",
+      "label": "Tile 02",
+      "content": "tile",
+      "bindingKey": "composed/tile/1/02",
+      "heading": 0,
+      "elevation": 0,
+      "distance": 3.2,
+      "width": 1.4,
+      "height": 1,
+      "hue": 101,
+      "composedInto": {
+        "id": "board",
+        "label": "Board"
+      }
+    },
+    {
+      "id": "window-03",
+      "label": "Note 03",
+      "content": "note",
+      "bindingKey": "composed/note/1/03",
+      "heading": 0,
+      "elevation": 0,
+      "distance": 3.2,
+      "width": 1.28,
+      "height": 0.95,
+      "hue": 153,
+      "composedInto": {
+        "id": "board",
+        "label": "Board"
+      }
+    },
+    {
+      "id": "window-04",
+      "label": "Note 04",
+      "content": "note",
+      "bindingKey": "composed/note/1/04",
+      "heading": -70,
+      "elevation": -0.5,
+      "distance": 3.2,
+      "width": 1.4,
+      "height": 1,
+      "hue": 175
+    },
+    {
+      "id": "window-05",
+      "label": "Tile 05",
+      "content": "tile",
+      "bindingKey": "composed/tile/1/05",
+      "heading": 71.4,
+      "elevation": -1,
+      "distance": 3.2,
+      "width": 1.4,
+      "height": 1,
+      "hue": 89
+    }
   ]
 }

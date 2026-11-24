@@ -1,8 +1,9 @@
 import type { SceneCommand } from '@swf/core';
 import { cameraRotation } from '@swf/projections';
+import { layoutSurfaces, WINDOW_FRAME } from './composition.js';
 import type { MessageId } from './messages.js';
 import type { Random } from './random.js';
-import { createRandom } from './random.js';
+import { createRandom, seedIssue } from './random.js';
 
 /**
  * The demo scenes the reference application seeds. Each preset is a stable scenario definition:
@@ -17,7 +18,10 @@ import { createRandom } from './random.js';
 export type ContentKind = 'note' | 'tile';
 
 export interface PlannedWindow {
-  /** The window's node ID; its surface is `<id>-surface`. */
+  /**
+   * The window's node ID; its surface is `<id>-surface`. A window composed into another has no
+   * node of its own: its surface is in that window, and detaching it makes a window of this ID.
+   */
   readonly id: string;
   readonly label: string;
   readonly content: ContentKind;
@@ -34,9 +38,14 @@ export interface PlannedWindow {
   readonly height: number;
   /** The content's hue, in degrees. */
   readonly hue: number;
+  /**
+   * The window whose surfaces this one's is composed with, side by side, in plan order: placed
+   * where the first of them is planned. Absent for a window of its own.
+   */
+  readonly composedInto?: { readonly id: string; readonly label: string };
 }
 
-export const PRESET_IDS = ['empty', 'sparse', 'dense', 'seam'] as const;
+export const PRESET_IDS = ['empty', 'sparse', 'dense', 'seam', 'composed'] as const;
 export type PresetId = (typeof PRESET_IDS)[number];
 
 export interface Preset {
@@ -52,9 +61,6 @@ export const TILE_ADAPTER = 'reference.tile/1';
 
 /** The camera every preset is seen from. */
 export const CAMERA_ID = 'camera';
-
-/** Window frames are this much larger than their surfaces: room for the title above. */
-const FRAME = { side: 0.08, top: 0.2, bottom: 0.08 } as const;
 
 /** A value from the sequence in steps of 1/`per`: exact, so the same on every engine. */
 function stepped(random: Random, min: number, max: number, per: number): number {
@@ -167,11 +173,55 @@ const seam: Preset = {
   },
 };
 
+/**
+ * A board composed of three surfaces the host supplied (two notes and a tile, side by side in one
+ * window) straight ahead, and two windows of their own to either side to move surfaces into:
+ * the scene of multi-surface composition (FR-126, §33.2 scenario 4).
+ */
+const composed: Preset = {
+  id: 'composed',
+  name: 'preset.composed',
+  defaultSeed: 1,
+  plan(random, seed) {
+    const board = { id: 'board', label: 'Board' };
+    const part = (content: ContentKind, i: number): PlannedWindow => ({
+      ...windowAt(random, 'composed', seed, i, content, {
+        heading: 0,
+        elevation: 0,
+        distance: 3.2,
+        width: stepped(random, 1.1, 1.4, 100),
+        height: stepped(random, 0.8, 1, 100),
+      }),
+      composedInto: board,
+    });
+    return [
+      part('note', 0),
+      part('tile', 1),
+      part('note', 2),
+      windowAt(random, 'composed', seed, 3, 'note', {
+        heading: -75 + stepped(random, -5, 5, 10),
+        elevation: stepped(random, -5, 5, 10),
+        distance: 3.2,
+        width: 1.4,
+        height: 1,
+      }),
+      windowAt(random, 'composed', seed, 4, 'tile', {
+        heading: 75 + stepped(random, -5, 5, 10),
+        elevation: stepped(random, -5, 5, 10),
+        distance: 3.2,
+        width: 1.4,
+        height: 1,
+      }),
+    ];
+  },
+};
+
 export const PRESETS: Readonly<Record<PresetId, Preset>> = Object.freeze({
   empty,
   sparse,
   dense,
   seam,
+  composed,
 });
 
 export function presetIssue(value: unknown): string | null {
@@ -227,16 +277,58 @@ export function colourName(hue: number): string {
  */
 export const WORKSPACE_GROUP_ID = 'workspace';
 
+/** A planned window with every window composed into it: the parts its surfaces show. */
+export interface PlannedComposite {
+  readonly id: string;
+  readonly label: string;
+  /** Where the window stands: as its first part is planned. */
+  readonly place: PlannedWindow;
+  readonly parts: readonly PlannedWindow[];
+}
+
 /**
- * The commands that seed a scene with planned windows: the workspace group, the windows in it,
- * and the group designated as the orbit root.
+ * The windows a plan makes, in plan order: each window of its own, and each composed window
+ * once, where its first part comes, holding all its parts.
+ */
+export function composites(windows: readonly PlannedWindow[]): PlannedComposite[] {
+  const out: PlannedComposite[] = [];
+  const byId = new Map<string, { parts: PlannedWindow[] }>();
+  for (const window of windows) {
+    const into = window.composedInto;
+    if (into === undefined) {
+      out.push({ id: window.id, label: window.label, place: window, parts: [window] });
+      continue;
+    }
+    const known = byId.get(into.id);
+    if (known !== undefined) {
+      known.parts.push(window);
+      continue;
+    }
+    const parts = [window];
+    byId.set(into.id, { parts });
+    out.push({ id: into.id, label: into.label, place: window, parts });
+  }
+  return out;
+}
+
+/** A planned surface's size: its window's planned size less the frame. */
+const surfaceSize = (window: PlannedWindow): readonly [number, number] => [
+  window.width - 2 * WINDOW_FRAME.side,
+  window.height - WINDOW_FRAME.top - WINDOW_FRAME.bottom,
+];
+
+/**
+ * The commands that seed a scene with planned windows: the workspace group, the windows in it
+ * (each composed window holding its parts' surfaces side by side), and the group designated as
+ * the orbit root.
  */
 export function presetCommands(windows: readonly PlannedWindow[]): SceneCommand[] {
+  const made = composites(windows);
   // The group's box holds every window wherever it is turned: a cube round the camera.
-  const reach = windows.reduce(
-    (most, w) => Math.max(most, w.distance + Math.hypot(w.width, w.height) / 2),
-    1,
-  );
+  const reach = made.reduce((most, w) => {
+    const [width, height] = layoutSurfaces(w.parts.map(surfaceSize)).bounds;
+    return Math.max(most, w.place.distance + Math.hypot(width, height) / 2);
+  }, 1);
   return [
     {
       type: 'node.create',
@@ -247,19 +339,22 @@ export function presetCommands(windows: readonly PlannedWindow[]): SceneCommand[
         bounds: [2 * reach, 2 * reach, 2 * reach],
       },
     },
-    ...windows.flatMap((window) => windowCommands(window, WORKSPACE_GROUP_ID)),
+    ...made.flatMap((window) => windowCommands(window, WORKSPACE_GROUP_ID)),
     { type: 'orbitRoot.set', nodeId: WORKSPACE_GROUP_ID },
   ];
 }
 
 /**
- * The commands that create a planned window and its surface in a group standing unturned at the
- * camera's place, facing the camera at the origin.
+ * The commands that create a planned window and its surfaces in a group standing unturned at the
+ * camera's place, facing the camera at the origin. Its tags say what kinds of content it shows;
+ * its colour is its first part's.
  */
-export function windowCommands(window: PlannedWindow, parentId: string): SceneCommand[] {
-  const h = window.heading * RADIANS;
-  const e = window.elevation * RADIANS;
-  const d = window.distance;
+export function windowCommands(window: PlannedComposite, parentId: string): SceneCommand[] {
+  const { place, parts } = window;
+  const h = place.heading * RADIANS;
+  const e = place.elevation * RADIANS;
+  const d = place.distance;
+  const layout = layoutSurfaces(parts.map(surfaceSize));
   return [
     {
       type: 'node.create',
@@ -268,9 +363,9 @@ export function windowCommands(window: PlannedWindow, parentId: string): SceneCo
         kind: 'window',
         parentId,
         label: window.label,
-        tags: [window.content],
-        metadata: { [COLOUR_KEY]: colourName(window.hue) },
-        bounds: [window.width, window.height, 0.01],
+        tags: [...new Set(parts.map((p) => p.content))],
+        metadata: { [COLOUR_KEY]: colourName(place.hue) },
+        bounds: layout.bounds,
         transform: {
           position: [
             d * Math.cos(e) * Math.sin(h),
@@ -283,21 +378,56 @@ export function windowCommands(window: PlannedWindow, parentId: string): SceneCo
         },
       },
     },
-    {
-      type: 'surface.attach',
-      surface: {
-        id: `${window.id}-surface`,
-        ownerNodeId: window.id,
-        bindingKey: window.bindingKey,
-        adapterTypeId: window.content === 'note' ? NOTE_ADAPTER : TILE_ADAPTER,
-        label: window.label,
-        bounds: [window.width - 2 * FRAME.side, window.height - FRAME.top - FRAME.bottom, 0.01],
-        transform: {
-          position: [0, (FRAME.bottom - FRAME.top) / 2, 0],
-          rotation: [0, 0, 0, 1],
-          scale: [1, 1, 1],
+    ...parts.map((part, i): SceneCommand => {
+      const [width, height] = surfaceSize(part);
+      return {
+        type: 'surface.attach',
+        surface: {
+          id: `${part.id}-surface`,
+          ownerNodeId: window.id,
+          bindingKey: part.bindingKey,
+          adapterTypeId: adapterOf(part.content),
+          label: part.label,
+          bounds: [width, height, 0.01],
+          transform: {
+            position: layout.offsets[i] ?? [0, 0, 0],
+            rotation: [0, 0, 0, 1],
+            scale: [1, 1, 1],
+          },
         },
-      },
-    },
+      };
+    }),
   ];
+}
+
+/** The adapter type a kind of content is bound through. */
+export function adapterOf(content: ContentKind): string {
+  return content === 'note' ? NOTE_ADAPTER : TILE_ADAPTER;
+}
+
+/** The kind of content an adapter type binds, or null for another adapter's. */
+export function contentOf(adapterTypeId: string): ContentKind | null {
+  return adapterTypeId === NOTE_ADAPTER ? 'note' : adapterTypeId === TILE_ADAPTER ? 'tile' : null;
+}
+
+/**
+ * The planned window a binding key names (`<preset>/<content>/<seed>/<number>`), planned again
+ * from its preset and seed with `plan` (which may remember plans), or null when the key names no
+ * window any preset plans. The host knows its content by key alone, so a layout restored in
+ * another session finds it.
+ */
+export function plannedByKey(
+  key: string,
+  plan: (preset: PresetId, seed: number) => readonly PlannedWindow[] = planPreset,
+): PlannedWindow | null {
+  const match = /^([a-z]+)\/(note|tile)\/(\d+)\/(\d+)$/.exec(key);
+  if (match === null) {
+    return null;
+  }
+  const [, preset = '', , seedText = ''] = match;
+  const seed = Number(seedText);
+  if (presetIssue(preset) !== null || seedIssue(seed) !== null) {
+    return null;
+  }
+  return plan(preset as PresetId, seed).find((w) => w.bindingKey === key) ?? null;
 }

@@ -130,6 +130,13 @@
     };
   });
 
+  // A restore that failed (the workspace saved last, a named one, a file), until dismissed.
+  let dismissedRestore = $state<unknown>(null);
+  const restoreProblem = $derived.by(() => {
+    const error = model.workspaces?.restoreError ?? null;
+    return error === null || error === dismissedRestore ? null : error;
+  });
+
   const orbitGroup = $derived.by(() => {
     const policies = model.policies;
     if (policies === null || policies.orbit.navigation !== 'orbit') {
@@ -140,6 +147,47 @@
 </script>
 
 {#snippet head()}
+  {#if restoreProblem !== null}
+    <Toolbar ariaLabel={t('restore.failed', { reason: restoreProblem.message })}>
+      <Text>{t('restore.failed', { reason: restoreProblem.message })}</Text>
+      {#snippet end()}
+        <IconButton
+          handle={handleOf`page.restore.dismiss`}
+          icon="close"
+          label={t('notice.dismiss')}
+          size="small"
+          onpress={() => {
+            dismissedRestore = restoreProblem;
+          }}
+        />
+      {/snippet}
+    </Toolbar>
+  {/if}
+  {#if model.removal !== null}
+    <Toolbar ariaLabel={t('command.window.remove')}>
+      <Text>{t('removed.text', { label: model.removal.label })}</Text>
+      {#snippet end()}
+        <Button
+          handle={handleOf`page.removed.undo`}
+          label={t('command.history.undo')}
+          icon="undo"
+          size="small"
+          onpress={() => {
+            void model.undoRemoval();
+          }}
+        />
+        <IconButton
+          handle={handleOf`page.removed.dismiss`}
+          icon="close"
+          label={t('notice.dismiss')}
+          size="small"
+          onpress={() => {
+            model.dismissRemoval();
+          }}
+        />
+      {/snippet}
+    </Toolbar>
+  {/if}
   {#if orbitGroup !== null}
     <Notice
       tone="info"
@@ -264,7 +312,7 @@
   {#if model.startProblem !== null}
     <Notice tone="danger" title={model.startProblem} handle={handleOf`page.panorama.problem`} />
   {/if}
-  {#if model.refusal !== null && !model.isSceneRefusal(model.refusal) && !model.isFeatureRefusal(model.refusal)}
+  {#if model.refusal !== null && !model.isSceneRefusal(model.refusal) && !model.isFeatureRefusal(model.refusal) && !model.isWorkspaceRefusal(model.refusal) && !model.isInspectorRefusal(model.refusal)}
     <Notice tone="danger" title={model.refusalText(model.refusal)} handle={handleOf`page.panorama.refusal`} />
   {/if}
   {#if model.status !== null && model.status.windows === 0}

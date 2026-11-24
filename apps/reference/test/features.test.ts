@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_FEATURES, FeatureError, updateFeatures } from '../src/features.js';
+import {
+  ALL_ENABLED,
+  DEFAULT_FEATURES,
+  FEATURE_IDS,
+  FeatureError,
+  updateFeatures,
+} from '../src/features.js';
 
 /** The field a patch is refused for, or null when it is taken. */
 function refusal(patch: unknown): string | null {
@@ -15,20 +21,31 @@ function refusal(patch: unknown): string | null {
 }
 
 describe('feature settings (FR-130, UX-010, §29, CFG-001)', () => {
-  it('turns every policy on in the combined defaults, with the specification’s snap distance', () => {
-    expect(DEFAULT_FEATURES.enabled).toEqual({
-      orbit: true,
-      depth: true,
-      snap: true,
-      cursor: true,
-    });
+  it('turns all eight modules on in the combined defaults, with the specification’s snap distance', () => {
+    expect(FEATURE_IDS).toEqual([
+      'focus',
+      'orbit',
+      'map',
+      'cursor',
+      'snap',
+      'depth',
+      'composition',
+      'persistence',
+    ]);
+    expect(DEFAULT_FEATURES.enabled).toEqual(ALL_ENABLED);
+    expect(Object.values(ALL_ENABLED)).toEqual(FEATURE_IDS.map(() => true));
     expect(DEFAULT_FEATURES.snap.linear).toBe(0.08);
     expect(DEFAULT_FEATURES.depth.full).toBeLessThan(DEFAULT_FEATURES.depth.compact);
   });
 
   it('changes only what a patch names, each policy on its own', () => {
     const off = updateFeatures(DEFAULT_FEATURES, { enabled: { snap: false } });
-    expect(off.enabled).toEqual({ orbit: true, depth: true, snap: false, cursor: true });
+    expect(off.enabled).toEqual({ ...ALL_ENABLED, snap: false });
+    // Each module on its own: turning any one off leaves the other seven on.
+    for (const id of FEATURE_IDS) {
+      const one = updateFeatures(DEFAULT_FEATURES, { enabled: { [id]: false } });
+      expect(FEATURE_IDS.filter((other) => !one.enabled[other])).toEqual([id]);
+    }
     expect(off.snap).toBe(DEFAULT_FEATURES.snap);
     expect(off.depth).toBe(DEFAULT_FEATURES.depth);
     const banded = updateFeatures(off, { depth: { compact: 9 } });

@@ -20,6 +20,8 @@
   import SceneView from './SceneView.svelte';
   import StatusBody from './StatusBody.svelte';
   import WindowsView from './WindowsView.svelte';
+  import WorkspacesView from './WorkspacesView.svelte';
+  import ReplaceDialog from './ReplaceDialog.svelte';
 
   interface Props {
     model: ShellModel;
@@ -27,10 +29,10 @@
      * The debug overlay's view, in staging builds and development; production builds have none,
      * and carry nothing of it.
      */
-    diagnostics?: Component<{ model: ShellModel }> | null;
+    developer?: Component<{ model: ShellModel }> | null;
   }
 
-  let { model, diagnostics = null }: Props = $props();
+  let { model, developer = null }: Props = $props();
   const t = (id: MessageId, params?: Readonly<Record<string, string | number>>) =>
     model.messages.format(id, params);
 
@@ -72,29 +74,60 @@
     }
   }
 
-  // A window asked to be inspected: the inspector opens on it.
+  // A window asked to be inspected: the inspector opens on it, as it does to say why a command
+  // run on the selected window was refused.
   $effect(() => {
     if (model.inspections > 0) {
       rightView = 'inspector';
     }
   });
+  $effect(() => {
+    if (model.refusal !== null && model.isInspectorRefusal(model.refusal)) {
+      rightView = 'inspector';
+    }
+  });
 
+  const persisting = $derived(model.policies?.features.enabled.persistence ?? false);
+  const saveStatus = $derived.by(() => {
+    const status = model.workspaces;
+    if (status === null || !persisting) {
+      return null;
+    }
+    if (!status.autosave) {
+      return t('save.off');
+    }
+    return status.save === 'failed'
+      ? t('save.failed', { reason: status.saveError?.message ?? '' })
+      : t(`save.${status.save}`);
+  });
   const sideViews = (
-    views: { id: string; icon: 'plans' | 'list' | 'info' | 'statistics' | 'settings'; label: string }[],
+    views: {
+      id: string;
+      icon: 'plans' | 'list' | 'info' | 'statistics' | 'settings' | 'folder' | 'tool';
+      label: string;
+    }[],
   ) => views;
   const leftViews = $derived(
     sideViews([
       { id: 'scene', icon: 'plans', label: t('scene.title') },
       { id: 'windows', icon: 'list', label: t('windows.title') },
+      // Saving and opening workspaces is a feature: off, its view is taken away with it.
+      ...(persisting ? [{ id: 'workspaces', icon: 'folder' as const, label: t('workspaces.title') }] : []),
       { id: 'features', icon: 'settings', label: t('features.title') },
     ]),
   );
+  // A view taken away while it was open leaves its side closed.
+  $effect(() => {
+    if (leftView === 'workspaces' && !persisting) {
+      leftView = null;
+    }
+  });
   const rightViews = $derived(
     sideViews([
       { id: 'inspector', icon: 'info', label: t('inspector.title') },
-      ...(diagnostics === null
+      ...(developer === null
         ? []
-        : [{ id: 'diagnostics', icon: 'statistics' as const, label: t('diagnostics.title') }]),
+        : [{ id: 'developer', icon: 'tool' as const, label: t('dev.title') }]),
     ]),
   );
   // Focus needs a window: offered once one is selected or focused, or while it is shown.
@@ -127,15 +160,17 @@
     <WindowsView {model} />
   {:else if view === 'features'}
     <FeaturesView {model} />
+  {:else if view === 'workspaces' && persisting}
+    <WorkspacesView {model} />
   {/if}
 {/snippet}
 
 {#snippet rightContent(view: string)}
   {#if view === 'inspector'}
     <InspectorView {model} />
-  {:else if diagnostics !== null && view === 'diagnostics'}
-    {@const Diagnostics = diagnostics}
-    <Diagnostics {model} />
+  {:else if developer !== null && view === 'developer'}
+    {@const Developer = developer}
+    <Developer {model} />
   {/if}
 {/snippet}
 
@@ -253,6 +288,9 @@
       )}
     />
   {/if}
+  {#if saveStatus !== null}
+    <StatusItem handle={handleOf`application.panel.save`} label={saveStatus} icon="save" />
+  {/if}
   <StatusItem handle={handleOf`application.panel.takeover`} label={t('view.takeover')} icon="hint" />
   <IconButton
     handle={handleOf`application.panel.toggle`}
@@ -326,6 +364,10 @@
     body: panelBody,
   }}
 />
+
+{#if model.pendingReplace !== null}
+  <ReplaceDialog {model} pending={model.pendingReplace} />
+{/if}
 
 {#if paletteOpen}
   <Palette

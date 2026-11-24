@@ -1,9 +1,11 @@
 <script lang="ts">
-  // THE OPTIONAL POLICIES, each on or off on its own, with what it does said beside it and its
-  // settings under it: workspace orbit (what background drags turn, which group, turns by step,
-  // the camera's heading and the workspace's turn side by side to compare), semantic depth (its
-  // bands), magnetic positioning (its thresholds and gap) and the wrapped cursor (what it cannot
-  // do). A control that cannot act says why. Reset puts every policy back to the combined defaults.
+  // THE EIGHT BEHAVIOUR MODULES, each on or off on its own, with what it does said beside it and
+  // its settings under it: focus and context, workspace orbit (what background drags turn, which
+  // group, turns by step, the camera's heading and the workspace's turn side by side to compare),
+  // the spatial map, semantic depth (its bands), magnetic positioning (its thresholds and gap), the
+  // wrapped cursor (what it cannot do), composition, and saving and opening workspaces. A control
+  // that cannot act says why. Turning every feature on is the combined preset; reset also puts
+  // every setting back to its default.
   import {
     Button,
     Checkbox,
@@ -146,6 +148,20 @@
           handle={handleOf`page.features.refusal`}
         />
       {/if}
+      <Section title={t('focus.feature.title')} detail={t('focus.feature.detail')} handle={handleOf`page.features.focus`}>
+        <Stack gap="small">
+          <Checkbox
+            handle={handleOf`page.features.focus.enabled`}
+            id="reference-focus-enabled"
+            label={t('focus.feature.enabled')}
+            checked={enabled.focus}
+            onchange={(on) => {
+              toggle('focus', on);
+            }}
+          />
+        </Stack>
+      </Section>
+
       <Section title={t('orbit.title')} detail={t('orbit.detail')} handle={handleOf`page.features.orbit`}>
         <Stack gap="small">
           <Checkbox
@@ -235,6 +251,20 @@
         </Stack>
       </Section>
 
+      <Section title={t('map.feature.title')} detail={t('map.feature.detail')} handle={handleOf`page.features.map`}>
+        <Stack gap="small">
+          <Checkbox
+            handle={handleOf`page.features.map.enabled`}
+            id="reference-map-enabled"
+            label={t('map.feature.enabled')}
+            checked={enabled.map}
+            onchange={(on) => {
+              toggle('map', on);
+            }}
+          />
+        </Stack>
+      </Section>
+
       <Section title={t('depth.title')} detail={t('depth.detail')} handle={handleOf`page.features.depth`}>
         <Stack gap="small">
           <Checkbox
@@ -302,16 +332,58 @@
         </Stack>
       </Section>
 
-      <Stack direction="row">
-        <Button
-          handle={handleOf`page.features.reset`}
-          label={t('features.reset')}
-          icon="undo"
-          onpress={() => {
-            typed = {};
-            void model.run('reference.feature.reset', {});
-          }}
-        />
+      <Section title={t('composition.title')} detail={t('composition.detail')} handle={handleOf`page.features.composition`}>
+        <Stack gap="small">
+          <Checkbox
+            handle={handleOf`page.features.composition.enabled`}
+            id="reference-composition-enabled"
+            label={t('composition.enabled')}
+            checked={enabled.composition}
+            onchange={(on) => {
+              toggle('composition', on);
+            }}
+          />
+        </Stack>
+      </Section>
+
+      <Section title={t('persistence.title')} detail={t('persistence.detail')} handle={handleOf`page.features.persistence`}>
+        <Stack gap="small">
+          <Checkbox
+            handle={handleOf`page.features.persistence.enabled`}
+            id="reference-persistence-enabled"
+            label={t('persistence.enabled')}
+            checked={enabled.persistence}
+            onchange={(on) => {
+              toggle('persistence', on);
+            }}
+          />
+          {#if !enabled.persistence}
+            <Text quiet>{t('persistence.off')}</Text>
+          {/if}
+        </Stack>
+      </Section>
+
+      <Stack gap="small">
+        <Stack direction="row" gap="small" wrap>
+          <Button
+            handle={handleOf`page.features.combine`}
+            label={t('features.combine')}
+            icon="check"
+            onpress={() => {
+              void model.run('reference.feature.combine', {});
+            }}
+          />
+          <Button
+            handle={handleOf`page.features.reset`}
+            label={t('features.reset')}
+            icon="undo"
+            onpress={() => {
+              typed = {};
+              void model.run('reference.feature.reset', {});
+            }}
+          />
+        </Stack>
+        <Text quiet>{t('features.combine.detail')}</Text>
       </Stack>
     </Stack>
   {/if}

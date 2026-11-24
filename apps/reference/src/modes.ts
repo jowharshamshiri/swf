@@ -68,7 +68,10 @@ export interface SwitchOptions {
 export interface Modes {
   /** Registers a mode; the returned function unregisters it (never the active one). */
   register(mode: ViewMode): () => void;
-  /** The registered modes, in registration order. */
+  /**
+   * The registered modes, in the order they were first registered: a mode unregistered and
+   * registered again (a feature turned off and on) comes back to its place.
+   */
   list(): readonly ViewMode[];
   /** The viewport's mode, as its record says. */
   current(): string;
@@ -113,6 +116,8 @@ export const OVERVIEW: ViewMode = Object.freeze({
 
 export function createModes(workspace: WorkspaceReader & WorkspaceMutator, viewportId: Id): Modes {
   const modes = new Map<string, ViewMode>();
+  /** Every mode ID in the order it was first registered. */
+  const order: string[] = [];
   let active: { readonly id: string; readonly stop: () => void } | null = null;
 
   const viewport = () => {
@@ -217,6 +222,9 @@ export function createModes(workspace: WorkspaceReader & WorkspaceMutator, viewp
         throw new Error(`mode "${mode.id}" is already registered`);
       }
       modes.set(mode.id, mode);
+      if (!order.includes(mode.id)) {
+        order.push(mode.id);
+      }
       follow();
       return () => {
         if (active?.id === mode.id) {
@@ -225,7 +233,7 @@ export function createModes(workspace: WorkspaceReader & WorkspaceMutator, viewp
         modes.delete(mode.id);
       };
     },
-    list: () => [...modes.values()],
+    list: () => order.flatMap((id) => modes.get(id) ?? []),
     current: recorded,
     enteredFrom: () => (machine.mode === recorded() ? machine.from : null),
     switchTo(id: string, options: SwitchOptions = {}): TxResult {

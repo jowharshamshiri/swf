@@ -2,6 +2,7 @@ import { createVirtualCursor } from '@swf/backend-dom';
 import type { CancelReason, Id, NavigationTarget, TxResult, Workspace } from '@swf/core';
 import type { CommandOutcome, InputAdapter, InteractionRouter, KeyBinding } from '@swf/interaction';
 import type { PresentedViewport, Representation } from '@swf/presentation';
+import type { Modes, ViewMode } from './modes.js';
 import { viewGeometryOf } from '@swf/presentation';
 import type { ProjectionRegistry } from '@swf/projections';
 import { projectionFor } from '@swf/projections';
@@ -16,13 +17,16 @@ import type { WrapFrame } from './wrapped-cursor.js';
 import { wrappedInput } from './wrapped-cursor.js';
 
 /**
- * The reference application's optional policies at work: each installed through the framework's
+ * The reference application's optional modules at work: each installed through the framework's
  * public contracts while its feature is on, and taken out, hooks and all, when it is turned off:
+ * - focus and context, and the spatial map: their view modes, registered with the modes;
  * - workspace orbit: the viewport's background-drag navigation and the orbit root, and the keys
  *   that turn the root;
  * - semantic depth: the viewport's representation policy;
  * - magnetic positioning: an interaction policy for window moves;
- * - the wrapped cursor: between the pointer device and the framework, with a virtual cursor.
+ * - the wrapped cursor: between the pointer device and the framework, with a virtual cursor;
+ * - composition and persistence: their commands and controls, which ask {@link Policies.status}
+ *   whether they are on (the application turns saving as the workspace changes on and off).
  * It also follows the gestures the framework runs, so the shell can show each one's preview, the
  * constraint in force, how to cancel it, and how it ended.
  */
@@ -103,13 +107,37 @@ export interface PolicyOptions {
   readonly router: InteractionRouter;
   readonly projections: ProjectionRegistry;
   readonly viewportId: Id;
-  /** The mode that presents the focused window, in full whatever its depth. */
-  readonly focusModeId: string;
+  /** The modes the focus and map features register while they are on. */
+  readonly modes: Modes;
+  readonly focusMode: ViewMode;
+  readonly mapMode: ViewMode;
+  /** The mode a viewport goes back to when the mode it shows is turned off. */
+  readonly homeModeId: string;
   readonly features?: FeatureSettings;
 }
 
 export function createPolicies(options: PolicyOptions): Policies {
-  const { workspace, router, projections, viewportId } = options;
+  const { workspace, router, projections, viewportId, modes } = options;
+  const focusModeId = options.focusMode.id;
+  /** Each registered mode feature's unregistration. */
+  const registered = new Map<string, () => void>();
+  /** Registers a feature's mode, or leaves it (for the view it came from) and unregisters it. */
+  const offer = (mode: ViewMode, on: boolean) => {
+    const unregister = registered.get(mode.id);
+    if (on && unregister === undefined) {
+      registered.set(mode.id, modes.register(mode));
+    } else if (!on && unregister !== undefined) {
+      if (modes.current() === mode.id) {
+        if (modes.enteredFrom() === null) {
+          modes.switchTo(options.homeModeId, {});
+        } else {
+          modes.back({ source: 'system' });
+        }
+      }
+      unregister();
+      registered.delete(mode.id);
+    }
+  };
   const keymap: readonly KeyBinding[] = router.settings().keymap;
   let features = options.features ?? DEFAULT_FEATURES;
   let gesture: RunningGesture | null = null;
@@ -149,6 +177,8 @@ export function createPolicies(options: PolicyOptions): Policies {
 
   const install = (previous: FeatureSettings | null) => {
     const on = features.enabled;
+    offer(options.focusMode, on.focus);
+    offer(options.mapMode, on.map);
     if (previous?.enabled.orbit !== on.orbit) {
       router.configure({ keymap: orbitKeymap(keymap, on.orbit) });
       if (previous !== null) {
@@ -176,9 +206,7 @@ export function createPolicies(options: PolicyOptions): Policies {
       (previous?.enabled.depth !== on.depth || previous.depth !== features.depth)
     ) {
       viewport.setRepresentation(
-        on.depth
-          ? semanticDepth({ bands: features.depth, focusModeId: options.focusModeId })
-          : null,
+        on.depth ? semanticDepth({ bands: features.depth, focusModeId }) : null,
       );
     }
     if (!on.cursor) {
@@ -294,9 +322,7 @@ export function createPolicies(options: PolicyOptions): Policies {
       viewport = presented;
       cursor = createVirtualCursor({ container });
       viewport.setRepresentation(
-        features.enabled.depth
-          ? semanticDepth({ bands: features.depth, focusModeId: options.focusModeId })
-          : null,
+        features.enabled.depth ? semanticDepth({ bands: features.depth, focusModeId }) : null,
       );
       return () => {
         cursor?.dispose();

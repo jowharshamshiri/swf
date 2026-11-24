@@ -42,7 +42,8 @@ const viteConfig = import.meta.glob<string>('../vite.config.mjs', {
 function specifiers(source: string): string[] {
   const found = new Set<string>();
   for (const match of source.matchAll(
-    /(?:import|export)(?:[^'"]*?from)?\s*['"]([^'"]+)['"]|import\(\s*['"]([^'"]+)['"]\s*\)/g,
+    // A statement starting a line, so a word inside a string (`'reference.workspace.import'`) is not one.
+    /^\s*(?:import|export)\b(?:[^'"]*?from)?\s*['"]([^'"]+)['"]|\bimport\(\s*['"]([^'"]+)['"]\s*\)/gm,
   )) {
     const specifier = match[1] ?? match[2];
     if (specifier !== undefined) {
@@ -109,7 +110,7 @@ describe('the application uses only the public API (FR-185, ARCH-020)', () => {
     expect(Object.keys(dependencies)).not.toContain('@swf/conformance');
   });
 
-  it('depends on framework packages that expose a single public entry point', () => {
+  it('depends on framework packages whose one code entry point is their index', () => {
     const byName = new Map(
       Object.values(packages).map((text) => {
         const json = JSON.parse(text) as { name: string; exports: Record<string, unknown> };
@@ -119,7 +120,13 @@ describe('the application uses only the public API (FR-185, ARCH-020)', () => {
     for (const name of Object.keys(declared()).filter((n) => n.startsWith('@swf/'))) {
       const pkg = byName.get(name);
       expect(pkg, name).toBeDefined();
-      expect(Object.keys(pkg?.exports ?? {}), name).toEqual(['.']);
+      // Besides it a package may publish data, such as a JSON Schema, but no other code.
+      const exported = Object.keys(pkg?.exports ?? {});
+      expect(exported, name).toContain('.');
+      expect(
+        exported.filter((path) => path !== '.' && !path.endsWith('.json')),
+        name,
+      ).toEqual([]);
     }
   });
 

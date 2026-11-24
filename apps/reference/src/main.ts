@@ -6,7 +6,7 @@ import { mount, unmount } from 'svelte';
 import { ConfigError, parseConfig } from './config.js';
 import { createMessages } from './messages.js';
 import Shell from './shell/Shell.svelte';
-import { diagnostics } from 'virtual:reference/debug';
+import { developer } from 'virtual:reference/debug';
 import { ShellModel } from './shell/model.svelte.js';
 
 /** What a replaced module hands the next: the disposal of the application it ran. */
@@ -57,7 +57,7 @@ async function main(): Promise<void> {
   setDensity(html, 'default');
 
   const model = new ShellModel(createMessages(), configOf(window.location.search));
-  const shell = mount(Shell, { target, props: { model, diagnostics } });
+  const shell = mount(Shell, { target, props: { model, developer } });
   // Automation presses what a person presses, by the kit's handles.
   installAutomation(document.body, () => 'reference');
   hot?.dispose((next: HotData) => {

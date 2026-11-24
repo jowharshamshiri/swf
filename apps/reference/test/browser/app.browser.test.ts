@@ -45,7 +45,7 @@ async function start(config: Partial<AppConfig> = {}): Promise<ReferenceApp> {
   document.body.append(root);
   app = await createReferenceApp({
     root,
-    config: { preset: 'sparse', seed: 1, backend: 'dom', ...config },
+    config: { preset: 'sparse', seed: 1, backend: 'dom', restore: false, ...config },
   });
   return app;
 }

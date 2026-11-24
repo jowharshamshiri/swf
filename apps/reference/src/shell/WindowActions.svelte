@@ -1,7 +1,7 @@
 <script lang="ts">
   // WHAT CAN BE DONE WITH A WINDOW FOUND: focus it, reveal it in the panorama, show it in the map,
   // or inspect it. None of them moves it; each acts on the window's own ID, whichever list or
-  // tile it was found in.
+  // tile it was found in. Focus and the map are features: while one is off its action says so.
   import { IconButton } from '@wsb/uikit/components';
   import { keyed } from '@wsb/uikit/handles';
   import type { MessageId } from '../messages.js';
@@ -17,14 +17,16 @@
 
   let { model, id, handle, disabled = false }: Props = $props();
   const t = (message: MessageId) => model.messages.format(message);
+  const focusOn = $derived(model.policies?.features.enabled.focus ?? false);
+  const mapOn = $derived(model.policies?.features.enabled.map ?? false);
 </script>
 
 <IconButton
   handle={keyed(`${handle}.focus`, id)}
   icon="pane-zoom"
-  label={t('action.focus')}
+  label={focusOn ? t('action.focus') : t('action.focus.off')}
   size="small"
-  {disabled}
+  disabled={disabled || !focusOn}
   onpress={() => {
     void model.run('reference.focus.enter', { id });
   }}
@@ -42,9 +44,9 @@
 <IconButton
   handle={keyed(`${handle}.map`, id)}
   icon="pin"
-  label={t('action.map')}
+  label={mapOn ? t('action.map') : t('action.map.off')}
   size="small"
-  {disabled}
+  disabled={disabled || !mapOn}
   onpress={() => {
     void model.showInMap(id);
   }}

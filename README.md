@@ -722,15 +722,17 @@ npm run build:staging -w @swf/reference    # the same, with the debug overlay
 
 The built page holds its script, styles and the kit's faces inline, so it runs from any static
 host or opened straight from the file, offline, with no server, account or network access.
-Staging builds and the development server add a Diagnostics view to the right side: what the
-running presentation reports, read with every frame. Production builds leave it out, with the
-diagnostics package.
+Staging builds and the development server add a Developer panel to the right side (see below).
+Production builds leave it out, with the diagnostics package and the failure simulation.
 
-The address picks the scene: `?preset=seam&seed=7&backend=geometry`.
+The address picks the scene: `?preset=seam&seed=7&backend=geometry`. An address that names no
+preset and no seed restores the workspace this browser saved last (see Workspaces), or loads the
+default scene when there is none or it cannot be restored, which is said over the panorama.
 
 - `preset`: `sparse` (six windows all the way round, the default), `dense` (250 windows in five
   rings, the benchmark's count), `seam` (windows across the seam behind the camera, behind it on
-  both sides and near the pole above it) or `empty`.
+  both sides and near the pole above it), `composed` (a board of three supplied surfaces side by
+  side in one window, and a window of its own to either side) or `empty`.
 - `seed`: an integer from 0 to 4294967295; each preset has its own default.
 - `backend`: `dom` (the default) or `geometry`; each is the other's fallback.
 
@@ -750,7 +752,11 @@ pack is given, and each action is a command with a stable ID (`reference.preset.
 `reference.window.inspect`, `reference.window.place`, `reference.feature.set`,
 `reference.feature.reset`, `reference.snap.configure`, `reference.depth.configure`,
 `reference.navigation.set`, `reference.orbit.designate`, `reference.orbit.turn`,
-`reference.history.undo`, `reference.history.redo`, `reference.gesture.cancel`). Undo and redo
+`reference.history.undo`, `reference.history.redo`, `reference.gesture.cancel`,
+`reference.feature.combine`, `reference.window.remove`, `reference.surface.detach`,
+`reference.surface.move`, `reference.window.merge`, `reference.window.regroup`,
+`reference.workspace.save`, `reference.workspace.open`, `reference.workspace.delete`,
+`reference.workspace.deleteAll`, `reference.workspace.export`, `reference.workspace.import`). Undo and redo
 are also across the top of the centre, with the editor's usual keys (Ctrl+Z, Ctrl+Shift+Z or
 Ctrl+Y) while the panorama has the keyboard.
 
@@ -788,12 +794,20 @@ content is attached or detached by a switch.
 The map and the overview take the top of the centre over the live panorama, with a movable edge
 between them.
 
-### Policies
+### Behaviour modules
 
-Four optional policies are modules of their own, each installed only through the framework's public
-contracts and each turned on or off on its own from the Features view on the left (all on, the
-combined configuration, by default; Reset puts them back). Turning one off removes its hooks and
-its controls and never changes the scene's data or layout, and none needs another.
+Eight behaviour modules are modules of their own, each installed only through the framework's
+public contracts and each turned on or off on its own from the Features view on the left: focus and
+context, workspace orbit, the spatial map, the wrapped cursor, magnetic positioning, semantic depth,
+composition, and saving and opening workspaces. All are on by default, the combined preset; Turn
+every feature on brings them all back keeping their settings, and Reset also puts the settings back.
+Turning one off removes its hooks and its controls (a mode leaves the switcher, after the view
+showing it goes back to where it came from; a view leaves the side; its commands are refused, saying
+it is off) and never changes the scene's data, its layout or what is saved, and none needs another.
+Each application holds its own modules: nothing is shared between two of them.
+
+- **Focus and context** and **the spatial map** are the Focus and Map view modes, offered while
+  they are on.
 
 - **Workspace orbit** turns a designated group round the camera, as an ordinary scene change that
   undo puts back; turning the camera instead changes only the view and is never undone. What a drag
@@ -824,6 +838,74 @@ its controls and never changes the scene's data or layout, and none needs anothe
   cursor shows where the drag acts, because a page cannot move the platform's pointer: that pointer
   stops at the edge of the screen, as the Features view says. Pointers left to content, and every
   pointer while the view shows less than the whole circle (in focus), are not wrapped.
+
+- **Composition** and **saving and opening workspaces** are described below.
+
+### Composition
+
+A window can hold several surfaces a host supplied, side by side within its frame. The inspector
+lists the selected window's surfaces and rearranges them, each change one undoable step:
+**detach** a surface into a window of its own, standing beside the one it left and turned as it is,
+while that window closes up round the rest; **move** a surface into another window, after its own
+surfaces; **merge** a window's surfaces into another window; or move the window into another group,
+or a new one, keeping its place in the world. A window left with no surface is removed with the
+step that emptied it, and so is a group left empty. Only associations and placements change: a
+surface is always moved whole, its binding and content untouched, and a window's only surface
+offers nothing to detach, since a surface's own content is never split.
+
+### Removing a window
+
+**Remove from workspace** takes the selected window out of the workspace as one undoable step. A
+line above the panorama says it was removed and that its content is not deleted or stopped, and
+offers Undo while the removal is still the last change; undo brings the window back with the very
+same content.
+
+### Workspaces
+
+While saving is on, the workspace is saved in this browser as it changes, and the next visit that
+names no scene restores it; the panel says whether everything is saved. Each visit saves under a
+key of its own, so a visit that loads a scene of its own never saves over another, and older visits
+are removed only once the new one is stored. The Workspaces view on the left saves what is on
+screen under a name (a name saved again is replaced only once the new one is stored), opens a named
+workspace, exports the workspace to a `.json` file and imports one. Opening or importing first
+says what the snapshot holds (its windows, groups, surfaces and viewports, when it was made, its
+format and the host state it carries) and replaces the workspace only when that is confirmed, as
+one undoable step; a file that is not a workspace snapshot is refused, saying the line or path at
+fault, and nothing changes. Reset to demo loads the demo scene, leaving saved workspaces as they
+are. Delete all saved removes every layout the application saved in this browser, and says that it
+touches neither what windows show nor anything the host keeps elsewhere. Only layout is stored: the
+scene, the policies' parameters and the scene's source (the host's own state, under
+`host.reference.scene`), never content.
+
+### Developer panel
+
+Staging builds and the development server have a Developer panel on the right, in five sections.
+It reads through the framework's public APIs only, changes the scene only as a host does, and never
+looks into a surface's content.
+
+- **Inspect**: the selected window's world and local transforms and parent; for each surface its
+  adapter, binding key and binding state, its tier, attention, visibility and occlusion with its
+  confidence (from the last frame's hints), its last error, its fragments in the last frame (bounds,
+  whether it owns input or is a seam duplicate, mode, layer, fidelity, and why it stands in), and
+  the capabilities its endpoint declares; the last input target (where it landed, what it hit, the
+  region and route, and whether the hit was ambiguous); and the last frame's scheduling. The debug
+  overlay draws each fragment's bounds and projected outline over the panorama, a seam's second
+  fragment marked as a duplicate of the same surface, and where the last pick landed; it takes no
+  input.
+- **Events**: a timeline of scene, surface, input and presentation events by the IDs they concern.
+- **Capabilities**: what each kind of endpoint in the scene declares, side by side, and the
+  panorama's renderer and compositor.
+- **Simulate**: windows whose adapter is missing, slow or throws, each saying why it stands in
+  (unsupported, binding, temporarily unavailable) while every other window goes on working, with
+  the host's recovery for each (registering the adapter, letting the binding finish, fixing the
+  adapter and retrying); a second view of the scene, in which a note, which can be shown in one view
+  at a time, says it is shown in another; and taking each backend's renderer away, after which the
+  panorama falls back to the other and, with none left, says the backend is unavailable.
+- **Measures**: scene density, scene operations by command type, input and hit-query measures,
+  mode changes, the time from a mode change to the next focus, pointer travel, and persistence
+  sizes, times and outcomes; and the diagnostics and operation-trace exports, which hold IDs,
+  numbers and error codes only unless labels, binding keys, the host's data, error messages or
+  timings are chosen.
 
 ### Search
 

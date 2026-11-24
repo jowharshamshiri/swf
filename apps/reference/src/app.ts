@@ -14,9 +14,14 @@ import {
   LayerCompositor,
   LayeredRenderer,
 } from '@swf/backend-geometry';
-import type { SceneCommand, SceneState, TxResult, Workspace } from '@swf/core';
+import type { Id, JsonValue, SceneCommand, SceneState, TxResult, Workspace } from '@swf/core';
 import { createWorkspace, nodeFrameGeometry, worldMatrix } from '@swf/core';
-import type { InteractionRouter } from '@swf/interaction';
+import type {
+  DispatchResult,
+  InputAdapter,
+  InputIntent,
+  InteractionRouter,
+} from '@swf/interaction';
 import { createInteractionRouter } from '@swf/interaction';
 import type {
   BackendChoice,
@@ -25,7 +30,10 @@ import type {
   Presenter,
   SwitchOutcome,
 } from '@swf/presentation';
+import type { StandInReason } from '@swf/presentation';
 import { createPresentationRegistry, createPresenter, viewGeometryOf } from '@swf/presentation';
+import type { RestoreOutcome, SnapshotStore } from '@swf/persistence';
+import { createWebStorageStore } from '@swf/persistence';
 import type { ProjectionRegistry } from '@swf/projections';
 import {
   cameraRotation,
@@ -37,7 +45,16 @@ import type { SurfaceRuntime } from '@swf/surfaces';
 import { createSurfaceRuntime } from '@swf/surfaces';
 import type { AppCommands } from './commands.js';
 import { createAppCommands } from './commands.js';
+import type { CompositionPlan, GroupTarget } from './composition.js';
+import {
+  CompositionRefusal,
+  detachSurface,
+  mergeWindow,
+  moveSurface,
+  regroupWindow,
+} from './composition.js';
 import type { AppConfig, BackendId } from './config.js';
+import { BACKEND_IDS } from './config.js';
 import type { DemoContent } from './content.js';
 import { createDemoContent } from './content.js';
 import type { Messages } from './messages.js';
@@ -47,13 +64,26 @@ import { createFocusMode, FOCUS_ID, focusContext } from './focus.js';
 import { placedAt } from './map.js';
 import type { Modes } from './modes.js';
 import { createModes, MAP, OVERVIEW, PANORAMA } from './modes.js';
+import type { FeaturePatch } from './features.js';
 import type { Policies } from './policies.js';
 import { createPolicies } from './policies.js';
 import type { PresetId } from './presets.js';
-import { CAMERA_ID, planPreset, PRESETS, SEARCHABLE_METADATA, presetCommands } from './presets.js';
+import {
+  CAMERA_ID,
+  COLOUR_KEY,
+  colourName,
+  contentOf,
+  planPreset,
+  presetIssue,
+  PRESETS,
+  SEARCHABLE_METADATA,
+  presetCommands,
+} from './presets.js';
 import type { Attachment, Search } from './search.js';
 import { createSearch } from './search.js';
 import { MAX_SEED, seedIssue } from './random.js';
+import type { Workspaces } from './workspaces.js';
+import { createWorkspaces, hostExtension } from './workspaces.js';
 
 /** The viewport the application presents. */
 export const VIEWPORT_ID = 'main';
@@ -101,6 +131,20 @@ export interface SceneSource {
   readonly seed: number;
 }
 
+/** A step of multi-surface composition (FR-126). */
+export type CompositionStep =
+  | { readonly kind: 'detach'; readonly surfaceId: Id }
+  | { readonly kind: 'move'; readonly surfaceId: Id; readonly windowId: Id }
+  | { readonly kind: 'merge'; readonly windowId: Id; readonly targetId: Id }
+  | { readonly kind: 'regroup'; readonly windowId: Id; readonly target: GroupTarget };
+
+/** An input intent dispatched, with what the framework did with it, for the host to measure. */
+export interface ObservedInput {
+  readonly adapterId: string;
+  readonly intent: InputIntent;
+  readonly result: DispatchResult;
+}
+
 /** What the shell shows of the application. */
 export interface AppStatus {
   readonly scene: SceneSource;
@@ -112,6 +156,8 @@ export interface AppStatus {
 }
 
 export interface ReferenceApp {
+  /** The element the viewport fills. */
+  readonly root: HTMLElement;
   readonly workspace: Workspace;
   readonly runtime: SurfaceRuntime;
   readonly projections: ProjectionRegistry;
@@ -125,8 +171,10 @@ export interface ReferenceApp {
   readonly commands: AppCommands;
   /** Finding windows by their labels, tags, exposed metadata and groups. */
   readonly search: Search;
-  /** The optional policies: workspace orbit, semantic depth, magnetic positioning, wrapped cursor. */
+  /** The eight optional modules, each turned on and off on its own. */
   readonly policies: Policies;
+  /** The workspaces in local storage: saved as it changes, named, exported and imported. */
+  readonly workspaces: Workspaces;
   status(): AppStatus;
   subscribe(listener: (status: AppStatus) => void): () => void;
   /**
@@ -161,6 +209,29 @@ export interface ReferenceApp {
   ): TxResult;
   /** The windows around the focused one while focus is shown; null otherwise. */
   focusNeighbours(): FocusContext | null;
+  /**
+   * Removes a window from the workspace, with what it holds, as one undoable change (UX-011). Its
+   * surfaces' content is the host's: removing a window never deletes or stops it.
+   */
+  removeWindow(id: string): TxResult;
+  /**
+   * Rearranges supplied surfaces among windows, or a window among groups, as one undoable change.
+   * Throws {@link CompositionRefusal} naming the field at fault; a window's only surface is never
+   * split from it.
+   */
+  compose(step: CompositionStep): TxResult;
+  /** Calls `listener` with every input intent dispatched and its result; returns what stops it. */
+  observeInput(listener: (input: ObservedInput) => void): () => void;
+  /**
+   * Unregisters a backend's renderer, as a host whose renderer went away would: the viewport
+   * falls back to the other, or degrades when it has none. `restoreBackend` registers it again.
+   */
+  removeBackend(backend: BackendId): void;
+  restoreBackend(backend: BackendId): Promise<SwitchOutcome>;
+  /** The backends whose renderers are removed. */
+  removedBackends(): readonly BackendId[];
+  /** Offers JSON text to the operator as a file to save, under a name. */
+  saveFile(name: string, text: string): void;
   dispose(): Promise<void>;
 }
 
@@ -171,6 +242,29 @@ export interface ReferenceAppOptions {
   readonly messages?: Messages;
   /** The window whose animation frames pace presentation. Default: the root's. */
   readonly window?: Window;
+  /** Where workspaces are stored. Default: the window's local storage. */
+  readonly store?: SnapshotStore;
+  /** How long after a change the workspace is saved, in milliseconds. Default 800. */
+  readonly autosaveDelayMs?: number;
+  /** Offers a file to save. Default: the browser downloads it. */
+  readonly saveFile?: (name: string, text: string) => void;
+}
+
+/** Offers JSON text to save as a file, as the browser downloads one. */
+function download(document: Document, name: string, text: string): void {
+  const view = document.defaultView;
+  if (view === null) {
+    throw new Error('the document is not in a window');
+  }
+  const url = view.URL.createObjectURL(new view.Blob([text], { type: 'application/json' }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = name;
+  link.hidden = true;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  view.URL.revokeObjectURL(url);
 }
 
 /**
@@ -187,11 +281,14 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
     throw new Error('the root element is not in a window');
   }
   const messages = options.messages ?? createMessages();
+  /** A monotonic clock with sub-millisecond resolution: operations and hit queries are timed by it. */
+  const timer = () => view.performance.now();
 
   const workspace = createWorkspace({
     id: 'reference',
     // Drag previews are announced once per animation frame.
     frameBoundary: (flush) => view.requestAnimationFrame(flush),
+    timer,
   });
   const presentation = createPresentationRegistry();
   const projections = createProjectionRegistry({
@@ -228,18 +325,34 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
   runtime.registerAdapter(content.notes);
   runtime.registerAdapter(content.tiles);
 
-  presentation.registerRenderer(
-    new DomRenderer({ document, pixelsPerUnit: PIXELS_PER_UNIT, chrome: { projections } }),
-  );
-  presentation.registerRenderer(
-    new LayeredRenderer({
-      id: LAYERED_RENDERER_ID,
-      native: new DomRenderer({ document, pixelsPerUnit: PIXELS_PER_UNIT }),
-      geometry: new GeometryRenderer({
-        projections,
-        drawables: (surfaceId) => runtime.handleOf(surfaceId),
-      }),
-    }),
+  // What a stand-in says, in the application's words.
+  const standIn = (reason: StandInReason) => messages.format(`standIn.${reason}`);
+  const renderers: Readonly<Record<BackendId, () => () => void>> = {
+    dom: () =>
+      presentation.registerRenderer(
+        new DomRenderer({
+          document,
+          pixelsPerUnit: PIXELS_PER_UNIT,
+          chrome: { projections },
+          standIn,
+        }),
+      ),
+    geometry: () =>
+      presentation.registerRenderer(
+        new LayeredRenderer({
+          id: LAYERED_RENDERER_ID,
+          native: new DomRenderer({ document, pixelsPerUnit: PIXELS_PER_UNIT, standIn }),
+          geometry: new GeometryRenderer({
+            projections,
+            drawables: (surfaceId) => runtime.handleOf(surfaceId),
+            standIn,
+          }),
+        }),
+      ),
+  };
+  /** Each backend's renderer's unregistration, while it is registered. */
+  const registered = new Map<BackendId, () => void>(
+    BACKEND_IDS.map((backend) => [backend, renderers[backend]()]),
   );
   presentation.registerCompositor(new DomCompositor());
   presentation.registerCompositor(new LayerCompositor());
@@ -262,13 +375,36 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
     workspace,
     projections,
     presentation: (surfaceId) => mount.viewport.presentation(surfaceId),
+    timer,
   });
+  const modes = createModes(workspace, VIEWPORT_ID);
+  modes.register(PANORAMA);
+  // Focus and the map are features: the policies register them while they are on, after the
+  // panorama and before the overview, which is where the mode switcher lists them.
   const policies = createPolicies({
     workspace,
     router,
     projections,
     viewportId: VIEWPORT_ID,
-    focusModeId: FOCUS_ID,
+    modes,
+    focusMode: createFocusMode(FOCUS),
+    mapMode: MAP,
+    homeModeId: PANORAMA.id,
+  });
+  modes.register(OVERVIEW);
+  const inputs = new Set<(input: ObservedInput) => void>();
+  /** The device's adapter, with every dispatch it makes told to those observing input. */
+  const observed = (device: InputAdapter): InputAdapter => ({
+    id: device.id,
+    apiVersion: device.apiVersion,
+    connect: (dispatch) =>
+      device.connect((intent) => {
+        const result = dispatch(intent);
+        for (const listener of inputs) {
+          listener({ adapterId: device.id, intent, result });
+        }
+        return result;
+      }),
   });
 
   const mountIn = async (
@@ -300,12 +436,14 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
     const opened = await presenter.open({ viewportId: VIEWPORT_ID, container: element, backends });
     const detach = policies.attach(opened, element);
     const unregisterInput = router.registerInputAdapter(
-      policies.input(
-        createDomInput({
-          root: element,
-          viewportId: VIEWPORT_ID,
-          events: (listener) => router.subscribe(listener),
-        }),
+      observed(
+        policies.input(
+          createDomInput({
+            root: element,
+            viewportId: VIEWPORT_ID,
+            events: (listener) => router.subscribe(listener),
+          }),
+        ),
       ),
     );
     resizes.observe(element);
@@ -322,12 +460,6 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
   };
 
   const mount = await mountIn(root, BACKENDS[config.backend]);
-
-  const modes = createModes(workspace, VIEWPORT_ID);
-  modes.register(PANORAMA);
-  modes.register(createFocusMode(FOCUS));
-  modes.register(MAP);
-  modes.register(OVERVIEW);
 
   const attachmentOf = (state: SceneState, nodeId: string): Attachment => {
     const surfaceId = state.nodes.get(nodeId)?.surfaceIds[0];
@@ -367,6 +499,15 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
   });
 
   let scene: SceneSource = { preset: config.preset, seed: config.seed };
+  /** Those told when the scene source changes: the host extension that saves it. */
+  const sceneWatchers = new Set<() => void>();
+  const setScene = (next: SceneSource) => {
+    scene = Object.freeze(next);
+    for (const watcher of sceneWatchers) {
+      watcher();
+    }
+    announce();
+  };
   const listeners = new Set<(status: AppStatus) => void>();
   let lastStatus: AppStatus | null = null;
 
@@ -420,7 +561,6 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
       modes.back({ source: 'system' });
     }
     const windows = planPreset(preset, seed);
-    content.add(windows);
     const state = workspace.getState();
     const commands: SceneCommand[] = [
       { type: 'selection.set', ids: [] },
@@ -436,13 +576,90 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
     ];
     const result = workspace.transaction(commands, { source: 'user' });
     if (result.status === 'committed') {
-      scene = Object.freeze({ preset, seed });
-      announce();
+      setScene({ preset, seed });
     }
     return result;
   };
 
+  const workspaces = createWorkspaces({
+    workspace,
+    store: options.store ?? createWebStorageStore(view.localStorage, { prefix: 'swf-reference' }),
+    now: () => Date.now(),
+    timer,
+    autosaveDelayMs: options.autosaveDelayMs ?? 800,
+    // Which preset and seed the scene came from: the host's own state, opaque to the framework.
+    extensions: [
+      hostExtension('host.reference.scene', {
+        capture: () => ({ preset: scene.preset, seed: scene.seed }),
+        restore(data: JsonValue) {
+          const record = data as Readonly<Record<string, unknown>> | null;
+          const preset = record?.['preset'];
+          const seed = record?.['seed'];
+          const issue = presetIssue(preset) ?? seedIssue(seed);
+          if (issue !== null) {
+            throw new Error(`the scene source is not one the application knows: ${issue}`);
+          }
+          setScene({ preset: preset as PresetId, seed: seed as number });
+        },
+        watch(changed) {
+          sceneWatchers.add(changed);
+          return () => {
+            sceneWatchers.delete(changed);
+          };
+        },
+      }),
+    ],
+    // The policies' parameters are saved with the layout; whether each is on is the operator's
+    // choice for the session, not part of the layout.
+    policies: [
+      {
+        id: 'reference.policies/1',
+        capture: () => {
+          const { snap, depth } = policies.status().features;
+          return { snap: { ...snap }, depth: { ...depth } };
+        },
+        restore: (parameters: JsonValue) => {
+          policies.configure(parameters as unknown as FeaturePatch);
+        },
+        watch: (changed: () => void) => {
+          let last = policies.status().features;
+          return policies.subscribe(() => {
+            const now = policies.status().features;
+            if (now.snap !== last.snap || now.depth !== last.depth) {
+              last = now;
+              changed();
+            }
+          });
+        },
+      },
+    ],
+  });
+  // Saving as the workspace changes is the persistence feature's hook.
+  const followPersistence = () => {
+    workspaces.setAutosave(policies.status().features.enabled.persistence);
+  };
+  const stopPersistence = policies.subscribe(followPersistence);
+
+  /** A composition plan committed, or its refusal thrown. */
+  const commitPlan = (plan: CompositionPlan): TxResult => {
+    if (plan.kind === 'refused') {
+      throw new CompositionRefusal(plan.field, plan.reason);
+    }
+    return workspace.transaction(plan.commands, { source: 'user' });
+  };
+  /** What a window made for a detached surface is tagged and described with: its content's. */
+  const newWindowFor = (surfaceId: Id) => {
+    const surface = workspace.getState().surfaces.get(surfaceId);
+    const kind = surface === undefined ? null : contentOf(surface.adapterTypeId);
+    const planned = surface?.bindingKey == null ? null : content.find(surface.bindingKey);
+    return {
+      tags: kind === null ? [] : [kind],
+      metadata: planned === null ? {} : { [COLOUR_KEY]: colourName(planned.hue) },
+    };
+  };
+
   const app: ReferenceApp = {
+    root,
     workspace,
     runtime,
     projections,
@@ -456,6 +673,7 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
     commands: createAppCommands(() => app),
     search,
     policies,
+    workspaces,
     status,
     subscribe(listener) {
       listeners.add(listener);
@@ -521,7 +739,67 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
         ? null
         : focusContext(state, state.focusedId, camera.position);
     },
+    removeWindow(id) {
+      const node = workspace.getState().nodes.get(id);
+      if (node?.kind !== 'window') {
+        throw new Error(`no window "${id}"`);
+      }
+      // Focus is on the window about to go: leave it first, putting its view back.
+      if (modes.current() === FOCUS_ID && workspace.getState().focusedId === id) {
+        modes.back({ source: 'system' });
+      }
+      return workspace.dispatch({ type: 'node.delete', id, mode: 'subtree' }, { source: 'user' });
+    },
+    compose(step) {
+      if (!policies.status().features.enabled.composition) {
+        throw new CompositionRefusal('feature', 'composition is turned off');
+      }
+      const state = workspace.getState();
+      switch (step.kind) {
+        case 'detach':
+          return commitPlan(detachSurface(state, step.surfaceId, newWindowFor(step.surfaceId)));
+        case 'move':
+          return commitPlan(moveSurface(state, step.surfaceId, step.windowId));
+        case 'merge':
+          return commitPlan(mergeWindow(state, step.windowId, step.targetId));
+        case 'regroup':
+          return commitPlan(regroupWindow(state, step.windowId, step.target));
+      }
+    },
+    observeInput(listener) {
+      inputs.add(listener);
+      return () => {
+        inputs.delete(listener);
+      };
+    },
+    removeBackend(backend) {
+      const unregister = registered.get(backend);
+      if (unregister === undefined) {
+        throw new Error(`the ${backend} backend's renderer is already removed`);
+      }
+      registered.delete(backend);
+      unregister();
+      announce();
+    },
+    async restoreBackend(backend) {
+      if (registered.has(backend)) {
+        throw new Error(`the ${backend} backend's renderer is registered`);
+      }
+      registered.set(backend, renderers[backend]());
+      const outcome = await mount.viewport.restore();
+      announce();
+      return outcome;
+    },
+    removedBackends: () => BACKEND_IDS.filter((backend) => !registered.has(backend)),
+    saveFile:
+      options.saveFile ??
+      ((name, text) => {
+        download(document, name, text);
+      }),
     async dispose() {
+      stopPersistence();
+      workspaces.dispose();
+      inputs.clear();
       search.dispose();
       await mount.release();
       unwatch();
@@ -536,10 +814,19 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
     },
   };
 
-  const loaded = loadPreset(config.preset, config.seed);
-  if (loaded.status !== 'committed') {
-    await app.dispose();
-    throw new Error(`the ${config.preset} preset could not be loaded: ${JSON.stringify(loaded)}`);
+  // The workspace saved last comes back (UX-016), unless the address names a scene; a saved
+  // workspace that cannot be restored is reported, and the configured scene is loaded instead.
+  let restored: RestoreOutcome | null = null;
+  if (config.restore) {
+    restored = await workspaces.restoreLast();
   }
+  if (restored?.status !== 'restored') {
+    const loaded = loadPreset(config.preset, config.seed);
+    if (loaded.status !== 'committed') {
+      await app.dispose();
+      throw new Error(`the ${config.preset} preset could not be loaded: ${JSON.stringify(loaded)}`);
+    }
+  }
+  followPersistence();
   return app;
 }

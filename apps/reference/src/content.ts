@@ -1,13 +1,15 @@
 import type { SurfaceAdapter, SurfaceCapabilities } from '@swf/surfaces';
 import { ADAPTER_API_VERSION } from '@swf/surfaces';
 import type { Messages } from './messages.js';
-import type { PlannedWindow } from './presets.js';
-import { NOTE_ADAPTER, TILE_ADAPTER } from './presets.js';
+import type { PlannedWindow, PresetId } from './presets.js';
+import { NOTE_ADAPTER, planPreset, plannedByKey, TILE_ADAPTER } from './presets.js';
 
 /**
  * The demo content the reference application hosts: what its windows present. The scene refers to
  * it only by binding key; the application, as the host, keeps the content and hands it to the
- * framework through two adapters registered like any host's. A note is a native page element
+ * framework through two adapters registered like any host's. A key names a preset, a seed and a
+ * window, so the host finds the content of any key a preset plans, in any session: a layout saved
+ * yesterday binds again today. A note is a native page element
  * with text the operator can select and edit, presented live; a tile is drawn on a canvas, which
  * the geometry backend warps into the panorama.
  */
@@ -65,17 +67,23 @@ const TILE_PIXELS = 240;
 export interface DemoContent {
   readonly notes: SurfaceAdapter<NoteHandle>;
   readonly tiles: SurfaceAdapter<TileHandle>;
-  /**
-   * Makes the content these windows show available. Content stays available once added, so a
-   * scene brought back by undo finds its content again.
-   */
-  add(windows: readonly PlannedWindow[]): void;
-  /** Whether a binding key names content the host has. */
-  has(key: string): boolean;
+  /** The window a binding key names, or null when it names none the host has. */
+  find(key: string): PlannedWindow | null;
 }
 
 export function createDemoContent(document: Document, messages: Messages): DemoContent {
-  const planned = new Map<string, PlannedWindow>();
+  // Plans asked for by keys, by preset and seed: this host's own, never shared.
+  const plans = new Map<string, readonly PlannedWindow[]>();
+  const plan = (preset: PresetId, seed: number): readonly PlannedWindow[] => {
+    const id = `${preset}@${String(seed)}`;
+    let windows = plans.get(id);
+    if (windows === undefined) {
+      windows = planPreset(preset, seed);
+      plans.set(id, windows);
+    }
+    return windows;
+  };
+  const find = (key: string) => plannedByKey(key, plan);
   const notes = new Map<string, NoteHandle>();
   const tiles = new Map<string, TileHandle>();
 
@@ -147,7 +155,7 @@ export function createDemoContent(document: Document, messages: Messages): DemoC
       if (signal.aborted) {
         return Promise.reject(signal.reason as Error);
       }
-      const window = planned.get(key);
+      const window = find(key);
       if (window?.content !== kind) {
         return Promise.resolve(null);
       }
@@ -197,11 +205,6 @@ export function createDemoContent(document: Document, messages: Messages): DemoC
   return Object.freeze({
     notes: noteAdapter,
     tiles: tileAdapter,
-    add(windows: readonly PlannedWindow[]) {
-      for (const window of windows) {
-        planned.set(window.bindingKey, window);
-      }
-    },
-    has: (key: string) => planned.has(key),
+    find,
   });
 }

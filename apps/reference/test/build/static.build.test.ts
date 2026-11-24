@@ -18,6 +18,8 @@ import { planPreset } from '../../src/presets.js';
 const configFile = fileURLToPath(new URL('../../vite.config.mjs', import.meta.url));
 /** Said only by the diagnostics package: present in a bundle exactly when the package is. */
 const DIAGNOSTICS_ONLY = 'errorCapacity must be a whole number of at least 1';
+/** Said only by the developer tools' failure simulation. */
+const DEVTOOLS_ONLY = 'reference.simulated.slow/1';
 
 const builds = { production: '', staging: '' };
 let browser: Browser;
@@ -154,25 +156,27 @@ describe('the static build', () => {
 });
 
 describe('the debug overlay (ENV-005)', () => {
-  it('is left out of production builds, diagnostics package and all', async () => {
+  it('is left out of production builds, diagnostics package, developer tools and all', async () => {
     const html = await readFile(join(builds.production, 'index.html'), 'utf8');
     expect(html).not.toContain(DIAGNOSTICS_ONLY);
+    expect(html).not.toContain(DEVTOOLS_ONLY);
     const run = await open('?preset=sparse');
     await shows(run.page, '[data-swf-viewport]', (n) => n === 1);
     expect(await run.has('worktree.view#inspector')).toBe(true);
-    expect(await run.has('worktree.view#diagnostics')).toBe(false);
+    expect(await run.has('worktree.view#developer')).toBe(false);
     await run.close();
   });
 
   it('is carried by staging builds, reading the running presentation', async () => {
     const html = await readFile(join(builds.staging, 'index.html'), 'utf8');
     expect(html).toContain(DIAGNOSTICS_ONLY);
+    expect(html).toContain(DEVTOOLS_ONLY);
     const run = await open('?preset=sparse', 'staging');
     await shows(run.page, '[data-swf-viewport]', (n) => n === 1);
-    expect(await run.has('worktree.view#diagnostics')).toBe(true);
-    await run.page.click('[data-wsb="worktree.view#diagnostics"]');
-    await shows(run.page, '[data-wsb="page.diagnostics"]', (n) => n === 1);
-    await shows(run.page, 'text=Candidates in view', (n) => n === 1);
+    expect(await run.has('worktree.view#developer')).toBe(true);
+    await run.page.click('[data-wsb="worktree.view#developer"]');
+    await shows(run.page, '[data-wsb="page.developer"]', (n) => n === 1);
+    await shows(run.page, 'text=Show the debug overlay', (n) => n === 1);
     expect(run.requests).toEqual([]);
     expect(run.errors).toEqual([]);
     await run.close();

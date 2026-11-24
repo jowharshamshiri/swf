@@ -9,8 +9,9 @@ import type { ProjectionRegistry } from '@swf/projections';
 import { createProjectionRegistry, equirectangular } from '@swf/projections';
 import { expect } from 'vitest';
 import type { FeatureSettings } from '../src/features.js';
-import { FOCUS_ID } from '../src/focus.js';
-import { PANORAMA } from '../src/modes.js';
+import { createFocusMode } from '../src/focus.js';
+import type { Modes } from '../src/modes.js';
+import { createModes, MAP, PANORAMA } from '../src/modes.js';
 import type { Policies } from '../src/policies.js';
 import { createPolicies } from '../src/policies.js';
 import type { PlannedWindow, PresetId } from '../src/presets.js';
@@ -26,6 +27,8 @@ export interface PolicyWorld {
   readonly projections: ProjectionRegistry;
   readonly router: InteractionRouter;
   readonly policies: Policies;
+  /** The view modes; the focus and map features register theirs while they are on. */
+  readonly modes: Modes;
   /** A pointer device, connected through the policies' wrapped cursor as the page's is. */
   readonly input: SyntheticInput;
   readonly events: InteractionEvent[];
@@ -61,19 +64,24 @@ export function policyWorld(
   ]);
   expect(result.status).toBe('committed');
   const router = createInteractionRouter({ workspace: ws, projections });
+  const modes = createModes(ws, VIEWPORT);
+  modes.register(PANORAMA);
   const policies = createPolicies({
     workspace: ws,
     router,
     projections,
     viewportId: VIEWPORT,
-    focusModeId: FOCUS_ID,
+    modes,
+    focusMode: createFocusMode({ fill: 0.75, maxMagnification: 2.5, pixelsPerUnit: 160 }),
+    mapMode: MAP,
+    homeModeId: PANORAMA.id,
     ...(features === undefined ? {} : { features }),
   });
   const input = createSyntheticInput();
   router.registerInputAdapter(policies.input(input));
   const events: InteractionEvent[] = [];
   router.subscribe((event) => events.push(event));
-  return { ws, projections, router, policies, input, events };
+  return { ws, projections, router, policies, modes, input, events };
 }
 
 /** A note window of the reference application, planned at a place round the camera. */

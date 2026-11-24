@@ -3,9 +3,15 @@ import { ConfigError, DEFAULT_CONFIG, parseConfig } from '../src/config.js';
 import { createMessages, ENGLISH } from '../src/messages.js';
 
 describe('configuration from the address (ENV-005)', () => {
-  it('defaults to the sparse scene from its own seed, on the DOM backend', () => {
+  it('defaults to the sparse scene from its own seed, on the DOM backend, restoring what was saved', () => {
     expect(parseConfig('')).toEqual(DEFAULT_CONFIG);
-    expect(DEFAULT_CONFIG).toEqual({ preset: 'sparse', seed: 1, backend: 'dom' });
+    expect(DEFAULT_CONFIG).toEqual({ preset: 'sparse', seed: 1, backend: 'dom', restore: true });
+  });
+
+  it('loads the scene an address names, and restores the saved workspace otherwise (UX-016)', () => {
+    expect(parseConfig('?backend=geometry').restore).toBe(true);
+    expect(parseConfig('?preset=seam').restore).toBe(false);
+    expect(parseConfig('?seed=3').restore).toBe(false);
   });
 
   it('reads the preset, the seed and the backend', () => {
@@ -13,8 +19,14 @@ describe('configuration from the address (ENV-005)', () => {
       preset: 'seam',
       seed: 7,
       backend: 'geometry',
+      restore: false,
     });
-    expect(parseConfig('?preset=dense')).toEqual({ preset: 'dense', seed: 1, backend: 'dom' });
+    expect(parseConfig('?preset=dense')).toEqual({
+      preset: 'dense',
+      seed: 1,
+      backend: 'dom',
+      restore: false,
+    });
     expect(parseConfig('?seed=4294967295').seed).toBe(4294967295);
   });
 

@@ -2,8 +2,9 @@ import type { TxResult } from '@swf/core';
 import type { ReferenceApp } from './app.js';
 import type { BackendId } from './config.js';
 import { BACKEND_IDS } from './config.js';
+import { CompositionRefusal } from './composition.js';
 import type { FeatureId } from './features.js';
-import { DEFAULT_FEATURES, FEATURE_IDS, FeatureError } from './features.js';
+import { ALL_ENABLED, DEFAULT_FEATURES, FEATURE_IDS, FeatureError } from './features.js';
 import { FOCUS_ID } from './focus.js';
 import type { MessageId } from './messages.js';
 import { ModeRefusal } from './modes.js';
@@ -11,6 +12,7 @@ import { PolicyRefusal } from './policies.js';
 import type { PresetId } from './presets.js';
 import { PRESET_IDS } from './presets.js';
 import { seedIssue } from './random.js';
+import { WorkspaceRefusal } from './workspaces.js';
 
 /**
  * The application's own commands, by stable ID, each with the message that names it. Every
@@ -37,6 +39,7 @@ export interface AppCommandSpecs {
   };
   'reference.feature.set': { readonly feature: FeatureId; readonly enabled: boolean };
   'reference.feature.reset': Readonly<Record<string, never>>;
+  'reference.feature.combine': Readonly<Record<string, never>>;
   'reference.snap.configure': {
     readonly linear?: number;
     readonly angular?: number;
@@ -49,6 +52,22 @@ export interface AppCommandSpecs {
   'reference.history.undo': Readonly<Record<string, never>>;
   'reference.history.redo': Readonly<Record<string, never>>;
   'reference.gesture.cancel': Readonly<Record<string, never>>;
+  'reference.window.remove': { readonly id: string };
+  'reference.surface.detach': { readonly surfaceId: string };
+  'reference.surface.move': { readonly surfaceId: string; readonly windowId: string };
+  'reference.window.merge': { readonly id: string; readonly targetId: string };
+  /** Into a group by its ID, or into a new group of its own named `label` when `groupId` is null. */
+  'reference.window.regroup': {
+    readonly id: string;
+    readonly groupId: string | null;
+    readonly label?: string;
+  };
+  'reference.workspace.save': { readonly name: string };
+  'reference.workspace.open': { readonly name: string };
+  'reference.workspace.delete': { readonly name: string };
+  'reference.workspace.deleteAll': Readonly<Record<string, never>>;
+  'reference.workspace.export': Readonly<Record<string, never>>;
+  'reference.workspace.import': { readonly fileName: string; readonly text: string };
 }
 
 export type AppCommandId = keyof AppCommandSpecs;
@@ -68,6 +87,7 @@ export const APP_COMMAND_NAMES: Readonly<Record<AppCommandId, MessageId>> = Obje
   'reference.window.place': 'command.window.place',
   'reference.feature.set': 'command.feature.set',
   'reference.feature.reset': 'command.feature.reset',
+  'reference.feature.combine': 'command.feature.combine',
   'reference.snap.configure': 'command.snap.configure',
   'reference.depth.configure': 'command.depth.configure',
   'reference.navigation.set': 'command.navigation.set',
@@ -76,6 +96,17 @@ export const APP_COMMAND_NAMES: Readonly<Record<AppCommandId, MessageId>> = Obje
   'reference.history.undo': 'command.history.undo',
   'reference.history.redo': 'command.history.redo',
   'reference.gesture.cancel': 'command.gesture.cancel',
+  'reference.window.remove': 'command.window.remove',
+  'reference.surface.detach': 'command.surface.detach',
+  'reference.surface.move': 'command.surface.move',
+  'reference.window.merge': 'command.window.merge',
+  'reference.window.regroup': 'command.window.regroup',
+  'reference.workspace.save': 'command.workspace.save',
+  'reference.workspace.open': 'command.workspace.open',
+  'reference.workspace.delete': 'command.workspace.delete',
+  'reference.workspace.deleteAll': 'command.workspace.deleteAll',
+  'reference.workspace.export': 'command.workspace.export',
+  'reference.workspace.import': 'command.workspace.import',
 });
 
 /** What running a command did. */
@@ -114,7 +145,8 @@ async function viewChange(change: () => TxResult | null): Promise<AppCommandOutc
     if (
       error instanceof ModeRefusal ||
       error instanceof PolicyRefusal ||
-      error instanceof FeatureError
+      error instanceof FeatureError ||
+      error instanceof CompositionRefusal
     ) {
       return rejected(error.field, error.message);
     }
@@ -132,6 +164,26 @@ const finite = (value: unknown, field: string, unit: string): AppCommandOutcome 
 type Handlers = {
   readonly [K in AppCommandId]: (params: AppCommandSpecs[K]) => Promise<AppCommandOutcome>;
 };
+
+/** What a store or a snapshot refused, said as the command's refusal by its field. */
+async function stored(work: () => Promise<unknown>): Promise<AppCommandOutcome> {
+  try {
+    await work();
+    return DONE;
+  } catch (error) {
+    if (error instanceof WorkspaceRefusal) {
+      return rejected(error.field, error.message);
+    }
+    throw error;
+  }
+}
+
+/** A restore's outcome: done, or rejected naming where the snapshot is at fault. */
+function restoredOutcome(outcome: Awaited<ReturnType<ReferenceApp['workspaces']['openNamed']>>) {
+  return outcome.status === 'restored'
+    ? DONE
+    : rejected(outcome.error.path ?? 'snapshot', outcome.error.message);
+}
 
 export function createAppCommands(app: () => ReferenceApp): AppCommands {
   const ids = Object.freeze(Object.keys(APP_COMMAND_NAMES) as AppCommandId[]);
@@ -167,6 +219,12 @@ export function createAppCommands(app: () => ReferenceApp): AppCommands {
       throw error;
     }
   };
+  /** A feature's refusal when it is off: its commands are taken out with it. */
+  const off = (feature: FeatureId, what: string): AppCommandOutcome | null =>
+    app().policies.status().features.enabled[feature]
+      ? null
+      : rejected('feature', `${what} is turned off`);
+  const saving = () => off('persistence', 'saving and opening workspaces');
   const handlers: Handlers = {
     'reference.preset.load': async ({ preset, seed }) => {
       if (!(PRESET_IDS as readonly string[]).includes(preset)) {
@@ -200,6 +258,10 @@ export function createAppCommands(app: () => ReferenceApp): AppCommands {
       return committed(app().revealWindow(id));
     },
     'reference.focus.enter': async ({ id }) => {
+      const focusOff = off('focus', 'focus');
+      if (focusOff !== null) {
+        return focusOff;
+      }
       if (id !== undefined && !isWindow(id)) {
         return rejected('id', `no window "${id}"`);
       }
@@ -224,6 +286,10 @@ export function createAppCommands(app: () => ReferenceApp): AppCommands {
       return viewChange(() => app().modes.switchTo(FOCUS_ID, { target: next.id }));
     },
     'reference.window.map': async ({ id }) => {
+      const mapOff = off('map', 'the map');
+      if (mapOff !== null) {
+        return mapOff;
+      }
       if (!isWindow(id)) {
         return rejected('id', `no window "${id}"`);
       }
@@ -269,6 +335,11 @@ export function createAppCommands(app: () => ReferenceApp): AppCommands {
         app().policies.configure(DEFAULT_FEATURES);
         return null;
       }),
+    'reference.feature.combine': async () =>
+      viewChange(() => {
+        app().policies.configure({ enabled: ALL_ENABLED });
+        return null;
+      }),
     'reference.snap.configure': async (snap) =>
       viewChange(() => {
         app().policies.configure({ snap });
@@ -309,6 +380,81 @@ export function createAppCommands(app: () => ReferenceApp): AppCommands {
       Promise.resolve(
         app().router.cancel('host') > 0 ? DONE : rejected('gesture', 'no gesture is running'),
       ),
+    'reference.window.remove': async ({ id }) => {
+      if (!isWindow(id)) {
+        return rejected('id', `no window "${id}"`);
+      }
+      return committed(app().removeWindow(id));
+    },
+    'reference.surface.detach': async ({ surfaceId }) =>
+      viewChange(() => app().compose({ kind: 'detach', surfaceId })),
+    'reference.surface.move': async ({ surfaceId, windowId }) =>
+      viewChange(() => app().compose({ kind: 'move', surfaceId, windowId })),
+    'reference.window.merge': async ({ id, targetId }) =>
+      viewChange(() => app().compose({ kind: 'merge', windowId: id, targetId })),
+    'reference.window.regroup': async ({ id, groupId, label }) => {
+      if (groupId !== null && typeof groupId !== 'string') {
+        return rejected('groupId', 'a group is named by its ID, or a new one by null');
+      }
+      const state = app().workspace.getState();
+      const name = label?.trim() ?? '';
+      if (groupId === null && name === '') {
+        return rejected('label', 'a new group needs a name');
+      }
+      let n = 1;
+      while (state.nodes.has(`group-${String(n)}`) || state.surfaces.has(`group-${String(n)}`)) {
+        n += 1;
+      }
+      return viewChange(() =>
+        app().compose({
+          kind: 'regroup',
+          windowId: id,
+          target:
+            groupId === null
+              ? { kind: 'new', id: `group-${String(n)}`, label: name }
+              : { kind: 'group', id: groupId },
+        }),
+      );
+    },
+    'reference.workspace.save': async ({ name }) =>
+      saving() ?? stored(() => app().workspaces.saveAs(name)),
+    'reference.workspace.open': async ({ name }) => {
+      const refusal = saving();
+      if (refusal !== null) {
+        return refusal;
+      }
+      try {
+        return restoredOutcome(await app().workspaces.openNamed(name));
+      } catch (error) {
+        if (error instanceof WorkspaceRefusal) {
+          return rejected(error.field, error.message);
+        }
+        throw error;
+      }
+    },
+    'reference.workspace.delete': async ({ name }) =>
+      saving() ?? stored(() => app().workspaces.deleteNamed(name)),
+    'reference.workspace.deleteAll': async () =>
+      saving() ?? stored(() => app().workspaces.deleteAll()),
+    'reference.workspace.export': async () =>
+      saving() ??
+      stored(async () => {
+        app().saveFile(exportName(new Date()), await app().workspaces.exportText());
+      }),
+    'reference.workspace.import': async ({ fileName, text }) => {
+      const refusal = saving();
+      if (refusal !== null) {
+        return refusal;
+      }
+      try {
+        return restoredOutcome(await app().workspaces.importText(fileName, text));
+      } catch (error) {
+        if (error instanceof WorkspaceRefusal) {
+          return rejected(error.field, error.message);
+        }
+        throw error;
+      }
+    },
   };
   return Object.freeze({
     ids: () => ids,
@@ -319,4 +465,10 @@ export function createAppCommands(app: () => ReferenceApp): AppCommands {
       return (handlers[id] as (p: AppCommandSpecs[K]) => Promise<AppCommandOutcome>)(params);
     },
   });
+}
+
+/** The name an exported workspace is offered under: the day it was exported. */
+export function exportName(at: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `workspace-${String(at.getFullYear())}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}.json`;
 }

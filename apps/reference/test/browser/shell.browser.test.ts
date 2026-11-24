@@ -10,14 +10,16 @@ import { equirectangular } from '@swf/projections';
 import { afterEach, describe, expect, it } from 'vitest';
 import { commands } from 'vitest/browser';
 import { VIEWPORT_ID } from '../../src/app.js';
-import { FEATURE_IDS } from '../../src/features.js';
+import { ALL_ENABLED, DEFAULT_FEATURES, FEATURE_IDS } from '../../src/features.js';
 import { MAGNETIC_POLICY_ID } from '../../src/magnetic-policy.js';
 import { WORKSPACE_GROUP_ID } from '../../src/presets.js';
 import { parseConfig } from '../../src/config.js';
 import { createMessages, ENGLISH } from '../../src/messages.js';
 import { planPreset } from '../../src/presets.js';
+import type { ShellAppOptions } from '../../src/shell/model.svelte.js';
 import { ShellModel } from '../../src/shell/model.svelte.js';
-import DiagnosticsView from '../../src/shell/DiagnosticsView.svelte';
+import { createMemoryStore } from '@swf/persistence';
+import DeveloperView from '../../src/shell/DeveloperView.svelte';
 import Shell from '../../src/shell/Shell.svelte';
 
 declare module 'vitest/browser' {
@@ -52,7 +54,15 @@ afterEach(async () => {
   }
 });
 
-async function start(search: string, size = { width: 1280, height: 760 }): Promise<Mounted> {
+/**
+ * Mounts the shell as the page does, its workspaces kept in a store of the test's own (a fresh one
+ * unless given), never the browser's storage, which other tests share.
+ */
+async function start(
+  search: string,
+  size = { width: 1280, height: 760 },
+  appOptions: ShellAppOptions = { store: createMemoryStore() },
+): Promise<Mounted> {
   const html = document.documentElement;
   html.classList.add(ROOT_CLASS);
   setAppearance(html, 'light');
@@ -63,8 +73,8 @@ async function start(search: string, size = { width: 1280, height: 760 }): Promi
   root.style.setProperty('width', `${String(size.width)}px`);
   root.style.setProperty('height', `${String(size.height)}px`);
   document.body.append(root);
-  const model = new ShellModel(createMessages(), parseConfig(search));
-  const shell = mount(Shell, { target: root, props: { model, diagnostics: DiagnosticsView } });
+  const model = new ShellModel(createMessages(), parseConfig(search), appOptions);
+  const shell = mount(Shell, { target: root, props: { model, developer: DeveloperView } });
   current = { model, shell, root };
   const driver = installAutomation(root, () => 'reference');
   const settle = async () => {
@@ -106,7 +116,7 @@ describe('the shell (UX-001, UX-015)', () => {
       'workshop.view#scene',
       'workshop.view#windows',
       'worktree.view#inspector',
-      'worktree.view#diagnostics',
+      'worktree.view#developer',
       'page.scene.preset',
       'page.panorama',
       'editor.actions.backend',
@@ -267,12 +277,24 @@ describe('the optional policies (FR-130, UX-006, UX-007, UX-010, §33.2 scenario
     ]);
   };
 
-  it('turns each policy off on its own, taking its controls away and keeping the layout, and resets to all on', async () => {
+  it('turns each of the eight modules off on its own, taking its controls away and keeping the layout, and all back on in the combined preset (AC-015, §33.2 scenario 5)', async () => {
     const { model, driver, settle } = await start('?preset=sparse');
     driver.act('workshop.view#features', 'press');
+    // A window selected, so the inspector shows what composition offers for it.
+    await model.select('window-01');
     await settle();
     const layout = layoutOf(model);
+    const modeOffered = (id: string) => model.app?.modes.list().some((m) => m.id === id) === true;
+    // What the mode switcher across the top of the centre offers.
+    const switcherOffers = (name: string) => {
+      const read = driver.read('editor.actions.mode');
+      return read.present && read.text.includes(name);
+    };
     const affordance: Record<(typeof FEATURE_IDS)[number], () => boolean> = {
+      focus: () => modeOffered('focus') && switcherOffers(ENGLISH['mode.focus']),
+      map: () => modeOffered('map') && switcherOffers(ENGLISH['mode.map']),
+      composition: () => driver.has('page.inspector.detach#window-01-surface'),
+      persistence: () => driver.has('workshop.view#workspaces'),
       orbit: () => driver.has('editor.actions.navigation'),
       depth: () => driver.has('page.features.depth-full'),
       snap: () => model.app?.router.policyIds().includes(MAGNETIC_POLICY_ID) === true,
@@ -296,21 +318,20 @@ describe('the optional policies (FR-130, UX-006, UX-007, UX-010, §33.2 scenario
       driver.act(`page.features.${feature}.enabled`, 'toggle');
     }
     await settle();
-    expect(Object.values(model.policies?.features.enabled ?? {})).toEqual([
-      false,
-      false,
-      false,
-      false,
-    ]);
+    expect(Object.values(model.policies?.features.enabled ?? {})).toEqual(
+      FEATURE_IDS.map(() => false),
+    );
+    expect(layoutOf(model)).toBe(layout);
+    driver.act('page.features.combine', 'press');
+    await settle();
+    expect(model.policies?.features.enabled).toEqual(ALL_ENABLED);
+    for (const feature of FEATURE_IDS) {
+      expect(affordance[feature](), feature).toBe(true);
+    }
     expect(layoutOf(model)).toBe(layout);
     driver.act('page.features.reset', 'press');
     await settle();
-    expect(model.policies?.features.enabled).toEqual({
-      orbit: true,
-      depth: true,
-      snap: true,
-      cursor: true,
-    });
+    expect(model.policies?.features).toEqual(DEFAULT_FEATURES);
   });
 
   it('says what background drags turn, switches it where the view is, and undoes a workspace turn', async () => {

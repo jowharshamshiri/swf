@@ -11,7 +11,14 @@ import {
 } from '@swf/projections';
 import { describe, expect, it } from 'vitest';
 import type { PresetId } from '../src/presets.js';
-import { CAMERA_ID, planPreset, PRESET_IDS, PRESETS, presetCommands } from '../src/presets.js';
+import {
+  CAMERA_ID,
+  composites,
+  planPreset,
+  PRESET_IDS,
+  PRESETS,
+  presetCommands,
+} from '../src/presets.js';
 import { createRandom, MAX_SEED } from '../src/random.js';
 
 const W = 1440;
@@ -69,8 +76,9 @@ describe('the seeded generator', () => {
 });
 
 describe('demo presets (FR-131, MIG-005, AN-010)', () => {
-  it('offers sparse, dense and seam/behind-camera scenes besides the empty one', () => {
-    expect(PRESET_IDS).toEqual(['empty', 'sparse', 'dense', 'seam']);
+  it('offers sparse, dense, seam/behind-camera and composed scenes besides the empty one', () => {
+    expect(PRESET_IDS).toEqual(['empty', 'sparse', 'dense', 'seam', 'composed']);
+    expect(planPreset('composed', 1)).toHaveLength(5);
     expect(planPreset('empty', 1)).toEqual([]);
     expect(planPreset('sparse', 1)).toHaveLength(6);
     // The dense scene has the benchmark's window count, so modes compare at matching counts.
@@ -86,6 +94,7 @@ describe('demo presets (FR-131, MIG-005, AN-010)', () => {
       'dense@1': planPreset('dense', 1),
       'seam@1': planPreset('seam', 1),
       'seam@7': planPreset('seam', 7),
+      'composed@1': planPreset('composed', 1),
     };
     await expect(`${JSON.stringify(plans, null, 2)}\n`).toMatchFileSnapshot(
       './fixtures/preset-plans.json',
@@ -128,10 +137,11 @@ describe('demo presets (FR-131, MIG-005, AN-010)', () => {
   it('places every window facing the camera at its planned direction and distance', () => {
     for (const id of PRESET_IDS) {
       const ws = seeded(id, 9);
-      for (const planned of planPreset(id, 9)) {
-        const m = worldMatrix(ws.getState().nodes, planned.id);
+      // A composed window stands where its first part is planned.
+      for (const { id: windowId, place: planned } of composites(planPreset(id, 9))) {
+        const m = worldMatrix(ws.getState().nodes, windowId);
         if (m === undefined) {
-          throw new Error(`no ${planned.id}`);
+          throw new Error(`no ${windowId}`);
         }
         const centre = mat4TransformPoint(m, [0, 0, 0]);
         const h = (planned.heading * Math.PI) / 180;

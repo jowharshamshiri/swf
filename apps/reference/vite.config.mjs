@@ -13,6 +13,7 @@ const PACKAGES = [
   'backend-dom',
   'backend-geometry',
   'diagnostics',
+  'persistence',
 ];
 
 /**
@@ -81,13 +82,13 @@ function singleFile() {
 const DEBUG_MODULE = 'virtual:reference/debug';
 
 /**
- * The debug overlay (ENV-005): staging builds and development carry the diagnostics view;
- * production builds get a module holding none, so nothing of the view or the diagnostics
+ * The debug overlay (ENV-005): staging builds and development carry the developer panel;
+ * production builds get a module holding none, so nothing of the panel, its tools or the diagnostics
  * package reaches their bundle.
  */
 function debugOverlay(mode) {
   const resolved = `\0${DEBUG_MODULE}`;
-  const view = fileURLToPath(new URL('./src/shell/DiagnosticsView.svelte', import.meta.url));
+  const view = fileURLToPath(new URL('./src/shell/DeveloperView.svelte', import.meta.url));
   return {
     name: 'swf-debug-overlay',
     resolveId: (id) => (id === DEBUG_MODULE ? resolved : null),
@@ -95,8 +96,8 @@ function debugOverlay(mode) {
       id !== resolved
         ? null
         : mode === 'production'
-          ? 'export const diagnostics = null;'
-          : `export { default as diagnostics } from ${JSON.stringify(view)};`,
+          ? 'export const developer = null;'
+          : `export { default as developer } from ${JSON.stringify(view)};`,
   };
 }
 

@@ -47,7 +47,7 @@ async function start(search: string, size = { width: 1280, height: 860 }): Promi
   root.style.setProperty('height', `${String(size.height)}px`);
   document.body.append(root);
   const model = new ShellModel(createMessages(), parseConfig(search));
-  const shell = mount(Shell, { target: root, props: { model, diagnostics: null } });
+  const shell = mount(Shell, { target: root, props: { model, developer: null } });
   current = { model, shell, root };
   const driver = installAutomation(root, () => 'reference');
   const settle = async () => {

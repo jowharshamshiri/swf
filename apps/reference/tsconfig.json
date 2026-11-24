@@ -18,7 +18,8 @@
       "@swf/interaction": ["../../packages/interaction/src/index.ts"],
       "@swf/backend-dom": ["../../packages/backend-dom/src/index.ts"],
       "@swf/backend-geometry": ["../../packages/backend-geometry/src/index.ts"],
-      "@swf/diagnostics": ["../../packages/diagnostics/src/index.ts"]
+      "@swf/diagnostics": ["../../packages/diagnostics/src/index.ts"],
+      "@swf/persistence": ["../../packages/persistence/src/index.ts"]
     }
   },
   "include": ["src", "test"],
