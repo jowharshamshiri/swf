@@ -334,7 +334,11 @@ describe('presets with reset and reseed (FR-012, FR-131, MIG-005)', () => {
       status: 'done',
     });
     expect(a.status().windows).toBe(0);
-    expect(a.workspace.getState().nodes.size).toBe(0);
+    // Nothing is left but the workspace group, empty, still the orbit root.
+    expect([...a.workspace.getState().nodes.values()].map((n) => [n.id, n.childIds])).toEqual([
+      ['workspace', []],
+    ]);
+    expect(a.workspace.getState().orbitRootId).toBe('workspace');
     await frame(a);
     expect(root?.querySelectorAll('[data-reference-content]')).toHaveLength(0);
   });

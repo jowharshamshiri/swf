@@ -39,7 +39,10 @@
           },
           {
             term: t('inspector.presentation'),
-            value: t(`presentation.${selected.presentation}`),
+            value:
+              selected.representation === 'compact' || selected.representation === 'label'
+                ? t(`representation.${selected.representation}`)
+                : t(`presentation.${selected.presentation}`),
           },
         ],
   );

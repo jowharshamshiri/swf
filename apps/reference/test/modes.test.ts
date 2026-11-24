@@ -4,7 +4,7 @@ import { createProjectionRegistry, equirectangular } from '@swf/projections';
 import { describe, expect, it } from 'vitest';
 import type { ViewMode } from '../src/modes.js';
 import { createModes, PANORAMA } from '../src/modes.js';
-import { CAMERA_ID, planPreset, windowCommands } from '../src/presets.js';
+import { CAMERA_ID, planPreset, presetCommands } from '../src/presets.js';
 
 function scene() {
   const ws = createWorkspace({ id: 'test' });
@@ -25,7 +25,7 @@ function scene() {
         size: { width: 800, height: 400, devicePixelRatio: 1 },
       },
     },
-    ...planPreset('seam', 1).flatMap(windowCommands),
+    ...presetCommands(planPreset('seam', 1)),
   ]);
   expect(result.status).toBe('committed');
   return ws;

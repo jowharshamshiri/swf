@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import type { FocusOptions } from '../src/focus.js';
 import { createFocusMode, FOCUS_ID, focusContext, focusFrame } from '../src/focus.js';
 import { createModes, MAP, ModeRefusal, OVERVIEW, PANORAMA } from '../src/modes.js';
-import { CAMERA_ID, planPreset, windowCommands } from '../src/presets.js';
+import { CAMERA_ID, planPreset, presetCommands } from '../src/presets.js';
 
 const OPTIONS: FocusOptions = { fill: 0.75, maxMagnification: 2.5, pixelsPerUnit: 160 };
 const DEGREES = 180 / Math.PI;
@@ -30,7 +30,7 @@ function scene(preset: 'sparse' | 'seam' = 'sparse') {
         size: { width: 640, height: 360, devicePixelRatio: 1 },
       },
     },
-    ...planPreset(preset, 1).flatMap(windowCommands),
+    ...presetCommands(planPreset(preset, 1)),
   ]);
   expect(result.status).toBe('committed');
   const modes = createModes(ws, 'v');

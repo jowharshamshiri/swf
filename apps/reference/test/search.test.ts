@@ -9,7 +9,7 @@ import {
   colourName,
   planPreset,
   SEARCHABLE_METADATA,
-  windowCommands,
+  presetCommands,
 } from '../src/presets.js';
 import type { Attachment, Coverage, Timers } from '../src/search.js';
 import { createSearch, DEFAULT_QUERY, PAGE_SIZE } from '../src/search.js';
@@ -57,7 +57,7 @@ function scene(preset: 'sparse' | 'dense' | 'seam') {
         size: { width: 800, height: 400, devicePixelRatio: 1 },
       },
     },
-    ...planPreset(preset, 1).flatMap(windowCommands),
+    ...presetCommands(planPreset(preset, 1)),
   ]);
   expect(result.status).toBe('committed');
   return ws;
@@ -206,7 +206,11 @@ describe('scene metadata search (§19, FR-190–FR-193)', () => {
       attachment: (_, id) => (id === 'window-03' ? 'failed' : 'attached'),
       coverage: (_, id) => (id === 'window-04' ? 'out-of-view' : 'in-view'),
     });
-    expect(search.groups()).toEqual([{ id: 'left', label: 'Left wall' }]);
+    // Every preset window is in the workspace group; the new group is inside it.
+    expect(search.groups()).toEqual([
+      { id: 'workspace', label: 'Workspace' },
+      { id: 'left', label: 'Workspace / Left wall' },
+    ]);
     search.setFilters({ group: 'left' });
     expect([...search.ids()].sort()).toEqual(['window-01', 'window-02']);
     search.setFilters({ lock: 'locked' });
@@ -228,7 +232,7 @@ describe('scene metadata search (§19, FR-190–FR-193)', () => {
     search.setText('left wall');
     clock.fire();
     expect([...search.ids()].sort()).toEqual(['window-01', 'window-02']);
-    expect(search.page(0)[0]?.groups).toEqual(['Left wall']);
+    expect(search.page(0)[0]?.groups).toEqual(['Workspace', 'Left wall']);
     expect(() => {
       search.setFilters({ group: 'window-01' });
     }).toThrow('group must name a group');

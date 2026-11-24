@@ -4,13 +4,32 @@ import { installAutomation } from '@wsb/uikit/automation';
 import type { SurfaceAutomation } from '@wsb/uikit/automation';
 import { ROOT_CLASS, setAppearance, setDensity } from '@wsb/uikit/primitives';
 import { mount, unmount } from 'svelte';
+import { worldMatrix } from '@swf/core';
+import { viewGeometryOf } from '@swf/presentation';
+import { equirectangular } from '@swf/projections';
 import { afterEach, describe, expect, it } from 'vitest';
+import { commands } from 'vitest/browser';
+import { VIEWPORT_ID } from '../../src/app.js';
+import { FEATURE_IDS } from '../../src/features.js';
+import { MAGNETIC_POLICY_ID } from '../../src/magnetic-policy.js';
+import { WORKSPACE_GROUP_ID } from '../../src/presets.js';
 import { parseConfig } from '../../src/config.js';
 import { createMessages, ENGLISH } from '../../src/messages.js';
 import { planPreset } from '../../src/presets.js';
 import { ShellModel } from '../../src/shell/model.svelte.js';
 import DiagnosticsView from '../../src/shell/DiagnosticsView.svelte';
 import Shell from '../../src/shell/Shell.svelte';
+
+declare module 'vitest/browser' {
+  interface BrowserCommands {
+    mouse: (
+      action: 'move' | 'down' | 'up',
+      x: number,
+      y: number,
+      modifiers?: readonly string[],
+    ) => Promise<void>;
+  }
+}
 
 /** The shell, mounted as the page mounts it: the kit's root class, appearance and density set. */
 interface Mounted {
@@ -234,5 +253,165 @@ describe('a narrow window (UX-001)', () => {
     driver.act('workshop.view#scene', 'press');
     await settle();
     expect(driver.read('page.scene.preset').present).toBe(true);
+  });
+});
+
+describe('the optional policies (FR-130, UX-006, UX-007, UX-010, §33.2 scenario 5)', () => {
+  /** Every node's place and every surface's binding: what turning a policy off must not change. */
+  const layoutOf = (model: ShellModel) => {
+    const state = model.app?.workspace.getState();
+    return JSON.stringify([
+      [...(state?.nodes.values() ?? [])].map((n) => [n.id, n.parentId, n.transform]),
+      [...(state?.surfaces.values() ?? [])].map((s) => [s.id, s.bindingKey]),
+      state?.orbitRootId,
+    ]);
+  };
+
+  it('turns each policy off on its own, taking its controls away and keeping the layout, and resets to all on', async () => {
+    const { model, driver, settle } = await start('?preset=sparse');
+    driver.act('workshop.view#features', 'press');
+    await settle();
+    const layout = layoutOf(model);
+    const affordance: Record<(typeof FEATURE_IDS)[number], () => boolean> = {
+      orbit: () => driver.has('editor.actions.navigation'),
+      depth: () => driver.has('page.features.depth-full'),
+      snap: () => model.app?.router.policyIds().includes(MAGNETIC_POLICY_ID) === true,
+      cursor: () => driver.has('page.features.cursor.limits'),
+    };
+    for (const feature of FEATURE_IDS) {
+      expect(affordance[feature](), feature).toBe(true);
+      driver.act(`page.features.${feature}.enabled`, 'toggle');
+      await settle();
+      expect(model.policies?.features.enabled[feature], feature).toBe(false);
+      expect(affordance[feature](), feature).toBe(false);
+      // The others stay on.
+      for (const other of FEATURE_IDS.filter((f) => f !== feature)) {
+        expect(model.policies?.features.enabled[other], other).toBe(true);
+      }
+      expect(layoutOf(model), feature).toBe(layout);
+      driver.act(`page.features.${feature}.enabled`, 'toggle');
+      await settle();
+    }
+    for (const feature of FEATURE_IDS) {
+      driver.act(`page.features.${feature}.enabled`, 'toggle');
+    }
+    await settle();
+    expect(Object.values(model.policies?.features.enabled ?? {})).toEqual([
+      false,
+      false,
+      false,
+      false,
+    ]);
+    expect(layoutOf(model)).toBe(layout);
+    driver.act('page.features.reset', 'press');
+    await settle();
+    expect(model.policies?.features.enabled).toEqual({
+      orbit: true,
+      depth: true,
+      snap: true,
+      cursor: true,
+    });
+  });
+
+  it('says what background drags turn, switches it where the view is, and undoes a workspace turn', async () => {
+    const { model, driver, root, settle } = await start('?preset=sparse');
+    const said = (handle: string) =>
+      root.querySelector(`[data-wsb="${handle}"]`)?.textContent ?? '';
+    expect(said('application.panel.navigation')).toContain(ENGLISH['navigation.status.camera']);
+    expect(driver.has('page.panorama.navigation')).toBe(false);
+    driver.act('editor.actions.navigation#orbit', 'press');
+    await settle();
+    expect(model.policies?.orbit.navigation).toBe('orbit');
+    expect(said('application.panel.navigation')).toContain(ENGLISH['navigation.status.orbit']);
+    expect(said('page.panorama.navigation')).toContain('Workspace group');
+    const undo = () => root.querySelector<HTMLButtonElement>('[data-wsb="editor.actions.undo"]');
+    const turned = () => model.app?.workspace.getState().nodes.get(WORKSPACE_GROUP_ID)?.transform;
+    const before = turned();
+    driver.act('workshop.view#features', 'press');
+    await settle();
+    driver.act('page.features.orbit.right', 'press');
+    await settle();
+    expect(turned()).not.toEqual(before);
+    expect(undo()?.disabled).toBe(false);
+    driver.act('editor.actions.undo', 'press');
+    await settle();
+    expect(turned()).toEqual(before);
+    driver.act('editor.actions.redo', 'press');
+    await settle();
+    expect(turned()).not.toEqual(before);
+    // Orbit off: the switch goes, and drags turn the camera again.
+    driver.act('page.features.orbit.enabled', 'toggle');
+    await settle();
+    expect(model.policies?.orbit.navigation).toBe('camera');
+    expect(driver.has('page.panorama.navigation')).toBe(false);
+  });
+
+  it('refuses a band that ends before the one inside it, saying why at its field', async () => {
+    const { model, driver, root, settle } = await start('?preset=sparse');
+    driver.act('workshop.view#features', 'press');
+    await settle();
+    const bands = model.policies?.features.depth;
+    driver.act('page.features.depth-compact', 'set', '2');
+    driver.act('page.features.depth-compact', 'key', 'Enter');
+    await settle();
+    expect(model.policies?.features.depth).toEqual(bands);
+    expect(root.querySelector('[data-wsb="page.features.depth"]')?.textContent).toContain(
+      'the compact band must end farther than the full one',
+    );
+    driver.act('page.features.depth-compact', 'set', '7');
+    driver.act('page.features.depth-compact', 'key', 'Enter');
+    await settle();
+    expect(model.policies?.features.depth.compact).toBe(7);
+  });
+
+  it('shows a move’s preview, the snap in force and how to cancel it, then how it ended, with undo', async () => {
+    const { model, driver, root, settle } = await start('?preset=seam');
+    const app = model.app;
+    if (app === null) {
+      throw new Error('no application');
+    }
+    // window-07 straight ahead, pressed on its content with the takeover modifier and lifted.
+    const state = app.workspace.getState();
+    const m = worldMatrix(state.nodes, 'window-07');
+    const view = viewGeometryOf(state, VIEWPORT_ID);
+    const image = equirectangular
+      .create(view.projectionConfig)
+      .projectDirection([m?.[12] ?? 0, m?.[13] ?? 0, m?.[14] ?? 0], view).images[0];
+    const box = root.querySelector('[data-swf-viewport]')?.getBoundingClientRect();
+    if (image === undefined || box === undefined) {
+      throw new Error('window-07 is not in view');
+    }
+    const x = box.left + image[0];
+    const y = box.top + image[1];
+    const before = app.workspace.getState().nodes.get('window-07')?.transform;
+    const lift = async () => {
+      await commands.mouse('move', x, y);
+      await commands.mouse('down', x, y, ['Alt']);
+      for (let dy = 2; dy <= 24; dy += 2) {
+        await commands.mouse('move', x + dy, y - dy);
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+      }
+      await settle();
+    };
+    await lift();
+    const strip = () =>
+      root.querySelector(`[aria-label="${ENGLISH['gesture.label']}"]`)?.textContent ?? '';
+    expect(strip()).toContain('Moving Note 07');
+    expect(driver.has('page.gesture.cancel')).toBe(true);
+    driver.act('page.gesture.cancel', 'press');
+    await settle();
+    await commands.mouse('up', x + 24, y - 24);
+    await settle();
+    expect(strip()).toContain(ENGLISH['gesture.cancelled']);
+    expect(app.workspace.getState().nodes.get('window-07')?.transform).toEqual(before);
+
+    await lift();
+    await commands.mouse('up', x + 24, y - 24);
+    await settle();
+    expect(strip()).toContain('Moved Note 07');
+    expect(app.workspace.getState().nodes.get('window-07')?.transform).not.toEqual(before);
+    driver.act('page.gesture.undo', 'press');
+    await settle();
+    expect(app.workspace.getState().nodes.get('window-07')?.transform).toEqual(before);
   });
 });

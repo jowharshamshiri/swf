@@ -696,7 +696,15 @@ pack is given, and each action is a command with a stable ID (`reference.preset.
 `reference.scene.reset`, `reference.scene.reseed`, `reference.mode.switch`,
 `reference.backend.switch`, `reference.window.reveal`, `reference.focus.enter`,
 `reference.focus.exit`, `reference.focus.step`, `reference.window.map`,
-`reference.window.inspect`, `reference.window.place`).
+`reference.window.inspect`, `reference.window.place`, `reference.feature.set`,
+`reference.feature.reset`, `reference.snap.configure`, `reference.depth.configure`,
+`reference.navigation.set`, `reference.orbit.designate`, `reference.orbit.turn`,
+`reference.history.undo`, `reference.history.redo`, `reference.gesture.cancel`). Undo and redo
+are also across the top of the centre, with the editor's usual keys (Ctrl+Z, Ctrl+Shift+Z or
+Ctrl+Y) while the panorama has the keyboard.
+
+Every preset's windows are in one group, Workspace, which stands unturned at the camera's place and
+is designated as the group workspace orbit turns.
 
 ### View modes
 
@@ -728,6 +736,43 @@ content is attached or detached by a switch.
 
 The map and the overview take the top of the centre over the live panorama, with a movable edge
 between them.
+
+### Policies
+
+Four optional policies are modules of their own, each installed only through the framework's public
+contracts and each turned on or off on its own from the Features view on the left (all on, the
+combined configuration, by default; Reset puts them back). Turning one off removes its hooks and
+its controls and never changes the scene's data or layout, and none needs another.
+
+- **Workspace orbit** turns a designated group round the camera, as an ordinary scene change that
+  undo puts back; turning the camera instead changes only the view and is never undone. What a drag
+  on the panorama's background turns is the viewport's navigation setting, chosen explicitly with
+  the Camera | Workspace switch across the top of the centre (or the command list) and never
+  switched by where the pointer is: the panel says which one is in force, and while drags turn the
+  workspace a line above the panorama says so. The Features view picks the group, turns it by 15°
+  either way (as do Alt+Shift+Left and Right), and shows the camera's heading beside the
+  workspace's turn to compare the two. Off, drags turn the camera and the keys that turn the group
+  are taken out of the keymap; the group stays designated.
+- **Semantic depth** represents each window by its distance from the camera: nearer than the first
+  band it shows its content, then a compact preview stands for it, and beyond the second band its
+  label alone (4 and 5.5 world units by default). The window focus presents is always shown in full.
+  It is the viewport's representation policy, so content is never detached, paused or
+  reconfigured: a window brought nearer shows the same live content again. The inspector says how
+  the selected window is shown.
+- **Magnetic positioning** snaps a window being moved: an edge within the snap distance (0.08 world
+  units) of a neighbour's facing edge, short of it or over it, goes to that edge with the padding
+  (0.04) between them, and the window's centre lines up with a neighbour's heading or elevation, or
+  the horizon, within the line-up angle (2°). Only windows side by side snap, those whose distance
+  from the camera is within a quarter of the moving one's. A snap turns the window about the
+  camera, so it keeps its distance and facing. Each place is previewed snapped, a line above the
+  panorama says what it snapped to and offers Cancel (as Escape does), and releasing commits the
+  snapped place once, after which the line says how it ended and offers Undo.
+- **The wrapped cursor** carries a pointer the framework took (a window being moved, the view being
+  turned) past one edge of the 360° panorama back in at the other, where the seam behind the camera
+  is, so a drag across the seam keeps its window and the point of it that was grabbed. A drawn
+  cursor shows where the drag acts, because a page cannot move the platform's pointer: that pointer
+  stops at the edge of the screen, as the Features view says. Pointers left to content, and every
+  pointer while the view shows less than the whole circle (in focus), are not wrapped.
 
 ### Search
 

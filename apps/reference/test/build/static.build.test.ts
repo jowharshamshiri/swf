@@ -6,6 +6,8 @@ import type { Browser, Page } from 'playwright';
 import { chromium } from 'playwright';
 import { build } from 'vite';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { DEFAULT_FEATURES } from '../../src/features.js';
+import { planPreset } from '../../src/presets.js';
 
 /**
  * The static build (ENV-006, NFR-014, NFR-027): one page that runs straight from the file, with
@@ -116,7 +118,14 @@ describe('the static build', () => {
 
   it('shows the dense scene, offline, without a single request', async () => {
     const run = await open('?preset=dense');
-    await shows(run.page, '[data-reference-content]', (n) => n === 50);
+    // Semantic depth shows a note's content only nearer than its full band; the rest are
+    // represented, their content bound but not shown.
+    const near = planPreset('dense', 1).filter(
+      (w) => w.content === 'note' && w.distance < DEFAULT_FEATURES.depth.full,
+    ).length;
+    expect(near).toBeGreaterThan(0);
+    expect(near).toBeLessThan(50);
+    await shows(run.page, '[data-reference-content]', (n) => n === near);
     expect(run.requests).toEqual([]);
     expect(run.errors).toEqual([]);
     await run.close();

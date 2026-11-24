@@ -1,4 +1,5 @@
-import type { FrameMetrics } from '@swf/presentation';
+import { worldMatrix } from '@swf/core';
+import type { FrameMetrics, Representation } from '@swf/presentation';
 import type { AppStatus, ReferenceApp } from '../app.js';
 import { createReferenceApp, VIEWPORT_ID } from '../app.js';
 import type { AppCommandId, AppCommandSpecs } from '../commands.js';
@@ -6,6 +7,7 @@ import { APP_COMMAND_NAMES } from '../commands.js';
 import type { AppConfig } from '../config.js';
 import { ConfigError } from '../config.js';
 import type { Messages } from '../messages.js';
+import type { PolicyStatus } from '../policies.js';
 
 /**
  * The thin binding between the application and the shell's view: the application's state as
@@ -25,6 +27,8 @@ export interface SelectedWindow {
   /** World units from the camera. */
   readonly distance: number;
   readonly presentation: 'live' | 'proxy';
+  /** How the view represents it (by semantic depth), or null while it is not shown. */
+  readonly representation: Representation | null;
 }
 
 /** A command that was refused, as the shell says it. */
@@ -49,6 +53,17 @@ const SCENE_COMMANDS: readonly AppCommandId[] = Object.freeze([
   'reference.scene.reseed',
 ]);
 
+/** The commands the features view runs: their refusals are said there, by their field. */
+const FEATURE_COMMANDS: readonly AppCommandId[] = Object.freeze([
+  'reference.feature.set',
+  'reference.feature.reset',
+  'reference.snap.configure',
+  'reference.depth.configure',
+  'reference.navigation.set',
+  'reference.orbit.designate',
+  'reference.orbit.turn',
+]);
+
 export class ShellModel {
   /** What the application shows, once it has started. */
   status = $state<AppStatus | null>(null);
@@ -65,6 +80,10 @@ export class ShellModel {
   searchVersion = $state(0);
   /** Rises each time a window is asked to be inspected: the shell opens the inspector. */
   inspections = $state(0);
+  /** The optional policies: which are on, their settings, the gesture running and the last one. */
+  policies = $state<PolicyStatus | null>(null);
+  /** Whether there is something to undo and to redo. */
+  history = $state({ undo: false, redo: false });
   /** The window the map was last asked to show, and how many times it has been asked. */
   mapRequest = $state<{ readonly id: string; readonly count: number } | null>(null);
 
@@ -116,8 +135,13 @@ export class ShellModel {
     }
     this.#app = app;
     this.status = app.status();
+    this.policies = app.policies.status();
     this.#readSelection();
+    this.#readHistory();
     this.#stops.push(
+      app.policies.subscribe(() => {
+        this.policies = app.policies.status();
+      }),
       app.subscribe((status) => {
         this.status = status;
       }),
@@ -125,6 +149,7 @@ export class ShellModel {
         if (event.type === 'transaction.committed') {
           this.revision = app.workspace.getState().revision;
           this.#readSelection();
+          this.#readHistory();
         }
       }),
       app.search.subscribe(() => {
@@ -158,6 +183,11 @@ export class ShellModel {
   /** Whether a refusal is of one of the scene's own commands, said where the scene is set. */
   isSceneRefusal(refusal: Refusal): boolean {
     return SCENE_COMMANDS.includes(refusal.command);
+  }
+
+  /** Whether a refusal is of a feature's command, said in the features view. */
+  isFeatureRefusal(refusal: Refusal): boolean {
+    return FEATURE_COMMANDS.includes(refusal.command);
   }
 
   /** The refusal, said in words. */
@@ -214,6 +244,18 @@ export class ShellModel {
     await app?.dispose();
   }
 
+  #readHistory(): void {
+    const app = this.#app;
+    if (app === null) {
+      return;
+    }
+    const undo = app.workspace.canUndo();
+    const redo = app.workspace.canRedo();
+    if (undo !== this.history.undo || redo !== this.history.redo) {
+      this.history = { undo, redo };
+    }
+  }
+
   #readSelection(): void {
     const app = this.#app;
     if (app === null) {
@@ -226,7 +268,10 @@ export class ShellModel {
       this.selected = null;
       return;
     }
-    const [x, y, z] = node.transform.position;
+    // Where it is in the world, whatever group it is in and however that group is turned.
+    const world = worldMatrix(state.nodes, node.id);
+    const [x, y, z] =
+      world === undefined ? node.transform.position : [world[12], world[13], world[14]];
     const tag = node.tags.find((t) => t === 'note' || t === 'tile');
     const surfaceId = node.surfaceIds[0];
     const next: SelectedWindow = {
@@ -237,6 +282,7 @@ export class ShellModel {
       elevation: Math.atan2(y, Math.hypot(x, z)) * DEGREES,
       distance: Math.hypot(x, y, z),
       presentation: surfaceId === undefined ? 'proxy' : app.viewport.presentation(surfaceId),
+      representation: app.policies.representationOf(node.id),
     };
     const last = this.selected;
     if (
@@ -245,7 +291,8 @@ export class ShellModel {
       last.heading !== next.heading ||
       last.elevation !== next.elevation ||
       last.distance !== next.distance ||
-      last.presentation !== next.presentation
+      last.presentation !== next.presentation ||
+      last.representation !== next.representation
     ) {
       this.selected = next;
     }

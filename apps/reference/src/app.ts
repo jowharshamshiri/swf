@@ -47,8 +47,10 @@ import { createFocusMode, FOCUS_ID, focusContext } from './focus.js';
 import { placedAt } from './map.js';
 import type { Modes } from './modes.js';
 import { createModes, MAP, OVERVIEW, PANORAMA } from './modes.js';
+import type { Policies } from './policies.js';
+import { createPolicies } from './policies.js';
 import type { PresetId } from './presets.js';
-import { CAMERA_ID, planPreset, PRESETS, SEARCHABLE_METADATA, windowCommands } from './presets.js';
+import { CAMERA_ID, planPreset, PRESETS, SEARCHABLE_METADATA, presetCommands } from './presets.js';
 import type { Attachment, Search } from './search.js';
 import { createSearch } from './search.js';
 import { MAX_SEED, seedIssue } from './random.js';
@@ -123,6 +125,8 @@ export interface ReferenceApp {
   readonly commands: AppCommands;
   /** Finding windows by their labels, tags, exposed metadata and groups. */
   readonly search: Search;
+  /** The optional policies: workspace orbit, semantic depth, magnetic positioning, wrapped cursor. */
+  readonly policies: Policies;
   status(): AppStatus;
   subscribe(listener: (status: AppStatus) => void): () => void;
   /**
@@ -259,6 +263,13 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
     projections,
     presentation: (surfaceId) => mount.viewport.presentation(surfaceId),
   });
+  const policies = createPolicies({
+    workspace,
+    router,
+    projections,
+    viewportId: VIEWPORT_ID,
+    focusModeId: FOCUS_ID,
+  });
 
   const mountIn = async (
     element: HTMLElement,
@@ -287,12 +298,15 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
       workspace.dispatch({ type: 'viewport.patch', id: VIEWPORT_ID, size }, { source: 'system' });
     }
     const opened = await presenter.open({ viewportId: VIEWPORT_ID, container: element, backends });
+    const detach = policies.attach(opened, element);
     const unregisterInput = router.registerInputAdapter(
-      createDomInput({
-        root: element,
-        viewportId: VIEWPORT_ID,
-        events: (listener) => router.subscribe(listener),
-      }),
+      policies.input(
+        createDomInput({
+          root: element,
+          viewportId: VIEWPORT_ID,
+          events: (listener) => router.subscribe(listener),
+        }),
+      ),
     );
     resizes.observe(element);
     return {
@@ -301,6 +315,7 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
       async release() {
         resizes.disconnect();
         unregisterInput();
+        detach();
         await opened.dispose();
       },
     };
@@ -417,7 +432,7 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
         position: [0, 0, 0],
         rotation: [0, 0, 0, 1],
       },
-      ...windows.flatMap(windowCommands),
+      ...presetCommands(windows),
     ];
     const result = workspace.transaction(commands, { source: 'user' });
     if (result.status === 'committed') {
@@ -440,6 +455,7 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
     messages,
     commands: createAppCommands(() => app),
     search,
+    policies,
     status,
     subscribe(listener) {
       listeners.add(listener);
@@ -512,6 +528,7 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
       unwatchPresenter();
       listeners.clear();
       modes.dispose();
+      policies.dispose();
       router.dispose();
       await presenter.dispose();
       await runtime.dispose();

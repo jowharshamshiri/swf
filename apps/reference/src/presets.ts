@@ -220,8 +220,43 @@ export function colourName(hue: number): string {
   return name;
 }
 
-/** The commands that create a planned window and its surface, facing the camera at the origin. */
-export function windowCommands(window: PlannedWindow): SceneCommand[] {
+/**
+ * The group every preset's windows are in: the whole workspace around the camera, designated as
+ * the group workspace orbit turns. It stands at the camera's place, unturned, so a window's place
+ * in it is its place in the world until the workspace is turned.
+ */
+export const WORKSPACE_GROUP_ID = 'workspace';
+
+/**
+ * The commands that seed a scene with planned windows: the workspace group, the windows in it,
+ * and the group designated as the orbit root.
+ */
+export function presetCommands(windows: readonly PlannedWindow[]): SceneCommand[] {
+  // The group's box holds every window wherever it is turned: a cube round the camera.
+  const reach = windows.reduce(
+    (most, w) => Math.max(most, w.distance + Math.hypot(w.width, w.height) / 2),
+    1,
+  );
+  return [
+    {
+      type: 'node.create',
+      node: {
+        id: WORKSPACE_GROUP_ID,
+        kind: 'group',
+        label: 'Workspace',
+        bounds: [2 * reach, 2 * reach, 2 * reach],
+      },
+    },
+    ...windows.flatMap((window) => windowCommands(window, WORKSPACE_GROUP_ID)),
+    { type: 'orbitRoot.set', nodeId: WORKSPACE_GROUP_ID },
+  ];
+}
+
+/**
+ * The commands that create a planned window and its surface in a group standing unturned at the
+ * camera's place, facing the camera at the origin.
+ */
+export function windowCommands(window: PlannedWindow, parentId: string): SceneCommand[] {
   const h = window.heading * RADIANS;
   const e = window.elevation * RADIANS;
   const d = window.distance;
@@ -231,6 +266,7 @@ export function windowCommands(window: PlannedWindow): SceneCommand[] {
       node: {
         id: window.id,
         kind: 'window',
+        parentId,
         label: window.label,
         tags: [window.content],
         metadata: { [COLOUR_KEY]: colourName(window.hue) },

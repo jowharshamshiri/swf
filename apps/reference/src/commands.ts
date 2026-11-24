@@ -2,9 +2,12 @@ import type { TxResult } from '@swf/core';
 import type { ReferenceApp } from './app.js';
 import type { BackendId } from './config.js';
 import { BACKEND_IDS } from './config.js';
+import type { FeatureId } from './features.js';
+import { DEFAULT_FEATURES, FEATURE_IDS, FeatureError } from './features.js';
 import { FOCUS_ID } from './focus.js';
 import type { MessageId } from './messages.js';
 import { ModeRefusal } from './modes.js';
+import { PolicyRefusal } from './policies.js';
 import type { PresetId } from './presets.js';
 import { PRESET_IDS } from './presets.js';
 import { seedIssue } from './random.js';
@@ -32,6 +35,20 @@ export interface AppCommandSpecs {
     readonly y?: number;
     readonly z?: number;
   };
+  'reference.feature.set': { readonly feature: FeatureId; readonly enabled: boolean };
+  'reference.feature.reset': Readonly<Record<string, never>>;
+  'reference.snap.configure': {
+    readonly linear?: number;
+    readonly angular?: number;
+    readonly padding?: number;
+  };
+  'reference.depth.configure': { readonly full?: number; readonly compact?: number };
+  'reference.navigation.set': { readonly target: 'camera' | 'orbit' };
+  'reference.orbit.designate': { readonly id: string | null };
+  'reference.orbit.turn': { readonly degrees: number };
+  'reference.history.undo': Readonly<Record<string, never>>;
+  'reference.history.redo': Readonly<Record<string, never>>;
+  'reference.gesture.cancel': Readonly<Record<string, never>>;
 }
 
 export type AppCommandId = keyof AppCommandSpecs;
@@ -49,6 +66,16 @@ export const APP_COMMAND_NAMES: Readonly<Record<AppCommandId, MessageId>> = Obje
   'reference.window.map': 'command.window.map',
   'reference.window.inspect': 'command.window.inspect',
   'reference.window.place': 'command.window.place',
+  'reference.feature.set': 'command.feature.set',
+  'reference.feature.reset': 'command.feature.reset',
+  'reference.snap.configure': 'command.snap.configure',
+  'reference.depth.configure': 'command.depth.configure',
+  'reference.navigation.set': 'command.navigation.set',
+  'reference.orbit.designate': 'command.orbit.designate',
+  'reference.orbit.turn': 'command.orbit.turn',
+  'reference.history.undo': 'command.history.undo',
+  'reference.history.redo': 'command.history.redo',
+  'reference.gesture.cancel': 'command.gesture.cancel',
 });
 
 /** What running a command did. */
@@ -75,19 +102,32 @@ async function committed(result: TxResult): Promise<AppCommandOutcome> {
     : rejected(outcome.error.path ?? 'scene', outcome.error.message);
 }
 
-/** A change that a mode may refuse: its refusal said as the command's, by its field. */
-async function viewChange(change: () => TxResult): Promise<AppCommandOutcome> {
-  let result: TxResult;
+/**
+ * A change that a mode, a policy or the features' validation may refuse: its refusal said as the
+ * command's, by its field. A change that needs no commit (it is already so) is done.
+ */
+async function viewChange(change: () => TxResult | null): Promise<AppCommandOutcome> {
+  let result: TxResult | null;
   try {
     result = change();
   } catch (error) {
-    if (error instanceof ModeRefusal) {
+    if (
+      error instanceof ModeRefusal ||
+      error instanceof PolicyRefusal ||
+      error instanceof FeatureError
+    ) {
       return rejected(error.field, error.message);
     }
     throw error;
   }
-  return committed(result);
+  return result === null ? DONE : committed(result);
 }
+
+/** A finite number of the given unit, or the reason it is not. */
+const finite = (value: unknown, field: string, unit: string): AppCommandOutcome | null =>
+  typeof value === 'number' && Number.isFinite(value)
+    ? null
+    : rejected(field, `${field} must be a finite number of ${unit}`);
 
 type Handlers = {
   readonly [K in AppCommandId]: (params: AppCommandSpecs[K]) => Promise<AppCommandOutcome>;
@@ -101,6 +141,31 @@ export function createAppCommands(app: () => ReferenceApp): AppCommands {
   const badSeed = (seed: unknown): AppCommandOutcome | null => {
     const issue = seed === undefined ? null : seedIssue(seed);
     return issue === null ? null : rejected('seed', issue);
+  };
+  /** Turns the workspace by degrees to the right, as the named command does. */
+  const turnWorkspace = (degrees: number): AppCommandOutcome => {
+    const bad = finite(degrees, 'degrees', 'degrees');
+    if (bad !== null) {
+      return bad;
+    }
+    try {
+      const outcome = app().policies.turnWorkspace(degrees);
+      switch (outcome.status) {
+        case 'committed':
+          return DONE;
+        case 'rejected':
+          return rejected(outcome.error.path ?? 'orbit', outcome.error.message);
+        case 'unchanged':
+          return rejected('orbit', outcome.reason);
+        case 'cancelled':
+          return rejected('orbit', 'the turn was cancelled');
+      }
+    } catch (error) {
+      if (error instanceof PolicyRefusal) {
+        return rejected(error.field, error.message);
+      }
+      throw error;
+    }
   };
   const handlers: Handlers = {
     'reference.preset.load': async ({ preset, seed }) => {
@@ -190,6 +255,60 @@ export function createAppCommands(app: () => ReferenceApp): AppCommands {
       }
       return committed(app().placeWindow(id, { x, y, z }));
     },
+    'reference.feature.set': async ({ feature, enabled }) => {
+      if (!(FEATURE_IDS as readonly string[]).includes(feature)) {
+        return rejected('feature', `a feature must be one of ${FEATURE_IDS.join(', ')}`);
+      }
+      return viewChange(() => {
+        app().policies.configure({ enabled: { [feature]: enabled } });
+        return null;
+      });
+    },
+    'reference.feature.reset': async () =>
+      viewChange(() => {
+        app().policies.configure(DEFAULT_FEATURES);
+        return null;
+      }),
+    'reference.snap.configure': async (snap) =>
+      viewChange(() => {
+        app().policies.configure({ snap });
+        return null;
+      }),
+    'reference.depth.configure': async (depth) =>
+      viewChange(() => {
+        app().policies.configure({ depth });
+        return null;
+      }),
+    'reference.navigation.set': async ({ target }) => {
+      const asked: unknown = target;
+      if (asked !== 'camera' && asked !== 'orbit') {
+        return rejected('target', 'a background drag turns the camera or the orbit group');
+      }
+      return viewChange(() => app().policies.navigate(target));
+    },
+    'reference.orbit.designate': async ({ id }) => {
+      if (id !== null && typeof id !== 'string') {
+        return rejected('id', 'the orbit group is named by its ID, or none by null');
+      }
+      return viewChange(() => app().policies.designate(id));
+    },
+    'reference.orbit.turn': ({ degrees }) => Promise.resolve(turnWorkspace(degrees)),
+    'reference.history.undo': async () => {
+      const workspace = app().workspace;
+      return workspace.canUndo()
+        ? committed(workspace.undo({ source: 'user' }))
+        : rejected('history', 'there is nothing to undo');
+    },
+    'reference.history.redo': async () => {
+      const workspace = app().workspace;
+      return workspace.canRedo()
+        ? committed(workspace.redo({ source: 'user' }))
+        : rejected('history', 'there is nothing to redo');
+    },
+    'reference.gesture.cancel': () =>
+      Promise.resolve(
+        app().router.cancel('host') > 0 ? DONE : rejected('gesture', 'no gesture is running'),
+      ),
   };
   return Object.freeze({
     ids: () => ids,

@@ -11,7 +11,7 @@ import {
 } from '@swf/projections';
 import { describe, expect, it } from 'vitest';
 import type { PresetId } from '../src/presets.js';
-import { CAMERA_ID, planPreset, PRESET_IDS, PRESETS, windowCommands } from '../src/presets.js';
+import { CAMERA_ID, planPreset, PRESET_IDS, PRESETS, presetCommands } from '../src/presets.js';
 import { createRandom, MAX_SEED } from '../src/random.js';
 
 const W = 1440;
@@ -37,7 +37,7 @@ function seeded(preset: PresetId, seed: number) {
         size: { width: W, height: H, devicePixelRatio: 1 },
       },
     },
-    ...planPreset(preset, seed).flatMap(windowCommands),
+    ...presetCommands(planPreset(preset, seed)),
   ];
   const result = ws.transaction(commands);
   if (result.status !== 'committed') {

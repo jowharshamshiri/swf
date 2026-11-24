@@ -15,6 +15,7 @@
   import type { ShellModel } from './model.svelte.js';
   import Palette from './Palette.svelte';
   import CentreView from './CentreView.svelte';
+  import FeaturesView from './FeaturesView.svelte';
   import { FOCUS_ID } from '../focus.js';
   import SceneView from './SceneView.svelte';
   import StatusBody from './StatusBody.svelte';
@@ -78,11 +79,14 @@
     }
   });
 
-  const sideViews = (views: { id: string; icon: 'plans' | 'list' | 'info' | 'statistics'; label: string }[]) => views;
+  const sideViews = (
+    views: { id: string; icon: 'plans' | 'list' | 'info' | 'statistics' | 'settings'; label: string }[],
+  ) => views;
   const leftViews = $derived(
     sideViews([
       { id: 'scene', icon: 'plans', label: t('scene.title') },
       { id: 'windows', icon: 'list', label: t('windows.title') },
+      { id: 'features', icon: 'settings', label: t('features.title') },
     ]),
   );
   const rightViews = $derived(
@@ -111,6 +115,7 @@
   );
   const backends = $derived(BACKEND_IDS.map((id) => ({ value: id, label: t(`backend.${id}`) })));
   const status = $derived(model.status);
+  const policies = $derived(model.policies);
 </script>
 
 <svelte:window {onkeydown} />
@@ -120,6 +125,8 @@
     <SceneView {model} />
   {:else if view === 'windows'}
     <WindowsView {model} />
+  {:else if view === 'features'}
+    <FeaturesView {model} />
   {/if}
 {/snippet}
 
@@ -151,6 +158,29 @@
       }}
     />
   {/if}
+  {#if policies !== null && policies.features.enabled.orbit}
+    <!-- What a background drag turns is said where the view is, and changed there. -->
+    <Segmented
+      handle={handleOf`editor.actions.navigation`}
+      ariaLabel={t('orbit.navigation')}
+      items={[
+        { value: 'camera', label: t('orbit.navigation.camera'), title: t('command.navigation.camera') },
+        {
+          value: 'orbit',
+          label: t('orbit.navigation.orbit'),
+          disabled: policies.orbit.rootId === null,
+          title:
+            policies.orbit.rootId === null
+              ? t('orbit.navigation.noroot')
+              : t('command.navigation.orbit'),
+        },
+      ]}
+      selected={policies.orbit.navigation}
+      onselect={(target) => {
+        void model.run('reference.navigation.set', { target: target as 'camera' | 'orbit' });
+      }}
+    />
+  {/if}
   {#if status !== null}
     <Segmented
       handle={handleOf`editor.actions.backend`}
@@ -162,6 +192,26 @@
       }}
     />
   {/if}
+  <IconButton
+    handle={handleOf`editor.actions.undo`}
+    icon="undo"
+    label={t('command.history.undo')}
+    size="small"
+    disabled={!model.history.undo}
+    onpress={() => {
+      void model.run('reference.history.undo', {});
+    }}
+  />
+  <IconButton
+    handle={handleOf`editor.actions.redo`}
+    icon="redo"
+    label={t('command.history.redo')}
+    size="small"
+    disabled={!model.history.redo}
+    onpress={() => {
+      void model.run('reference.history.redo', {});
+    }}
+  />
   <IconButton
     handle={handleOf`editor.actions.commands`}
     icon="search"
@@ -193,6 +243,14 @@
         seed: status.scene.seed,
         windows: status.windows,
       })}
+    />
+  {/if}
+  {#if policies !== null}
+    <StatusItem
+      handle={handleOf`application.panel.navigation`}
+      label={t(
+        policies.orbit.navigation === 'orbit' ? 'navigation.status.orbit' : 'navigation.status.camera',
+      )}
     />
   {/if}
   <StatusItem handle={handleOf`application.panel.takeover`} label={t('view.takeover')} icon="hint" />

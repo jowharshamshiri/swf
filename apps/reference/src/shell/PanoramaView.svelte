@@ -8,6 +8,7 @@
   import { onMount } from 'svelte';
   import { FOCUS_ID } from '../focus.js';
   import type { Neighbour } from '../focus.js';
+  import type { SnapConstraint } from '../magnetic.js';
   import type { MessageId } from '../messages.js';
   import type { ShellModel } from './model.svelte.js';
 
@@ -53,9 +54,142 @@
   });
 
   const degrees = (neighbour: Neighbour) => Math.round(Math.abs(neighbour.bearing));
+
+  /** Gestures that change the scene: each shows its preview, its snap, its cancel and its end. */
+  const MODIFYING = ['node.move', 'node.resize', 'orbit.turn'];
+
+  const labelOf = (id: string | null) => {
+    void model.revision;
+    const node = id === null ? undefined : model.app?.workspace.getState().nodes.get(id);
+    return node?.label ?? id ?? '';
+  };
+
+  const constraintText = (c: SnapConstraint): string => {
+    switch (c.kind) {
+      case 'edge':
+        return t(`snap.edge.${c.side}`, { label: c.neighbourLabel });
+      case 'align':
+        return t(`snap.align.${c.axis}`, { label: c.neighbourLabel });
+      case 'horizon':
+        return t('snap.horizon');
+    }
+  };
+  const snapText = (constraints: readonly SnapConstraint[]) =>
+    t('gesture.snapped', { constraints: constraints.map(constraintText).join(', ') });
+
+  const running = $derived.by(() => {
+    const gesture = model.policies?.gesture ?? null;
+    if (gesture === null || !MODIFYING.includes(gesture.operation)) {
+      return null;
+    }
+    const label = labelOf(gesture.nodeId);
+    const what =
+      gesture.operation === 'node.move'
+        ? t('gesture.node.move', { label })
+        : gesture.operation === 'node.resize'
+          ? t('gesture.node.resize', { label })
+          : t('gesture.orbit.turn');
+    const snapping = model.policies?.features.enabled.snap === true && gesture.operation === 'node.move';
+    return {
+      what,
+      detail:
+        gesture.snap !== null && gesture.snap.constraints.length > 0
+          ? snapText(gesture.snap.constraints)
+          : snapping
+            ? t('gesture.free')
+            : t('gesture.preview'),
+    };
+  });
+
+  // The last gesture's end, until dismissed or another starts.
+  let dismissed = $state<unknown>(null);
+  const ended = $derived.by(() => {
+    const last = model.policies?.ended ?? null;
+    if (last === null || last === dismissed || !MODIFYING.includes(last.operation) || running !== null) {
+      return null;
+    }
+    if (last.outcome === 'unchanged') {
+      return null;
+    }
+    const label = labelOf(last.nodeId);
+    const done =
+      last.operation === 'node.move'
+        ? t('gesture.done.node.move', { label })
+        : last.operation === 'node.resize'
+          ? t('gesture.done.node.resize', { label })
+          : t('gesture.done.orbit.turn');
+    return {
+      last,
+      committed: last.outcome === 'committed',
+      text:
+        last.outcome === 'committed'
+          ? last.snap !== null && last.snap.constraints.length > 0
+            ? `${done}. ${snapText(last.snap.constraints)}`
+            : done
+          : t('gesture.cancelled'),
+    };
+  });
+
+  const orbitGroup = $derived.by(() => {
+    const policies = model.policies;
+    if (policies === null || policies.orbit.navigation !== 'orbit') {
+      return null;
+    }
+    return labelOf(policies.orbit.rootId);
+  });
 </script>
 
 {#snippet head()}
+  {#if orbitGroup !== null}
+    <Notice
+      tone="info"
+      title={t('orbit.announce.orbit', { group: orbitGroup })}
+      handle={handleOf`page.panorama.navigation`}
+    />
+  {/if}
+  {#if running !== null}
+    <Toolbar ariaLabel={t('gesture.label')}>
+      <Text>{running.what}</Text>
+      <Text quiet>{running.detail}</Text>
+      {#snippet end()}
+        <Button
+          handle={handleOf`page.gesture.cancel`}
+          label={t('gesture.cancel')}
+          size="small"
+          onpress={() => {
+            void model.run('reference.gesture.cancel', {});
+          }}
+        />
+      {/snippet}
+    </Toolbar>
+  {:else if ended !== null}
+    <Toolbar ariaLabel={t('gesture.label')}>
+      <Text>{ended.text}</Text>
+      {#snippet end()}
+        {#if ended.committed && model.history.undo}
+          <Button
+            handle={handleOf`page.gesture.undo`}
+            label={t('command.history.undo')}
+            icon="undo"
+            size="small"
+            onpress={() => {
+              dismissed = ended.last;
+              void model.run('reference.history.undo', {});
+            }}
+          />
+        {/if}
+        <IconButton
+          handle={handleOf`page.gesture.dismiss`}
+          icon="close"
+          label={t('gesture.dismiss')}
+          size="small"
+          onpress={() => {
+            dismissed = ended.last;
+          }}
+        />
+      {/snippet}
+    </Toolbar>
+  {/if}
   {#if focus !== null}
     <Toolbar ariaLabel={t('focus.label')}>
       <Text>{t('focus.title', { label: focus.label })}</Text>
@@ -130,7 +264,7 @@
   {#if model.startProblem !== null}
     <Notice tone="danger" title={model.startProblem} handle={handleOf`page.panorama.problem`} />
   {/if}
-  {#if model.refusal !== null && !model.isSceneRefusal(model.refusal)}
+  {#if model.refusal !== null && !model.isSceneRefusal(model.refusal) && !model.isFeatureRefusal(model.refusal)}
     <Notice tone="danger" title={model.refusalText(model.refusal)} handle={handleOf`page.panorama.refusal`} />
   {/if}
   {#if model.status !== null && model.status.windows === 0}
