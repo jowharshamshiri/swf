@@ -1115,6 +1115,16 @@ browser and says what each renders with, and its `browsers` task makes the recor
 no GPU renders in software, where a browser may not reach 60 Hz even for the control; its numbers
 are an observation of that machine, not a verdict.
 
+What each browser's automation can and cannot do shapes what runs where (NFR-022). Real touch and
+pen input reach a page only in Chromium (over its DevTools protocol), so those cases are skipped
+elsewhere. Firefox driven over WebDriver BiDi (`moz-firefox`) cannot emulate an appearance or
+reduced motion through Playwright, so the accessibility cases that need them are skipped there. On
+a Windows guest, tasks run without a desktop session: a browser's window never has the system
+focus, so stable Firefox may fire no focus event for a `focus()` (scenario 10's keys panel then
+never shows), and headless Firefox composites in software. The heap is measured only in Chromium.
+Firefox's results that count are therefore from a Linux desktop, where it has the focus and
+composites at 60 Hz.
+
 Golden scenes and scripted interaction traces of the reference application's four view modes
 and eight behaviour modules are committed under `apps/reference/test/fixtures/golden` (QA-012):
 a change in behaviour shows as a changed fixture, reviewed and updated with `npx vitest -u`.
