@@ -42,6 +42,13 @@ export interface WindowEntry {
 
 const DEGREES = 180 / Math.PI;
 
+/** The commands the scene view runs: their refusals are said there, the rest over the centre. */
+const SCENE_COMMANDS: readonly AppCommandId[] = Object.freeze([
+  'reference.preset.load',
+  'reference.scene.reset',
+  'reference.scene.reseed',
+]);
+
 export class ShellModel {
   /** What the application shows, once it has started. */
   status = $state<AppStatus | null>(null);
@@ -52,6 +59,14 @@ export class ShellModel {
   refusal = $state<Refusal | null>(null);
   /** Why the application could not start: the address named something invalid, or it failed. */
   startProblem = $state<string | null>(null);
+  /** The scene's revision, read again on every commit: what views of the scene follow. */
+  revision = $state(0);
+  /** Rises whenever the search's query or results change. */
+  searchVersion = $state(0);
+  /** Rises each time a window is asked to be inspected: the shell opens the inspector. */
+  inspections = $state(0);
+  /** The window the map was last asked to show, and how many times it has been asked. */
+  mapRequest = $state<{ readonly id: string; readonly count: number } | null>(null);
 
   readonly messages: Messages;
   readonly #config: AppConfig | ConfigError;
@@ -108,8 +123,12 @@ export class ShellModel {
       }),
       app.workspace.subscribe((event) => {
         if (event.type === 'transaction.committed') {
+          this.revision = app.workspace.getState().revision;
           this.#readSelection();
         }
+      }),
+      app.search.subscribe(() => {
+        this.searchVersion += 1;
       }),
       app.presenter.subscribe((event) => {
         if (event.type === 'frame' && event.viewportId === VIEWPORT_ID) {
@@ -136,12 +155,40 @@ export class ShellModel {
     return true;
   }
 
+  /** Whether a refusal is of one of the scene's own commands, said where the scene is set. */
+  isSceneRefusal(refusal: Refusal): boolean {
+    return SCENE_COMMANDS.includes(refusal.command);
+  }
+
   /** The refusal, said in words. */
   refusalText(refusal: Refusal): string {
     return this.messages.format('error.command', {
       command: this.messages.format(APP_COMMAND_NAMES[refusal.command]),
       reason: refusal.message,
     });
+  }
+
+  /** Selects a window, as pressing it in a list or on the map does: nothing else changes. */
+  async select(id: string): Promise<boolean> {
+    return this.run('reference.window.inspect', { id });
+  }
+
+  /** Selects a window and opens the inspector on it. */
+  async inspect(id: string): Promise<boolean> {
+    const done = await this.run('reference.window.inspect', { id });
+    if (done) {
+      this.inspections += 1;
+    }
+    return done;
+  }
+
+  /** Selects a window, shows the map, and centres the map on it. */
+  async showInMap(id: string): Promise<boolean> {
+    const done = await this.run('reference.window.map', { id });
+    if (done) {
+      this.mapRequest = { id, count: (this.mapRequest?.count ?? 0) + 1 };
+    }
+    return done;
   }
 
   /** Every window, in ID order, by its label. */

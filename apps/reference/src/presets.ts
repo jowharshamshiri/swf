@@ -187,6 +187,39 @@ export function planPreset(id: PresetId, seed: number): readonly PlannedWindow[]
 
 const RADIANS = Math.PI / 180;
 
+/**
+ * The descriptive metadata the demo host exposes to search: each window's colour, by name. It is
+ * the host's description of its content, as a real host would describe a document by its project
+ * or owner; search reads it only because it is exposed, never the content itself.
+ */
+export const COLOUR_KEY = 'host.reference.colour';
+export const SEARCHABLE_METADATA: readonly string[] = Object.freeze([COLOUR_KEY]);
+
+const COLOURS = [
+  'Red',
+  'Orange',
+  'Yellow',
+  'Lime',
+  'Green',
+  'Mint',
+  'Cyan',
+  'Azure',
+  'Blue',
+  'Violet',
+  'Magenta',
+  'Rose',
+] as const;
+
+/** A hue's name: twelve names, each for thirty degrees centred on its own hue. */
+export function colourName(hue: number): string {
+  const index = Math.round((((hue % 360) + 360) % 360) / 30) % COLOURS.length;
+  const name = COLOURS[index];
+  if (name === undefined) {
+    throw new RangeError(`hue ${String(hue)} has no colour name`);
+  }
+  return name;
+}
+
 /** The commands that create a planned window and its surface, facing the camera at the origin. */
 export function windowCommands(window: PlannedWindow): SceneCommand[] {
   const h = window.heading * RADIANS;
@@ -200,6 +233,7 @@ export function windowCommands(window: PlannedWindow): SceneCommand[] {
         kind: 'window',
         label: window.label,
         tags: [window.content],
+        metadata: { [COLOUR_KEY]: colourName(window.hue) },
         bounds: [window.width, window.height, 0.01],
         transform: {
           position: [

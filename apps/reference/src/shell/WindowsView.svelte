@@ -1,41 +1,276 @@
 <script lang="ts">
-  // EVERY WINDOW, as a list: the panorama's windows by name, the selected one marked. Pressing
-  // one selects it and turns the camera to it, so any window is reached without a pointer on it.
-  import { List, ListItem, Pane } from '@wsb/uikit/components';
+  // EVERY WINDOW, FOUND BY WHAT THE WORKSPACE SAYS OF IT: its name, tags, the colour the host
+  // exposes, the groups it is in. Typing searches once it pauses; filters and a sort narrow and
+  // order the list; the list draws only the rows in view, reading the results a page at a time,
+  // so a scene of hundreds is all there and none of it is cut off. Pressing a row selects the
+  // window; its actions focus it, reveal it in the panorama, show it in the map or inspect it,
+  // and none of them moves it. Opening a row (a double press, or Enter) reveals it.
+  import {
+    Button,
+    EmptyState,
+    Field,
+    IconButton,
+    ListItem,
+    Pane,
+    Search,
+    Select,
+    Stack,
+    Text,
+    VirtualList,
+  } from '@wsb/uikit/components';
   import { handleOf, keyed } from '@wsb/uikit/handles';
+  import type { MessageId } from '../messages.js';
+  import type { SearchFilters, SearchResult, SortKey } from '../search.js';
+  import {
+    ATTACHMENT_FILTERS,
+    COVERAGE_FILTERS,
+    LOCK_FILTERS,
+    NO_FILTERS,
+    PAGE_SIZE,
+    SORT_KEYS,
+    VISIBILITY_FILTERS,
+  } from '../search.js';
   import type { ShellModel } from './model.svelte.js';
+  import WindowActions from './WindowActions.svelte';
 
   interface Props {
     model: ShellModel;
   }
 
   let { model }: Props = $props();
-  const t = (id: Parameters<typeof model.messages.format>[0]) => model.messages.format(id);
+  const t = (id: MessageId, params?: Readonly<Record<string, string | number>>) =>
+    model.messages.format(id, params);
 
-  // Read again whenever the scene's status changes: windows come and go with it.
-  const windows = $derived.by(() => {
-    void model.status;
-    return model.windows();
+  let filtersOpen = $state(false);
+
+  // Read again whenever the query or the results change.
+  const view = $derived.by(() => {
+    void model.searchVersion;
+    const search = model.app?.search;
+    if (search === undefined) {
+      return null;
+    }
+    return {
+      search,
+      query: search.query(),
+      typed: search.typed(),
+      pending: search.pending(),
+      ids: search.ids(),
+      groups: search.groups(),
+    };
   });
+  const filtered = $derived(
+    view !== null && JSON.stringify(view.query.filters) !== JSON.stringify(NO_FILTERS),
+  );
+
+  /** The result at an index, read from its page. */
+  function resultAt(index: number): SearchResult {
+    if (view === null) {
+      throw new Error('no search');
+    }
+    const row = view.search.page(Math.floor(index / PAGE_SIZE))[index % PAGE_SIZE];
+    if (row === undefined) {
+      throw new Error(`no result at ${String(index)}`);
+    }
+    return row;
+  }
+
+  const setFilter = (filters: Partial<SearchFilters>) => {
+    view?.search.setFilters(filters);
+  };
+  const options = <T extends string>(values: readonly T[], prefix: string) =>
+    values.map((value) => ({ value, label: t(`${prefix}.${value}` as MessageId) }));
 </script>
 
-<Pane
-  title={t('windows.title')}
-  handle={handleOf`page.windows`}
-  empty={windows.length === 0 ? { icon: 'list', title: t('empty.title') } : null}
->
-  <List ariaLabel={t('windows.title')}>
-    {#each windows as window (window.id)}
-      <ListItem
-        handle={keyed('page.windows.window', window.id)}
-        title={window.label}
-        detail={window.id}
-        icon="document"
-        selected={model.selected?.id === window.id}
-        onpress={() => {
-          void model.run('reference.window.reveal', { id: window.id });
+{#snippet row(index: number)}
+  {@const result = resultAt(index)}
+  {#snippet actions()}
+    <WindowActions {model} id={result.id} handle="page.windows.row" />
+  {/snippet}
+  <ListItem
+    handle={keyed('page.windows.window', result.id)}
+    title={result.label}
+    detail={result.groups.length === 0
+      ? result.id
+      : `${result.id} · ${t('search.in.groups', { groups: result.groups.join(' / ') })}`}
+    icon="document"
+    selected={model.selected?.id === result.id}
+    {actions}
+    onpress={() => {
+      void model.select(result.id);
+    }}
+    onopen={() => {
+      void model.run('reference.window.reveal', { id: result.id });
+    }}
+  />
+{/snippet}
+
+{#snippet filter()}
+  {#if view !== null}
+    <Stack gap="small">
+      <Search
+        handle={handleOf`page.windows.search`}
+        id="reference-search"
+        value={view.typed}
+        placeholder={t('search.placeholder')}
+        oninput={(text) => {
+          view.search.setText(text);
         }}
       />
-    {/each}
-  </List>
+      <Stack direction="row" gap="small" align="center">
+        <Stack grow>
+          <Select
+            handle={handleOf`page.windows.sort`}
+            id="reference-sort"
+            ariaLabel={t('search.sort')}
+            options={options(SORT_KEYS, 'search.sort')}
+            value={view.query.sort}
+            onchange={(sort) => {
+              view.search.setSort(sort as SortKey, view.query.descending);
+            }}
+          />
+        </Stack>
+        <IconButton
+          handle={handleOf`page.windows.reverse`}
+          icon={view.query.descending ? 'chevron-up' : 'chevron-down'}
+          label={t('search.reverse')}
+          size="small"
+          pressed={view.query.descending}
+          onpress={() => {
+            view.search.setSort(view.query.sort, !view.query.descending);
+          }}
+        />
+        <IconButton
+          handle={handleOf`page.windows.filters`}
+          icon="filter"
+          label={t('search.filters')}
+          size="small"
+          pressed={filtersOpen}
+          indicator={filtered ? t('search.filters') : undefined}
+          onpress={() => {
+            filtersOpen = !filtersOpen;
+          }}
+        />
+      </Stack>
+      {#if filtersOpen}
+        <Field label={t('search.group')} for="reference-filter-group">
+          {#snippet control()}
+            <Select
+              handle={handleOf`page.windows.filter.group`}
+              id="reference-filter-group"
+              options={[
+                { value: '', label: t('search.group.any') },
+                ...view.groups.map((group) => ({ value: group.id, label: group.label })),
+              ]}
+              value={view.query.filters.group ?? ''}
+              onchange={(group) => {
+                setFilter({ group: group === '' ? null : group });
+              }}
+            />
+          {/snippet}
+        </Field>
+        <Field label={t('search.visibility')} for="reference-filter-visibility">
+          {#snippet control()}
+            <Select
+              handle={handleOf`page.windows.filter.visibility`}
+              id="reference-filter-visibility"
+              options={options(VISIBILITY_FILTERS, 'search.visibility')}
+              value={view.query.filters.visibility}
+              onchange={(visibility) => {
+                setFilter({ visibility: visibility as SearchFilters['visibility'] });
+              }}
+            />
+          {/snippet}
+        </Field>
+        <Field label={t('search.lock')} for="reference-filter-lock">
+          {#snippet control()}
+            <Select
+              handle={handleOf`page.windows.filter.lock`}
+              id="reference-filter-lock"
+              options={options(LOCK_FILTERS, 'search.lock')}
+              value={view.query.filters.lock}
+              onchange={(lock) => {
+                setFilter({ lock: lock as SearchFilters['lock'] });
+              }}
+            />
+          {/snippet}
+        </Field>
+        <Field label={t('search.attachment')} for="reference-filter-attachment">
+          {#snippet control()}
+            <Select
+              handle={handleOf`page.windows.filter.attachment`}
+              id="reference-filter-attachment"
+              options={options(ATTACHMENT_FILTERS, 'search.attachment')}
+              value={view.query.filters.attachment}
+              onchange={(attachment) => {
+                setFilter({ attachment: attachment as SearchFilters['attachment'] });
+              }}
+            />
+          {/snippet}
+        </Field>
+        <Field label={t('search.coverage')} for="reference-filter-coverage">
+          {#snippet control()}
+            <Select
+              handle={handleOf`page.windows.filter.coverage`}
+              id="reference-filter-coverage"
+              options={options(COVERAGE_FILTERS, 'search.coverage')}
+              value={view.query.filters.coverage}
+              onchange={(coverage) => {
+                setFilter({ coverage: coverage as SearchFilters['coverage'] });
+              }}
+            />
+          {/snippet}
+        </Field>
+        <Button
+          handle={handleOf`page.windows.clear`}
+          label={t('search.clear')}
+          size="small"
+          disabled={!filtered}
+          onpress={() => {
+            view.search.clearFilters();
+          }}
+        />
+      {/if}
+      <Text quiet>{view.pending ? t('search.pending') : t('search.count', { count: view.ids.length })}</Text>
+    </Stack>
+  {/if}
+{/snippet}
+
+<Pane title={t('windows.title')} handle={handleOf`page.windows`} fill={view !== null && view.ids.length > 0} {filter}>
+  {#if view !== null && view.ids.length === 0 && model.status !== null && model.status.windows > 0}
+    <EmptyState icon="search" title={t('search.empty')} detail={t('search.empty.detail')}>
+      {#snippet action()}
+        <Stack direction="row" gap="small" justify="center">
+          <Button
+            handle={handleOf`page.windows.empty.clear`}
+            label={t('search.clear')}
+            disabled={!filtered}
+            onpress={() => {
+              view.search.clearFilters();
+            }}
+          />
+          <Button
+            handle={handleOf`page.windows.empty.reset`}
+            label={t('search.reset')}
+            variant="primary"
+            onpress={() => {
+              view.search.reset();
+            }}
+          />
+        </Stack>
+      {/snippet}
+    </EmptyState>
+  {:else if view !== null && view.ids.length === 0}
+    <EmptyState icon="list" title={t('empty.title')} />
+  {:else if view !== null}
+    <VirtualList
+      ariaLabel={t('search.results')}
+      handle={handleOf`page.windows.results`}
+      count={view.ids.length}
+      key={(index) => view.ids[index] ?? String(index)}
+      estimate={48}
+      {row}
+      selected={(index) => model.selected?.id === view.ids[index]}
+    />
+  {/if}
 </Pane>

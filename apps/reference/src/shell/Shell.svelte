@@ -14,7 +14,8 @@
   import InspectorView from './InspectorView.svelte';
   import type { ShellModel } from './model.svelte.js';
   import Palette from './Palette.svelte';
-  import PanoramaView from './PanoramaView.svelte';
+  import CentreView from './CentreView.svelte';
+  import { FOCUS_ID } from '../focus.js';
   import SceneView from './SceneView.svelte';
   import StatusBody from './StatusBody.svelte';
   import WindowsView from './WindowsView.svelte';
@@ -39,7 +40,11 @@
   let panelHeight = $state(190);
   let paletteOpen = $state(false);
 
-  /** Opens the command list as VS Code opens its command palette: Ctrl+Shift+P, or F1. */
+  /**
+   * Opens the command list as VS Code opens its command palette: Ctrl+Shift+P, or F1. Escape
+   * closes the focus, as it leaves VS Code's zen mode, unless something else took it first or it
+   * was pressed in a field or in a window's own content.
+   */
   function onkeydown(event: KeyboardEvent): void {
     const palette =
       event.key === 'F1' ||
@@ -47,8 +52,31 @@
     if (palette && model.app !== null) {
       event.preventDefault();
       paletteOpen = true;
+      return;
+    }
+    const target = event.target;
+    const typing =
+      target instanceof HTMLElement &&
+      (target.isContentEditable ||
+        target.closest('input, textarea, select, [data-swf-viewport] [data-swf-surface]') !== null);
+    if (
+      event.key === 'Escape' &&
+      !event.defaultPrevented &&
+      !paletteOpen &&
+      !typing &&
+      model.status?.mode === FOCUS_ID
+    ) {
+      event.preventDefault();
+      void model.run('reference.focus.exit', {});
     }
   }
+
+  // A window asked to be inspected: the inspector opens on it.
+  $effect(() => {
+    if (model.inspections > 0) {
+      rightView = 'inspector';
+    }
+  });
 
   const sideViews = (views: { id: string; icon: 'plans' | 'list' | 'info' | 'statistics'; label: string }[]) => views;
   const leftViews = $derived(
@@ -65,8 +93,21 @@
         : [{ id: 'diagnostics', icon: 'statistics' as const, label: t('diagnostics.title') }]),
     ]),
   );
+  // Focus needs a window: offered once one is selected or focused, or while it is shown.
+  const focusable = $derived.by(() => {
+    void model.revision;
+    return (
+      model.selected !== null ||
+      model.status?.mode === FOCUS_ID ||
+      (model.app?.workspace.getState().focusedId ?? null) !== null
+    );
+  });
   const modes = $derived(
-    (model.app?.modes.list() ?? []).map((mode) => ({ value: mode.id, label: t(mode.name) })),
+    (model.app?.modes.list() ?? []).map((mode) => ({
+      value: mode.id,
+      label: t(mode.name),
+      disabled: mode.id === FOCUS_ID && !focusable,
+    })),
   );
   const backends = $derived(BACKEND_IDS.map((id) => ({ value: id, label: t(`backend.${id}`) })));
   const status = $derived(model.status);
@@ -92,7 +133,7 @@
 {/snippet}
 
 {#snippet centreView()}
-  <PanoramaView {model} />
+  <CentreView {model} />
 {/snippet}
 
 {#snippet editorActions()}

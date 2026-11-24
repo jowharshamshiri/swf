@@ -114,6 +114,14 @@ A surface's geometry is a descriptor: the built-in `rect` and `polygon`, or a ki
 registers with `registerGeometry`. Descriptors are validated against configurable complexity
 limits, and `workspace.surfaceGeometry(id)` places one in the world for rendering and picking.
 
+`findNodes` (also `workspace.findNodes`) finds nodes by what the workspace says about them, never
+by what a surface shows. Its text matches, as a Unicode-normalized (NFKC), case-insensitive
+substring, a node's ID, label and tags; the values at the metadata keys the query exposes
+(`metadataKeys`, string and number values only; any other metadata is never searched); and, with
+`groupPath`, the labels and IDs of the groups the node is in. It filters by kind, tags, `within`
+(inside a group's subtree), effective visibility and lock, and returns IDs in scene order. `fold`
+is the same normalization, for callers that compare names.
+
 ## Binding surfaces
 
 ```ts
@@ -606,12 +614,12 @@ and a store that holds a newer one, saved elsewhere, refuses it with `CONFLICT`.
 
 `apps/reference` is a host of the framework like any other: it imports only the packages' public
 entry points and registers everything it shows through them (the demo content's adapters, the
-DOM, layered and geometry backends, the projection, input and the view modes). It shows the
-scene as a 360° panorama around the camera.
+DOM, layered and geometry backends, the projection, input and the view modes). It shows one
+scene four ways: as a 360° panorama around the camera, in focus, on a map from above and as tiles.
 
 Its window is built from wsb's UI kit (`@wsb/uikit`) with Svelte 5, and nothing else: every
-control, look and automation handle is the kit's. The scene's controls and the list of windows
-are on the left; what is selected is on the right; the panorama is the whole centre, with the
+control, look and automation handle is the kit's. The scene's controls and the windows (with their
+search) are on the left; what is selected is on the right; the panorama is the whole centre, with the
 view mode, the backend, the command list and the panel across its top; how the panorama is
 presented is in the panel below it. In a narrow window one side at a time floats
 over the panorama. Ctrl+Shift+P or F1 opens the command list, which runs every command and goes
@@ -665,7 +673,55 @@ DOM one.
 Every string the application shows is a message with a stable ID, in English unless a translation
 pack is given, and each action is a command with a stable ID (`reference.preset.load`,
 `reference.scene.reset`, `reference.scene.reseed`, `reference.mode.switch`,
-`reference.backend.switch`, `reference.window.reveal`).
+`reference.backend.switch`, `reference.window.reveal`, `reference.focus.enter`,
+`reference.focus.exit`, `reference.focus.step`, `reference.window.map`,
+`reference.window.inspect`, `reference.window.place`).
+
+### View modes
+
+The modes switcher across the top of the centre shows the one scene four ways. A mode is the
+viewport's view setting, never a placement: switching mode changes no window's world transform,
+ID or surface association, and the panorama stays presented in the same element throughout, so no
+content is attached or detached by a switch.
+
+- **Panorama**: the whole 360° around the camera.
+- **Focus**: the selected (or focused) window shown readably, centred and filling three-quarters
+  of the view at most two and a half times its content's own size, by turning the camera to face
+  it and narrowing the projection to frame it (the same angle per pixel across and down, so
+  nothing is stretched). A bar above names it; a row below holds the nearest windows to its left
+  and right, with how far round each lies, and pressing one focuses it. Focus follows the
+  workspace's focus, so focusing a window from any list, tile or the map frames that one; a resize
+  fits the frame again. Escape or the bar's close button leaves focus for the mode, projection and
+  camera it was entered from, and leaving it for any other mode puts the camera back too.
+- **Map**: the scene from above, with straight ahead of the default camera up the page: the
+  camera and its heading, the ground in front of it and behind it shaded apart, rings a world unit
+  apart, and each window as the line it stands on, filled in front and hollow behind, with its name.
+  Dragging a window moves it on the ground, previewed in every view as it goes (the panorama below
+  the map shows it move) and committed once when let go; Escape puts it back. A window moved round
+  the camera turns with it, so it keeps facing the camera. Dragging the ground pans, the wheel and
+  the zoom buttons zoom, and the fields beside the map place the selected window exactly, its
+  height (which a map from above cannot show) included.
+- **Overview**: every window the search finds, as tiles, a page at a time with the rest a press
+  away. A tile is the window itself: pressing it selects that window's ID, opening it (a double
+  press or Enter) focuses it.
+
+The map and the overview take the top of the centre over the live panorama, with a movable edge
+between them.
+
+### Search
+
+The Windows view finds windows by their workspace metadata only: ID, label, tags, the descriptive
+metadata the host exposes (the demo host exposes each window's colour, `host.reference.colour`)
+and the labels of the groups they are in. It never looks at what a window shows. Matching is the
+kernel's `findNodes` (Unicode-normalized NFKC, case-insensitive substrings), run once typing has
+paused for 100 ms. Filters, which compose, narrow by group (at any depth), effective visibility,
+lock, how the window's content is attached (attached, attaching, not bound or failed) and whether
+the viewport shows it. Results sort by most recently focused (the default), name (numbers by their
+value), distance from the camera, group or ID, either way round; ties go by name, then ID. The
+list draws only the rows in view and reads the results in pages of 50, so hundreds are all
+reachable and none is cut off; when nothing matches it says so and offers to clear the filters or
+reset the search. Each result can be focused, revealed in the panorama, shown in the map or
+inspected, and none of these moves it.
 
 ## Development
 

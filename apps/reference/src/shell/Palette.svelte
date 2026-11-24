@@ -5,6 +5,7 @@
   import { handleOf } from '@wsb/uikit/handles';
   import type { AppCommandId, AppCommandSpecs } from '../commands.js';
   import { BACKEND_IDS } from '../config.js';
+  import { FOCUS_ID } from '../focus.js';
   import type { MessageId } from '../messages.js';
   import { PRESET_IDS, PRESETS } from '../presets.js';
   import type { ShellModel } from './model.svelte.js';
@@ -59,6 +60,27 @@
         { mode: mode.id },
       ),
     ),
+    ...(model.selected === null
+      ? []
+      : [
+          command(
+            'focus.enter',
+            t('command.focus.enter.named', { label: model.selected.label ?? model.selected.id }),
+            'reference.focus.enter',
+            { id: model.selected.id },
+          ),
+        ]),
+    ...(model.status?.mode === FOCUS_ID
+      ? [
+          command('focus.exit', t('command.focus.exit'), 'reference.focus.exit', {}),
+          command('focus.left', t('command.focus.step.left'), 'reference.focus.step', {
+            direction: 'left',
+          }),
+          command('focus.right', t('command.focus.step.right'), 'reference.focus.step', {
+            direction: 'right',
+          }),
+        ]
+      : []),
     ...BACKEND_IDS.map((backend) =>
       command(
         `backend.${backend}`,

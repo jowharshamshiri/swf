@@ -14,8 +14,8 @@ import {
   LayerCompositor,
   LayeredRenderer,
 } from '@swf/backend-geometry';
-import type { SceneCommand, TxResult, Workspace } from '@swf/core';
-import { createWorkspace } from '@swf/core';
+import type { SceneCommand, SceneState, TxResult, Workspace } from '@swf/core';
+import { createWorkspace, nodeFrameGeometry, worldMatrix } from '@swf/core';
 import type { InteractionRouter } from '@swf/interaction';
 import { createInteractionRouter } from '@swf/interaction';
 import type {
@@ -25,9 +25,14 @@ import type {
   Presenter,
   SwitchOutcome,
 } from '@swf/presentation';
-import { createPresentationRegistry, createPresenter } from '@swf/presentation';
+import { createPresentationRegistry, createPresenter, viewGeometryOf } from '@swf/presentation';
 import type { ProjectionRegistry } from '@swf/projections';
-import { cameraRotation, createProjectionRegistry, equirectangular } from '@swf/projections';
+import {
+  cameraRotation,
+  createProjectionRegistry,
+  equirectangular,
+  projectionFor,
+} from '@swf/projections';
 import type { SurfaceRuntime } from '@swf/surfaces';
 import { createSurfaceRuntime } from '@swf/surfaces';
 import type { AppCommands } from './commands.js';
@@ -37,10 +42,15 @@ import type { DemoContent } from './content.js';
 import { createDemoContent } from './content.js';
 import type { Messages } from './messages.js';
 import { createMessages } from './messages.js';
+import type { FocusContext } from './focus.js';
+import { createFocusMode, FOCUS_ID, focusContext } from './focus.js';
+import { placedAt } from './map.js';
 import type { Modes } from './modes.js';
-import { createModes, PANORAMA } from './modes.js';
+import { createModes, MAP, OVERVIEW, PANORAMA } from './modes.js';
 import type { PresetId } from './presets.js';
-import { CAMERA_ID, planPreset, PRESETS, windowCommands } from './presets.js';
+import { CAMERA_ID, planPreset, PRESETS, SEARCHABLE_METADATA, windowCommands } from './presets.js';
+import type { Attachment, Search } from './search.js';
+import { createSearch } from './search.js';
 import { MAX_SEED, seedIssue } from './random.js';
 
 /** The viewport the application presents. */
@@ -51,6 +61,9 @@ export const VIEWPORT_ID = 'main';
  * so content lays out small and is scaled down less.
  */
 const PIXELS_PER_UNIT = 160;
+
+/** How focus frames a window: three-quarters of the view, at most two and a half times its size. */
+const FOCUS = Object.freeze({ fill: 0.75, maxMagnification: 2.5, pixelsPerUnit: PIXELS_PER_UNIT });
 
 /** The layered renderer: live content from the DOM, everything else drawn on canvases. */
 export const LAYERED_RENDERER_ID = 'swf.layered-renderer/1';
@@ -108,6 +121,8 @@ export interface ReferenceApp {
   readonly content: DemoContent;
   readonly messages: Messages;
   readonly commands: AppCommands;
+  /** Finding windows by their labels, tags, exposed metadata and groups. */
+  readonly search: Search;
   status(): AppStatus;
   subscribe(listener: (status: AppStatus) => void): () => void;
   /**
@@ -126,6 +141,22 @@ export interface ReferenceApp {
    * window itself does not move.
    */
   revealWindow(id: string): TxResult;
+  /** Selects a window and shows the map. */
+  showInMap(id: string): TxResult;
+  /**
+   * Puts a window at a world position (each coordinate left out stays as it is), turning it about
+   * the vertical as it moves round the camera so it keeps facing it: one undoable commit.
+   */
+  placeWindow(
+    id: string,
+    at: {
+      readonly x?: number | undefined;
+      readonly y?: number | undefined;
+      readonly z?: number | undefined;
+    },
+  ): TxResult;
+  /** The windows around the focused one while focus is shown; null otherwise. */
+  focusNeighbours(): FocusContext | null;
   dispose(): Promise<void>;
 }
 
@@ -279,6 +310,46 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
 
   const modes = createModes(workspace, VIEWPORT_ID);
   modes.register(PANORAMA);
+  modes.register(createFocusMode(FOCUS));
+  modes.register(MAP);
+  modes.register(OVERVIEW);
+
+  const attachmentOf = (state: SceneState, nodeId: string): Attachment => {
+    const surfaceId = state.nodes.get(nodeId)?.surfaceIds[0];
+    const presented = surfaceId === undefined ? undefined : runtime.get(surfaceId);
+    switch (presented?.state) {
+      case 'ready':
+      case 'presented':
+      case 'hidden':
+        return 'attached';
+      case 'binding':
+      case 'detaching':
+        return 'pending';
+      case 'error':
+        return 'failed';
+      default:
+        return 'unbound';
+    }
+  };
+  const coverageOf = (state: SceneState, nodeId: string) => {
+    const view = viewGeometryOf(state, VIEWPORT_ID);
+    const module = projections.get(view.projectionId);
+    const frame = nodeFrameGeometry(state, nodeId);
+    if (module === undefined || frame === undefined) {
+      throw new Error(`window "${nodeId}" cannot be placed in the view`);
+    }
+    return projectionFor(module, view).clipVisibility(frame, view).state === 'outside'
+      ? ('out-of-view' as const)
+      : ('in-view' as const);
+  };
+  const search = createSearch({
+    workspace,
+    viewportId: VIEWPORT_ID,
+    metadataKeys: SEARCHABLE_METADATA,
+    attachment: attachmentOf,
+    coverage: coverageOf,
+    watch: (refresh) => runtime.subscribe(refresh),
+  });
 
   let scene: SceneSource = { preset: config.preset, seed: config.seed };
   const listeners = new Set<(status: AppStatus) => void>();
@@ -329,6 +400,10 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
     if (issue !== null) {
       throw new RangeError(`${issue} (got ${String(seed)})`);
     }
+    // Focus is on a window about to go: leave it first, putting its view back.
+    if (modes.current() === FOCUS_ID && modes.enteredFrom() !== null) {
+      modes.back({ source: 'system' });
+    }
     const windows = planPreset(preset, seed);
     content.add(windows);
     const state = workspace.getState();
@@ -364,6 +439,7 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
     content,
     messages,
     commands: createAppCommands(() => app),
+    search,
     status,
     subscribe(listener) {
       listeners.add(listener);
@@ -389,7 +465,11 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
       if (node?.kind !== 'window') {
         throw new Error(`no window "${id}"`);
       }
-      const [x, , z] = node.transform.position;
+      if (modes.current() !== PANORAMA.id) {
+        modes.switchTo(PANORAMA.id);
+      }
+      const world = worldMatrix(workspace.getState().nodes, id);
+      const [x, z] = world === undefined ? [0, -1] : [world[12], world[14]];
       return workspace.transaction(
         [
           { type: 'selection.set', ids: [id] },
@@ -399,7 +479,34 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
         { source: 'user' },
       );
     },
+    showInMap(id) {
+      const selected = workspace.dispatch({ type: 'selection.set', ids: [id] }, { source: 'user' });
+      if (selected.status !== 'committed' || modes.current() === MAP.id) {
+        return selected;
+      }
+      return modes.switchTo(MAP.id);
+    },
+    placeWindow(id, at) {
+      const state = workspace.getState();
+      const camera = state.cameras.get(CAMERA_ID);
+      if (camera === undefined) {
+        throw new Error(`no camera "${CAMERA_ID}"`);
+      }
+      const transform = placedAt(state, id, camera.position, at);
+      if (transform === null) {
+        throw new Error(`window "${id}" cannot be placed: its group's placement is singular`);
+      }
+      return workspace.dispatch({ type: 'node.patch', id, transform }, { source: 'user' });
+    },
+    focusNeighbours() {
+      const state = workspace.getState();
+      const camera = state.cameras.get(CAMERA_ID);
+      return modes.current() !== FOCUS_ID || state.focusedId === null || camera === undefined
+        ? null
+        : focusContext(state, state.focusedId, camera.position);
+    },
     async dispose() {
+      search.dispose();
       await mount.release();
       unwatch();
       unwatchPresenter();

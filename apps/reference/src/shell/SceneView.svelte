@@ -98,7 +98,7 @@
         }}
       />
     </Stack>
-    {#if model.refusal !== null}
+    {#if model.refusal !== null && model.isSceneRefusal(model.refusal)}
       <Notice
         tone="danger"
         title={model.refusalText(model.refusal)}
