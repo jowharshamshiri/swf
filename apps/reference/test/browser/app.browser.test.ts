@@ -207,7 +207,9 @@ describe('the panorama on the DOM backend (UX-002, WF-01)', () => {
     });
     await commands.mouse('move', x, y);
     await commands.mouse('down', x, y, ['Alt']);
+    let steps = 0;
     for (let px = x + 4; px <= W - 4; px += 4) {
+      steps += 1;
       await commands.mouse('move', px, y);
       // Previews are announced once per animation frame: let each move have its own.
       await new Promise((resolve) => requestAnimationFrame(resolve));
@@ -216,8 +218,10 @@ describe('the panorama on the DOM backend (UX-002, WF-01)', () => {
     unwatch();
     expect(gestures).toEqual(['start node.move window-01', 'end committed']);
     expect(a.workspace.getState().revision).toBe(revision + 1);
-    // The drag previewed the window at every step on the way.
-    expect(headings.length).toBeGreaterThan(8);
+    // The drag previewed the window at every step on the way but the first, which is within the
+    // pointer's slop and only starts the drag.
+    expect(steps).toBeGreaterThan(8);
+    expect(headings.length).toBeGreaterThanOrEqual(steps - 1);
     // The window crossed the seam: from 180° to the other side, moving steadily right.
     const after = headingOf(a, 'window-01');
     expect(after).toBeGreaterThan(-178);
