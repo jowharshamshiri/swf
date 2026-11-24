@@ -11,6 +11,8 @@ export default defineConfig(
       '.vitest/**',
       // The program lungo generates from models/: never edited by hand.
       'packages/models/program/**',
+      // Lake's build of the models and the sources of their dependencies.
+      'models/.lake/**',
       // The pinned checkout of wsb, for its UI kit, and the dev-server test's copy of the app.
       'wsb/**',
       'apps/reference/.dev-test-*/**',

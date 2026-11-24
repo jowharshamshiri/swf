@@ -10,6 +10,11 @@ interaction; the host owns whatever is presented.
 - `@swf/math`: vectors, unit quaternions, position/rotation/scale transforms, affine matrices,
   rays, axis-aligned boxes, and a seeded random sequence that is the same on every engine. The world is right-handed and +Y up; the default camera looks along
   -Z with +X to the right. Lengths are arbitrary world units.
+- `@swf/models`: the framework's and the reference application's state machines and decision
+  logic, written in Lean with their invariants proved, and compiled by lungo into one WebAssembly
+  program that this package loads once when it is first imported (see
+  [State machines and decision logic](#state-machines-and-decision-logic)). Only the packages that
+  decide something through it depend on it.
 - `@swf/core`: the scene kernel. Spatial nodes and their hierarchy, surface associations with
   their geometry, cameras and viewports, constraints, atomic revisioned transactions, previews, undo and redo,
   idempotency keys, typed events and the workspace lifecycle. It needs no DOM, renderer or UI
@@ -1057,6 +1062,61 @@ list draws only the rows in view and reads the results in pages of 50, so hundre
 reachable and none is cut off; when nothing matches it says so and offers to clear the filters or
 reset the search. Each result can be focused, revealed in the panorama, shown in the map or
 inspected, and none of these moves it.
+
+## State machines and decision logic
+
+Every state machine of the framework and the reference application, and every decision that
+admits, refuses, orders or chooses, is a Lean model in `models/` (the Lake project `swf_models`),
+with its invariants stated and proved in Lean. lungo compiles the models into one program,
+`swf-models`, and generates the TypeScript package `packages/models/program/` from it: the
+program as WebAssembly, its typed API, and `assurance.json`, which records every claim proved of
+every export. `@swf/models` loads the program once, with top-level await, on lungo's minimal WASI
+in every environment; the packages call it synchronously and keep their own public APIs, converting
+their values at the boundary. The TypeScript does the work (binding, rendering, storing, moving
+attachments); the model decides each state it passes through and each request it admits.
+
+| Model           | Decides                                                                                                                                                                                               |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Swf.Kernel`    | The workspace lifecycle (§13.1); a transaction's admission, idempotent replay and refusals in order; what a commit, undo, redo or restore does to the revision, the history and the idempotency cache |
+| `Swf.Hierarchy` | That a node never becomes its own ancestor (reparenting, grouping), and which commands a lock refuses                                                                                                 |
+| `Swf.Surface`   | Every surface presentation state and its announcement (§13.2), and the bind, unbind, present, replace, move and hide requests each state admits, single-owner mounts included                         |
+| `Swf.Gesture`   | Where each pointer sample, press and key goes; each gesture phase from press to commit or cancel (§13.3); the keyboard hold's admission                                                               |
+| `Swf.Save`      | The snapshot save states (§13.4), which acknowledgements count, and that the saved revision never goes back                                                                                           |
+| `Swf.Migration` | The steps that bring a snapshot of an older format to the current one, without cycles                                                                                                                 |
+| `Swf.Fallback`  | Each fragment's presentation mode, its fallback report, fidelities and layer, which fragment holds the live handle, and which fallback orders are policies; a whole frame in one call                 |
+| `Swf.Handoff`   | Each backend handoff stage (§13.5), what becomes of every attached surface, and whether a failed handoff keeps the previous backend or degrades the viewport                                          |
+| `Swf.ViewMode`  | The reference application's view-mode switch and the view a mode returns to                                                                                                                           |
+
+`lungo.toml` names the exports and requires a proved claim of every one (`require-claims`); a claim
+proved with `sorry` fails the build. Read what was proved of an export with
+`lungo assurance Swf.Kernel.gate`, or in `packages/models/program/assurance.json`;
+`packages/models/test/assurance.test.ts` checks that every export the packages call carries proved
+claims resting on nothing but Lean's standard axioms.
+
+### Building and changing the models
+
+The models need the `lungo` command at version 1.127.0 (machinefabric's apt package; without
+installing anything on the machine, `apt-get download lungo=1.127.0` and `dpkg -x` it into a
+folder of your own, then put its `opt/lungo` on `PATH`) and Lean 4.35.0, which
+`lungo setup`, run at the repository root, installs through elan in the per-user elan home. The Lake project
+requires lungo's Lean library at the same version (`models/lakefile.toml`, locked by
+`models/lake-manifest.json`). npm builds and tests need neither: the generated program is
+committed.
+
+```sh
+cd models && lake build && cd ..   # elaborate the models and check every proof
+npm run models                     # regenerate packages/models/program from them
+npm run models:verify              # check that the committed program is what the models generate
+```
+
+To change a decision, change its model, never the TypeScript around it: edit the Lean, state and
+prove what the change must keep, add any new export to `lungo.toml`, run `npm run models`, adapt
+the boundary in the package that calls it, and commit the Lean and the regenerated program together.
+`npm run check` starts with `models:verify`, so a program out of step with its models fails it.
+`packages/models/program/` is generated: never edit it by hand (`.gitattributes` marks it so).
+
+The reference application's single-file page carries the program inlined, as a data URL its loader
+fetches, so the page still runs offline from the file.
 
 ## Development
 
