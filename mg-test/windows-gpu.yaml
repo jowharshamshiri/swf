@@ -22,6 +22,13 @@ tasks:
       SWF_BENCH_TRIAL_MS: '8000'
     timeout: 90m
     evidence: [out/**]
+  # The browser suites in Chrome and Firefox alone, recorded per browser.
+  suites:
+    target: windows
+    shell: powershell
+    command: powershell -NoProfile -ExecutionPolicy Bypass -File "$env:MG_TEST_WORKSPACE\mg-test\windows.ps1" -Part suites
+    timeout: 90m
+    evidence: [out/**]
   # The record: the browser suites in Chrome and Firefox, then the benchmark.
   browsers:
     target: windows

@@ -11,9 +11,9 @@
 #
 # Written for Windows PowerShell 5.1, which is what a guest runs, and in ASCII:
 # the guest reads this file as cp1252.
-# -Part bench runs the benchmark alone (the browser suites are the default's too).
+# -Part bench runs the benchmark alone, -Part suites the browser suites alone; the default runs both.
 param(
-    [ValidateSet('all', 'bench')]
+    [ValidateSet('all', 'bench', 'suites')]
     [string] $Part = 'all'
 )
 $ErrorActionPreference = 'Stop'
@@ -128,15 +128,18 @@ $env:SWF_FIREFOX_CHANNEL = 'moz-firefox'
 $nodeExe = Join-Path $node 'node.exe'
 
 $conformance = 0
-if ($Part -eq 'all') {
+if ($Part -ne 'bench') {
     Say 'browser suites, per browser'
     $conformance = Invoke-Native -Program $nodeExe -Arguments @('scripts/conformance.mjs', '--out', (Join-Path $out 'conformance'), '--browsers', 'chromium,firefox')
     Say "conformance exited $conformance"
 }
 
-Say 'performance benchmark, one browser at a time'
-$bench = Invoke-Native -Program $nodeExe -Arguments @('scripts/bench.mjs', '--out', (Join-Path $out 'bench'), '--browsers', 'chromium,firefox')
-Say "benchmark exited $bench"
+$bench = 0
+if ($Part -ne 'suites') {
+    Say 'performance benchmark, one browser at a time'
+    $bench = Invoke-Native -Program $nodeExe -Arguments @('scripts/bench.mjs', '--out', (Join-Path $out 'bench'), '--browsers', 'chromium,firefox')
+    Say "benchmark exited $bench"
+}
 
 if ($conformance -ne 0 -or $bench -ne 0) {
     throw "swf-test: conformance exited $conformance, benchmark $bench"
