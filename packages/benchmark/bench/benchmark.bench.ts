@@ -16,9 +16,11 @@ import {
   layoutViewports,
   meetsFrameBudget,
   planFixture,
+  recordControl,
   recordFrames,
   recordPicks,
   recordPreviewLatency,
+  PAGE,
   STANDARD,
   STRESS,
   summarize,
@@ -64,6 +66,8 @@ declare module 'vitest/browser' {
 
 const settings = inject('swfBench');
 const POINTER_STEP_MS = 8;
+/** How long the control moves its element each trial. */
+const CONTROL_MS = 10_000;
 const PICK_POINTS = 500;
 const PICKS_PER_POINT = 20;
 /** The most pointer moves waiting to be shown at once that still counts as a bounded queue. */
@@ -238,11 +242,14 @@ async function measure(name: 'standard' | 'stress', size: FixtureSize) {
   const cold: number[] = [];
   const heap: number[] = [];
   const pickTrials: Summary[] = [];
+  const control: FrameAnalysis[] = [];
   const rotation: ScenarioTrial[] = [];
   const drag: ScenarioTrial[] = [];
   for (let trial = 0; trial < settings.trials; trial++) {
     clear();
     await nextFrame();
+    // The control: what this browser on this machine gives a page that moves one element.
+    control.push(analyseFrames(await recordControl(document.body, PAGE, CONTROL_MS)));
     const before = await commands.heap();
     // NFR-007: a cold scene, from an empty workspace to every viewport's first frame presented.
     const started = performance.now();
@@ -391,11 +398,13 @@ async function measure(name: 'standard' | 'stress', size: FixtureSize) {
       latency:
         'pointer event timeStamp to the start of the animation frame after the presented frame that shows its preview',
       heap: 'Chromium only: V8 and embedder heap after two forced collections, with the host presented, less before it',
+      control: `each trial first moves one plain 400×300 element across the page every animation frame for ${String(CONTROL_MS / 1000)} s, with no framework: what the browser on this machine gives a page at all`,
     },
     measures: {
       cold: { trials: cold, summary: summarize(cold) },
       heap: heap.length === 0 ? null : { trials: heap, summary: summarize(heap) },
       picks: { trials: pickTrials },
+      control: { trials: control },
       rotation: { trials: rotation },
       drag: { trials: drag },
       growth: { ...growth, exponents },

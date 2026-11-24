@@ -23,7 +23,13 @@ export {
 export type { BenchmarkHost, BenchmarkHostOptions, HostViewport } from './host.js';
 export { createBenchmarkHost, layoutViewports } from './host.js';
 export type { FrameRecorder, PickRecorder, PreviewLatency, PreviewRecorder } from './measure.js';
-export { recordFrames, recordPicks, recordPreviewLatency, timePicks } from './measure.js';
+export {
+  recordControl,
+  recordFrames,
+  recordPicks,
+  recordPreviewLatency,
+  timePicks,
+} from './measure.js';
 export type { ResourceCounts, ResourceProbe } from './probe.js';
 export { createResourceProbe } from './probe.js';
 export type { FrameAnalysis, Growth, Summary } from './stats.js';

@@ -8,6 +8,7 @@ import {
   growthExponent,
   layoutViewports,
   planFixture,
+  recordControl,
   STANDARD,
   summarize,
 } from '../../src/index.js';
@@ -80,6 +81,17 @@ describe('the standard benchmark fixture in a real browser (§26.1)', () => {
       expect(frame?.frame.planned.some((p) => p.negotiation.mode === 'proxy')).toBe(true);
       expect(v.container.querySelectorAll('[data-swf-surface]').length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe('the control a run is read against', () => {
+  it('moves one plain element every animation frame for as long as asked, then takes it away', async () => {
+    const element = page();
+    const stamps = await recordControl(element, { width: 1920, height: 1080 }, 500);
+    // Half a second at any ordinary frame rate: more than a dozen frames, in order.
+    expect(stamps.length).toBeGreaterThan(12);
+    expect(stamps.every((t, i) => i === 0 || t >= (stamps[i - 1] ?? 0))).toBe(true);
+    expect(element.childElementCount).toBe(0);
   });
 });
 

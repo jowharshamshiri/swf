@@ -631,7 +631,9 @@ A run measures with `recordFrames` (animation-frame timestamps), `recordPreviewL
 each pointer event's timestamp to the start of the frame after the one that shows its preview,
 with the most moves waiting at once), `recordPicks` (the router's own hit-query times) and
 `timePicks` (hit queries at fixed points, many per point so that a coarse clock still resolves
-them). `summarize` gives median, 95th percentile (by nearest rank) and maximum; `analyseFrames`
+them), and `recordControl`, the control a run is read against: the page itself moving one plain
+element every frame, with no framework, which shows what the browser on the machine gives a page
+at all. `summarize` gives median, 95th percentile (by nearest rank) and maximum; `analyseFrames`
 gives intervals, a histogram in 1 ms bins, skipped frames and the share of intervals that were
 one display frame, and `meetsFrameBudget` holds NFR-001: at least 95% of intervals one 60 Hz
 frame, at the 60 Hz rate itself. `growthExponent` fits how a cost grows with the scene (about 1
@@ -1095,7 +1097,8 @@ The performance benchmark runs one browser at a time on a 1920×1080 page:
 fixtures as JSON, and `benchmark.md` with every measure's median, 95th percentile and maximum
 over five trials, the environment and the method, and a verdict for each budget on the standard
 fixture (the stress fixture records how far it degrades, held only to sub-quadratic growth). A
-trial times cold creation (NFR-007), the retained heap (NFR-006), hit queries (NFR-003), and 60
+trial first records the control, then times cold creation (NFR-007), the retained heap (NFR-006),
+hit queries (NFR-003), and 60
 seconds after a warm-up each of turning the camera by its background and dragging a window by
 its frame with the real mouse (NFR-001, NFR-004), and one window's move at 125 to 1000 windows
 (NFR-008). The heap is measured where the engine reports it to automation, which only Chromium

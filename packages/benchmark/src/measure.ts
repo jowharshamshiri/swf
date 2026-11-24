@@ -32,6 +32,79 @@ export function recordFrames(view: Window): FrameRecorder {
   };
 }
 
+/**
+ * The control a run is read against: the page itself moving one plain element every animation
+ * frame, with no framework, for `durationMs`, on a page of the given size. What the browser
+ * manages here is what the machine and the browser can give a page at all; a run's frames are
+ * read against it. Resolves to the frames' timestamps.
+ */
+export async function recordControl(
+  parent: HTMLElement,
+  size: { readonly width: number; readonly height: number },
+  durationMs: number,
+): Promise<readonly number[]> {
+  const document = parent.ownerDocument;
+  const view = document.defaultView;
+  if (view === null) {
+    throw new Error('the parent element is not in a window');
+  }
+  const page = document.createElement('div');
+  const box = document.createElement('div');
+  for (const [element, styles] of [
+    [
+      page,
+      {
+        position: 'absolute',
+        left: '0',
+        top: '0',
+        width: `${String(size.width)}px`,
+        height: `${String(size.height)}px`,
+        overflow: 'hidden',
+      },
+    ],
+    [
+      box,
+      {
+        position: 'absolute',
+        left: '0',
+        top: '0',
+        width: '400px',
+        height: '300px',
+        background: '#dde4ee',
+        font: '14px sans-serif',
+      },
+    ],
+  ] as const) {
+    for (const [property, value] of Object.entries(styles)) {
+      element.style.setProperty(property, value);
+    }
+  }
+  box.textContent = 'control';
+  page.append(box);
+  parent.append(page);
+  const frames = recordFrames(view);
+  const started = view.performance.now();
+  await new Promise<void>((resolve) => {
+    const move = (time: number) => {
+      const t = time - started;
+      const x = (size.width - 400) * (0.5 + 0.5 * Math.sin((2 * Math.PI * t) / 2000));
+      box.style.setProperty(
+        'transform',
+        `translate(${x.toFixed(2)}px, ${String(size.height / 3)}px)`,
+      );
+      if (t < durationMs) {
+        view.requestAnimationFrame(move);
+      } else {
+        resolve();
+      }
+    };
+    view.requestAnimationFrame(move);
+  });
+  const stamps = frames.stop();
+  page.remove();
+  return stamps;
+}
+
 /** What a preview-latency recording found. */
 export interface PreviewLatency {
   /** For each pointer move shown, milliseconds from its event to the frame after it was drawn. */
