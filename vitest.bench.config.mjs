@@ -1,7 +1,15 @@
 import process from 'node:process';
 import { playwright } from '@vitest/browser-playwright';
 import { defineConfig } from 'vitest/config';
-import { browserInstances, environment, heap, mouse, record, sweep } from './vitest.browsers.mjs';
+import {
+  browserInstances,
+  headless,
+  environment,
+  heap,
+  mouse,
+  record,
+  sweep,
+} from './vitest.browsers.mjs';
 import nodeConfig from './vitest.config.mjs';
 
 /**
@@ -44,7 +52,7 @@ export default defineConfig({
     },
     browser: {
       enabled: true,
-      headless: true,
+      headless: headless(),
       viewport: { width: 1920, height: 1080 },
       provider: playwright(),
       commands: { mouse, sweep, heap, environment, record },

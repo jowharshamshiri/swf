@@ -2,7 +2,16 @@ import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { playwright } from '@vitest/browser-playwright';
 import { uikit } from '@wsb/uikit/vite';
 import { defineConfig } from 'vitest/config';
-import { browserInstances, emulate, heap, mouse, pen, touch, wheel } from './vitest.browsers.mjs';
+import {
+  browserInstances,
+  headless,
+  emulate,
+  heap,
+  mouse,
+  pen,
+  touch,
+  wheel,
+} from './vitest.browsers.mjs';
 import nodeConfig from './vitest.config.mjs';
 
 // Browser tests run in real browsers through Playwright: `browserInstances` says which.
@@ -19,7 +28,7 @@ export default defineConfig({
     fileParallelism: false,
     browser: {
       enabled: true,
-      headless: true,
+      headless: headless(),
       // Room for an 800 × 400 view and more.
       viewport: { width: 1280, height: 900 },
       provider: playwright(),

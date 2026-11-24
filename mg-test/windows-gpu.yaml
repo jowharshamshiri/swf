@@ -1,0 +1,31 @@
+apiVersion: test.machinegenesis.dev/v1
+kind: TestPlan
+metadata: { name: windows-gpu }
+# The benchmark's reference machine (section 26.1): a Windows guest with an
+# NVIDIA card, so that the browsers can render with a GPU as a desktop does.
+targets:
+  windows:
+    uses: windows-11-x86-64-cuda-pve
+    resources: { cpu: 4, memory: 8GiB, disk: 128GiB }
+    # A fresh Windows guest takes this long to be made and booted.
+    allocationTimeout: 45m
+tasks:
+  # One short trial of the benchmark in each browser: what each renders with
+  # (the GPU it reports) and the control, before the record is made.
+  probe:
+    target: windows
+    shell: powershell
+    command: powershell -NoProfile -ExecutionPolicy Bypass -File "$env:MG_TEST_WORKSPACE\mg-test\windows.ps1" -Part bench
+    environment:
+      SWF_BENCH_TRIALS: '1'
+      SWF_BENCH_WARMUP_MS: '4000'
+      SWF_BENCH_TRIAL_MS: '8000'
+    timeout: 90m
+    evidence: [out/**]
+  # The record: the browser suites in Chrome and Firefox, then the benchmark.
+  browsers:
+    target: windows
+    shell: powershell
+    command: powershell -NoProfile -ExecutionPolicy Bypass -File "$env:MG_TEST_WORKSPACE\mg-test\windows.ps1"
+    timeout: 3h
+    evidence: [out/**]

@@ -16,6 +16,18 @@ import { playwright } from '@vitest/browser-playwright';
 const KNOWN = ['chromium', 'firefox', 'webkit'];
 
 /**
+ * Whether the browsers run without a window: SWF_HEADED=1 gives them one (a browser may composite
+ * with the GPU only then, as Firefox does), 0 or unset runs them headless.
+ */
+export function headless(env = process.env) {
+  const value = env.SWF_HEADED ?? '0';
+  if (value !== '0' && value !== '1') {
+    throw new Error(`SWF_HEADED must be 0 or 1 (got "${value}")`);
+  }
+  return value === '0';
+}
+
+/**
  * The browsers a run uses, as Vitest instances. SWF_BROWSERS picks them (comma-separated; default
  * all three: chromium, firefox, webkit). Each runs Playwright's own build unless a channel names an
  * installed stable browser: SWF_CHROMIUM_CHANNEL (`chrome` for Google Chrome, `msedge`) and

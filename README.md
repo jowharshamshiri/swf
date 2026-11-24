@@ -1109,7 +1109,11 @@ shorten a run for trying it out, and the report says what they were.
 On Windows both run on an mg-test guest, in Google Chrome and Mozilla Firefox as their publishers
 ship them (each installer's signature checked, Node.js checked against its release's checksums):
 `mg-test run mg-test.yaml --plan windows` brings back `out/conformance` and `out/bench`
-(`mg-test/windows.ps1` says what it does).
+(`mg-test/windows.ps1` says what it does). The benchmark's reference machine (§26.1) is the
+`windows-gpu` plan's guest, which has an NVIDIA card: its `probe` task runs one short trial in each
+browser and says what each renders with, and its `browsers` task makes the record. A guest with
+no GPU renders in software, where a browser may not reach 60 Hz even for the control; its numbers
+are an observation of that machine, not a verdict.
 
 Golden scenes and scripted interaction traces of the reference application's four view modes
 and eight behaviour modules are committed under `apps/reference/test/fixtures/golden` (QA-012):

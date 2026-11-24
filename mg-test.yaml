@@ -5,6 +5,6 @@ metadata: { name: swf }
 # UI kit included (the reference application is built from it); build output,
 # installed packages and anything else ignored left out.
 source: { type: workspace, root: ., contents: tracked }
-plans: [mg-test/windows.yaml]
+plans: [mg-test/windows.yaml, mg-test/windows-gpu.yaml]
 defaults:
   taskTimeout: 3h

@@ -11,6 +11,11 @@
 #
 # Written for Windows PowerShell 5.1, which is what a guest runs, and in ASCII:
 # the guest reads this file as cp1252.
+# -Part bench runs the benchmark alone (the browser suites are the default's too).
+param(
+    [ValidateSet('all', 'bench')]
+    [string] $Part = 'all'
+)
 $ErrorActionPreference = 'Stop'
 # No progress records: there is no console, and PowerShell would write them
 # into the error stream as CLIXML.
@@ -105,9 +110,12 @@ $env:SWF_CHROMIUM_CHANNEL = 'chrome'
 $env:SWF_FIREFOX_CHANNEL = 'moz-firefox'
 $nodeExe = Join-Path $node 'node.exe'
 
-Say 'browser suites, per browser'
-$conformance = Invoke-Native -Program $nodeExe -Arguments @('scripts/conformance.mjs', '--out', (Join-Path $out 'conformance'), '--browsers', 'chromium,firefox')
-Say "conformance exited $conformance"
+$conformance = 0
+if ($Part -eq 'all') {
+    Say 'browser suites, per browser'
+    $conformance = Invoke-Native -Program $nodeExe -Arguments @('scripts/conformance.mjs', '--out', (Join-Path $out 'conformance'), '--browsers', 'chromium,firefox')
+    Say "conformance exited $conformance"
+}
 
 Say 'performance benchmark, one browser at a time'
 $bench = Invoke-Native -Program $nodeExe -Arguments @('scripts/bench.mjs', '--out', (Join-Path $out 'bench'), '--browsers', 'chromium,firefox')
