@@ -207,6 +207,34 @@ describe('the spatial map (FR-124, UX-004, WF-05)', () => {
     expect(after).toBeCloseTo(size.width * 0.75, -1);
   });
 
+  it('selects a window pressed on the map without moving it, even when the pointer stirs (UX-004)', async () => {
+    const { app, driver, settle } = await start('?preset=seam');
+    driver.act('editor.actions.mode#map', 'press');
+    await settle();
+    const surface = driver.read('page.map.surface');
+    if (!surface.present) throw new Error('no map');
+    const view = {
+      centre: [0, 0] as const,
+      scale: MAP_SCALE.initial,
+      width: surface.box.width,
+      height: surface.box.height,
+    };
+    const [wx, , wz] = origin(app, 'window-07');
+    const [px, py] = toMap(view, wx, wz);
+    const [x, y] = [surface.box.x + px + 3, surface.box.y + py - 2];
+    const before = layout(app);
+    const history = app.workspace.history().length;
+    await commands.mouse('move', x, y);
+    await commands.mouse('down', x, y);
+    // A hand pressing a mouse button stirs it a pixel or two.
+    await commands.mouse('move', x + 2, y + 1);
+    await commands.mouse('up', x + 2, y + 1);
+    await settle();
+    expect(app.workspace.getState().selection).toEqual(['window-07']);
+    expect(layout(app)).toBe(before);
+    expect(app.workspace.history()).toHaveLength(history);
+  });
+
   it('raises a window with the height control, which a map from above cannot show', async () => {
     const { app, driver, root, settle } = await start('?preset=seam');
     await current?.model.showInMap('window-02');

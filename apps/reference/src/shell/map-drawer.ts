@@ -12,9 +12,10 @@ import type { Messages } from '../messages.js';
  * heading, and each window as the line it stands on from above with a dot at its centre (filled
  * in front, hollow behind). Window names are the stage's units, real text over the drawing.
  *
- * A press on a window selects it, and dragging it moves the window on the ground: previewed on
- * every move, so every view shows it where it is being put, and committed once when it is let go
- * (Escape puts it back). A press on the ground pans the map; the wheel zooms it about the pointer.
+ * A press on a window selects it, and dragging it (past the router's slop) moves the window on
+ * the ground as far as the pointer moves, the point it was grabbed by staying under the pointer:
+ * previewed on every move, so every view shows it where it is being put, and committed once when
+ * it is let go (Escape puts it back). A press that does not drag moves nothing. A press on the ground pans the map; the wheel zooms it about the pointer.
  * The map's centre and scale are its own view state, never the scene's.
  */
 
@@ -52,7 +53,16 @@ export class MapDrawer {
   #view: MapView;
   readonly #options: MapDrawerOptions;
   #inks: Inks;
-  #drag: { readonly marker: MarkerDrag; moved: boolean; readonly pointer: number } | null = null;
+  /**
+   * A marker pressed: it becomes a drag (`marker`) once the pointer has moved past the router's
+   * slop from where it pressed, so a press that only selects moves nothing.
+   */
+  #drag: {
+    readonly nodeId: string;
+    readonly pointer: number;
+    readonly from: readonly [number, number];
+    marker: MarkerDrag | null;
+  } | null = null;
   #pan: { readonly pointer: number; x: number; y: number } | null = null;
   #frame: number | null = null;
   readonly #stops: (() => void)[] = [];
@@ -141,7 +151,7 @@ export class MapDrawer {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && this.#drag !== null) {
         event.preventDefault();
-        this.#drag.marker.cancel();
+        this.#drag.marker?.cancel();
         this.#drag = null;
       }
     };
@@ -175,7 +185,7 @@ export class MapDrawer {
   }
 
   dispose(): void {
-    this.#drag?.marker.cancel();
+    this.#drag?.marker?.cancel();
     this.#drag = null;
     if (this.#frame !== null) {
       this.#options.viewport.ownerDocument.defaultView?.cancelAnimationFrame(this.#frame);
@@ -245,20 +255,27 @@ export class MapDrawer {
       return;
     }
     this.#options.onselect(marker.id);
-    this.#drag = {
-      marker: new MarkerDrag(this.#options.app.workspace, VIEWPORT_ID, marker.id),
-      moved: false,
-      pointer: event.pointerId,
-    };
+    this.#drag = { nodeId: marker.id, pointer: event.pointerId, from: [x, y], marker: null };
   }
 
   #move(event: PointerEvent): void {
     const [x, y] = this.#local(event);
-    if (this.#drag?.pointer === event.pointerId) {
-      const [gx, gz] = toGround(this.#view, x, y);
-      if (this.#drag.marker.moveTo(gx, gz)) {
-        this.#drag.moved = true;
+    const drag = this.#drag;
+    if (drag?.pointer === event.pointerId) {
+      if (drag.marker === null) {
+        const { slopPx } = this.#options.app.router.settings();
+        if (Math.hypot(x - drag.from[0], y - drag.from[1]) <= slopPx) {
+          return;
+        }
+        drag.marker = new MarkerDrag(
+          this.#options.app.workspace,
+          VIEWPORT_ID,
+          drag.nodeId,
+          toGround(this.#view, drag.from[0], drag.from[1]),
+        );
       }
+      const [gx, gz] = toGround(this.#view, x, y);
+      drag.marker.moveTo(gx, gz);
       return;
     }
     if (this.#pan?.pointer === event.pointerId) {
@@ -275,9 +292,9 @@ export class MapDrawer {
       const { marker } = this.#drag;
       this.#drag = null;
       if (cancelled) {
-        marker.cancel();
+        marker?.cancel();
       } else {
-        marker.commit();
+        marker?.commit();
       }
     }
     if (this.#pan?.pointer === event.pointerId) {

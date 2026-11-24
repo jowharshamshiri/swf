@@ -220,19 +220,28 @@ export function placedAt(
 }
 
 /**
- * A marker being dragged: each move previews the window at the ground point under the pointer,
- * and letting go commits the last accepted one as one transaction; cancelling discards it, and
- * the window is where it was. Nothing moves before the pointer does.
+ * A marker being dragged: each move previews the window moved on the ground as far as the pointer
+ * moved from where it grabbed the marker, so the grabbed point stays under the pointer; letting go
+ * commits the last accepted one as one transaction; cancelling discards it, and the window is where
+ * it was. Nothing moves before the pointer does.
  */
 export class MarkerDrag {
   readonly nodeId: Id;
   readonly #workspace: WorkspaceReader & WorkspaceMutator;
   readonly #previewId: string;
   readonly #eye: Vec3;
+  /** The ground point the marker was grabbed by, and where the window stood then. */
+  readonly #grabbed: readonly [number, number];
+  readonly #from: readonly [number, number];
   #last: SceneCommand[] | null = null;
   #ended = false;
 
-  constructor(workspace: WorkspaceReader & WorkspaceMutator, viewportId: Id, nodeId: Id) {
+  constructor(
+    workspace: WorkspaceReader & WorkspaceMutator,
+    viewportId: Id,
+    nodeId: Id,
+    grabbed: readonly [number, number],
+  ) {
     const state = workspace.getState();
     const viewport = state.viewports.get(viewportId);
     const camera = viewport === undefined ? undefined : state.cameras.get(viewport.cameraId);
@@ -242,18 +251,45 @@ export class MarkerDrag {
     if (state.nodes.get(nodeId)?.kind !== 'window') {
       throw new Error(`no window "${nodeId}" to drag`);
     }
+    const [gx, gz] = grabbed;
+    if (!Number.isFinite(gx) || !Number.isFinite(gz)) {
+      throw new RangeError(
+        `grabbed must be a finite ground point (got ${String(gx)}, ${String(gz)})`,
+      );
+    }
+    const at = worldOrigin(placementOf(state, nodeId));
     this.#workspace = workspace;
     this.nodeId = nodeId;
     this.#eye = camera.position;
+    this.#grabbed = [gx, gz];
+    this.#from = [at[0], at[2]];
     this.#previewId = `reference.map/${nodeId}/${String(state.revision)}`;
   }
 
-  /** Previews the window standing at a ground point; false when it was refused (a lock, say). */
+  /**
+   * Previews the window moved as far as the pointer moved, the pointer now over ground point
+   * (x, z); back where it grabbed, the window is where it was. False when the move was refused (a
+   * lock, say).
+   */
   moveTo(x: number, z: number): boolean {
     if (this.#ended) {
       throw new Error('the drag has ended');
     }
-    const transform = standingAt(this.#workspace.getState(), this.nodeId, this.#eye, x, z);
+    const [dx, dz] = [x - this.#grabbed[0], z - this.#grabbed[1]];
+    if (dx === 0 && dz === 0) {
+      if (this.#last !== null) {
+        this.#workspace.cancelPreview(this.#previewId, 'host');
+        this.#last = null;
+      }
+      return true;
+    }
+    const transform = standingAt(
+      this.#workspace.getState(),
+      this.nodeId,
+      this.#eye,
+      this.#from[0] + dx,
+      this.#from[1] + dz,
+    );
     if (transform === null) {
       return false;
     }

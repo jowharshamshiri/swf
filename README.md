@@ -862,8 +862,10 @@ content is attached or detached by a switch.
 - **Map**: the scene from above, with straight ahead of the default camera up the page: the
   camera and its heading, the ground in front of it and behind it shaded apart, rings a world unit
   apart, and each window as the line it stands on, filled in front and hollow behind, with its name.
-  Dragging a window moves it on the ground, previewed in every view as it goes (the panorama below
-  the map shows it move) and committed once when let go; Escape puts it back. A window moved round
+  Pressing a window selects it; dragging it (past the same slop as the panorama's) moves it on the
+  ground as far as the pointer moves, the point it was grabbed by staying under the pointer,
+  previewed in every view as it goes (the panorama below the map shows it move) and committed once
+  when let go; Escape puts it back. A press that does not drag moves nothing. A window moved round
   the camera turns with it, so it keeps facing the camera. Dragging the ground pans, the wheel and
   the zoom buttons zoom, and the fields beside the map place the selected window exactly, its
   height (which a map from above cannot show) included.

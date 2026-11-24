@@ -95,7 +95,9 @@ describe('the spatial map (FR-124, UX-004, WF-05)', () => {
     const ws = scene();
     const revision = ws.getState().revision;
     const [, y] = origin(ws, 'window-07');
-    const drag = new MarkerDrag(ws, 'v', 'window-07');
+    // Grabbed at its own place on the ground, it goes where the pointer goes.
+    const [ox, , oz] = origin(ws, 'window-07');
+    const drag = new MarkerDrag(ws, 'v', 'window-07', [ox, oz]);
     expect(drag.moveTo(1, -1)).toBe(true);
     expect(drag.moveTo(3, 0)).toBe(true);
     // Nothing is committed while it is dragged; every view reads the preview.
@@ -114,10 +116,31 @@ describe('the spatial map (FR-124, UX-004, WF-05)', () => {
     expect(origin(ws, 'window-07')[0]).not.toBe(3);
   });
 
+  it('keeps the point it was grabbed by under the pointer, and moves nothing until the pointer moves', () => {
+    const ws = scene();
+    const revision = ws.getState().revision;
+    const [x, , z] = origin(ws, 'window-07');
+    // Grabbed a little off its centre, as a press anywhere on its marker grabs it.
+    const grabbed: [number, number] = [x + 0.1, z - 0.05];
+    const drag = new MarkerDrag(ws, 'v', 'window-07', grabbed);
+    // The pointer back where it pressed: the window is where it was, nothing to commit.
+    expect(drag.moveTo(...grabbed)).toBe(true);
+    expect(ws.getPresented()).toBe(ws.getState());
+    expect(drag.commit()).toBeNull();
+    expect(ws.getState().revision).toBe(revision);
+    // Moved by (0.5, 1), it moves by exactly that, not to put its centre under the pointer.
+    const moved = new MarkerDrag(ws, 'v', 'window-07', grabbed);
+    expect(moved.moveTo(grabbed[0] + 0.5, grabbed[1] + 1)).toBe(true);
+    expect(moved.commit()?.status).toBe('committed');
+    const [x2, , z2] = origin(ws, 'window-07');
+    expect(x2).toBeCloseTo(x + 0.5, 12);
+    expect(z2).toBeCloseTo(z + 1, 12);
+  });
+
   it('discards a cancelled drag, and refuses to move a locked window', () => {
     const ws = scene();
     const before = origin(ws, 'window-07');
-    const drag = new MarkerDrag(ws, 'v', 'window-07');
+    const drag = new MarkerDrag(ws, 'v', 'window-07', [before[0], before[2]]);
     expect(drag.moveTo(2, 2)).toBe(true);
     // Every view shows the preview while it lasts.
     const shown = ws.getPresented().nodes.get('window-07')?.transform.position;
@@ -129,7 +152,7 @@ describe('the spatial map (FR-124, UX-004, WF-05)', () => {
     expect(
       ws.dispatch({ type: 'node.patch', id: 'window-07', flags: { locked: true } }).status,
     ).toBe('committed');
-    const locked = new MarkerDrag(ws, 'v', 'window-07');
+    const locked = new MarkerDrag(ws, 'v', 'window-07', [before[0], before[2]]);
     expect(locked.moveTo(2, 2)).toBe(false);
     expect(locked.commit()).toBeNull();
     expect(origin(ws, 'window-07')).toEqual(before);
