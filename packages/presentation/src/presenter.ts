@@ -20,6 +20,8 @@ import type { PresentationRegistry, Registered, RegistryChange } from './registr
 import type { RepresentationPolicy } from './representation.js';
 import { representationPolicyIssue } from './representation.js';
 import { planFrame } from './stages.js';
+import type { HandoffEvent, ViewportState as LeanViewportState } from '@swf/models';
+import { models } from '@swf/models';
 
 /** Calls work at the host's frame boundaries: an animation frame, in a browser. */
 export interface FrameSource {
@@ -664,7 +666,7 @@ class ViewportImpl implements PresentedViewport {
   /** A frame at a frame boundary; a failure is reported, not thrown. */
   scheduled(flags: DirtyFlag[]): Promise<void> {
     return this.#serial(async () => {
-      if (this.#state !== 'active') {
+      if (!models.viewportPresents(leanState(this.#state))) {
         return;
       }
       try {
@@ -736,7 +738,7 @@ class ViewportImpl implements PresentedViewport {
    * by what this viewport reads of it, so another viewport's camera, say, leaves this one be.
    */
   due(): DirtyFlag[] | null {
-    if (this.#state !== 'active') {
+    if (!models.viewportPresents(leanState(this.#state))) {
       return null;
     }
     const flags = new Set(this.#flags);
@@ -790,7 +792,7 @@ class ViewportImpl implements PresentedViewport {
 
   #serial<T>(work: () => Promise<T>): Promise<T> {
     const next = this.#queue.then(() => {
-      if (this.#state === 'disposed') {
+      if (!models.viewportAdmits(leanState(this.#state))) {
         throw new SwfFailure(
           makeError('INVALID_TRANSITION', `viewport "${this.viewportId}" is disposed`, {
             entityId: this.viewportId,
@@ -820,7 +822,7 @@ class ViewportImpl implements PresentedViewport {
 
   async #present(dirty: readonly DirtyFlag[]): Promise<ViewportUpdate> {
     const backend = this.#backend;
-    if (this.#state === 'presentation-degraded' || backend === null) {
+    if (models.viewportDegraded(leanState(this.#state), backend !== null) || backend === null) {
       return Object.freeze({
         status: 'degraded',
         viewportId: this.viewportId,
@@ -1112,11 +1114,16 @@ class ViewportImpl implements PresentedViewport {
       });
     }
     error ??= this.#noBackend();
-    if (old !== null && usable) {
-      this.#state = 'active';
+    const settlement = models.settle(false, old !== null && usable);
+    const state = STATES[models.settledState(settlement).kind];
+    if (settlement.kind === 'kept' && old !== null) {
+      this.#state = state;
       return Object.freeze({ status: 'kept', backend: old.choice, error });
     }
-    await this.#degrade(error);
+    if (settlement.kind !== 'degraded') {
+      throw new Error(`the handoff model settled a failed handoff as ${settlement.kind}`);
+    }
+    await this.#degrade(error, state);
     return Object.freeze({ status: 'degraded', error });
   }
 
@@ -1147,7 +1154,7 @@ class ViewportImpl implements PresentedViewport {
           },
         },
       );
-    this.#state = 'preparing';
+    this.#advance('begin');
     const renderer = registry.renderer(choice.renderer);
     const compositor = registry.compositor(choice.compositor);
     if (renderer === undefined) {
@@ -1188,17 +1195,21 @@ class ViewportImpl implements PresentedViewport {
     };
 
     // Validating: the scene negotiated with the new capabilities, and the live content movable.
-    this.#state = 'validating';
+    this.#advance('prepared');
     const stranded = new Set<Id>();
     for (const presentation of runtime.list()) {
       const surfaceId = presentation.surfaceId;
-      if (
-        attachmentHere(runtime, surfaceId, this.viewportId) === undefined ||
-        presentation.capabilities?.safeDetach === true
-      ) {
+      if (attachmentHere(runtime, surfaceId, this.viewportId) === undefined) {
         continue;
       }
-      if (usable) {
+      const validation = models.validateSurface(
+        usable,
+        presentation.capabilities?.safeDetach === true,
+      );
+      if (validation.kind === 'movable') {
+        continue;
+      }
+      if (validation.kind === 'refuse') {
         return abandon(
           fail(
             'validating',
@@ -1218,7 +1229,7 @@ class ViewportImpl implements PresentedViewport {
     }
 
     // Swapping: rebuild the view in the new resources and move the live content into them.
-    this.#state = 'swapping';
+    this.#advance('validated');
     let live: Id[];
     try {
       const rendered = candidate.rendererSession.render(frame);
@@ -1244,7 +1255,8 @@ class ViewportImpl implements PresentedViewport {
         continue;
       }
       const from = old?.rendererSession.targetOf(surfaceId);
-      if (live.includes(surfaceId)) {
+      const action = models.swapSurface(live.includes(surfaceId), stranded.has(surfaceId));
+      if (action.kind === 'move') {
         const target = candidate.rendererSession.targetOf(surfaceId);
         if (target === undefined) {
           return rollback(fail('swapping', `surface "${surfaceId}" is live without a target`));
@@ -1264,7 +1276,7 @@ class ViewportImpl implements PresentedViewport {
         }
         continue;
       }
-      if (stranded.has(surfaceId)) {
+      if (action.kind === 'keepHidden') {
         // It cannot leave without safe detachment: it stays attached, hidden, and the host's.
         await runtime.hide(surfaceId, this.viewportId);
         continue;
@@ -1292,7 +1304,7 @@ class ViewportImpl implements PresentedViewport {
     this.#live = new Set(
       live.filter((id) => attachmentHere(runtime, id, this.viewportId)?.visible === true),
     );
-    this.#state = 'active';
+    this.#advance('swapped');
     this.#degradedBy = null;
     this.#hideDegraded?.();
     this.#hideDegraded = null;
@@ -1312,6 +1324,15 @@ class ViewportImpl implements PresentedViewport {
     });
     this.mark('backend');
     return null;
+  }
+
+  /** Moves the viewport as the handoff model decides on `event`; an event out of order is a defect. */
+  #advance(event: HandoffEvent['kind']): void {
+    const next = models.handoffStep(leanState(this.#state), { kind: event });
+    if (next === null) {
+      throw new Error(`viewport "${this.viewportId}" cannot take ${event} while ${this.#state}`);
+    }
+    this.#state = STATES[next.kind];
   }
 
   /** Projects without the cache: a new backend validates against a fresh projection. */
@@ -1357,11 +1378,11 @@ class ViewportImpl implements PresentedViewport {
    * No backend works: the live content leaves the old resources (released where the endpoint
    * allows), they are released, and the container shows that the viewport is degraded.
    */
-  async #degrade(error: SwfError): Promise<void> {
+  async #degrade(error: SwfError, state: ViewportState): Promise<void> {
     const old = this.#backend;
     this.#backend = null;
     this.#live = new Set();
-    this.#state = 'presentation-degraded';
+    this.#state = state;
     this.#degradedBy = error;
     if (old !== null) {
       old.unwatch();
@@ -1431,7 +1452,7 @@ class ViewportImpl implements PresentedViewport {
     const old = this.#backend;
     this.#backend = null;
     this.#live = new Set();
-    this.#state = 'disposed';
+    this.#advance('dispose');
     if (old !== null) {
       old.unwatch();
       await this.#releaseQuietly(old.choice, old.compositorSession, old.rendererSession);
@@ -1585,4 +1606,27 @@ function hintFor(
     spatialBounds: surface.bounds,
     requestedIntrinsicSize: null,
   };
+}
+
+/** Each viewport state as the handoff model names it, and back. */
+const LEAN_STATES: Readonly<Record<ViewportState, LeanViewportState['kind']>> = Object.freeze({
+  preparing: 'preparing',
+  validating: 'validating',
+  swapping: 'swapping',
+  active: 'active',
+  'presentation-degraded': 'degraded',
+  disposed: 'disposed',
+});
+
+const STATES: Readonly<Record<LeanViewportState['kind'], ViewportState>> = Object.freeze({
+  preparing: 'preparing',
+  validating: 'validating',
+  swapping: 'swapping',
+  active: 'active',
+  degraded: 'presentation-degraded',
+  disposed: 'disposed',
+});
+
+function leanState(state: ViewportState): LeanViewportState {
+  return { kind: LEAN_STATES[state] };
 }

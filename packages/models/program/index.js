@@ -156,10 +156,190 @@ export function modeType() {
   );
 }
 
+/** Describes Swf.Handoff.ViewportState for polymorphic functions. */
+export function viewportStateType() {
+  return new L.Type(
+    L.inductiveExpr(5),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Handoff.ViewportState");
+      switch (v.kind) {
+        case "preparing":
+          w.u32(0);
+          return;
+        case "validating":
+          w.u32(1);
+          return;
+        case "swapping":
+          w.u32(2);
+          return;
+        case "active":
+          w.u32(3);
+          return;
+        case "degraded":
+          w.u32(4);
+          return;
+        case "disposed":
+          w.u32(5);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.Handoff.ViewportState`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "preparing" });
+        case 1: return ({ kind: "validating" });
+        case 2: return ({ kind: "swapping" });
+        case 3: return ({ kind: "active" });
+        case 4: return ({ kind: "degraded" });
+        case 5: return ({ kind: "disposed" });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.Handoff.ViewportState`);
+      }
+    },
+  );
+}
+
+/** Describes Swf.Handoff.HandoffEvent for polymorphic functions. */
+export function handoffEventType() {
+  return new L.Type(
+    L.inductiveExpr(6),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Handoff.HandoffEvent");
+      switch (v.kind) {
+        case "begin":
+          w.u32(0);
+          return;
+        case "prepared":
+          w.u32(1);
+          return;
+        case "validated":
+          w.u32(2);
+          return;
+        case "swapped":
+          w.u32(3);
+          return;
+        case "dispose":
+          w.u32(4);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.Handoff.HandoffEvent`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "begin" });
+        case 1: return ({ kind: "prepared" });
+        case 2: return ({ kind: "validated" });
+        case 3: return ({ kind: "swapped" });
+        case 4: return ({ kind: "dispose" });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.Handoff.HandoffEvent`);
+      }
+    },
+  );
+}
+
+/** Describes Swf.Handoff.Settlement for polymorphic functions. */
+export function settlementType() {
+  return new L.Type(
+    L.inductiveExpr(7),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Handoff.Settlement");
+      switch (v.kind) {
+        case "switched":
+          w.u32(0);
+          return;
+        case "kept":
+          w.u32(1);
+          return;
+        case "degraded":
+          w.u32(2);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.Handoff.Settlement`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "switched" });
+        case 1: return ({ kind: "kept" });
+        case 2: return ({ kind: "degraded" });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.Handoff.Settlement`);
+      }
+    },
+  );
+}
+
+/** Describes Swf.Handoff.SwapAction for polymorphic functions. */
+export function swapActionType() {
+  return new L.Type(
+    L.inductiveExpr(8),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Handoff.SwapAction");
+      switch (v.kind) {
+        case "move":
+          w.u32(0);
+          return;
+        case "keepHidden":
+          w.u32(1);
+          return;
+        case "release":
+          w.u32(2);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.Handoff.SwapAction`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "move" });
+        case 1: return ({ kind: "keepHidden" });
+        case 2: return ({ kind: "release" });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.Handoff.SwapAction`);
+      }
+    },
+  );
+}
+
+/** Describes Swf.Handoff.Validation for polymorphic functions. */
+export function validationType() {
+  return new L.Type(
+    L.inductiveExpr(9),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Handoff.Validation");
+      switch (v.kind) {
+        case "movable":
+          w.u32(0);
+          return;
+        case "refuse":
+          w.u32(1);
+          return;
+        case "strand":
+          w.u32(2);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.Handoff.Validation`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "movable" });
+        case 1: return ({ kind: "refuse" });
+        case 2: return ({ kind: "strand" });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.Handoff.Validation`);
+      }
+    },
+  );
+}
+
 /** Describes Swf.Kernel.Lifecycle for polymorphic functions. */
 export function lifecycleType() {
   return new L.Type(
-    L.inductiveExpr(5),
+    L.inductiveExpr(10),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.Lifecycle");
       switch (v.kind) {
@@ -192,7 +372,7 @@ export function lifecycleType() {
 /** Describes Swf.Kernel.Ledger for polymorphic functions. */
 export function ledgerType() {
   return new L.Type(
-    L.inductiveExpr(6),
+    L.inductiveExpr(11),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.Ledger");
       w.u32(0);
@@ -215,7 +395,7 @@ export function ledgerType() {
 /** Describes Swf.Kernel.Direction for polymorphic functions. */
 export function directionType() {
   return new L.Type(
-    L.inductiveExpr(7),
+    L.inductiveExpr(12),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.Direction");
       switch (v.kind) {
@@ -243,7 +423,7 @@ export function directionType() {
 /** Describes Swf.Kernel.Change for polymorphic functions. */
 export function changeType() {
   return new L.Type(
-    L.inductiveExpr(8),
+    L.inductiveExpr(13),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.Change");
       switch (v.kind) {
@@ -275,7 +455,7 @@ export function changeType() {
 /** Describes Swf.Kernel.Commit for polymorphic functions. */
 export function commitType() {
   return new L.Type(
-    L.inductiveExpr(9),
+    L.inductiveExpr(14),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.Commit");
       w.u32(0);
@@ -296,7 +476,7 @@ export function commitType() {
 /** Describes Swf.Kernel.TxRequest for polymorphic functions. */
 export function txRequestType() {
   return new L.Type(
-    L.inductiveExpr(10),
+    L.inductiveExpr(15),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.TxRequest");
       w.u32(0);
@@ -314,7 +494,7 @@ export function txRequestType() {
 /** Describes Swf.Kernel.TxGate for polymorphic functions. */
 export function txGateType() {
   return new L.Type(
-    L.inductiveExpr(11),
+    L.inductiveExpr(16),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.TxGate");
       switch (v.kind) {
@@ -354,7 +534,7 @@ export function txGateType() {
 /** Describes Swf.Kernel.IdleStep for polymorphic functions. */
 export function idleStepType() {
   return new L.Type(
-    L.inductiveExpr(12),
+    L.inductiveExpr(17),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.IdleStep");
       switch (v.kind) {
@@ -388,7 +568,7 @@ export function idleStepType() {
 /** Describes Swf.Kernel.Travel for polymorphic functions. */
 export function travelType() {
   return new L.Type(
-    L.inductiveExpr(13),
+    L.inductiveExpr(18),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.Travel");
       switch (v.kind) {
@@ -425,7 +605,7 @@ export function travelType() {
 /** Describes Swf.Migration.MigrationPlan for polymorphic functions. */
 export function migrationPlanType() {
   return new L.Type(
-    L.inductiveExpr(14),
+    L.inductiveExpr(19),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Migration.MigrationPlan");
       w.u32(0);
@@ -443,7 +623,7 @@ export function migrationPlanType() {
 /** Describes Swf.Save.SaveMachine for polymorphic functions. */
 export function saveMachineType() {
   return new L.Type(
-    L.inductiveExpr(15),
+    L.inductiveExpr(20),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Save.SaveMachine");
       w.u32(0);
@@ -463,7 +643,7 @@ export function saveMachineType() {
 /** Describes Swf.Save.SaveAnswer for polymorphic functions. */
 export function saveAnswerType() {
   return new L.Type(
-    L.inductiveExpr(16),
+    L.inductiveExpr(21),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Save.SaveAnswer");
       switch (v.kind) {
@@ -493,7 +673,7 @@ export function saveAnswerType() {
 /** Describes Swf.Save.SaveEnd for polymorphic functions. */
 export function saveEndType() {
   return new L.Type(
-    L.inductiveExpr(17),
+    L.inductiveExpr(22),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Save.SaveEnd");
       w.u32(0);
@@ -511,7 +691,7 @@ export function saveEndType() {
 /** Describes Swf.Surface.Presentation for polymorphic functions. */
 export function presentationType() {
   return new L.Type(
-    L.inductiveExpr(18),
+    L.inductiveExpr(23),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.Presentation");
       switch (v.kind) {
@@ -564,7 +744,7 @@ export function presentationType() {
 /** Describes Swf.Surface.SurfaceRefusal for polymorphic functions. */
 export function surfaceRefusalType() {
   return new L.Type(
-    L.inductiveExpr(19),
+    L.inductiveExpr(24),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.SurfaceRefusal");
       switch (v.kind) {
@@ -624,7 +804,7 @@ export function surfaceRefusalType() {
 /** Describes Swf.Surface.PresentFacts for polymorphic functions. */
 export function presentFactsType() {
   return new L.Type(
-    L.inductiveExpr(20),
+    L.inductiveExpr(25),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.PresentFacts");
       w.u32(0);
@@ -649,7 +829,7 @@ export function presentFactsType() {
 /** Describes Swf.Surface.SurfaceEvent for polymorphic functions. */
 export function surfaceEventType() {
   return new L.Type(
-    L.inductiveExpr(21),
+    L.inductiveExpr(26),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.SurfaceEvent");
       switch (v.kind) {
@@ -703,7 +883,7 @@ export function surfaceEventType() {
 /** Describes Swf.Surface.SurfaceStep for polymorphic functions. */
 export function surfaceStepType() {
   return new L.Type(
-    L.inductiveExpr(22),
+    L.inductiveExpr(27),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.SurfaceStep");
       w.u32(0);
@@ -721,7 +901,7 @@ export function surfaceStepType() {
 /** Describes Swf.Surface.UnbindGate for polymorphic functions. */
 export function unbindGateType() {
   return new L.Type(
-    L.inductiveExpr(23),
+    L.inductiveExpr(28),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.UnbindGate");
       switch (v.kind) {
@@ -754,7 +934,7 @@ export function unbindGateType() {
 /** Describes Swf.ViewMode.ModeMachine for polymorphic functions. */
 export function modeMachineType() {
   return new L.Type(
-    L.inductiveExpr(24),
+    L.inductiveExpr(29),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.ViewMode.ModeMachine");
       w.u32(0);
@@ -772,7 +952,7 @@ export function modeMachineType() {
 /** Describes Swf.ViewMode.ModeEvent for polymorphic functions. */
 export function modeEventType() {
   return new L.Type(
-    L.inductiveExpr(25),
+    L.inductiveExpr(30),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.ViewMode.ModeEvent");
       switch (v.kind) {
@@ -801,7 +981,7 @@ export function modeEventType() {
 /** Describes Swf.ViewMode.ViewSettings for polymorphic functions. */
 export function viewSettingsType() {
   return new L.Type(
-    L.inductiveExpr(26),
+    L.inductiveExpr(31),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.ViewMode.ViewSettings");
       w.u32(0);
@@ -820,7 +1000,7 @@ export function viewSettingsType() {
 /** Describes Swf.ViewMode.ModeTransition for polymorphic functions. */
 export function modeTransitionType() {
   return new L.Type(
-    L.inductiveExpr(27),
+    L.inductiveExpr(32),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.ViewMode.ModeTransition");
       switch (v.kind) {
@@ -853,7 +1033,7 @@ export function modeTransitionType() {
 /** Describes Swf.Fallback.RendererCapabilities for polymorphic functions. */
 export function rendererCapabilitiesType() {
   return new L.Type(
-    L.inductiveExpr(28),
+    L.inductiveExpr(33),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.RendererCapabilities");
       w.u32(0);
@@ -872,7 +1052,7 @@ export function rendererCapabilitiesType() {
 /** Describes Swf.Fallback.CompositorCapabilities for polymorphic functions. */
 export function compositorCapabilitiesType() {
   return new L.Type(
-    L.inductiveExpr(29),
+    L.inductiveExpr(34),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.CompositorCapabilities");
       w.u32(0);
@@ -892,7 +1072,7 @@ export function compositorCapabilitiesType() {
 /** Describes Swf.Fallback.HandleCapabilities for polymorphic functions. */
 export function handleCapabilitiesType() {
   return new L.Type(
-    L.inductiveExpr(30),
+    L.inductiveExpr(35),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.HandleCapabilities");
       w.u32(0);
@@ -913,7 +1093,7 @@ export function handleCapabilitiesType() {
 /** Describes Swf.Fallback.Gap for polymorphic functions. */
 export function gapType() {
   return new L.Type(
-    L.inductiveExpr(31),
+    L.inductiveExpr(36),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.Gap");
       w.u32(0);
@@ -932,7 +1112,7 @@ export function gapType() {
 /** Describes Swf.Fallback.ShapeFidelity for polymorphic functions. */
 export function shapeFidelityType() {
   return new L.Type(
-    L.inductiveExpr(32),
+    L.inductiveExpr(37),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.ShapeFidelity");
       switch (v.kind) {
@@ -964,7 +1144,7 @@ export function shapeFidelityType() {
 /** Describes Swf.Fallback.Fidelity for polymorphic functions. */
 export function fidelityType() {
   return new L.Type(
-    L.inductiveExpr(33),
+    L.inductiveExpr(38),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.Fidelity");
       switch (v.kind) {
@@ -1004,7 +1184,7 @@ export function fidelityType() {
 /** Describes Swf.Fallback.Interaction for polymorphic functions. */
 export function interactionType() {
   return new L.Type(
-    L.inductiveExpr(34),
+    L.inductiveExpr(39),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.Interaction");
       switch (v.kind) {
@@ -1036,7 +1216,7 @@ export function interactionType() {
 /** Describes Swf.Fallback.LayerCategory for polymorphic functions. */
 export function layerCategoryType() {
   return new L.Type(
-    L.inductiveExpr(35),
+    L.inductiveExpr(40),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.LayerCategory");
       switch (v.kind) {
@@ -1080,7 +1260,7 @@ export function layerCategoryType() {
 /** Describes Swf.Save.SaveState for polymorphic functions. */
 export function saveStateType() {
   return new L.Type(
-    L.inductiveExpr(36),
+    L.inductiveExpr(41),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Save.SaveState");
       switch (v.kind) {
@@ -1116,7 +1296,7 @@ export function saveStateType() {
 /** Describes Swf.Save.AckRefusal for polymorphic functions. */
 export function ackRefusalType() {
   return new L.Type(
-    L.inductiveExpr(37),
+    L.inductiveExpr(42),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Save.AckRefusal");
       switch (v.kind) {
@@ -1144,7 +1324,7 @@ export function ackRefusalType() {
 /** Describes Swf.Surface.UnboundReason for polymorphic functions. */
 export function unboundReasonType() {
   return new L.Type(
-    L.inductiveExpr(38),
+    L.inductiveExpr(43),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.UnboundReason");
       switch (v.kind) {
@@ -1180,7 +1360,7 @@ export function unboundReasonType() {
 /** Describes Swf.Surface.Resolution for polymorphic functions. */
 export function resolutionType() {
   return new L.Type(
-    L.inductiveExpr(39),
+    L.inductiveExpr(44),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.Resolution");
       switch (v.kind) {
@@ -1212,7 +1392,7 @@ export function resolutionType() {
 /** Describes Swf.Surface.Release for polymorphic functions. */
 export function releaseType() {
   return new L.Type(
-    L.inductiveExpr(40),
+    L.inductiveExpr(45),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.Release");
       switch (v.kind) {
@@ -1241,7 +1421,7 @@ export function releaseType() {
 /** Describes Swf.ViewMode.ProjectionSetting for polymorphic functions. */
 export function projectionSettingType() {
   return new L.Type(
-    L.inductiveExpr(41),
+    L.inductiveExpr(46),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.ViewMode.ProjectionSetting");
       w.u32(0);
@@ -1259,7 +1439,7 @@ export function projectionSettingType() {
 /** Describes Swf.ViewMode.Quat for polymorphic functions. */
 export function quatType() {
   return new L.Type(
-    L.inductiveExpr(42),
+    L.inductiveExpr(47),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.ViewMode.Quat");
       w.u32(0);
@@ -1279,7 +1459,7 @@ export function quatType() {
 /** Describes Swf.Fallback.Strategy for polymorphic functions. */
 export function strategyType() {
   return new L.Type(
-    L.inductiveExpr(43),
+    L.inductiveExpr(48),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.Strategy");
       switch (v.kind) {
@@ -1311,7 +1491,7 @@ export function strategyType() {
 /** Describes Swf.Fallback.TransformMode for polymorphic functions. */
 export function transformModeType() {
   return new L.Type(
-    L.inductiveExpr(44),
+    L.inductiveExpr(49),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.TransformMode");
       switch (v.kind) {
@@ -1347,7 +1527,7 @@ export function transformModeType() {
 /** Describes Swf.Fallback.Clip for polymorphic functions. */
 export function clipType() {
   return new L.Type(
-    L.inductiveExpr(45),
+    L.inductiveExpr(50),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.Clip");
       switch (v.kind) {
@@ -1379,7 +1559,7 @@ export function clipType() {
 /** Describes Swf.Fallback.Requirement for polymorphic functions. */
 export function requirementType() {
   return new L.Type(
-    L.inductiveExpr(46),
+    L.inductiveExpr(51),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.Requirement");
       switch (v.kind) {
@@ -1423,7 +1603,7 @@ export function requirementType() {
 /** Describes Swf.Json for polymorphic functions. */
 export function jsonType() {
   return new L.Type(
-    L.inductiveExpr(47),
+    L.inductiveExpr(52),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Json");
       switch (v.kind) {
@@ -1740,6 +1920,285 @@ export const ASSURANCE = L.parseAssurance({
         "end": {
           "line": 475,
           "column": 23
+        }
+      }
+    },
+    {
+      "name": "Swf.Handoff.admits_until_disposed",
+      "relation": "lungo.decides",
+      "subjects": [
+        "Swf.Handoff.viewportAdmits"
+      ],
+      "specifications": [],
+      "statement": "∀ (s : Swf.Handoff.ViewportState), Swf.Handoff.viewportAdmits s = true ↔ s ≠ Swf.Handoff.ViewportState.disposed",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "75bb41ce562428c65445c8705188f096f95a6401d44b4154aaa4079741d4831a",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Handoff.lean",
+        "start": {
+          "line": 146,
+          "column": 1
+        },
+        "end": {
+          "line": 148,
+          "column": 24
+        }
+      }
+    },
+    {
+      "name": "Swf.Handoff.degraded_iff",
+      "relation": "lungo.decides",
+      "subjects": [
+        "Swf.Handoff.viewportDegraded"
+      ],
+      "specifications": [],
+      "statement": "∀ (s : Swf.Handoff.ViewportState) (hasBackend : Bool),\n  Swf.Handoff.viewportDegraded s hasBackend = true ↔ s = Swf.Handoff.ViewportState.degraded ∨ hasBackend = false",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "59dfaefb6527eb0842bff08fd35cee9d660d7223af3aaa894b777595a189cba7",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Handoff.lean",
+        "start": {
+          "line": 150,
+          "column": 1
+        },
+        "end": {
+          "line": 153,
+          "column": 47
+        }
+      }
+    },
+    {
+      "name": "Swf.Handoff.degraded_only_without_backend",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Handoff.settle"
+      ],
+      "specifications": [],
+      "statement": "∀ (anyWorked oldUsable : Bool),\n  (Swf.Handoff.settle anyWorked oldUsable = Swf.Handoff.Settlement.degraded ↔ anyWorked = false ∧ oldUsable = false) ∧\n    (anyWorked = false →\n      oldUsable = true → (Swf.Handoff.settle anyWorked oldUsable).state = Swf.Handoff.ViewportState.active)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "f25d413e8ea5295cf82ae02107fd4dbdc6fb6a5ef6a10041a5fc1bdee2edaa3c",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Handoff.lean",
+        "start": {
+          "line": 134,
+          "column": 1
+        },
+        "end": {
+          "line": 140,
+          "column": 74
+        }
+      }
+    },
+    {
+      "name": "Swf.Handoff.disposed_final",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Handoff.handoffStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (s : Swf.Handoff.ViewportState) (e : Swf.Handoff.HandoffEvent),\n  Swf.Handoff.handoffStep Swf.Handoff.ViewportState.disposed e = none ∧\n    (s ≠ Swf.Handoff.ViewportState.disposed →\n      Swf.Handoff.handoffStep s Swf.Handoff.HandoffEvent.dispose = some Swf.Handoff.ViewportState.disposed ∧\n        Swf.Handoff.handoffStep s Swf.Handoff.HandoffEvent.begin = some Swf.Handoff.ViewportState.preparing)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "d14280bfcd0f31ec458587394069cd62595374da1ce53de3c0bab949ce257df5",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Handoff.lean",
+        "start": {
+          "line": 110,
+          "column": 1
+        },
+        "end": {
+          "line": 115,
+          "column": 45
+        }
+      }
+    },
+    {
+      "name": "Swf.Handoff.presents_iff_active",
+      "relation": "lungo.decides",
+      "subjects": [
+        "Swf.Handoff.viewportPresents"
+      ],
+      "specifications": [],
+      "statement": "∀ (s : Swf.Handoff.ViewportState), Swf.Handoff.viewportPresents s = true ↔ s = Swf.Handoff.ViewportState.active",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "5981fa5af7b58d27b18ba3adb1be52d7535f09ffdf090e60390050bdff519e5d",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Handoff.lean",
+        "start": {
+          "line": 142,
+          "column": 1
+        },
+        "end": {
+          "line": 144,
+          "column": 26
+        }
+      }
+    },
+    {
+      "name": "Swf.Handoff.settled_state",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Handoff.settledState"
+      ],
+      "specifications": [],
+      "statement": "∀ (s : Swf.Handoff.Settlement),\n  (Swf.Handoff.settledState s = Swf.Handoff.ViewportState.active ↔ s ≠ Swf.Handoff.Settlement.degraded) ∧\n    (Swf.Handoff.settledState s = Swf.Handoff.ViewportState.degraded ↔ s = Swf.Handoff.Settlement.degraded)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "60862e92d14454e2c2e7cbb62bf8008628e4adffa3d36a0e05aa51759d726087",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Handoff.lean",
+        "start": {
+          "line": 155,
+          "column": 1
+        },
+        "end": {
+          "line": 158,
+          "column": 52
+        }
+      }
+    },
+    {
+      "name": "Swf.Handoff.stage_order",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Handoff.handoffStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (s : Swf.Handoff.ViewportState) (e : Swf.Handoff.HandoffEvent),\n  (Swf.Handoff.handoffStep s e = some Swf.Handoff.ViewportState.validating →\n      s = Swf.Handoff.ViewportState.preparing ∧ e = Swf.Handoff.HandoffEvent.prepared) ∧\n    (Swf.Handoff.handoffStep s e = some Swf.Handoff.ViewportState.swapping →\n        s = Swf.Handoff.ViewportState.validating ∧ e = Swf.Handoff.HandoffEvent.validated) ∧\n      (Swf.Handoff.handoffStep s e = some Swf.Handoff.ViewportState.active →\n        s = Swf.Handoff.ViewportState.swapping ∧ e = Swf.Handoff.HandoffEvent.swapped)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "64e1748a17fe793d748cbac5461d035182dc59c5f36d9a98984a8dbadf856b1e",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Handoff.lean",
+        "start": {
+          "line": 101,
+          "column": 1
+        },
+        "end": {
+          "line": 108,
+          "column": 45
+        }
+      }
+    },
+    {
+      "name": "Swf.Handoff.strand_only_when_old_gone",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Handoff.validateSurface"
+      ],
+      "specifications": [],
+      "statement": "∀ (oldUsable safeDetach : Bool),\n  (Swf.Handoff.validateSurface oldUsable safeDetach = Swf.Handoff.Validation.strand ↔\n      oldUsable = false ∧ safeDetach = false) ∧\n    (Swf.Handoff.validateSurface oldUsable safeDetach = Swf.Handoff.Validation.refuse ↔\n      oldUsable = true ∧ safeDetach = false)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "efa2f6e97ee80585634b5de115b5e3f389b55868318bc4c4efdca4eabf6fb0e6",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Handoff.lean",
+        "start": {
+          "line": 117,
+          "column": 1
+        },
+        "end": {
+          "line": 123,
+          "column": 66
+        }
+      }
+    },
+    {
+      "name": "Swf.Handoff.swap_moves_live",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Handoff.swapSurface"
+      ],
+      "specifications": [],
+      "statement": "∀ (live stranded : Bool),\n  (live = true → Swf.Handoff.swapSurface live stranded = Swf.Handoff.SwapAction.move) ∧\n    (live = false → stranded = true → Swf.Handoff.swapSurface live stranded = Swf.Handoff.SwapAction.keepHidden) ∧\n      (live = false → stranded = false → Swf.Handoff.swapSurface live stranded = Swf.Handoff.SwapAction.release)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "963b98f2c903be653580f03853980bea6ec82292d62b6f1c19e86060db978a75",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Handoff.lean",
+        "start": {
+          "line": 125,
+          "column": 1
+        },
+        "end": {
+          "line": 132,
+          "column": 55
         }
       }
     },
@@ -3505,6 +3964,255 @@ export const ASSURANCE = L.parseAssurance({
       }
     },
     {
+      "name": "Swf.Handoff.handoffStep",
+      "module": "Swf.Handoff",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": []
+      },
+      "claims": [
+        "Swf.Handoff.disposed_final",
+        "Swf.Handoff.stage_order"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Handoff.lean",
+        "start": {
+          "line": 34,
+          "column": 1
+        },
+        "end": {
+          "line": 44,
+          "column": 17
+        }
+      }
+    },
+    {
+      "name": "Swf.Handoff.settle",
+      "module": "Swf.Handoff",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": []
+      },
+      "claims": [
+        "Swf.Handoff.degraded_only_without_backend"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Handoff.lean",
+        "start": {
+          "line": 79,
+          "column": 1
+        },
+        "end": {
+          "line": 80,
+          "column": 74
+        }
+      }
+    },
+    {
+      "name": "Swf.Handoff.settledState",
+      "module": "Swf.Handoff",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": []
+      },
+      "claims": [
+        "Swf.Handoff.settled_state"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Handoff.lean",
+        "start": {
+          "line": 87,
+          "column": 1
+        },
+        "end": {
+          "line": 88,
+          "column": 61
+        }
+      }
+    },
+    {
+      "name": "Swf.Handoff.swapSurface",
+      "module": "Swf.Handoff",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": []
+      },
+      "claims": [
+        "Swf.Handoff.swap_moves_live"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Handoff.lean",
+        "start": {
+          "line": 68,
+          "column": 1
+        },
+        "end": {
+          "line": 69,
+          "column": 69
+        }
+      }
+    },
+    {
+      "name": "Swf.Handoff.validateSurface",
+      "module": "Swf.Handoff",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": []
+      },
+      "claims": [
+        "Swf.Handoff.strand_only_when_old_gone"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Handoff.lean",
+        "start": {
+          "line": 56,
+          "column": 1
+        },
+        "end": {
+          "line": 57,
+          "column": 74
+        }
+      }
+    },
+    {
+      "name": "Swf.Handoff.viewportAdmits",
+      "module": "Swf.Handoff",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_nat_dec_eq"
+        ]
+      },
+      "claims": [
+        "Swf.Handoff.admits_until_disposed"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Handoff.lean",
+        "start": {
+          "line": 93,
+          "column": 1
+        },
+        "end": {
+          "line": 94,
+          "column": 63
+        }
+      }
+    },
+    {
+      "name": "Swf.Handoff.viewportDegraded",
+      "module": "Swf.Handoff",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_nat_dec_eq"
+        ]
+      },
+      "claims": [
+        "Swf.Handoff.degraded_iff"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Handoff.lean",
+        "start": {
+          "line": 96,
+          "column": 1
+        },
+        "end": {
+          "line": 97,
+          "column": 100
+        }
+      }
+    },
+    {
+      "name": "Swf.Handoff.viewportPresents",
+      "module": "Swf.Handoff",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_nat_dec_eq"
+        ]
+      },
+      "claims": [
+        "Swf.Handoff.presents_iff_active"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Handoff.lean",
+        "start": {
+          "line": 90,
+          "column": 1
+        },
+        "end": {
+          "line": 91,
+          "column": 63
+        }
+      }
+    },
+    {
       "name": "Swf.Hierarchy.lockRefuses",
       "module": "Swf.Hierarchy",
       "async": false,
@@ -4513,6 +5221,11 @@ export const leanTypes = Object.freeze({
   "Swf.Fallback.Negotiated": Object.freeze({ fingerprint: "d83fa9d7293315e8dda49ffe7c35e6da48716e56ea775fc4d330682179de4536", type: negotiatedType }),
   "Swf.Fallback.PolicyIssue": Object.freeze({ fingerprint: "1b5b86f52827b06ab586bd0c124d7c22e2d81b0d0b42d399c6f49f9493559ed0", type: policyIssueType }),
   "Swf.Fallback.Mode": Object.freeze({ fingerprint: "3be8ac963f5c7df0fb9bd9af8ec14f2a179da4cf9a3640ed1c841fc4575f0dd4", type: modeType }),
+  "Swf.Handoff.ViewportState": Object.freeze({ fingerprint: "d48034198877ad49b1509eb60cee794fd46e222a1b8d66a43bc44948b1d0d7ba", type: viewportStateType }),
+  "Swf.Handoff.HandoffEvent": Object.freeze({ fingerprint: "f78447ab58433ef66d970681edb52c20e7f8a7c3d665dd1e2ef1ef9773410343", type: handoffEventType }),
+  "Swf.Handoff.Settlement": Object.freeze({ fingerprint: "145c50ce2259406af25d09207982a76e783f0b9903ae3b45851b3d64bc6dd396", type: settlementType }),
+  "Swf.Handoff.SwapAction": Object.freeze({ fingerprint: "9cf7062d32231479d0bfa2d0abb6dbc23d62276a0662d22b1015366de87d024e", type: swapActionType }),
+  "Swf.Handoff.Validation": Object.freeze({ fingerprint: "3bbff96f1a8d0230be938c1f09a959251b306a519e504c3b1b246d1dea451666", type: validationType }),
   "Swf.Kernel.Lifecycle": Object.freeze({ fingerprint: "2c835e6526aff4101d4bbb4b9d142f054824f1bdb476b84b0b62f4aacbd3d96a", type: lifecycleType }),
   "Swf.Kernel.Ledger": Object.freeze({ fingerprint: "c220d887d23ae5ca11e8e818db6a2bfc08e2400ee159795866f856e91978e3b7", type: ledgerType }),
   "Swf.Kernel.Direction": Object.freeze({ fingerprint: "17f21a59b3409ae5cc98ff66c27a7bf7d3bf29a8a9ce98aafed6304be9d63e4d", type: directionType }),
@@ -4575,6 +5288,30 @@ export class SwfModels {
   }
   representedModes(represented, order) {
     return this.#program.invoke("swf_models__call_l_Swf_dFallback_drepresentedModes", [], [[L.BOOL, represented], [L.list(modeType()), order]], L.value(L.list(modeType())));
+  }
+  handoffStep(s, e) {
+    return this.#program.invoke("swf_models__call_l_Swf_dHandoff_dhandoffStep", [], [[viewportStateType(), s], [handoffEventType(), e]], L.value(L.option(viewportStateType())));
+  }
+  settle(anyWorked, oldUsable) {
+    return this.#program.invoke("swf_models__call_l_Swf_dHandoff_dsettle", [], [[L.BOOL, anyWorked], [L.BOOL, oldUsable]], L.value(settlementType()));
+  }
+  settledState(s) {
+    return this.#program.invoke("swf_models__call_l_Swf_dHandoff_dsettledState", [], [[settlementType(), s]], L.value(viewportStateType()));
+  }
+  swapSurface(live, stranded) {
+    return this.#program.invoke("swf_models__call_l_Swf_dHandoff_dswapSurface", [], [[L.BOOL, live], [L.BOOL, stranded]], L.value(swapActionType()));
+  }
+  validateSurface(oldUsable, safeDetach) {
+    return this.#program.invoke("swf_models__call_l_Swf_dHandoff_dvalidateSurface", [], [[L.BOOL, oldUsable], [L.BOOL, safeDetach]], L.value(validationType()));
+  }
+  viewportAdmits(s) {
+    return this.#program.invoke("swf_models__call_l_Swf_dHandoff_dviewportAdmits", [], [[viewportStateType(), s]], L.value(L.BOOL));
+  }
+  viewportDegraded(s, hasBackend) {
+    return this.#program.invoke("swf_models__call_l_Swf_dHandoff_dviewportDegraded", [], [[viewportStateType(), s], [L.BOOL, hasBackend]], L.value(L.BOOL));
+  }
+  viewportPresents(s) {
+    return this.#program.invoke("swf_models__call_l_Swf_dHandoff_dviewportPresents", [], [[viewportStateType(), s]], L.value(L.BOOL));
   }
   lockRefuses(byUser, locked) {
     return this.#program.invoke("swf_models__call_l_Swf_dHierarchy_dlockRefuses", [], [[L.BOOL, byUser], [L.BOOL, locked]], L.value(L.BOOL));

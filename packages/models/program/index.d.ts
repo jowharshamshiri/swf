@@ -53,6 +53,51 @@ export type Mode =
 ;
 export function modeType(): L.Type<Mode>;
 
+/** Lean's Swf.Handoff.ViewportState. */
+export type ViewportState =
+  | { readonly kind: "preparing" }
+  | { readonly kind: "validating" }
+  | { readonly kind: "swapping" }
+  | { readonly kind: "active" }
+  | { readonly kind: "degraded" }
+  | { readonly kind: "disposed" }
+;
+export function viewportStateType(): L.Type<ViewportState>;
+
+/** Lean's Swf.Handoff.HandoffEvent. */
+export type HandoffEvent =
+  | { readonly kind: "begin" }
+  | { readonly kind: "prepared" }
+  | { readonly kind: "validated" }
+  | { readonly kind: "swapped" }
+  | { readonly kind: "dispose" }
+;
+export function handoffEventType(): L.Type<HandoffEvent>;
+
+/** Lean's Swf.Handoff.Settlement. */
+export type Settlement =
+  | { readonly kind: "switched" }
+  | { readonly kind: "kept" }
+  | { readonly kind: "degraded" }
+;
+export function settlementType(): L.Type<Settlement>;
+
+/** Lean's Swf.Handoff.SwapAction. */
+export type SwapAction =
+  | { readonly kind: "move" }
+  | { readonly kind: "keepHidden" }
+  | { readonly kind: "release" }
+;
+export function swapActionType(): L.Type<SwapAction>;
+
+/** Lean's Swf.Handoff.Validation. */
+export type Validation =
+  | { readonly kind: "movable" }
+  | { readonly kind: "refuse" }
+  | { readonly kind: "strand" }
+;
+export function validationType(): L.Type<Validation>;
+
 /** Lean's Swf.Kernel.Lifecycle. */
 export type Lifecycle =
   | { readonly kind: "ready" }
@@ -450,6 +495,22 @@ export class SwfModels {
   policyIssue(order: Array<string>): L.Option<PolicyIssue>;
   /** Lean's Swf.Fallback.representedModes : Bool → List Swf.Fallback.Mode → List Swf.Fallback.Mode */
   representedModes(represented: boolean, order: Array<Mode>): Array<Mode>;
+  /** Lean's Swf.Handoff.handoffStep : Swf.Handoff.ViewportState → Swf.Handoff.HandoffEvent → Option Swf.Handoff.ViewportState */
+  handoffStep(s: ViewportState, e: HandoffEvent): L.Option<ViewportState>;
+  /** Lean's Swf.Handoff.settle : Bool → Bool → Swf.Handoff.Settlement */
+  settle(anyWorked: boolean, oldUsable: boolean): Settlement;
+  /** Lean's Swf.Handoff.settledState : Swf.Handoff.Settlement → Swf.Handoff.ViewportState */
+  settledState(s: Settlement): ViewportState;
+  /** Lean's Swf.Handoff.swapSurface : Bool → Bool → Swf.Handoff.SwapAction */
+  swapSurface(live: boolean, stranded: boolean): SwapAction;
+  /** Lean's Swf.Handoff.validateSurface : Bool → Bool → Swf.Handoff.Validation */
+  validateSurface(oldUsable: boolean, safeDetach: boolean): Validation;
+  /** Lean's Swf.Handoff.viewportAdmits : Swf.Handoff.ViewportState → Bool */
+  viewportAdmits(s: ViewportState): boolean;
+  /** Lean's Swf.Handoff.viewportDegraded : Swf.Handoff.ViewportState → Bool → Bool */
+  viewportDegraded(s: ViewportState, hasBackend: boolean): boolean;
+  /** Lean's Swf.Handoff.viewportPresents : Swf.Handoff.ViewportState → Bool */
+  viewportPresents(s: ViewportState): boolean;
   /** Lean's Swf.Hierarchy.lockRefuses : Bool → Bool → Bool */
   lockRefuses(byUser: boolean, locked: boolean): boolean;
   /** Lean's Swf.Hierarchy.mayParent : String → List String → Bool */

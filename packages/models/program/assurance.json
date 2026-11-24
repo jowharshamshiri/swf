@@ -271,6 +271,285 @@
       }
     },
     {
+      "name": "Swf.Handoff.admits_until_disposed",
+      "relation": "lungo.decides",
+      "subjects": [
+        "Swf.Handoff.viewportAdmits"
+      ],
+      "specifications": [],
+      "statement": "∀ (s : Swf.Handoff.ViewportState), Swf.Handoff.viewportAdmits s = true ↔ s ≠ Swf.Handoff.ViewportState.disposed",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "75bb41ce562428c65445c8705188f096f95a6401d44b4154aaa4079741d4831a",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Handoff.lean",
+        "start": {
+          "line": 146,
+          "column": 1
+        },
+        "end": {
+          "line": 148,
+          "column": 24
+        }
+      }
+    },
+    {
+      "name": "Swf.Handoff.degraded_iff",
+      "relation": "lungo.decides",
+      "subjects": [
+        "Swf.Handoff.viewportDegraded"
+      ],
+      "specifications": [],
+      "statement": "∀ (s : Swf.Handoff.ViewportState) (hasBackend : Bool),\n  Swf.Handoff.viewportDegraded s hasBackend = true ↔ s = Swf.Handoff.ViewportState.degraded ∨ hasBackend = false",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "59dfaefb6527eb0842bff08fd35cee9d660d7223af3aaa894b777595a189cba7",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Handoff.lean",
+        "start": {
+          "line": 150,
+          "column": 1
+        },
+        "end": {
+          "line": 153,
+          "column": 47
+        }
+      }
+    },
+    {
+      "name": "Swf.Handoff.degraded_only_without_backend",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Handoff.settle"
+      ],
+      "specifications": [],
+      "statement": "∀ (anyWorked oldUsable : Bool),\n  (Swf.Handoff.settle anyWorked oldUsable = Swf.Handoff.Settlement.degraded ↔ anyWorked = false ∧ oldUsable = false) ∧\n    (anyWorked = false →\n      oldUsable = true → (Swf.Handoff.settle anyWorked oldUsable).state = Swf.Handoff.ViewportState.active)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "f25d413e8ea5295cf82ae02107fd4dbdc6fb6a5ef6a10041a5fc1bdee2edaa3c",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Handoff.lean",
+        "start": {
+          "line": 134,
+          "column": 1
+        },
+        "end": {
+          "line": 140,
+          "column": 74
+        }
+      }
+    },
+    {
+      "name": "Swf.Handoff.disposed_final",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Handoff.handoffStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (s : Swf.Handoff.ViewportState) (e : Swf.Handoff.HandoffEvent),\n  Swf.Handoff.handoffStep Swf.Handoff.ViewportState.disposed e = none ∧\n    (s ≠ Swf.Handoff.ViewportState.disposed →\n      Swf.Handoff.handoffStep s Swf.Handoff.HandoffEvent.dispose = some Swf.Handoff.ViewportState.disposed ∧\n        Swf.Handoff.handoffStep s Swf.Handoff.HandoffEvent.begin = some Swf.Handoff.ViewportState.preparing)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "d14280bfcd0f31ec458587394069cd62595374da1ce53de3c0bab949ce257df5",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Handoff.lean",
+        "start": {
+          "line": 110,
+          "column": 1
+        },
+        "end": {
+          "line": 115,
+          "column": 45
+        }
+      }
+    },
+    {
+      "name": "Swf.Handoff.presents_iff_active",
+      "relation": "lungo.decides",
+      "subjects": [
+        "Swf.Handoff.viewportPresents"
+      ],
+      "specifications": [],
+      "statement": "∀ (s : Swf.Handoff.ViewportState), Swf.Handoff.viewportPresents s = true ↔ s = Swf.Handoff.ViewportState.active",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "5981fa5af7b58d27b18ba3adb1be52d7535f09ffdf090e60390050bdff519e5d",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Handoff.lean",
+        "start": {
+          "line": 142,
+          "column": 1
+        },
+        "end": {
+          "line": 144,
+          "column": 26
+        }
+      }
+    },
+    {
+      "name": "Swf.Handoff.settled_state",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Handoff.settledState"
+      ],
+      "specifications": [],
+      "statement": "∀ (s : Swf.Handoff.Settlement),\n  (Swf.Handoff.settledState s = Swf.Handoff.ViewportState.active ↔ s ≠ Swf.Handoff.Settlement.degraded) ∧\n    (Swf.Handoff.settledState s = Swf.Handoff.ViewportState.degraded ↔ s = Swf.Handoff.Settlement.degraded)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "60862e92d14454e2c2e7cbb62bf8008628e4adffa3d36a0e05aa51759d726087",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Handoff.lean",
+        "start": {
+          "line": 155,
+          "column": 1
+        },
+        "end": {
+          "line": 158,
+          "column": 52
+        }
+      }
+    },
+    {
+      "name": "Swf.Handoff.stage_order",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Handoff.handoffStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (s : Swf.Handoff.ViewportState) (e : Swf.Handoff.HandoffEvent),\n  (Swf.Handoff.handoffStep s e = some Swf.Handoff.ViewportState.validating →\n      s = Swf.Handoff.ViewportState.preparing ∧ e = Swf.Handoff.HandoffEvent.prepared) ∧\n    (Swf.Handoff.handoffStep s e = some Swf.Handoff.ViewportState.swapping →\n        s = Swf.Handoff.ViewportState.validating ∧ e = Swf.Handoff.HandoffEvent.validated) ∧\n      (Swf.Handoff.handoffStep s e = some Swf.Handoff.ViewportState.active →\n        s = Swf.Handoff.ViewportState.swapping ∧ e = Swf.Handoff.HandoffEvent.swapped)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "64e1748a17fe793d748cbac5461d035182dc59c5f36d9a98984a8dbadf856b1e",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Handoff.lean",
+        "start": {
+          "line": 101,
+          "column": 1
+        },
+        "end": {
+          "line": 108,
+          "column": 45
+        }
+      }
+    },
+    {
+      "name": "Swf.Handoff.strand_only_when_old_gone",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Handoff.validateSurface"
+      ],
+      "specifications": [],
+      "statement": "∀ (oldUsable safeDetach : Bool),\n  (Swf.Handoff.validateSurface oldUsable safeDetach = Swf.Handoff.Validation.strand ↔\n      oldUsable = false ∧ safeDetach = false) ∧\n    (Swf.Handoff.validateSurface oldUsable safeDetach = Swf.Handoff.Validation.refuse ↔\n      oldUsable = true ∧ safeDetach = false)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "efa2f6e97ee80585634b5de115b5e3f389b55868318bc4c4efdca4eabf6fb0e6",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Handoff.lean",
+        "start": {
+          "line": 117,
+          "column": 1
+        },
+        "end": {
+          "line": 123,
+          "column": 66
+        }
+      }
+    },
+    {
+      "name": "Swf.Handoff.swap_moves_live",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Handoff.swapSurface"
+      ],
+      "specifications": [],
+      "statement": "∀ (live stranded : Bool),\n  (live = true → Swf.Handoff.swapSurface live stranded = Swf.Handoff.SwapAction.move) ∧\n    (live = false → stranded = true → Swf.Handoff.swapSurface live stranded = Swf.Handoff.SwapAction.keepHidden) ∧\n      (live = false → stranded = false → Swf.Handoff.swapSurface live stranded = Swf.Handoff.SwapAction.release)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "963b98f2c903be653580f03853980bea6ec82292d62b6f1c19e86060db978a75",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Handoff.lean",
+        "start": {
+          "line": 125,
+          "column": 1
+        },
+        "end": {
+          "line": 132,
+          "column": 55
+        }
+      }
+    },
+    {
       "name": "Swf.Hierarchy.lockRefuses_iff",
       "relation": "lungo.decides",
       "subjects": [
@@ -2028,6 +2307,255 @@
         "end": {
           "line": 262,
           "column": 88
+        }
+      }
+    },
+    {
+      "name": "Swf.Handoff.handoffStep",
+      "module": "Swf.Handoff",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": []
+      },
+      "claims": [
+        "Swf.Handoff.disposed_final",
+        "Swf.Handoff.stage_order"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Handoff.lean",
+        "start": {
+          "line": 34,
+          "column": 1
+        },
+        "end": {
+          "line": 44,
+          "column": 17
+        }
+      }
+    },
+    {
+      "name": "Swf.Handoff.settle",
+      "module": "Swf.Handoff",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": []
+      },
+      "claims": [
+        "Swf.Handoff.degraded_only_without_backend"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Handoff.lean",
+        "start": {
+          "line": 79,
+          "column": 1
+        },
+        "end": {
+          "line": 80,
+          "column": 74
+        }
+      }
+    },
+    {
+      "name": "Swf.Handoff.settledState",
+      "module": "Swf.Handoff",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": []
+      },
+      "claims": [
+        "Swf.Handoff.settled_state"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Handoff.lean",
+        "start": {
+          "line": 87,
+          "column": 1
+        },
+        "end": {
+          "line": 88,
+          "column": 61
+        }
+      }
+    },
+    {
+      "name": "Swf.Handoff.swapSurface",
+      "module": "Swf.Handoff",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": []
+      },
+      "claims": [
+        "Swf.Handoff.swap_moves_live"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Handoff.lean",
+        "start": {
+          "line": 68,
+          "column": 1
+        },
+        "end": {
+          "line": 69,
+          "column": 69
+        }
+      }
+    },
+    {
+      "name": "Swf.Handoff.validateSurface",
+      "module": "Swf.Handoff",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": []
+      },
+      "claims": [
+        "Swf.Handoff.strand_only_when_old_gone"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Handoff.lean",
+        "start": {
+          "line": 56,
+          "column": 1
+        },
+        "end": {
+          "line": 57,
+          "column": 74
+        }
+      }
+    },
+    {
+      "name": "Swf.Handoff.viewportAdmits",
+      "module": "Swf.Handoff",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_nat_dec_eq"
+        ]
+      },
+      "claims": [
+        "Swf.Handoff.admits_until_disposed"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Handoff.lean",
+        "start": {
+          "line": 93,
+          "column": 1
+        },
+        "end": {
+          "line": 94,
+          "column": 63
+        }
+      }
+    },
+    {
+      "name": "Swf.Handoff.viewportDegraded",
+      "module": "Swf.Handoff",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_nat_dec_eq"
+        ]
+      },
+      "claims": [
+        "Swf.Handoff.degraded_iff"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Handoff.lean",
+        "start": {
+          "line": 96,
+          "column": 1
+        },
+        "end": {
+          "line": 97,
+          "column": 100
+        }
+      }
+    },
+    {
+      "name": "Swf.Handoff.viewportPresents",
+      "module": "Swf.Handoff",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_nat_dec_eq"
+        ]
+      },
+      "claims": [
+        "Swf.Handoff.presents_iff_active"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Handoff.lean",
+        "start": {
+          "line": 90,
+          "column": 1
+        },
+        "end": {
+          "line": 91,
+          "column": 63
         }
       }
     },

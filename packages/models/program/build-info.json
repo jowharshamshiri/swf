@@ -1,5 +1,5 @@
 {
-  "build_key": "6a3e7535535548e84fc0e4003ffc0edd569adb09e32cd6ae5f900064de753772",
+  "build_key": "2ea59091faa1f594956a969b158d3b7cbc2c2fd6e2d0aab52c6272f8d395e1e2",
   "lean_version": "4.35.0",
   "lean_githash": "eb6cafb7290e8bd5f2937522d8d804f58f02bafc",
   "bir_version": 3,
@@ -8,8 +8,9 @@
   "runtime_abi": 3,
   "worker_identity": "2bea70bceafce1540bf050a85435cb87948f2eec485bafb82c49d084ebcf093e",
   "input_digests": {
-    "Swf.lean": "eaee93741ca255fbea6247367f3691122f2c721324515c4eb3cd56a00c0a1ceb",
+    "Swf.lean": "3281778eee4df754968beb8e2b481c03054a8cdc0ba3f07084dc014992f50af2",
     "Swf/Fallback.lean": "0bedc582a8a6ba736dc9aa893a7b63d9373edf86b765d42b5b6be68fd34a78d5",
+    "Swf/Handoff.lean": "c4854509359375838bccdcffb91bfd62471b89fc8c2c13e514d63cfddc042bd3",
     "Swf/Hierarchy.lean": "7f30f759bfb333e8ed5fae95c977f7afbe907b1f054e782f5c9572ba6efc94ec",
     "Swf/Json.lean": "9653f829230e93d81bc867be8fe57cda75bd0f5ba159a1642d9d9ebd104edbf2",
     "Swf/Kernel.lean": "f9094107d7df62212c30e0e13dbcacff429f3b31061581ba57589c64a9116a30",
@@ -24,9 +25,9 @@
   "project": ".",
   "link_directives": [],
   "output_digests": {
-    "assurance.json": "f3ea8d6dcf7b611ead71fc3a437ce6da5ae6391a10137ff1af17f67f6608457c",
-    "index.d.ts": "faf2f05eb69b735f3e029d3e6f18dccc2a56d91e8abc9359c806ba60f5e52ff8",
-    "index.js": "c4bdd7bde006f3ffc1efc9cca7ab2fbf485fd6f8064dd58e248747e83b856ecf"
+    "assurance.json": "98d830f59cdb0443738f9cce42ed9e42dab60276eb704091129c04c44a1266ab",
+    "index.d.ts": "60f203b5eba60c79d40992e969762a20ea334b734f26258806a4862cdc14d14e",
+    "index.js": "3dc142223f9940af7b68be1a52e9696153dd828254198bf89fab493dd7508ef3"
   },
   "platform_products": [
     "program.wasm"
