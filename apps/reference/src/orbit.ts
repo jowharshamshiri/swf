@@ -1,6 +1,8 @@
 import type { Id, NavigationTarget, SceneCommand, SceneState } from '@swf/core';
 import { worldMatrix } from '@swf/core';
 import type { KeyBinding } from '@swf/interaction';
+import type * as Lean from '@swf/models';
+import { models } from '@swf/models';
 import { headingPitchOf } from '@swf/projections';
 
 /**
@@ -8,8 +10,10 @@ import { headingPitchOf } from '@swf/projections';
  * either turns the camera (view state, never undone) or turns the designated group, the orbit
  * root, about the camera (a change to the scene, undone like any other). Which one is the
  * viewport's navigation setting, chosen explicitly and said aloud; it never switches by itself
- * from where the pointer is. Nothing here touches a scene: a transition says which commands make
- * it, and the caller commits them.
+ * from where the pointer is. Every transition is decided by the Lean model `Swf.AppOrbit`
+ * (models/Swf/AppOrbit.lean), where its invariants are proved; this module carries the scene's
+ * facts to it and its commands back. Nothing here touches a scene: a transition says which
+ * commands make it, and the caller commits them.
  */
 
 /** What the orbit policy weighs. */
@@ -50,17 +54,7 @@ export function orbitStateOf(scene: SceneState, viewportId: Id, enabled: boolean
 
 /** Why a node cannot be the orbit root, or null when it can: only an active group can. */
 export function orbitRootIssue(scene: SceneState, nodeId: Id): string | null {
-  const node = scene.nodes.get(nodeId);
-  if (node === undefined) {
-    return `no node "${nodeId}"`;
-  }
-  if (node.kind !== 'group') {
-    return `"${node.label ?? nodeId}" is a ${node.kind}, not a group`;
-  }
-  if (node.status !== 'active') {
-    return `"${node.label ?? nodeId}" is archived`;
-  }
-  return null;
+  return models.orbitRootIssue(candidateOf(scene, nodeId));
 }
 
 /**
@@ -73,40 +67,25 @@ export function orbitTransition(
   state: OrbitState,
   event: OrbitEvent,
 ): OrbitTransition {
-  const navigate = (navigation: NavigationTarget): SceneCommand[] =>
-    navigation === state.navigation ? [] : [{ type: 'viewport.patch', id: viewportId, navigation }];
-  switch (event.kind) {
-    case 'navigate': {
-      if (event.to === 'orbit') {
-        if (!state.enabled) {
-          return refused('navigation', 'workspace orbit is turned off');
-        }
-        if (state.rootId === null) {
-          return refused('navigation', 'no group is designated for workspace orbit');
-        }
-      }
-      return next({ ...state, navigation: event.to }, navigate(event.to));
-    }
-    case 'designate': {
-      if (event.nodeId !== null) {
-        const issue = orbitRootIssue(scene, event.nodeId);
-        if (issue !== null) {
-          return refused('nodeId', issue);
-        }
-      }
-      const navigation = event.nodeId === null ? 'camera' : state.navigation;
-      const commands: SceneCommand[] =
-        event.nodeId === state.rootId ? [] : [{ type: 'orbitRoot.set', nodeId: event.nodeId }];
-      return next({ ...state, rootId: event.nodeId, navigation }, [
-        ...commands,
-        ...navigate(navigation),
-      ]);
-    }
-    case 'enable': {
-      const navigation = event.enabled ? state.navigation : 'camera';
-      return next({ ...state, enabled: event.enabled, navigation }, navigate(navigation));
-    }
+  const step = models.orbitStep(leanState(state), leanEvent(scene, event));
+  if (step.kind === 'refused') {
+    return Object.freeze({ kind: 'refused', field: step.field, reason: step.reason });
   }
+  return Object.freeze({
+    kind: 'next',
+    state: Object.freeze({
+      enabled: step.state.enabled,
+      navigation: step.state.navigation.kind,
+      rootId: step.state.rootId,
+    }),
+    commands: Object.freeze(
+      step.commands.map((command): SceneCommand =>
+        command.kind === 'setRoot'
+          ? { type: 'orbitRoot.set', nodeId: command.nodeId }
+          : { type: 'viewport.patch', id: viewportId, navigation: command.to.kind },
+      ),
+    ),
+  });
 }
 
 /**
@@ -115,14 +94,14 @@ export function orbitTransition(
  * the camera.
  */
 export function orbitRepair(state: OrbitState, viewportId: Id): readonly SceneCommand[] {
-  return state.navigation === 'orbit' && (!state.enabled || state.rootId === null)
+  return models.orbitNeedsRepair(leanState(state))
     ? [{ type: 'viewport.patch', id: viewportId, navigation: 'camera' }]
     : [];
 }
 
 /** The key bindings while the policy is on or off: off, none turns the orbit root. */
 export function orbitKeymap(keymap: readonly KeyBinding[], enabled: boolean): KeyBinding[] {
-  return enabled ? [...keymap] : keymap.filter((binding) => binding.command !== 'orbit.turn');
+  return keymap.filter((binding) => models.orbitKeepsBinding(enabled, binding.command));
 }
 
 /**
@@ -153,14 +132,32 @@ export function cameraHeading(scene: SceneState, viewportId: Id): number {
   return headingPitchOf(camera.rotation).heading;
 }
 
-function next(state: OrbitState, commands: readonly SceneCommand[]): OrbitTransition {
-  return Object.freeze({
-    kind: 'next',
-    state: Object.freeze(state),
-    commands: Object.freeze(commands),
-  });
+/** A node of the scene as designating it weighs it, by ID. */
+function candidateOf(scene: SceneState, nodeId: Id): Lean.OrbitCandidate {
+  const node = scene.nodes.get(nodeId);
+  return {
+    id: nodeId,
+    node:
+      node === undefined
+        ? null
+        : { kind: node.kind, label: node.label, active: node.status === 'active' },
+  };
 }
 
-function refused(field: string, reason: string): OrbitTransition {
-  return Object.freeze({ kind: 'refused', field, reason });
+function leanState(state: OrbitState): Lean.OrbitState {
+  return { enabled: state.enabled, navigation: { kind: state.navigation }, rootId: state.rootId };
+}
+
+function leanEvent(scene: SceneState, event: OrbitEvent): Lean.OrbitEvent {
+  switch (event.kind) {
+    case 'navigate':
+      return { kind: 'navigate', to: { kind: event.to } };
+    case 'designate':
+      return {
+        kind: 'designate',
+        candidate: event.nodeId === null ? null : candidateOf(scene, event.nodeId),
+      };
+    case 'enable':
+      return { kind: 'enable', enabled: event.enabled };
+  }
 }

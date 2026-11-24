@@ -56,6 +56,23 @@ exports = [
   "Swf.Arbitration.pickOrder",
   "Swf.ViewMode.transition",
   "Swf.ViewMode.observed",
+  "Swf.AppOrbit.orbitRootIssue",
+  "Swf.AppOrbit.orbitStep",
+  "Swf.AppOrbit.orbitNeedsRepair",
+  "Swf.AppOrbit.orbitKeepsBinding",
+  "Swf.AppCursor.wrapPointerStep",
+  "Swf.AppCursor.wrapAfterDispatch",
+  "Swf.AppFeatures.featuresUpdate",
+  "Swf.AppDepth.depthBands",
+  "Swf.AppSnap.snapResolve",
+  "Swf.AppComposition.compositionFreeId",
+  "Swf.AppComposition.compositionPlan",
+  "Swf.AppWorkspaces.workspacesNameIssue",
+  "Swf.AppWorkspaces.workspacesStep",
+  "Swf.AppWorkspaces.workspacesNewest",
+  "Swf.AppWorkspaces.workspacesStale",
+  "Swf.AppWorkspaces.workspacesSavedAt",
+  "Swf.AppWorkspaces.workspacesImportIssue",
 ]
 
 [assurance]

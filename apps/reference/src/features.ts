@@ -1,3 +1,6 @@
+import type * as Lean from '@swf/models';
+import { models, toJson } from '@swf/models';
+
 /**
  * The reference application's eight behaviour modules (DLV-007, AC-015), each turned on or off on
  * its own, and the parameters of those that have any. Every module reads only these settings and
@@ -82,115 +85,47 @@ export class FeatureError extends Error {
   }
 }
 
-/** The largest angular snap threshold: beyond it everything would snap to everything. */
-export const MAX_ANGULAR_SNAP = 15;
-
 /**
- * The settings with a patch applied, validated as a whole. Throws {@link FeatureError} naming the
- * first field at fault; the current settings are never changed.
+ * The settings with a patch applied, validated as a whole by the Lean model `Swf.AppFeatures`
+ * (models/Swf/AppFeatures.lean), where it is proved that valid settings stay valid and that a
+ * patch is applied whole or not at all. Throws {@link FeatureError} naming the first field at
+ * fault; the current settings are never changed. A part the patch leaves as it was is the very
+ * same object, and a patch that changes nothing gives back `current` itself.
  */
 export function updateFeatures(current: FeatureSettings, patch: unknown): FeatureSettings {
-  const p = record(patch, 'features');
-  known(p, ['enabled', 'snap', 'depth'], 'features');
-  let enabled = current.enabled;
-  if (p['enabled'] !== undefined) {
-    const e = record(p['enabled'], 'enabled');
-    known(e, FEATURE_IDS, 'enabled');
-    const next: Record<FeatureId, boolean> = { ...current.enabled };
-    for (const id of FEATURE_IDS) {
-      const value = e[id];
-      if (value === undefined) {
-        continue;
-      }
-      if (typeof value !== 'boolean') {
-        throw new FeatureError(`enabled.${id}`, 'must be true or false');
-      }
-      next[id] = value;
-    }
-    enabled = Object.freeze(next);
+  const update = models.featuresUpdate(
+    { enabled: current.enabled, snap: current.snap, depth: current.depth },
+    toJson(patch, 'features'),
+  );
+  if (update.kind === 'refused') {
+    throw new FeatureError(update.field, reasonOf(update.fault));
   }
-  let snap = current.snap;
-  if (p['snap'] !== undefined) {
-    const s = record(p['snap'], 'snap');
-    known(s, ['linear', 'angular', 'padding'], 'snap');
-    snap = Object.freeze({
-      linear:
-        s['linear'] === undefined ? current.snap.linear : nonNegative(s['linear'], 'snap.linear'),
-      angular:
-        s['angular'] === undefined
-          ? current.snap.angular
-          : nonNegative(s['angular'], 'snap.angular'),
-      padding:
-        s['padding'] === undefined
-          ? current.snap.padding
-          : nonNegative(s['padding'], 'snap.padding'),
-    });
-    if (snap.angular > MAX_ANGULAR_SNAP) {
-      throw new FeatureError('snap.angular', `must be at most ${String(MAX_ANGULAR_SNAP)} degrees`);
-    }
+  if (update.enabled === null && update.snap === null && update.depth === null) {
+    return current;
   }
-  let depth = current.depth;
-  if (p['depth'] !== undefined) {
-    const d = record(p['depth'], 'depth');
-    known(d, ['full', 'compact'], 'depth');
-    depth = Object.freeze({
-      full: d['full'] === undefined ? current.depth.full : positive(d['full'], 'depth.full'),
-      compact:
-        d['compact'] === undefined
-          ? current.depth.compact
-          : positive(d['compact'], 'depth.compact'),
-    });
-    if (!(depth.compact > depth.full)) {
-      throw new FeatureError(
-        d['compact'] === undefined ? 'depth.full' : 'depth.compact',
-        `the compact band must end farther than the full one (full ${String(depth.full)}, compact ${String(depth.compact)})`,
-      );
-    }
-  }
-  const next = Object.freeze({
-    enabled: same(enabled, current.enabled) ? current.enabled : enabled,
-    snap: same(snap, current.snap) ? current.snap : snap,
-    depth: same(depth, current.depth) ? current.depth : depth,
+  return Object.freeze({
+    enabled: update.enabled === null ? current.enabled : Object.freeze({ ...update.enabled }),
+    snap: update.snap === null ? current.snap : Object.freeze({ ...update.snap }),
+    depth: update.depth === null ? current.depth : Object.freeze({ ...update.depth }),
   });
-  return next.enabled === current.enabled &&
-    next.snap === current.snap &&
-    next.depth === current.depth
-    ? current
-    : next;
 }
 
-/** Whether two flat settings records hold the same values. */
-function same<T extends object>(a: T, b: T): boolean {
-  return (Object.keys(a) as (keyof T)[]).every((key) => Object.is(a[key], b[key]));
-}
-
-function record(value: unknown, field: string): Record<string, unknown> {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    throw new FeatureError(field, 'must be an object');
+/** What is wrong with a refused field, as the operator is told it. */
+function reasonOf(fault: Lean.FeatureFault): string {
+  switch (fault.kind) {
+    case 'notObject':
+      return 'must be an object';
+    case 'unknown':
+      return `is not a setting; the settings are ${fault.settings.join(', ')}`;
+    case 'notBoolean':
+      return 'must be true or false';
+    case 'notNonNegative':
+      return 'must be a finite number, zero or more';
+    case 'notPositive':
+      return 'must be a finite number above zero';
+    case 'tooWide':
+      return `must be at most ${String(fault.max)} degrees`;
+    case 'bandsOutOfOrder':
+      return `the compact band must end farther than the full one (full ${String(fault.full)}, compact ${String(fault.compact)})`;
   }
-  return value as Record<string, unknown>;
-}
-
-function known(value: Record<string, unknown>, keys: readonly string[], field: string): void {
-  const extra = Object.keys(value).find((key) => !keys.includes(key));
-  if (extra !== undefined) {
-    throw new FeatureError(
-      `${field}.${extra}`,
-      `is not a setting; the settings are ${keys.join(', ')}`,
-    );
-  }
-}
-
-function nonNegative(value: unknown, field: string): number {
-  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
-    throw new FeatureError(field, 'must be a finite number, zero or more');
-  }
-  return value;
-}
-
-function positive(value: unknown, field: string): number {
-  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
-    throw new FeatureError(field, 'must be a finite number above zero');
-  }
-  return value;
 }

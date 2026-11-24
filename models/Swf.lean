@@ -10,3 +10,10 @@ import Swf.Handoff
 import Swf.Gesture
 import Swf.Order
 import Swf.Arbitration
+import Swf.AppOrbit
+import Swf.AppCursor
+import Swf.AppFeatures
+import Swf.AppDepth
+import Swf.AppSnap
+import Swf.AppComposition
+import Swf.AppWorkspaces

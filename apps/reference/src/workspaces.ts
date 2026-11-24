@@ -11,6 +11,8 @@ import type {
   WorkspaceDocument,
 } from '@swf/persistence';
 import { createPersistence, createSaver } from '@swf/persistence';
+import type * as Lean from '@swf/models';
+import { models } from '@swf/models';
 
 /**
  * The reference application's workspaces in local storage (FR-127, FR-168, UX-016, PRIV-002): the
@@ -189,21 +191,31 @@ function parseNamedKey(key: string): { name: string; savedAt: number } | null {
   }
 }
 
-/** The longest name a workspace can have. */
-export const MAX_NAME_LENGTH = 80;
-
-/** Why a name cannot name a workspace, or null when it can. */
+/**
+ * Why a name cannot name a workspace, or null when it can: it needs something besides spaces,
+ * cannot start or end with spaces, and has a longest length.
+ */
 export function nameIssue(name: unknown): string | null {
-  if (typeof name !== 'string' || name.trim() === '') {
-    return 'a workspace needs a name';
+  const issue = models.workspacesNameIssue(typeof name === 'string' ? name : null);
+  if (issue === null) {
+    return null;
   }
-  if (name !== name.trim()) {
-    return 'a name cannot start or end with spaces';
+  switch (issue.kind) {
+    case 'missing':
+      return 'a workspace needs a name';
+    case 'padded':
+      return 'a name cannot start or end with spaces';
+    case 'tooLong':
+      return `a name can be at most ${String(issue.max)} characters`;
   }
-  if (name.length > MAX_NAME_LENGTH) {
-    return `a name can be at most ${String(MAX_NAME_LENGTH)} characters`;
+}
+
+/** Wall-clock milliseconds as the whole number a key carries. */
+function wholeMilliseconds(now: number): bigint {
+  if (!Number.isSafeInteger(now)) {
+    throw new RangeError(`the wall clock gives whole milliseconds (got ${String(now)})`);
   }
-  return null;
+  return BigInt(now);
 }
 
 /** What a snapshot holds, counted. */
@@ -244,10 +256,7 @@ export function createWorkspaces(options: WorkspacesOptions): Workspaces {
       listener();
     }
   };
-  let autosave = false;
-  let timerId: ReturnType<typeof setTimeout> | null = null;
   let restoreError: SwfError | null = null;
-  let disposed = false;
   const measures = {
     saves: 0,
     saveFailures: 0,
@@ -261,17 +270,15 @@ export function createWorkspaces(options: WorkspacesOptions): Workspaces {
     lastRestoreMs: null as number | null,
   };
 
-  /** The stored visits, newest first. */
+  /** The stored visits, as their keys say when each started. */
   const sessions = async () =>
-    (await store.list())
-      .flatMap((entry) => {
-        const at = sessionStart(entry.key);
-        return at === null ? [] : [{ key: entry.key, at }];
-      })
-      .sort((a, b) => b.at - a.at);
+    (await store.list()).flatMap((entry) => {
+      const at = sessionStart(entry.key);
+      return at === null ? [] : [{ key: entry.key, at }];
+    });
 
   /** The key this visit saves under. */
-  let session = sessionKey(now());
+  let session = sessionKey(Number(wholeMilliseconds(now())));
 
   /** A store measured: each save it is asked for timed and counted. */
   const measured: SnapshotStore = {
@@ -291,10 +298,9 @@ export function createWorkspaces(options: WorkspacesOptions): Workspaces {
       measures.lastSnapshotBytes = ack.bytes;
       // This visit is stored: older visits are no longer the last one, and go.
       if (request.key === session) {
-        for (const older of await sessions()) {
-          if (older.key !== session) {
-            await store.delete(older.key);
-          }
+        const visits = (await sessions()).map((visit) => visit.key);
+        for (const older of models.workspacesStale(session, visits)) {
+          await store.delete(older);
         }
       }
       return ack;
@@ -314,25 +320,49 @@ export function createWorkspaces(options: WorkspacesOptions): Workspaces {
       ...(saved === undefined ? {} : { saved }),
     });
     stopSaver = saver.subscribe(tell);
-    tell();
   };
 
-  const schedule = () => {
-    if (!autosave || disposed) {
-      return;
-    }
-    if (timerId !== null) {
+  /**
+   * Saving as the workspace changes, decided by the Lean model `Swf.AppWorkspaces`
+   * (models/Swf/AppWorkspaces.lean), where it is proved that a save is scheduled only while saving
+   * is on, and only once there is something to save. A save is scheduled exactly while the timer
+   * runs.
+   */
+  let machine: Lean.WorkspacesMachine = { autosave: false, pending: false, disposed: false };
+  let timerId: ReturnType<typeof setTimeout> | null = null;
+  /** Does what the model decided for an event, but the save itself; throws its refusal. */
+  const decide = (event: Lean.WorkspacesEvent): Lean.WorkspacesStep => {
+    const step = models.workspacesStep(machine, event);
+    machine = step.next;
+    if (step.cancelTimer) {
+      if (timerId === null) {
+        throw new Error('a scheduled save has no timer to stop');
+      }
       clearTimeout(timerId);
-    }
-    timerId = setTimeout(() => {
       timerId = null;
-      const started = timer();
-      void saver.save().then(() => {
-        measures.lastSaveMs = timer() - started;
-      });
-    }, options.autosaveDelayMs);
+    }
+    if (step.startTimer) {
+      timerId = setTimeout(() => {
+        timerId = null;
+        if (decide({ kind: 'fired' }).save) {
+          const started = timer();
+          void saver.save().then(() => {
+            measures.lastSaveMs = timer() - started;
+          });
+        }
+      }, options.autosaveDelayMs);
+    }
+    if (step.announce) {
+      tell();
+    }
+    if (step.refusal !== null) {
+      throw new WorkspaceRefusal('save', step.refusal);
+    }
+    return step;
   };
-  const stopChanges = persistence.subscribe(schedule);
+  const stopChanges = persistence.subscribe(() => {
+    decide({ kind: 'changed' });
+  });
 
   /** Captures the workspace and writes it out as JSON, measured. */
   const snapshotText = async (): Promise<{ text: string; revision: number }> => {
@@ -362,7 +392,7 @@ export function createWorkspaces(options: WorkspacesOptions): Workspaces {
     return outcome;
   };
 
-  /** Every stored save of each named workspace, newest first. */
+  /** Every stored save of each named workspace. */
   const namedEntries = async () => {
     const all = new Map<string, { savedAt: number; key: string; bytes: number }[]>();
     for (const entry of await store.list()) {
@@ -374,18 +404,28 @@ export function createWorkspaces(options: WorkspacesOptions): Workspaces {
       list.push({ savedAt: parsed.savedAt, key: entry.key, bytes: entry.bytes });
       all.set(parsed.name, list);
     }
-    for (const list of all.values()) {
-      list.sort((a, b) => b.savedAt - a.savedAt);
-    }
     return all;
   };
 
-  const loadNamed = async (name: string) => {
+  /** The latest stored save of a name, if there is one. */
+  const latestOf = <T extends { readonly savedAt: number; readonly key: string }>(
+    entries: readonly T[],
+  ): T | undefined => {
+    const key = models.workspacesNewest(entries.map((e) => [e.key, BigInt(e.savedAt)]));
+    return key === null ? undefined : entries.find((e) => e.key === key);
+  };
+
+  /** Refuses a name that cannot name a workspace. */
+  const checkName = (name: string) => {
     const issue = nameIssue(name);
     if (issue !== null) {
       throw new WorkspaceRefusal('name', issue);
     }
-    const newest = (await namedEntries()).get(name)?.[0];
+  };
+
+  const loadNamed = async (name: string) => {
+    checkName(name);
+    const newest = latestOf((await namedEntries()).get(name) ?? []);
     const stored = newest === undefined ? null : await store.load(newest.key);
     if (stored === null) {
       throw new WorkspaceRefusal('name', `no workspace is saved as “${name}”`);
@@ -401,12 +441,16 @@ export function createWorkspaces(options: WorkspacesOptions): Workspaces {
     }
   };
 
-  const checkFile = (fileName: string, text: string) => {
-    if (typeof fileName !== 'string' || !fileName.toLowerCase().endsWith('.json')) {
-      throw new WorkspaceRefusal('file', 'a workspace file is a .json file');
-    }
-    if (typeof text !== 'string') {
-      throw new WorkspaceRefusal('file', 'a workspace file is text');
+  const checkFile = (fileName: unknown, text: unknown) => {
+    const issue = models.workspacesImportIssue(
+      typeof fileName === 'string' ? fileName : null,
+      typeof text === 'string',
+    );
+    if (issue !== null) {
+      throw new WorkspaceRefusal(
+        'file',
+        issue.kind === 'notJson' ? 'a workspace file is a .json file' : 'a workspace file is text',
+      );
     }
   };
 
@@ -414,7 +458,7 @@ export function createWorkspaces(options: WorkspacesOptions): Workspaces {
     persistence,
     status: () =>
       Object.freeze({
-        autosave,
+        autosave: machine.autosave,
         save: saver.state,
         saveError: saver.state === 'failed' ? saver.lastError : null,
         restoreError,
@@ -426,40 +470,27 @@ export function createWorkspaces(options: WorkspacesOptions): Workspaces {
       };
     },
     setAutosave(on: boolean) {
-      if (autosave === on) {
-        return;
-      }
-      autosave = on;
-      if (!on && timerId !== null) {
-        clearTimeout(timerId);
-        timerId = null;
-      }
-      if (on && saver.state !== 'clean') {
-        schedule();
-      }
-      tell();
+      decide({ kind: 'setAutosave', on, saver: { kind: saver.state } });
     },
     async restoreLast() {
-      const newest = (await sessions())[0];
-      const stored = newest === undefined ? null : await store.load(newest.key);
+      const newest = models.workspacesNewest(
+        (await sessions()).map((visit) => [visit.key, BigInt(visit.at)]),
+      );
+      const stored = newest === null ? null : await store.load(newest);
       if (stored === null) {
         return null;
       }
       measures.lastSnapshotBytes = stored.bytes;
       const outcome = await restore(stored.document);
-      if (outcome.status === 'restored') {
+      if (decide({ kind: 'restored', ok: outcome.status === 'restored' }).adopt) {
         // The visit goes on: the store holds what the workspace now shows, under its key.
         replaceSaver(stored.key, { revision: stored.revision, changes: persistence.changes() });
       }
       return outcome;
     },
     async saveNow() {
-      if (!autosave) {
-        throw new WorkspaceRefusal('save', 'saving is off');
-      }
-      if (timerId !== null) {
-        clearTimeout(timerId);
-        timerId = null;
+      if (!decide({ kind: 'saveNow' }).save) {
+        return;
       }
       const started = timer();
       const outcome = await saver.save();
@@ -471,7 +502,7 @@ export function createWorkspaces(options: WorkspacesOptions): Workspaces {
     async named() {
       return [...(await namedEntries())]
         .map(([name, list]): NamedWorkspace => {
-          const newest = list[0];
+          const newest = latestOf(list);
           if (newest === undefined) {
             throw new Error(`named workspace "${name}" has no entry`);
           }
@@ -480,17 +511,16 @@ export function createWorkspaces(options: WorkspacesOptions): Workspaces {
         .sort((a, b) => a.name.localeCompare(b.name));
     },
     async saveAs(name: string) {
-      const issue = nameIssue(name);
-      if (issue !== null) {
-        throw new WorkspaceRefusal('name', issue);
-      }
+      checkName(name);
       const older = (await namedEntries()).get(name) ?? [];
       const { text, revision } = await snapshotText();
-      let savedAt = now();
       // A later save of the same name at the same millisecond still gets a key of its own.
-      while (older.some((o) => o.savedAt >= savedAt)) {
-        savedAt += 1;
-      }
+      const savedAt = Number(
+        models.workspacesSavedAt(
+          wholeMilliseconds(now()),
+          older.map((o) => BigInt(o.savedAt)),
+        ),
+      );
       let ack;
       try {
         ack = await measured.save({
@@ -518,10 +548,7 @@ export function createWorkspaces(options: WorkspacesOptions): Workspaces {
       return restore(stored.document);
     },
     async deleteNamed(name: string) {
-      const issue = nameIssue(name);
-      if (issue !== null) {
-        throw new WorkspaceRefusal('name', issue);
-      }
+      checkName(name);
       const entries = (await namedEntries()).get(name);
       if (entries === undefined) {
         throw new WorkspaceRefusal('name', `no workspace is saved as “${name}”`);
@@ -541,10 +568,8 @@ export function createWorkspaces(options: WorkspacesOptions): Workspaces {
         }
       }
       // Nothing is stored now: the workspace on screen counts as unsaved, a visit afresh.
-      replaceSaver(sessionKey(now()));
-      if (autosave) {
-        schedule();
-      }
+      replaceSaver(sessionKey(Number(wholeMilliseconds(now()))));
+      decide({ kind: 'cleared' });
       return deleted;
     },
     async exportText() {
@@ -562,11 +587,7 @@ export function createWorkspaces(options: WorkspacesOptions): Workspaces {
     },
     measures: () => Object.freeze({ ...measures }),
     dispose() {
-      disposed = true;
-      if (timerId !== null) {
-        clearTimeout(timerId);
-        timerId = null;
-      }
+      decide({ kind: 'dispose' });
       stopChanges();
       stopSaver();
       saver.dispose();

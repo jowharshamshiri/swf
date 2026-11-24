@@ -1,5 +1,6 @@
 import type { DispatchResult, InputAdapter, InputIntent, PointerIntent } from '@swf/interaction';
 import { INTERACTION_API_VERSION } from '@swf/interaction';
+import { models } from '@swf/models';
 
 /**
  * The wrapped cursor: an input policy, on its own between the device and the framework. In a
@@ -11,7 +12,9 @@ import { INTERACTION_API_VERSION } from '@swf/interaction';
  * not take, and every pointer while the view does not show the whole circle, pass unchanged; the
  * policy can be turned on and off without touching ordinary pointer input.
  *
- * The state is plain data with explicit transitions; nothing here touches the page.
+ * The state is plain data with explicit transitions, each decided by the Lean model
+ * `Swf.AppCursor` (models/Swf/AppCursor.lean), where its invariants are proved; nothing here
+ * touches the page.
  */
 
 /** The pointers the framework took, by device and pointer: the ones that wrap. */
@@ -38,22 +41,27 @@ const keyOf = (p: PointerIntent) => `${p.deviceId}\u0000${String(p.pointerId)}`;
 
 /** A pointer sample, wrapped across the seam when the framework took the pointer and the view wraps. */
 export function wrapPointer(state: WrapState, intent: PointerIntent, frame: WrapFrame): Wrapped {
-  if (!(frame.width > 0) || !Number.isFinite(frame.width)) {
-    throw new RangeError(`a view's width is finite and above zero (got ${String(frame.width)})`);
+  const outcome = models.wrapPointerStep(
+    [...state.taken],
+    keyOf(intent),
+    { kind: intent.phase },
+    intent.x,
+    frame.width,
+    frame.wraps,
+  );
+  switch (outcome.kind) {
+    case 'invalidWidth':
+      throw new RangeError(`a view's width is finite and above zero (got ${String(frame.width)})`);
+    case 'pass':
+      return { intent, cursor: null };
+    case 'wrapped': {
+      const wrapped: PointerIntent = Object.freeze({ ...intent, x: outcome.x });
+      return {
+        intent: wrapped,
+        cursor: outcome.cursor ? Object.freeze({ x: outcome.x, y: intent.y }) : null,
+      };
+    }
   }
-  if (!frame.wraps || intent.phase === 'down' || !state.taken.has(keyOf(intent))) {
-    return { intent, cursor: null };
-  }
-  const x = intent.x - frame.width * Math.floor(intent.x / frame.width);
-  if (x === intent.x) {
-    return { intent, cursor: null };
-  }
-  const wrapped: PointerIntent = Object.freeze({ ...intent, x });
-  // The cursor is drawn while the pointer is held; a release or cancellation ends it.
-  return {
-    intent: wrapped,
-    cursor: intent.phase === 'move' ? Object.freeze({ x, y: intent.y }) : null,
-  };
 }
 
 /** The state once the framework answered a pointer sample. */
@@ -62,19 +70,13 @@ export function afterDispatch(
   intent: PointerIntent,
   result: DispatchResult,
 ): WrapState {
-  const key = keyOf(intent);
-  if (intent.phase === 'down') {
-    if (!result.consumed || state.taken.has(key)) {
-      return state;
-    }
-    return Object.freeze({ taken: Object.freeze(new Set([...state.taken, key])) });
-  }
-  if ((intent.phase === 'up' || intent.phase === 'cancel') && state.taken.has(key)) {
-    const taken = new Set(state.taken);
-    taken.delete(key);
-    return Object.freeze({ taken: Object.freeze(taken) });
-  }
-  return state;
+  const taken = models.wrapAfterDispatch(
+    [...state.taken],
+    keyOf(intent),
+    { kind: intent.phase },
+    result.consumed,
+  );
+  return taken === null ? state : Object.freeze({ taken: Object.freeze(new Set(taken)) });
 }
 
 export interface WrappedInputOptions {

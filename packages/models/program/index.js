@@ -12,10 +12,707 @@ async function programModule() {
   return response.arrayBuffer();
 }
 
+/** Describes Swf.AppComposition.CompScene for polymorphic functions. */
+export function compSceneType() {
+  return new L.Type(
+    L.inductiveExpr(0),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppComposition.CompScene");
+      w.u32(0);
+      L.array(compNodeType()).encode(w, v.nodes);
+      L.array(compSurfaceType()).encode(w, v.surfaces);
+      L.option(L.STRING).encode(w, v.orbitRootId);
+    },
+    (r) => {
+      const c = r.u32();
+      if (c !== 0) throw new L.MalformedError(`constructor index ${c} of Swf.AppComposition.CompScene`);
+      return ({ nodes: L.array(compNodeType()).decode(r), surfaces: L.array(compSurfaceType()).decode(r), orbitRootId: L.option(L.STRING).decode(r) });
+    },
+  );
+}
+
+/** Describes Swf.AppComposition.CompStep for polymorphic functions. */
+export function compStepType() {
+  return new L.Type(
+    L.inductiveExpr(1),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppComposition.CompStep");
+      switch (v.kind) {
+        case "detach":
+          w.u32(0);
+          compRefType().encode(w, v.surface);
+          return;
+        case "move":
+          w.u32(1);
+          compRefType().encode(w, v.surface);
+          compRefType().encode(w, v.window);
+          return;
+        case "merge":
+          w.u32(2);
+          compRefType().encode(w, v.window);
+          compRefType().encode(w, v.target);
+          return;
+        case "regroup":
+          w.u32(3);
+          compRefType().encode(w, v.window);
+          compTargetType().encode(w, v.target);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.AppComposition.CompStep`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "detach", surface: compRefType().decode(r) });
+        case 1: return ({ kind: "move", surface: compRefType().decode(r), window: compRefType().decode(r) });
+        case 2: return ({ kind: "merge", window: compRefType().decode(r), target: compRefType().decode(r) });
+        case 3: return ({ kind: "regroup", window: compRefType().decode(r), target: compTargetType().decode(r) });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.AppComposition.CompStep`);
+      }
+    },
+  );
+}
+
+/** Describes Swf.AppComposition.CompPlan for polymorphic functions. */
+export function compPlanType() {
+  return new L.Type(
+    L.inductiveExpr(2),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppComposition.CompPlan");
+      switch (v.kind) {
+        case "refused":
+          w.u32(0);
+          L.STRING.encode(w, v.field);
+          L.STRING.encode(w, v.reason);
+          return;
+        case "detach":
+          w.u32(1);
+          L.STRING.encode(w, v.surface);
+          L.STRING.encode(w, v.window);
+          L.STRING.encode(w, v.created);
+          L.STRING.encode(w, v.label);
+          L.option(L.STRING).encode(w, v.parentId);
+          L.array(L.STRING).encode(w, v.kept);
+          return;
+        case "move":
+          w.u32(2);
+          L.STRING.encode(w, v.surface);
+          L.STRING.encode(w, v.target);
+          L.array(L.STRING).encode(w, v.laidOut);
+          L.STRING.encode(w, v.source);
+          L.array(L.STRING).encode(w, v.left);
+          return;
+        case "merge":
+          w.u32(3);
+          L.STRING.encode(w, v.source);
+          L.STRING.encode(w, v.target);
+          L.array(L.STRING).encode(w, v.moved);
+          L.array(L.STRING).encode(w, v.laidOut);
+          return;
+        case "regroup":
+          w.u32(4);
+          L.STRING.encode(w, v.window);
+          compIntoType().encode(w, v.into);
+          L.option(L.STRING).encode(w, v.removed);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.AppComposition.CompPlan`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "refused", field: L.STRING.decode(r), reason: L.STRING.decode(r) });
+        case 1: return ({ kind: "detach", surface: L.STRING.decode(r), window: L.STRING.decode(r), created: L.STRING.decode(r), label: L.STRING.decode(r), parentId: L.option(L.STRING).decode(r), kept: L.array(L.STRING).decode(r) });
+        case 2: return ({ kind: "move", surface: L.STRING.decode(r), target: L.STRING.decode(r), laidOut: L.array(L.STRING).decode(r), source: L.STRING.decode(r), left: L.array(L.STRING).decode(r) });
+        case 3: return ({ kind: "merge", source: L.STRING.decode(r), target: L.STRING.decode(r), moved: L.array(L.STRING).decode(r), laidOut: L.array(L.STRING).decode(r) });
+        case 4: return ({ kind: "regroup", window: L.STRING.decode(r), into: compIntoType().decode(r), removed: L.option(L.STRING).decode(r) });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.AppComposition.CompPlan`);
+      }
+    },
+  );
+}
+
+/** Describes Swf.AppCursor.WrapPhase for polymorphic functions. */
+export function wrapPhaseType() {
+  return new L.Type(
+    L.inductiveExpr(3),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppCursor.WrapPhase");
+      switch (v.kind) {
+        case "down":
+          w.u32(0);
+          return;
+        case "move":
+          w.u32(1);
+          return;
+        case "up":
+          w.u32(2);
+          return;
+        case "cancel":
+          w.u32(3);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.AppCursor.WrapPhase`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "down" });
+        case 1: return ({ kind: "move" });
+        case 2: return ({ kind: "up" });
+        case 3: return ({ kind: "cancel" });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.AppCursor.WrapPhase`);
+      }
+    },
+  );
+}
+
+/** Describes Swf.AppCursor.WrapOutcome for polymorphic functions. */
+export function wrapOutcomeType() {
+  return new L.Type(
+    L.inductiveExpr(4),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppCursor.WrapOutcome");
+      switch (v.kind) {
+        case "pass":
+          w.u32(0);
+          return;
+        case "wrapped":
+          w.u32(1);
+          L.FLOAT.encode(w, v.x);
+          L.BOOL.encode(w, v.cursor);
+          return;
+        case "invalidWidth":
+          w.u32(2);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.AppCursor.WrapOutcome`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "pass" });
+        case 1: return ({ kind: "wrapped", x: L.FLOAT.decode(r), cursor: L.BOOL.decode(r) });
+        case 2: return ({ kind: "invalidWidth" });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.AppCursor.WrapOutcome`);
+      }
+    },
+  );
+}
+
+/** Describes Swf.AppDepth.DepthQuery for polymorphic functions. */
+export function depthQueryType() {
+  return new L.Type(
+    L.inductiveExpr(5),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppDepth.DepthQuery");
+      w.u32(0);
+      depthBandsType().encode(w, v.bands);
+      L.array(L.FLOAT).encode(w, v.distances);
+      L.option(L.NAT).encode(w, v.focused);
+    },
+    (r) => {
+      const c = r.u32();
+      if (c !== 0) throw new L.MalformedError(`constructor index ${c} of Swf.AppDepth.DepthQuery`);
+      return ({ bands: depthBandsType().decode(r), distances: L.array(L.FLOAT).decode(r), focused: L.option(L.NAT).decode(r) });
+    },
+  );
+}
+
+/** Describes Swf.AppDepth.DepthAnswer for polymorphic functions. */
+export function depthAnswerType() {
+  return new L.Type(
+    L.inductiveExpr(6),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppDepth.DepthAnswer");
+      switch (v.kind) {
+        case "bands":
+          w.u32(0);
+          L.array(depthBandType()).encode(w, v.representations);
+          return;
+        case "invalidBands":
+          w.u32(1);
+          return;
+        case "invalidDistance":
+          w.u32(2);
+          L.NAT.encode(w, v.index);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.AppDepth.DepthAnswer`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "bands", representations: L.array(depthBandType()).decode(r) });
+        case 1: return ({ kind: "invalidBands" });
+        case 2: return ({ kind: "invalidDistance", index: L.NAT.decode(r) });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.AppDepth.DepthAnswer`);
+      }
+    },
+  );
+}
+
+/** Describes Swf.AppFeatures.FeatureSettings for polymorphic functions. */
+export function featureSettingsType() {
+  return new L.Type(
+    L.inductiveExpr(7),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppFeatures.FeatureSettings");
+      w.u32(0);
+      featureFlagsType().encode(w, v.enabled);
+      snapSettingsType().encode(w, v.snap);
+      depthBandsType().encode(w, v.depth);
+    },
+    (r) => {
+      const c = r.u32();
+      if (c !== 0) throw new L.MalformedError(`constructor index ${c} of Swf.AppFeatures.FeatureSettings`);
+      return ({ enabled: featureFlagsType().decode(r), snap: snapSettingsType().decode(r), depth: depthBandsType().decode(r) });
+    },
+  );
+}
+
+/** Describes Swf.Json for polymorphic functions. */
+export function jsonType() {
+  return new L.Type(
+    L.inductiveExpr(8),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Json");
+      switch (v.kind) {
+        case "null":
+          w.u32(0);
+          return;
+        case "bool":
+          w.u32(1);
+          L.BOOL.encode(w, v.value);
+          return;
+        case "num":
+          w.u32(2);
+          L.FLOAT.encode(w, v.value);
+          return;
+        case "str":
+          w.u32(3);
+          L.STRING.encode(w, v.value);
+          return;
+        case "arr":
+          w.u32(4);
+          L.array(jsonType()).encode(w, v.items);
+          return;
+        case "obj":
+          w.u32(5);
+          L.array(L.pair(L.STRING, jsonType())).encode(w, v.members);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.Json`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "null" });
+        case 1: return ({ kind: "bool", value: L.BOOL.decode(r) });
+        case 2: return ({ kind: "num", value: L.FLOAT.decode(r) });
+        case 3: return ({ kind: "str", value: L.STRING.decode(r) });
+        case 4: return ({ kind: "arr", items: L.array(jsonType()).decode(r) });
+        case 5: return ({ kind: "obj", members: L.array(L.pair(L.STRING, jsonType())).decode(r) });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.Json`);
+      }
+    },
+  );
+}
+
+/** Describes Swf.AppFeatures.FeaturesUpdate for polymorphic functions. */
+export function featuresUpdateType() {
+  return new L.Type(
+    L.inductiveExpr(9),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppFeatures.FeaturesUpdate");
+      switch (v.kind) {
+        case "refused":
+          w.u32(0);
+          L.STRING.encode(w, v.field);
+          featureFaultType().encode(w, v.fault);
+          return;
+        case "updated":
+          w.u32(1);
+          L.option(featureFlagsType()).encode(w, v.enabled);
+          L.option(snapSettingsType()).encode(w, v.snap);
+          L.option(depthBandsType()).encode(w, v.depth);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.AppFeatures.FeaturesUpdate`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "refused", field: L.STRING.decode(r), fault: featureFaultType().decode(r) });
+        case 1: return ({ kind: "updated", enabled: L.option(featureFlagsType()).decode(r), snap: L.option(snapSettingsType()).decode(r), depth: L.option(depthBandsType()).decode(r) });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.AppFeatures.FeaturesUpdate`);
+      }
+    },
+  );
+}
+
+/** Describes Swf.AppOrbit.OrbitState for polymorphic functions. */
+export function orbitStateType() {
+  return new L.Type(
+    L.inductiveExpr(10),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppOrbit.OrbitState");
+      w.u32(0);
+      L.BOOL.encode(w, v.enabled);
+      orbitNavigationType().encode(w, v.navigation);
+      L.option(L.STRING).encode(w, v.rootId);
+    },
+    (r) => {
+      const c = r.u32();
+      if (c !== 0) throw new L.MalformedError(`constructor index ${c} of Swf.AppOrbit.OrbitState`);
+      return ({ enabled: L.BOOL.decode(r), navigation: orbitNavigationType().decode(r), rootId: L.option(L.STRING).decode(r) });
+    },
+  );
+}
+
+/** Describes Swf.AppOrbit.OrbitCandidate for polymorphic functions. */
+export function orbitCandidateType() {
+  return new L.Type(
+    L.inductiveExpr(11),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppOrbit.OrbitCandidate");
+      w.u32(0);
+      L.STRING.encode(w, v.id);
+      L.option(orbitNodeType()).encode(w, v.node);
+    },
+    (r) => {
+      const c = r.u32();
+      if (c !== 0) throw new L.MalformedError(`constructor index ${c} of Swf.AppOrbit.OrbitCandidate`);
+      return ({ id: L.STRING.decode(r), node: L.option(orbitNodeType()).decode(r) });
+    },
+  );
+}
+
+/** Describes Swf.AppOrbit.OrbitEvent for polymorphic functions. */
+export function orbitEventType() {
+  return new L.Type(
+    L.inductiveExpr(12),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppOrbit.OrbitEvent");
+      switch (v.kind) {
+        case "navigate":
+          w.u32(0);
+          orbitNavigationType().encode(w, v.to);
+          return;
+        case "designate":
+          w.u32(1);
+          L.option(orbitCandidateType()).encode(w, v.candidate);
+          return;
+        case "enable":
+          w.u32(2);
+          L.BOOL.encode(w, v.enabled);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.AppOrbit.OrbitEvent`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "navigate", to: orbitNavigationType().decode(r) });
+        case 1: return ({ kind: "designate", candidate: L.option(orbitCandidateType()).decode(r) });
+        case 2: return ({ kind: "enable", enabled: L.BOOL.decode(r) });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.AppOrbit.OrbitEvent`);
+      }
+    },
+  );
+}
+
+/** Describes Swf.AppOrbit.OrbitStep for polymorphic functions. */
+export function orbitStepType() {
+  return new L.Type(
+    L.inductiveExpr(13),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppOrbit.OrbitStep");
+      switch (v.kind) {
+        case "next":
+          w.u32(0);
+          orbitStateType().encode(w, v.state);
+          L.list(orbitCommandType()).encode(w, v.commands);
+          return;
+        case "refused":
+          w.u32(1);
+          L.STRING.encode(w, v.field);
+          L.STRING.encode(w, v.reason);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.AppOrbit.OrbitStep`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "next", state: orbitStateType().decode(r), commands: L.list(orbitCommandType()).decode(r) });
+        case 1: return ({ kind: "refused", field: L.STRING.decode(r), reason: L.STRING.decode(r) });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.AppOrbit.OrbitStep`);
+      }
+    },
+  );
+}
+
+/** Describes Swf.AppSnap.SnapSeen for polymorphic functions. */
+export function snapSeenType() {
+  return new L.Type(
+    L.inductiveExpr(14),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppSnap.SnapSeen");
+      w.u32(0);
+      L.FLOAT.encode(w, v.heading);
+      L.FLOAT.encode(w, v.elevation);
+      L.FLOAT.encode(w, v.distance);
+      L.FLOAT.encode(w, v.halfWidth);
+      L.FLOAT.encode(w, v.halfHeight);
+    },
+    (r) => {
+      const c = r.u32();
+      if (c !== 0) throw new L.MalformedError(`constructor index ${c} of Swf.AppSnap.SnapSeen`);
+      return ({ heading: L.FLOAT.decode(r), elevation: L.FLOAT.decode(r), distance: L.FLOAT.decode(r), halfWidth: L.FLOAT.decode(r), halfHeight: L.FLOAT.decode(r) });
+    },
+  );
+}
+
+/** Describes Swf.AppSnap.SnapNeighbour for polymorphic functions. */
+export function snapNeighbourType() {
+  return new L.Type(
+    L.inductiveExpr(15),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppSnap.SnapNeighbour");
+      w.u32(0);
+      L.STRING.encode(w, v.id);
+      snapSeenType().encode(w, v.seen);
+    },
+    (r) => {
+      const c = r.u32();
+      if (c !== 0) throw new L.MalformedError(`constructor index ${c} of Swf.AppSnap.SnapNeighbour`);
+      return ({ id: L.STRING.decode(r), seen: snapSeenType().decode(r) });
+    },
+  );
+}
+
+/** Describes Swf.AppFeatures.SnapSettings for polymorphic functions. */
+export function snapSettingsType() {
+  return new L.Type(
+    L.inductiveExpr(16),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppFeatures.SnapSettings");
+      w.u32(0);
+      L.FLOAT.encode(w, v.linear);
+      L.FLOAT.encode(w, v.angular);
+      L.FLOAT.encode(w, v.padding);
+    },
+    (r) => {
+      const c = r.u32();
+      if (c !== 0) throw new L.MalformedError(`constructor index ${c} of Swf.AppFeatures.SnapSettings`);
+      return ({ linear: L.FLOAT.decode(r), angular: L.FLOAT.decode(r), padding: L.FLOAT.decode(r) });
+    },
+  );
+}
+
+/** Describes Swf.AppSnap.SnapOutcome for polymorphic functions. */
+export function snapOutcomeType() {
+  return new L.Type(
+    L.inductiveExpr(17),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppSnap.SnapOutcome");
+      switch (v.kind) {
+        case "unsnapped":
+          w.u32(0);
+          return;
+        case "snapped":
+          w.u32(1);
+          L.option(snapCandidateType()).encode(w, v.across);
+          L.option(snapCandidateType()).encode(w, v.down);
+          return;
+        case "invalid":
+          w.u32(2);
+          L.STRING.encode(w, v.field);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.AppSnap.SnapOutcome`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "unsnapped" });
+        case 1: return ({ kind: "snapped", across: L.option(snapCandidateType()).decode(r), down: L.option(snapCandidateType()).decode(r) });
+        case 2: return ({ kind: "invalid", field: L.STRING.decode(r) });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.AppSnap.SnapOutcome`);
+      }
+    },
+  );
+}
+
+/** Describes Swf.AppWorkspaces.ImportIssue for polymorphic functions. */
+export function importIssueType() {
+  return new L.Type(
+    L.inductiveExpr(18),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppWorkspaces.ImportIssue");
+      switch (v.kind) {
+        case "notJson":
+          w.u32(0);
+          return;
+        case "notText":
+          w.u32(1);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.AppWorkspaces.ImportIssue`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "notJson" });
+        case 1: return ({ kind: "notText" });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.AppWorkspaces.ImportIssue`);
+      }
+    },
+  );
+}
+
+/** Describes Swf.AppWorkspaces.NameIssue for polymorphic functions. */
+export function nameIssueType() {
+  return new L.Type(
+    L.inductiveExpr(19),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppWorkspaces.NameIssue");
+      switch (v.kind) {
+        case "missing":
+          w.u32(0);
+          return;
+        case "padded":
+          w.u32(1);
+          return;
+        case "tooLong":
+          w.u32(2);
+          L.NAT.encode(w, v.max);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.AppWorkspaces.NameIssue`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "missing" });
+        case 1: return ({ kind: "padded" });
+        case 2: return ({ kind: "tooLong", max: L.NAT.decode(r) });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.AppWorkspaces.NameIssue`);
+      }
+    },
+  );
+}
+
+/** Describes Swf.AppWorkspaces.WorkspacesMachine for polymorphic functions. */
+export function workspacesMachineType() {
+  return new L.Type(
+    L.inductiveExpr(20),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppWorkspaces.WorkspacesMachine");
+      w.u32(0);
+      L.BOOL.encode(w, v.autosave);
+      L.BOOL.encode(w, v.pending);
+      L.BOOL.encode(w, v.disposed);
+    },
+    (r) => {
+      const c = r.u32();
+      if (c !== 0) throw new L.MalformedError(`constructor index ${c} of Swf.AppWorkspaces.WorkspacesMachine`);
+      return ({ autosave: L.BOOL.decode(r), pending: L.BOOL.decode(r), disposed: L.BOOL.decode(r) });
+    },
+  );
+}
+
+/** Describes Swf.AppWorkspaces.WorkspacesEvent for polymorphic functions. */
+export function workspacesEventType() {
+  return new L.Type(
+    L.inductiveExpr(21),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppWorkspaces.WorkspacesEvent");
+      switch (v.kind) {
+        case "setAutosave":
+          w.u32(0);
+          L.BOOL.encode(w, v.on);
+          saverStateType().encode(w, v.saver);
+          return;
+        case "changed":
+          w.u32(1);
+          return;
+        case "fired":
+          w.u32(2);
+          return;
+        case "saveNow":
+          w.u32(3);
+          return;
+        case "cleared":
+          w.u32(4);
+          return;
+        case "restored":
+          w.u32(5);
+          L.BOOL.encode(w, v.ok);
+          return;
+        case "dispose":
+          w.u32(6);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.AppWorkspaces.WorkspacesEvent`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "setAutosave", on: L.BOOL.decode(r), saver: saverStateType().decode(r) });
+        case 1: return ({ kind: "changed" });
+        case 2: return ({ kind: "fired" });
+        case 3: return ({ kind: "saveNow" });
+        case 4: return ({ kind: "cleared" });
+        case 5: return ({ kind: "restored", ok: L.BOOL.decode(r) });
+        case 6: return ({ kind: "dispose" });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.AppWorkspaces.WorkspacesEvent`);
+      }
+    },
+  );
+}
+
+/** Describes Swf.AppWorkspaces.WorkspacesStep for polymorphic functions. */
+export function workspacesStepType() {
+  return new L.Type(
+    L.inductiveExpr(22),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppWorkspaces.WorkspacesStep");
+      w.u32(0);
+      workspacesMachineType().encode(w, v.next);
+      L.BOOL.encode(w, v.cancelTimer);
+      L.BOOL.encode(w, v.startTimer);
+      L.BOOL.encode(w, v.save);
+      L.BOOL.encode(w, v.adopt);
+      L.BOOL.encode(w, v.announce);
+      L.option(L.STRING).encode(w, v.refusal);
+    },
+    (r) => {
+      const c = r.u32();
+      if (c !== 0) throw new L.MalformedError(`constructor index ${c} of Swf.AppWorkspaces.WorkspacesStep`);
+      return ({ next: workspacesMachineType().decode(r), cancelTimer: L.BOOL.decode(r), startTimer: L.BOOL.decode(r), save: L.BOOL.decode(r), adopt: L.BOOL.decode(r), announce: L.BOOL.decode(r), refusal: L.option(L.STRING).decode(r) });
+    },
+  );
+}
+
 /** Describes Swf.Arbitration.Bid for polymorphic functions. */
 export function bidType() {
   return new L.Type(
-    L.inductiveExpr(0),
+    L.inductiveExpr(23),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Arbitration.Bid");
       w.u32(0);
@@ -35,7 +732,7 @@ export function bidType() {
 /** Describes Swf.Arbitration.BidKind for polymorphic functions. */
 export function bidKindType() {
   return new L.Type(
-    L.inductiveExpr(1),
+    L.inductiveExpr(24),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Arbitration.BidKind");
       switch (v.kind) {
@@ -63,7 +760,7 @@ export function bidKindType() {
 /** Describes Swf.Arbitration.Hit for polymorphic functions. */
 export function hitType() {
   return new L.Type(
-    L.inductiveExpr(2),
+    L.inductiveExpr(25),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Arbitration.Hit");
       w.u32(0);
@@ -85,7 +782,7 @@ export function hitType() {
 /** Describes Swf.Arbitration.PickOrder for polymorphic functions. */
 export function pickOrderType() {
   return new L.Type(
-    L.inductiveExpr(3),
+    L.inductiveExpr(26),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Arbitration.PickOrder");
       w.u32(0);
@@ -104,7 +801,7 @@ export function pickOrderType() {
 /** Describes Swf.Fallback.NegotiationContext for polymorphic functions. */
 export function negotiationContextType() {
   return new L.Type(
-    L.inductiveExpr(4),
+    L.inductiveExpr(27),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.NegotiationContext");
       w.u32(0);
@@ -123,7 +820,7 @@ export function negotiationContextType() {
 /** Describes Swf.Fallback.FragmentFacts for polymorphic functions. */
 export function fragmentFactsType() {
   return new L.Type(
-    L.inductiveExpr(5),
+    L.inductiveExpr(28),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.FragmentFacts");
       w.u32(0);
@@ -148,7 +845,7 @@ export function fragmentFactsType() {
 /** Describes Swf.Fallback.Negotiated for polymorphic functions. */
 export function negotiatedType() {
   return new L.Type(
-    L.inductiveExpr(6),
+    L.inductiveExpr(29),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.Negotiated");
       w.u32(0);
@@ -170,7 +867,7 @@ export function negotiatedType() {
 /** Describes Swf.Fallback.PolicyIssue for polymorphic functions. */
 export function policyIssueType() {
   return new L.Type(
-    L.inductiveExpr(7),
+    L.inductiveExpr(30),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.PolicyIssue");
       switch (v.kind) {
@@ -208,7 +905,7 @@ export function policyIssueType() {
 /** Describes Swf.Fallback.Mode for polymorphic functions. */
 export function modeType() {
   return new L.Type(
-    L.inductiveExpr(8),
+    L.inductiveExpr(31),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.Mode");
       switch (v.kind) {
@@ -248,7 +945,7 @@ export function modeType() {
 /** Describes Swf.Gesture.GesturePhase for polymorphic functions. */
 export function gesturePhaseType() {
   return new L.Type(
-    L.inductiveExpr(9),
+    L.inductiveExpr(32),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Gesture.GesturePhase");
       switch (v.kind) {
@@ -288,7 +985,7 @@ export function gesturePhaseType() {
 /** Describes Swf.Gesture.GestureEvent for polymorphic functions. */
 export function gestureEventType() {
   return new L.Type(
-    L.inductiveExpr(10),
+    L.inductiveExpr(33),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Gesture.GestureEvent");
       switch (v.kind) {
@@ -339,7 +1036,7 @@ export function gestureEventType() {
 /** Describes Swf.Gesture.HoldGate for polymorphic functions. */
 export function holdGateType() {
   return new L.Type(
-    L.inductiveExpr(11),
+    L.inductiveExpr(34),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Gesture.HoldGate");
       switch (v.kind) {
@@ -379,7 +1076,7 @@ export function holdGateType() {
 /** Describes Swf.Gesture.KeyFacts for polymorphic functions. */
 export function keyFactsType() {
   return new L.Type(
-    L.inductiveExpr(12),
+    L.inductiveExpr(35),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Gesture.KeyFacts");
       w.u32(0);
@@ -401,7 +1098,7 @@ export function keyFactsType() {
 /** Describes Swf.Gesture.KeyRoute for polymorphic functions. */
 export function keyRouteType() {
   return new L.Type(
-    L.inductiveExpr(13),
+    L.inductiveExpr(36),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Gesture.KeyRoute");
       switch (v.kind) {
@@ -441,7 +1138,7 @@ export function keyRouteType() {
 /** Describes Swf.Gesture.PointerPhase for polymorphic functions. */
 export function pointerPhaseType() {
   return new L.Type(
-    L.inductiveExpr(14),
+    L.inductiveExpr(37),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Gesture.PointerPhase");
       switch (v.kind) {
@@ -477,7 +1174,7 @@ export function pointerPhaseType() {
 /** Describes Swf.Gesture.PointerRoute for polymorphic functions. */
 export function pointerRouteType() {
   return new L.Type(
-    L.inductiveExpr(15),
+    L.inductiveExpr(38),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Gesture.PointerRoute");
       switch (v.kind) {
@@ -521,7 +1218,7 @@ export function pointerRouteType() {
 /** Describes Swf.Gesture.PressFacts for polymorphic functions. */
 export function pressFactsType() {
   return new L.Type(
-    L.inductiveExpr(16),
+    L.inductiveExpr(39),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Gesture.PressFacts");
       w.u32(0);
@@ -542,7 +1239,7 @@ export function pressFactsType() {
 /** Describes Swf.Gesture.PressRoute for polymorphic functions. */
 export function pressRouteType() {
   return new L.Type(
-    L.inductiveExpr(17),
+    L.inductiveExpr(40),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Gesture.PressRoute");
       switch (v.kind) {
@@ -582,7 +1279,7 @@ export function pressRouteType() {
 /** Describes Swf.Handoff.ViewportState for polymorphic functions. */
 export function viewportStateType() {
   return new L.Type(
-    L.inductiveExpr(18),
+    L.inductiveExpr(41),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Handoff.ViewportState");
       switch (v.kind) {
@@ -626,7 +1323,7 @@ export function viewportStateType() {
 /** Describes Swf.Handoff.HandoffEvent for polymorphic functions. */
 export function handoffEventType() {
   return new L.Type(
-    L.inductiveExpr(19),
+    L.inductiveExpr(42),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Handoff.HandoffEvent");
       switch (v.kind) {
@@ -666,7 +1363,7 @@ export function handoffEventType() {
 /** Describes Swf.Handoff.Settlement for polymorphic functions. */
 export function settlementType() {
   return new L.Type(
-    L.inductiveExpr(20),
+    L.inductiveExpr(43),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Handoff.Settlement");
       switch (v.kind) {
@@ -698,7 +1395,7 @@ export function settlementType() {
 /** Describes Swf.Handoff.SwapAction for polymorphic functions. */
 export function swapActionType() {
   return new L.Type(
-    L.inductiveExpr(21),
+    L.inductiveExpr(44),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Handoff.SwapAction");
       switch (v.kind) {
@@ -730,7 +1427,7 @@ export function swapActionType() {
 /** Describes Swf.Handoff.Validation for polymorphic functions. */
 export function validationType() {
   return new L.Type(
-    L.inductiveExpr(22),
+    L.inductiveExpr(45),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Handoff.Validation");
       switch (v.kind) {
@@ -762,7 +1459,7 @@ export function validationType() {
 /** Describes Swf.Kernel.Lifecycle for polymorphic functions. */
 export function lifecycleType() {
   return new L.Type(
-    L.inductiveExpr(23),
+    L.inductiveExpr(46),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.Lifecycle");
       switch (v.kind) {
@@ -795,7 +1492,7 @@ export function lifecycleType() {
 /** Describes Swf.Kernel.Ledger for polymorphic functions. */
 export function ledgerType() {
   return new L.Type(
-    L.inductiveExpr(24),
+    L.inductiveExpr(47),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.Ledger");
       w.u32(0);
@@ -818,7 +1515,7 @@ export function ledgerType() {
 /** Describes Swf.Kernel.Direction for polymorphic functions. */
 export function directionType() {
   return new L.Type(
-    L.inductiveExpr(25),
+    L.inductiveExpr(48),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.Direction");
       switch (v.kind) {
@@ -846,7 +1543,7 @@ export function directionType() {
 /** Describes Swf.Kernel.Change for polymorphic functions. */
 export function changeType() {
   return new L.Type(
-    L.inductiveExpr(26),
+    L.inductiveExpr(49),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.Change");
       switch (v.kind) {
@@ -878,7 +1575,7 @@ export function changeType() {
 /** Describes Swf.Kernel.Commit for polymorphic functions. */
 export function commitType() {
   return new L.Type(
-    L.inductiveExpr(27),
+    L.inductiveExpr(50),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.Commit");
       w.u32(0);
@@ -899,7 +1596,7 @@ export function commitType() {
 /** Describes Swf.Kernel.TxRequest for polymorphic functions. */
 export function txRequestType() {
   return new L.Type(
-    L.inductiveExpr(28),
+    L.inductiveExpr(51),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.TxRequest");
       w.u32(0);
@@ -917,7 +1614,7 @@ export function txRequestType() {
 /** Describes Swf.Kernel.TxGate for polymorphic functions. */
 export function txGateType() {
   return new L.Type(
-    L.inductiveExpr(29),
+    L.inductiveExpr(52),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.TxGate");
       switch (v.kind) {
@@ -957,7 +1654,7 @@ export function txGateType() {
 /** Describes Swf.Kernel.IdleStep for polymorphic functions. */
 export function idleStepType() {
   return new L.Type(
-    L.inductiveExpr(30),
+    L.inductiveExpr(53),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.IdleStep");
       switch (v.kind) {
@@ -991,7 +1688,7 @@ export function idleStepType() {
 /** Describes Swf.Kernel.Travel for polymorphic functions. */
 export function travelType() {
   return new L.Type(
-    L.inductiveExpr(31),
+    L.inductiveExpr(54),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.Travel");
       switch (v.kind) {
@@ -1028,7 +1725,7 @@ export function travelType() {
 /** Describes Swf.Migration.MigrationPlan for polymorphic functions. */
 export function migrationPlanType() {
   return new L.Type(
-    L.inductiveExpr(32),
+    L.inductiveExpr(55),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Migration.MigrationPlan");
       w.u32(0);
@@ -1046,7 +1743,7 @@ export function migrationPlanType() {
 /** Describes Swf.Save.SaveMachine for polymorphic functions. */
 export function saveMachineType() {
   return new L.Type(
-    L.inductiveExpr(33),
+    L.inductiveExpr(56),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Save.SaveMachine");
       w.u32(0);
@@ -1066,7 +1763,7 @@ export function saveMachineType() {
 /** Describes Swf.Save.SaveAnswer for polymorphic functions. */
 export function saveAnswerType() {
   return new L.Type(
-    L.inductiveExpr(34),
+    L.inductiveExpr(57),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Save.SaveAnswer");
       switch (v.kind) {
@@ -1096,7 +1793,7 @@ export function saveAnswerType() {
 /** Describes Swf.Save.SaveEnd for polymorphic functions. */
 export function saveEndType() {
   return new L.Type(
-    L.inductiveExpr(35),
+    L.inductiveExpr(58),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Save.SaveEnd");
       w.u32(0);
@@ -1114,7 +1811,7 @@ export function saveEndType() {
 /** Describes Swf.Surface.Presentation for polymorphic functions. */
 export function presentationType() {
   return new L.Type(
-    L.inductiveExpr(36),
+    L.inductiveExpr(59),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.Presentation");
       switch (v.kind) {
@@ -1167,7 +1864,7 @@ export function presentationType() {
 /** Describes Swf.Surface.SurfaceRefusal for polymorphic functions. */
 export function surfaceRefusalType() {
   return new L.Type(
-    L.inductiveExpr(37),
+    L.inductiveExpr(60),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.SurfaceRefusal");
       switch (v.kind) {
@@ -1227,7 +1924,7 @@ export function surfaceRefusalType() {
 /** Describes Swf.Surface.PresentFacts for polymorphic functions. */
 export function presentFactsType() {
   return new L.Type(
-    L.inductiveExpr(38),
+    L.inductiveExpr(61),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.PresentFacts");
       w.u32(0);
@@ -1252,7 +1949,7 @@ export function presentFactsType() {
 /** Describes Swf.Surface.SurfaceEvent for polymorphic functions. */
 export function surfaceEventType() {
   return new L.Type(
-    L.inductiveExpr(39),
+    L.inductiveExpr(62),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.SurfaceEvent");
       switch (v.kind) {
@@ -1306,7 +2003,7 @@ export function surfaceEventType() {
 /** Describes Swf.Surface.SurfaceStep for polymorphic functions. */
 export function surfaceStepType() {
   return new L.Type(
-    L.inductiveExpr(40),
+    L.inductiveExpr(63),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.SurfaceStep");
       w.u32(0);
@@ -1324,7 +2021,7 @@ export function surfaceStepType() {
 /** Describes Swf.Surface.UnbindGate for polymorphic functions. */
 export function unbindGateType() {
   return new L.Type(
-    L.inductiveExpr(41),
+    L.inductiveExpr(64),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.UnbindGate");
       switch (v.kind) {
@@ -1357,7 +2054,7 @@ export function unbindGateType() {
 /** Describes Swf.ViewMode.ModeMachine for polymorphic functions. */
 export function modeMachineType() {
   return new L.Type(
-    L.inductiveExpr(42),
+    L.inductiveExpr(65),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.ViewMode.ModeMachine");
       w.u32(0);
@@ -1375,7 +2072,7 @@ export function modeMachineType() {
 /** Describes Swf.ViewMode.ModeEvent for polymorphic functions. */
 export function modeEventType() {
   return new L.Type(
-    L.inductiveExpr(43),
+    L.inductiveExpr(66),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.ViewMode.ModeEvent");
       switch (v.kind) {
@@ -1404,7 +2101,7 @@ export function modeEventType() {
 /** Describes Swf.ViewMode.ViewSettings for polymorphic functions. */
 export function viewSettingsType() {
   return new L.Type(
-    L.inductiveExpr(44),
+    L.inductiveExpr(67),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.ViewMode.ViewSettings");
       w.u32(0);
@@ -1423,7 +2120,7 @@ export function viewSettingsType() {
 /** Describes Swf.ViewMode.ModeTransition for polymorphic functions. */
 export function modeTransitionType() {
   return new L.Type(
-    L.inductiveExpr(45),
+    L.inductiveExpr(68),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.ViewMode.ModeTransition");
       switch (v.kind) {
@@ -1453,10 +2150,390 @@ export function modeTransitionType() {
   );
 }
 
+/** Describes Swf.AppComposition.CompNode for polymorphic functions. */
+export function compNodeType() {
+  return new L.Type(
+    L.inductiveExpr(69),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppComposition.CompNode");
+      w.u32(0);
+      L.STRING.encode(w, v.id);
+      L.STRING.encode(w, v.kind);
+      L.BOOL.encode(w, v.active);
+      L.option(L.STRING).encode(w, v.label);
+      L.option(L.STRING).encode(w, v.parentId);
+      L.array(L.STRING).encode(w, v.childIds);
+      L.array(L.STRING).encode(w, v.surfaceIds);
+    },
+    (r) => {
+      const c = r.u32();
+      if (c !== 0) throw new L.MalformedError(`constructor index ${c} of Swf.AppComposition.CompNode`);
+      return ({ id: L.STRING.decode(r), kind: L.STRING.decode(r), active: L.BOOL.decode(r), label: L.option(L.STRING).decode(r), parentId: L.option(L.STRING).decode(r), childIds: L.array(L.STRING).decode(r), surfaceIds: L.array(L.STRING).decode(r) });
+    },
+  );
+}
+
+/** Describes Swf.AppComposition.CompSurface for polymorphic functions. */
+export function compSurfaceType() {
+  return new L.Type(
+    L.inductiveExpr(70),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppComposition.CompSurface");
+      w.u32(0);
+      L.STRING.encode(w, v.id);
+      L.option(L.STRING).encode(w, v.label);
+      L.STRING.encode(w, v.owner);
+    },
+    (r) => {
+      const c = r.u32();
+      if (c !== 0) throw new L.MalformedError(`constructor index ${c} of Swf.AppComposition.CompSurface`);
+      return ({ id: L.STRING.decode(r), label: L.option(L.STRING).decode(r), owner: L.STRING.decode(r) });
+    },
+  );
+}
+
+/** Describes Swf.AppComposition.CompRef for polymorphic functions. */
+export function compRefType() {
+  return new L.Type(
+    L.inductiveExpr(71),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppComposition.CompRef");
+      w.u32(0);
+      L.option(L.STRING).encode(w, v.id);
+      L.STRING.encode(w, v.shown);
+    },
+    (r) => {
+      const c = r.u32();
+      if (c !== 0) throw new L.MalformedError(`constructor index ${c} of Swf.AppComposition.CompRef`);
+      return ({ id: L.option(L.STRING).decode(r), shown: L.STRING.decode(r) });
+    },
+  );
+}
+
+/** Describes Swf.AppComposition.CompTarget for polymorphic functions. */
+export function compTargetType() {
+  return new L.Type(
+    L.inductiveExpr(72),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppComposition.CompTarget");
+      switch (v.kind) {
+        case "group":
+          w.u32(0);
+          L.STRING.encode(w, v.id);
+          return;
+        case "fresh":
+          w.u32(1);
+          L.STRING.encode(w, v.id);
+          L.STRING.encode(w, v.label);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.AppComposition.CompTarget`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "group", id: L.STRING.decode(r) });
+        case 1: return ({ kind: "fresh", id: L.STRING.decode(r), label: L.STRING.decode(r) });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.AppComposition.CompTarget`);
+      }
+    },
+  );
+}
+
+/** Describes Swf.AppComposition.CompInto for polymorphic functions. */
+export function compIntoType() {
+  return new L.Type(
+    L.inductiveExpr(73),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppComposition.CompInto");
+      switch (v.kind) {
+        case "group":
+          w.u32(0);
+          L.STRING.encode(w, v.id);
+          return;
+        case "fresh":
+          w.u32(1);
+          L.STRING.encode(w, v.id);
+          L.STRING.encode(w, v.label);
+          L.option(L.STRING).encode(w, v.parentId);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.AppComposition.CompInto`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "group", id: L.STRING.decode(r) });
+        case 1: return ({ kind: "fresh", id: L.STRING.decode(r), label: L.STRING.decode(r), parentId: L.option(L.STRING).decode(r) });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.AppComposition.CompInto`);
+      }
+    },
+  );
+}
+
+/** Describes Swf.AppFeatures.DepthBands for polymorphic functions. */
+export function depthBandsType() {
+  return new L.Type(
+    L.inductiveExpr(74),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppFeatures.DepthBands");
+      w.u32(0);
+      L.FLOAT.encode(w, v.full);
+      L.FLOAT.encode(w, v.compact);
+    },
+    (r) => {
+      const c = r.u32();
+      if (c !== 0) throw new L.MalformedError(`constructor index ${c} of Swf.AppFeatures.DepthBands`);
+      return ({ full: L.FLOAT.decode(r), compact: L.FLOAT.decode(r) });
+    },
+  );
+}
+
+/** Describes Swf.AppDepth.DepthBand for polymorphic functions. */
+export function depthBandType() {
+  return new L.Type(
+    L.inductiveExpr(75),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppDepth.DepthBand");
+      switch (v.kind) {
+        case "full":
+          w.u32(0);
+          return;
+        case "compact":
+          w.u32(1);
+          return;
+        case "label":
+          w.u32(2);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.AppDepth.DepthBand`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "full" });
+        case 1: return ({ kind: "compact" });
+        case 2: return ({ kind: "label" });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.AppDepth.DepthBand`);
+      }
+    },
+  );
+}
+
+/** Describes Swf.AppFeatures.FeatureFlags for polymorphic functions. */
+export function featureFlagsType() {
+  return new L.Type(
+    L.inductiveExpr(76),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppFeatures.FeatureFlags");
+      w.u32(0);
+      L.BOOL.encode(w, v.focus);
+      L.BOOL.encode(w, v.orbit);
+      L.BOOL.encode(w, v.map);
+      L.BOOL.encode(w, v.cursor);
+      L.BOOL.encode(w, v.snap);
+      L.BOOL.encode(w, v.depth);
+      L.BOOL.encode(w, v.composition);
+      L.BOOL.encode(w, v.persistence);
+    },
+    (r) => {
+      const c = r.u32();
+      if (c !== 0) throw new L.MalformedError(`constructor index ${c} of Swf.AppFeatures.FeatureFlags`);
+      return ({ focus: L.BOOL.decode(r), orbit: L.BOOL.decode(r), map: L.BOOL.decode(r), cursor: L.BOOL.decode(r), snap: L.BOOL.decode(r), depth: L.BOOL.decode(r), composition: L.BOOL.decode(r), persistence: L.BOOL.decode(r) });
+    },
+  );
+}
+
+/** Describes Swf.AppFeatures.FeatureFault for polymorphic functions. */
+export function featureFaultType() {
+  return new L.Type(
+    L.inductiveExpr(77),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppFeatures.FeatureFault");
+      switch (v.kind) {
+        case "notObject":
+          w.u32(0);
+          return;
+        case "unknown":
+          w.u32(1);
+          L.list(L.STRING).encode(w, v.settings);
+          return;
+        case "notBoolean":
+          w.u32(2);
+          return;
+        case "notNonNegative":
+          w.u32(3);
+          return;
+        case "notPositive":
+          w.u32(4);
+          return;
+        case "tooWide":
+          w.u32(5);
+          L.FLOAT.encode(w, v.max);
+          return;
+        case "bandsOutOfOrder":
+          w.u32(6);
+          L.FLOAT.encode(w, v.full);
+          L.FLOAT.encode(w, v.compact);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.AppFeatures.FeatureFault`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "notObject" });
+        case 1: return ({ kind: "unknown", settings: L.list(L.STRING).decode(r) });
+        case 2: return ({ kind: "notBoolean" });
+        case 3: return ({ kind: "notNonNegative" });
+        case 4: return ({ kind: "notPositive" });
+        case 5: return ({ kind: "tooWide", max: L.FLOAT.decode(r) });
+        case 6: return ({ kind: "bandsOutOfOrder", full: L.FLOAT.decode(r), compact: L.FLOAT.decode(r) });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.AppFeatures.FeatureFault`);
+      }
+    },
+  );
+}
+
+/** Describes Swf.AppOrbit.OrbitNavigation for polymorphic functions. */
+export function orbitNavigationType() {
+  return new L.Type(
+    L.inductiveExpr(78),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppOrbit.OrbitNavigation");
+      switch (v.kind) {
+        case "camera":
+          w.u32(0);
+          return;
+        case "orbit":
+          w.u32(1);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.AppOrbit.OrbitNavigation`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "camera" });
+        case 1: return ({ kind: "orbit" });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.AppOrbit.OrbitNavigation`);
+      }
+    },
+  );
+}
+
+/** Describes Swf.AppOrbit.OrbitNode for polymorphic functions. */
+export function orbitNodeType() {
+  return new L.Type(
+    L.inductiveExpr(79),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppOrbit.OrbitNode");
+      w.u32(0);
+      L.STRING.encode(w, v.kind);
+      L.option(L.STRING).encode(w, v.label);
+      L.BOOL.encode(w, v.active);
+    },
+    (r) => {
+      const c = r.u32();
+      if (c !== 0) throw new L.MalformedError(`constructor index ${c} of Swf.AppOrbit.OrbitNode`);
+      return ({ kind: L.STRING.decode(r), label: L.option(L.STRING).decode(r), active: L.BOOL.decode(r) });
+    },
+  );
+}
+
+/** Describes Swf.AppOrbit.OrbitCommand for polymorphic functions. */
+export function orbitCommandType() {
+  return new L.Type(
+    L.inductiveExpr(80),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppOrbit.OrbitCommand");
+      switch (v.kind) {
+        case "setRoot":
+          w.u32(0);
+          L.option(L.STRING).encode(w, v.nodeId);
+          return;
+        case "setNavigation":
+          w.u32(1);
+          orbitNavigationType().encode(w, v.to);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.AppOrbit.OrbitCommand`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "setRoot", nodeId: L.option(L.STRING).decode(r) });
+        case 1: return ({ kind: "setNavigation", to: orbitNavigationType().decode(r) });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.AppOrbit.OrbitCommand`);
+      }
+    },
+  );
+}
+
+/** Describes Swf.AppSnap.SnapCandidate for polymorphic functions. */
+export function snapCandidateType() {
+  return new L.Type(
+    L.inductiveExpr(81),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppSnap.SnapCandidate");
+      w.u32(0);
+      L.FLOAT.encode(w, v.delta);
+      snapConstraintType().encode(w, v.constraint);
+    },
+    (r) => {
+      const c = r.u32();
+      if (c !== 0) throw new L.MalformedError(`constructor index ${c} of Swf.AppSnap.SnapCandidate`);
+      return ({ delta: L.FLOAT.decode(r), constraint: snapConstraintType().decode(r) });
+    },
+  );
+}
+
+/** Describes Swf.AppWorkspaces.SaverState for polymorphic functions. */
+export function saverStateType() {
+  return new L.Type(
+    L.inductiveExpr(82),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppWorkspaces.SaverState");
+      switch (v.kind) {
+        case "clean":
+          w.u32(0);
+          return;
+        case "dirty":
+          w.u32(1);
+          return;
+        case "saving":
+          w.u32(2);
+          return;
+        case "failed":
+          w.u32(3);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.AppWorkspaces.SaverState`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "clean" });
+        case 1: return ({ kind: "dirty" });
+        case 2: return ({ kind: "saving" });
+        case 3: return ({ kind: "failed" });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.AppWorkspaces.SaverState`);
+      }
+    },
+  );
+}
+
 /** Describes Swf.Arbitration.HitRegion for polymorphic functions. */
 export function hitRegionType() {
   return new L.Type(
-    L.inductiveExpr(46),
+    L.inductiveExpr(83),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Arbitration.HitRegion");
       switch (v.kind) {
@@ -1488,7 +2565,7 @@ export function hitRegionType() {
 /** Describes Swf.Fallback.RendererCapabilities for polymorphic functions. */
 export function rendererCapabilitiesType() {
   return new L.Type(
-    L.inductiveExpr(47),
+    L.inductiveExpr(84),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.RendererCapabilities");
       w.u32(0);
@@ -1507,7 +2584,7 @@ export function rendererCapabilitiesType() {
 /** Describes Swf.Fallback.CompositorCapabilities for polymorphic functions. */
 export function compositorCapabilitiesType() {
   return new L.Type(
-    L.inductiveExpr(48),
+    L.inductiveExpr(85),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.CompositorCapabilities");
       w.u32(0);
@@ -1527,7 +2604,7 @@ export function compositorCapabilitiesType() {
 /** Describes Swf.Fallback.HandleCapabilities for polymorphic functions. */
 export function handleCapabilitiesType() {
   return new L.Type(
-    L.inductiveExpr(49),
+    L.inductiveExpr(86),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.HandleCapabilities");
       w.u32(0);
@@ -1548,7 +2625,7 @@ export function handleCapabilitiesType() {
 /** Describes Swf.Fallback.Gap for polymorphic functions. */
 export function gapType() {
   return new L.Type(
-    L.inductiveExpr(50),
+    L.inductiveExpr(87),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.Gap");
       w.u32(0);
@@ -1567,7 +2644,7 @@ export function gapType() {
 /** Describes Swf.Fallback.ShapeFidelity for polymorphic functions. */
 export function shapeFidelityType() {
   return new L.Type(
-    L.inductiveExpr(51),
+    L.inductiveExpr(88),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.ShapeFidelity");
       switch (v.kind) {
@@ -1599,7 +2676,7 @@ export function shapeFidelityType() {
 /** Describes Swf.Fallback.Fidelity for polymorphic functions. */
 export function fidelityType() {
   return new L.Type(
-    L.inductiveExpr(52),
+    L.inductiveExpr(89),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.Fidelity");
       switch (v.kind) {
@@ -1639,7 +2716,7 @@ export function fidelityType() {
 /** Describes Swf.Fallback.Interaction for polymorphic functions. */
 export function interactionType() {
   return new L.Type(
-    L.inductiveExpr(53),
+    L.inductiveExpr(90),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.Interaction");
       switch (v.kind) {
@@ -1671,7 +2748,7 @@ export function interactionType() {
 /** Describes Swf.Fallback.LayerCategory for polymorphic functions. */
 export function layerCategoryType() {
   return new L.Type(
-    L.inductiveExpr(54),
+    L.inductiveExpr(91),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.LayerCategory");
       switch (v.kind) {
@@ -1715,7 +2792,7 @@ export function layerCategoryType() {
 /** Describes Swf.Gesture.Finish for polymorphic functions. */
 export function finishType() {
   return new L.Type(
-    L.inductiveExpr(55),
+    L.inductiveExpr(92),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Gesture.Finish");
       switch (v.kind) {
@@ -1747,7 +2824,7 @@ export function finishType() {
 /** Describes Swf.Gesture.KeyPhase for polymorphic functions. */
 export function keyPhaseType() {
   return new L.Type(
-    L.inductiveExpr(56),
+    L.inductiveExpr(93),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Gesture.KeyPhase");
       switch (v.kind) {
@@ -1775,7 +2852,7 @@ export function keyPhaseType() {
 /** Describes Swf.Gesture.PressPick for polymorphic functions. */
 export function pressPickType() {
   return new L.Type(
-    L.inductiveExpr(57),
+    L.inductiveExpr(94),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Gesture.PressPick");
       switch (v.kind) {
@@ -1807,7 +2884,7 @@ export function pressPickType() {
 /** Describes Swf.Gesture.Region for polymorphic functions. */
 export function regionType() {
   return new L.Type(
-    L.inductiveExpr(58),
+    L.inductiveExpr(95),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Gesture.Region");
       switch (v.kind) {
@@ -1847,7 +2924,7 @@ export function regionType() {
 /** Describes Swf.Save.SaveState for polymorphic functions. */
 export function saveStateType() {
   return new L.Type(
-    L.inductiveExpr(59),
+    L.inductiveExpr(96),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Save.SaveState");
       switch (v.kind) {
@@ -1883,7 +2960,7 @@ export function saveStateType() {
 /** Describes Swf.Save.AckRefusal for polymorphic functions. */
 export function ackRefusalType() {
   return new L.Type(
-    L.inductiveExpr(60),
+    L.inductiveExpr(97),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Save.AckRefusal");
       switch (v.kind) {
@@ -1911,7 +2988,7 @@ export function ackRefusalType() {
 /** Describes Swf.Surface.UnboundReason for polymorphic functions. */
 export function unboundReasonType() {
   return new L.Type(
-    L.inductiveExpr(61),
+    L.inductiveExpr(98),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.UnboundReason");
       switch (v.kind) {
@@ -1947,7 +3024,7 @@ export function unboundReasonType() {
 /** Describes Swf.Surface.Resolution for polymorphic functions. */
 export function resolutionType() {
   return new L.Type(
-    L.inductiveExpr(62),
+    L.inductiveExpr(99),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.Resolution");
       switch (v.kind) {
@@ -1979,7 +3056,7 @@ export function resolutionType() {
 /** Describes Swf.Surface.Release for polymorphic functions. */
 export function releaseType() {
   return new L.Type(
-    L.inductiveExpr(63),
+    L.inductiveExpr(100),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.Release");
       switch (v.kind) {
@@ -2008,7 +3085,7 @@ export function releaseType() {
 /** Describes Swf.ViewMode.ProjectionSetting for polymorphic functions. */
 export function projectionSettingType() {
   return new L.Type(
-    L.inductiveExpr(64),
+    L.inductiveExpr(101),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.ViewMode.ProjectionSetting");
       w.u32(0);
@@ -2026,7 +3103,7 @@ export function projectionSettingType() {
 /** Describes Swf.ViewMode.Quat for polymorphic functions. */
 export function quatType() {
   return new L.Type(
-    L.inductiveExpr(65),
+    L.inductiveExpr(102),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.ViewMode.Quat");
       w.u32(0);
@@ -2043,10 +3120,46 @@ export function quatType() {
   );
 }
 
+/** Describes Swf.AppSnap.SnapConstraint for polymorphic functions. */
+export function snapConstraintType() {
+  return new L.Type(
+    L.inductiveExpr(103),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppSnap.SnapConstraint");
+      switch (v.kind) {
+        case "edge":
+          w.u32(0);
+          snapSideType().encode(w, v.side);
+          L.NAT.encode(w, v.neighbour);
+          return;
+        case "align":
+          w.u32(1);
+          snapLineType().encode(w, v.line);
+          L.NAT.encode(w, v.neighbour);
+          return;
+        case "horizon":
+          w.u32(2);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.AppSnap.SnapConstraint`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "edge", side: snapSideType().decode(r), neighbour: L.NAT.decode(r) });
+        case 1: return ({ kind: "align", line: snapLineType().decode(r), neighbour: L.NAT.decode(r) });
+        case 2: return ({ kind: "horizon" });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.AppSnap.SnapConstraint`);
+      }
+    },
+  );
+}
+
 /** Describes Swf.Fallback.Strategy for polymorphic functions. */
 export function strategyType() {
   return new L.Type(
-    L.inductiveExpr(66),
+    L.inductiveExpr(104),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.Strategy");
       switch (v.kind) {
@@ -2078,7 +3191,7 @@ export function strategyType() {
 /** Describes Swf.Fallback.TransformMode for polymorphic functions. */
 export function transformModeType() {
   return new L.Type(
-    L.inductiveExpr(67),
+    L.inductiveExpr(105),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.TransformMode");
       switch (v.kind) {
@@ -2114,7 +3227,7 @@ export function transformModeType() {
 /** Describes Swf.Fallback.Clip for polymorphic functions. */
 export function clipType() {
   return new L.Type(
-    L.inductiveExpr(68),
+    L.inductiveExpr(106),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.Clip");
       switch (v.kind) {
@@ -2146,7 +3259,7 @@ export function clipType() {
 /** Describes Swf.Fallback.Requirement for polymorphic functions. */
 export function requirementType() {
   return new L.Type(
-    L.inductiveExpr(69),
+    L.inductiveExpr(107),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.Requirement");
       switch (v.kind) {
@@ -2187,50 +3300,65 @@ export function requirementType() {
   );
 }
 
-/** Describes Swf.Json for polymorphic functions. */
-export function jsonType() {
+/** Describes Swf.AppSnap.SnapSide for polymorphic functions. */
+export function snapSideType() {
   return new L.Type(
-    L.inductiveExpr(70),
+    L.inductiveExpr(108),
     (w, v) => {
-      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Json");
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppSnap.SnapSide");
       switch (v.kind) {
-        case "null":
+        case "left":
           w.u32(0);
           return;
-        case "bool":
+        case "right":
           w.u32(1);
-          L.BOOL.encode(w, v.value);
           return;
-        case "num":
+        case "top":
           w.u32(2);
-          L.FLOAT.encode(w, v.value);
           return;
-        case "str":
+        case "bottom":
           w.u32(3);
-          L.STRING.encode(w, v.value);
-          return;
-        case "arr":
-          w.u32(4);
-          L.array(jsonType()).encode(w, v.items);
-          return;
-        case "obj":
-          w.u32(5);
-          L.array(L.pair(L.STRING, jsonType())).encode(w, v.members);
           return;
         default:
-          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.Json`);
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.AppSnap.SnapSide`);
       }
     },
     (r) => {
       const c = r.u32();
       switch (c) {
-        case 0: return ({ kind: "null" });
-        case 1: return ({ kind: "bool", value: L.BOOL.decode(r) });
-        case 2: return ({ kind: "num", value: L.FLOAT.decode(r) });
-        case 3: return ({ kind: "str", value: L.STRING.decode(r) });
-        case 4: return ({ kind: "arr", items: L.array(jsonType()).decode(r) });
-        case 5: return ({ kind: "obj", members: L.array(L.pair(L.STRING, jsonType())).decode(r) });
-        default: throw new L.MalformedError(`constructor index ${c} of Swf.Json`);
+        case 0: return ({ kind: "left" });
+        case 1: return ({ kind: "right" });
+        case 2: return ({ kind: "top" });
+        case 3: return ({ kind: "bottom" });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.AppSnap.SnapSide`);
+      }
+    },
+  );
+}
+
+/** Describes Swf.AppSnap.SnapLine for polymorphic functions. */
+export function snapLineType() {
+  return new L.Type(
+    L.inductiveExpr(109),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppSnap.SnapLine");
+      switch (v.kind) {
+        case "heading":
+          w.u32(0);
+          return;
+        case "elevation":
+          w.u32(1);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.AppSnap.SnapLine`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "heading" });
+        case 1: return ({ kind: "elevation" });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.AppSnap.SnapLine`);
       }
     },
   );
@@ -2256,6 +3384,1723 @@ export const ASSURANCE = L.parseAssurance({
   "facilities": [],
   "assumptions": [],
   "claims": [
+    {
+      "name": "Swf.AppComposition.detach_needs_two_surfaces",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppComposition.compositionPlan"
+      ],
+      "specifications": [],
+      "statement": "∀ (s : Swf.AppComposition.CompScene) (r : Swf.AppComposition.CompRef) (sf w created label : String)\n  (parentId : Option String) (kept : Array String),\n  Swf.AppComposition.compositionPlan s (Swf.AppComposition.CompStep.detach r) =\n      Swf.AppComposition.CompPlan.detach sf w created label parentId kept →\n    ∃ n,\n      s.window? (some w) = some n ∧\n        2 ≤ n.surfaceIds.size ∧\n          kept = Array.filter (fun x => x != sf) n.surfaceIds ∧ parentId = n.parentId ∧ ¬created ∈ s.ids",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "551198d6ad91532a7e4bb7d64440ecbcffab43403bdf68fb8bce2fb6a7d86f87",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppComposition.lean",
+        "start": {
+          "line": 298,
+          "column": 1
+        },
+        "end": {
+          "line": 319,
+          "column": 39
+        }
+      }
+    },
+    {
+      "name": "Swf.AppComposition.emptied_group_removed_only",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppComposition.compositionPlan"
+      ],
+      "specifications": [],
+      "statement": "∀ (s : Swf.AppComposition.CompScene) (r : Swf.AppComposition.CompRef) (t : Swf.AppComposition.CompTarget) (w : String)\n  (into : Swf.AppComposition.CompInto) (g : String),\n  Swf.AppComposition.compositionPlan s (Swf.AppComposition.CompStep.regroup r t) =\n      Swf.AppComposition.CompPlan.regroup w into (some g) →\n    ∃ n left,\n      s.window? r.id = some n ∧\n        n.parentId.bind s.node? = some left ∧\n          left.id = g ∧\n            left.kind = \"group\" ∧\n              s.orbitRootId ≠ some g ∧\n                left.childIds.size = 1 ∧ left.surfaceIds.size = 0 ∧ ∃ id, t = Swf.AppComposition.CompTarget.group id",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "75d4590044e903cd39b29647bf9e27755ecdce01208869af615d6d46d10fba41",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppComposition.lean",
+        "start": {
+          "line": 412,
+          "column": 1
+        },
+        "end": {
+          "line": 453,
+          "column": 17
+        }
+      }
+    },
+    {
+      "name": "Swf.AppComposition.free_id_prefers_stem",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppComposition.compositionFreeId"
+      ],
+      "specifications": [],
+      "statement": "∀ (taken : Array String) (stem : String), ¬stem ∈ taken → Swf.AppComposition.compositionFreeId taken stem = stem",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "46b2ee4a3e75374830f9cbe4cacea85f2937aa735431b327e5610cfd7fd6306b",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppComposition.lean",
+        "start": {
+          "line": 263,
+          "column": 1
+        },
+        "end": {
+          "line": 272,
+          "column": 16
+        }
+      }
+    },
+    {
+      "name": "Swf.AppComposition.free_id_unused",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppComposition.compositionFreeId"
+      ],
+      "specifications": [],
+      "statement": "∀ (taken : Array String) (stem : String), ¬Swf.AppComposition.compositionFreeId taken stem ∈ taken",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "94d4ffe97f8c027bcd8ff1971d8a3a2cfff4d801ffac2e78458c3bc91d8e599a",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppComposition.lean",
+        "start": {
+          "line": 256,
+          "column": 1
+        },
+        "end": {
+          "line": 261,
+          "column": 36
+        }
+      }
+    },
+    {
+      "name": "Swf.AppComposition.merge_keeps_every_surface",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppComposition.compositionPlan"
+      ],
+      "specifications": [],
+      "statement": "∀ (s : Swf.AppComposition.CompScene) (r t : Swf.AppComposition.CompRef) (source target : String)\n  (moved laidOut : Array String),\n  Swf.AppComposition.compositionPlan s (Swf.AppComposition.CompStep.merge r t) =\n      Swf.AppComposition.CompPlan.merge source target moved laidOut →\n    ∃ ns nt,\n      s.window? r.id = some ns ∧\n        s.window? t.id = some nt ∧\n          ns.id = source ∧\n            nt.id = target ∧\n              source ≠ target ∧ ns.childIds.size = 0 ∧ moved = ns.surfaceIds ∧ laidOut = nt.surfaceIds ++ ns.surfaceIds",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "e3e05fd912cd1245ee71268464ad746c0b5475b73616c1741c195ca561998e54",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppComposition.lean",
+        "start": {
+          "line": 321,
+          "column": 1
+        },
+        "end": {
+          "line": 343,
+          "column": 86
+        }
+      }
+    },
+    {
+      "name": "Swf.AppComposition.move_keeps_every_surface",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppComposition.compositionPlan"
+      ],
+      "specifications": [],
+      "statement": "∀ (s : Swf.AppComposition.CompScene) (r t : Swf.AppComposition.CompRef) (sf target source : String)\n  (laidOut left : Array String),\n  Swf.AppComposition.compositionPlan s (Swf.AppComposition.CompStep.move r t) =\n      Swf.AppComposition.CompPlan.move sf target laidOut source left →\n    ∃ nt ns,\n      s.window? t.id = some nt ∧\n        nt.id = target ∧\n          ns.id = source ∧\n            target ≠ source ∧ laidOut = nt.surfaceIds.push sf ∧ left = Array.filter (fun x => x != sf) ns.surfaceIds",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "b42c35e6ac62dcdcc6229ea88d3557778aa341a7f53f4fea7307dbac2b26b37c",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppComposition.lean",
+        "start": {
+          "line": 345,
+          "column": 1
+        },
+        "end": {
+          "line": 372,
+          "column": 23
+        }
+      }
+    },
+    {
+      "name": "Swf.AppComposition.regroup_into_other_group",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppComposition.compositionPlan"
+      ],
+      "specifications": [],
+      "statement": "∀ (s : Swf.AppComposition.CompScene) (r : Swf.AppComposition.CompRef) (t : Swf.AppComposition.CompTarget) (w : String)\n  (into : Swf.AppComposition.CompInto) (removed : Option String),\n  Swf.AppComposition.compositionPlan s (Swf.AppComposition.CompStep.regroup r t) =\n      Swf.AppComposition.CompPlan.regroup w into removed →\n    ∃ n,\n      s.window? r.id = some n ∧\n        n.id = w ∧\n          ((∃ g,\n              into = Swf.AppComposition.CompInto.group g.id ∧\n                s.node? g.id = some g ∧ g.kind = \"group\" ∧ g.active = true ∧ n.parentId ≠ some g.id) ∨\n            ∃ id label, into = Swf.AppComposition.CompInto.fresh id label n.parentId ∧ ¬id ∈ s.ids)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "7ab23a1e2201a446c7f68a7d6fcc861e25678ce6077b585b217466cc98879789",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppComposition.lean",
+        "start": {
+          "line": 374,
+          "column": 1
+        },
+        "end": {
+          "line": 410,
+          "column": 16
+        }
+      }
+    },
+    {
+      "name": "Swf.AppCursor.cursor_only_while_moving",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppCursor.wrapPointerStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (taken : List String) (key : String) (phase : Swf.AppCursor.WrapPhase) (x width y : Float) (wraps : Bool),\n  Swf.AppCursor.wrapPointerStep taken key phase x width wraps = Swf.AppCursor.WrapOutcome.wrapped y true →\n    phase = Swf.AppCursor.WrapPhase.move",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "2f968d996b1eeca4edc70b3e31a8af4d010392f24bd7db1a8cceed442720113f",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppCursor.lean",
+        "start": {
+          "line": 81,
+          "column": 1
+        },
+        "end": {
+          "line": 96,
+          "column": 36
+        }
+      }
+    },
+    {
+      "name": "Swf.AppCursor.invalid_width_refused",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppCursor.wrapPointerStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (taken : List String) (key : String) (phase : Swf.AppCursor.WrapPhase) (x width : Float) (wraps : Bool),\n  (!decide (width > 0) || !width.isFinite) = true →\n    Swf.AppCursor.wrapPointerStep taken key phase x width wraps = Swf.AppCursor.WrapOutcome.invalidWidth",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "1e070bb4821587f8cd2ecc28565ae471511b1909f851c889aa736a6791557096",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppCursor.lean",
+        "start": {
+          "line": 98,
+          "column": 1
+        },
+        "end": {
+          "line": 103,
+          "column": 28
+        }
+      }
+    },
+    {
+      "name": "Swf.AppCursor.released_on_up_or_cancel",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppCursor.wrapAfterDispatch"
+      ],
+      "specifications": [],
+      "statement": "∀ (taken : List String) (key : String) (phase : Swf.AppCursor.WrapPhase) (consumed : Bool),\n  phase = Swf.AppCursor.WrapPhase.up ∨ phase = Swf.AppCursor.WrapPhase.cancel →\n    key ∈ taken →\n      ∃ taken',\n        Swf.AppCursor.wrapAfterDispatch taken key phase consumed = some taken' ∧\n          ¬key ∈ taken' ∧ ∀ (k : String), k ∈ taken → k ≠ key → k ∈ taken'",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "7fb290d68d33daf03549e3d6aa933574c30c6ab814edd373c2edea6d49c616fd",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppCursor.lean",
+        "start": {
+          "line": 118,
+          "column": 1
+        },
+        "end": {
+          "line": 124,
+          "column": 60
+        }
+      }
+    },
+    {
+      "name": "Swf.AppCursor.taken_only_on_consumed_down",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppCursor.wrapAfterDispatch"
+      ],
+      "specifications": [],
+      "statement": "∀ (taken taken' : List String) (key k : String) (phase : Swf.AppCursor.WrapPhase) (consumed : Bool),\n  Swf.AppCursor.wrapAfterDispatch taken key phase consumed = some taken' →\n    k ∈ taken' → ¬k ∈ taken → phase = Swf.AppCursor.WrapPhase.down ∧ consumed = true ∧ k = key",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "3d24166b755479f45f182233cac6eccd42fb5ce2ad3e473d41e4bd665266b998",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppCursor.lean",
+        "start": {
+          "line": 105,
+          "column": 1
+        },
+        "end": {
+          "line": 116,
+          "column": 13
+        }
+      }
+    },
+    {
+      "name": "Swf.AppCursor.taken_stays_distinct",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppCursor.wrapAfterDispatch"
+      ],
+      "specifications": [],
+      "statement": "∀ (taken taken' : List String) (key : String) (phase : Swf.AppCursor.WrapPhase) (consumed : Bool),\n  taken.Nodup → Swf.AppCursor.wrapAfterDispatch taken key phase consumed = some taken' → taken'.Nodup",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "a158be224efa305e5b814788ebc320c59ed0e3b0ef16088827acc575e204e3ea",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppCursor.lean",
+        "start": {
+          "line": 126,
+          "column": 1
+        },
+        "end": {
+          "line": 137,
+          "column": 22
+        }
+      }
+    },
+    {
+      "name": "Swf.AppCursor.untaken_passes_unchanged",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppCursor.wrapPointerStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (taken : List String) (key : String) (phase : Swf.AppCursor.WrapPhase) (x width : Float) (wraps : Bool),\n  ¬key ∈ taken →\n    Swf.AppCursor.wrapPointerStep taken key phase x width wraps = Swf.AppCursor.WrapOutcome.pass ∨\n      Swf.AppCursor.wrapPointerStep taken key phase x width wraps = Swf.AppCursor.WrapOutcome.invalidWidth",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "07b72cd1f97dfc0c0cac297023fac8f1a7443ffae2cceba4d4b6d799647f1e5e",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppCursor.lean",
+        "start": {
+          "line": 57,
+          "column": 1
+        },
+        "end": {
+          "line": 66,
+          "column": 13
+        }
+      }
+    },
+    {
+      "name": "Swf.AppCursor.wraps_only_held_pointers_in_wrapping_views",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppCursor.wrapPointerStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (taken : List String) (key : String) (phase : Swf.AppCursor.WrapPhase) (x width y : Float) (wraps cursor : Bool),\n  Swf.AppCursor.wrapPointerStep taken key phase x width wraps = Swf.AppCursor.WrapOutcome.wrapped y cursor →\n    wraps = true ∧ phase ≠ Swf.AppCursor.WrapPhase.down ∧ key ∈ taken",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "613eb1c4386ff7e582481626649df634dc6e0264221715dea1e413656fad0500",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppCursor.lean",
+        "start": {
+          "line": 68,
+          "column": 1
+        },
+        "end": {
+          "line": 79,
+          "column": 15
+        }
+      }
+    },
+    {
+      "name": "Swf.AppDepth.band_by_thresholds",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppDepth.depthBands"
+      ],
+      "specifications": [],
+      "statement": "∀ (q : Swf.AppDepth.DepthQuery) (out : Array Swf.AppDepth.DepthBand),\n  Swf.AppDepth.depthBands q = Swf.AppDepth.DepthAnswer.bands out →\n    ∀ (i : Nat) (hi : i < q.distances.size),\n      q.focused ≠ some i →\n        ∃ hi',\n          (out[i] = Swf.AppDepth.DepthBand.full ↔ Swf.Order.floatKey q.distances[i] < Swf.Order.floatKey q.bands.full) ∧\n            (out[i] = Swf.AppDepth.DepthBand.label ↔\n              Swf.Order.floatKey q.bands.full ≤ Swf.Order.floatKey q.distances[i] ∧\n                Swf.Order.floatKey q.bands.compact ≤ Swf.Order.floatKey q.distances[i])",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "9c59c8bbe5d49d635220b281a87943dca06c6e7a098f771137cdce7c6ce794fa",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppDepth.lean",
+        "start": {
+          "line": 76,
+          "column": 1
+        },
+        "end": {
+          "line": 96,
+          "column": 35
+        }
+      }
+    },
+    {
+      "name": "Swf.AppDepth.focused_full",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppDepth.depthBands"
+      ],
+      "specifications": [],
+      "statement": "∀ (q : Swf.AppDepth.DepthQuery) (out : Array Swf.AppDepth.DepthBand),\n  Swf.AppDepth.depthBands q = Swf.AppDepth.DepthAnswer.bands out →\n    ∀ (i : Nat), i < q.distances.size → q.focused = some i → ∃ hi', out[i] = Swf.AppDepth.DepthBand.full",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "9ada6f4a9c579234cd2819080e755eb95bfe4cb101bb84abef6849c2a33c94b9",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppDepth.lean",
+        "start": {
+          "line": 98,
+          "column": 1
+        },
+        "end": {
+          "line": 105,
+          "column": 42
+        }
+      }
+    },
+    {
+      "name": "Swf.AppDepth.invalid_bands_refused",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppDepth.depthBands"
+      ],
+      "specifications": [],
+      "statement": "∀ (q : Swf.AppDepth.DepthQuery),\n  (q.bands.full.isNaN || q.bands.compact.isNaN) = true →\n    Swf.AppDepth.depthBands q = Swf.AppDepth.DepthAnswer.invalidBands",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "6c52fffb94d03001383a6616ff4944f1cf2e16d134b6e645dfb172abe1d05c15",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppDepth.lean",
+        "start": {
+          "line": 152,
+          "column": 1
+        },
+        "end": {
+          "line": 156,
+          "column": 23
+        }
+      }
+    },
+    {
+      "name": "Swf.AppDepth.invalid_distance_refused",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppDepth.depthBands"
+      ],
+      "specifications": [],
+      "statement": "∀ (q : Swf.AppDepth.DepthQuery) (i : Nat),\n  Swf.AppDepth.depthBands q = Swf.AppDepth.DepthAnswer.invalidDistance i →\n    i < q.distances.size ∧ Swf.AppDepth.distanceOk q.distances[i]! = false",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "4078d1f87ae60b4c1c79b7594593c53f482b0363cc1bc88457073aefd5d39d4b",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppDepth.lean",
+        "start": {
+          "line": 137,
+          "column": 1
+        },
+        "end": {
+          "line": 150,
+          "column": 14
+        }
+      }
+    },
+    {
+      "name": "Swf.AppDepth.monotone",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppDepth.depthBands"
+      ],
+      "specifications": [],
+      "statement": "∀ (q : Swf.AppDepth.DepthQuery) (out : Array Swf.AppDepth.DepthBand),\n  Swf.AppDepth.depthBands q = Swf.AppDepth.DepthAnswer.bands out →\n    ∀ (i j : Nat) (hi : i < q.distances.size) (hj : j < q.distances.size),\n      q.focused ≠ some i →\n        q.focused ≠ some j →\n          Swf.Order.floatKey q.distances[i] ≤ Swf.Order.floatKey q.distances[j] → ∃ hi' hj', out[j].shown ≤ out[i].shown",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "de7cd66dadc867a40eed9881b9ddc2bcb0db9cb42f3e7f4766e5e09895248b5d",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppDepth.lean",
+        "start": {
+          "line": 123,
+          "column": 1
+        },
+        "end": {
+          "line": 135,
+          "column": 39
+        }
+      }
+    },
+    {
+      "name": "Swf.AppDepth.one_band_per_window",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppDepth.depthBands"
+      ],
+      "specifications": [],
+      "statement": "∀ (q : Swf.AppDepth.DepthQuery) (out : Array Swf.AppDepth.DepthBand),\n  Swf.AppDepth.depthBands q = Swf.AppDepth.DepthAnswer.bands out → out.size = q.distances.size",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "8dcd826d1ab8e69c5b1aef803e7d5c10988fa558f17aa2b059ee2bfa8031f4df",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppDepth.lean",
+        "start": {
+          "line": 107,
+          "column": 1
+        },
+        "end": {
+          "line": 113,
+          "column": 7
+        }
+      }
+    },
+    {
+      "name": "Swf.AppFeatures.accepted_settings_valid",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppFeatures.featuresUpdate"
+      ],
+      "specifications": [],
+      "statement": "∀ (current : Swf.AppFeatures.FeatureSettings) (patch : Swf.Json) (e : Option Swf.AppFeatures.FeatureFlags)\n  (s : Option Swf.AppFeatures.SnapSettings) (d : Option Swf.AppFeatures.DepthBands),\n  current.snap.valid = true →\n    current.depth.valid = true →\n      Swf.AppFeatures.featuresUpdate current patch = Swf.AppFeatures.FeaturesUpdate.updated e s d →\n        (s.getD current.snap).valid = true ∧ (d.getD current.depth).valid = true",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "ec93a14023d7b489d8df8b512e6fffe47768de3023a2243dc1ab35860b997ecb",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppFeatures.lean",
+        "start": {
+          "line": 280,
+          "column": 1
+        },
+        "end": {
+          "line": 305,
+          "column": 112
+        }
+      }
+    },
+    {
+      "name": "Swf.AppFeatures.changed_parts_differ",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppFeatures.featuresUpdate"
+      ],
+      "specifications": [],
+      "statement": "∀ (current : Swf.AppFeatures.FeatureSettings) (patch : Swf.Json) (e : Option Swf.AppFeatures.FeatureFlags)\n  (s : Option Swf.AppFeatures.SnapSettings) (d : Option Swf.AppFeatures.DepthBands),\n  Swf.AppFeatures.featuresUpdate current patch = Swf.AppFeatures.FeaturesUpdate.updated e s d →\n    (∀ (f : Swf.AppFeatures.FeatureFlags), e = some f → f ≠ current.enabled) ∧\n      (∀ (x : Swf.AppFeatures.SnapSettings), s = some x → x.same current.snap = false) ∧\n        ∀ (x : Swf.AppFeatures.DepthBands), d = some x → x.same current.depth = false",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "3c44cede7d8e829d01031d940f96051e7984f87b5d0f4741562d815f5d88ecca",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppFeatures.lean",
+        "start": {
+          "line": 350,
+          "column": 1
+        },
+        "end": {
+          "line": 365,
+          "column": 60
+        }
+      }
+    },
+    {
+      "name": "Swf.AppFeatures.empty_patch_unchanged",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppFeatures.featuresUpdate"
+      ],
+      "specifications": [],
+      "statement": "∀ (current : Swf.AppFeatures.FeatureSettings),\n  Swf.AppFeatures.featuresUpdate current (Swf.Json.obj #[]) = Swf.AppFeatures.FeaturesUpdate.updated none none none",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "7f19670531a66160fa6a13b5dde2e6c44922057aa78901a44ef4f4686d97edbe",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppFeatures.lean",
+        "start": {
+          "line": 343,
+          "column": 1
+        },
+        "end": {
+          "line": 348,
+          "column": 17
+        }
+      }
+    },
+    {
+      "name": "Swf.AppFeatures.not_object_refused",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppFeatures.featuresUpdate"
+      ],
+      "specifications": [],
+      "statement": "∀ (current : Swf.AppFeatures.FeatureSettings) (patch : Swf.Json),\n  (∀ (ms : Array (String × Swf.Json)), patch ≠ Swf.Json.obj ms) →\n    Swf.AppFeatures.featuresUpdate current patch =\n      Swf.AppFeatures.FeaturesUpdate.refused \"features\" Swf.AppFeatures.FeatureFault.notObject",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "5400138267d99b2bf88a37bc9bfed00a0c7ed1ab9dda35e5e5a44d8e8fa63b84",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppFeatures.lean",
+        "start": {
+          "line": 307,
+          "column": 1
+        },
+        "end": {
+          "line": 311,
+          "column": 86
+        }
+      }
+    },
+    {
+      "name": "Swf.AppFeatures.refused_patch_atomic",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppFeatures.featuresUpdate"
+      ],
+      "specifications": [],
+      "statement": "∀ (current : Swf.AppFeatures.FeatureSettings) (ms : Array (String × Swf.Json)) (e : Option Swf.AppFeatures.FeatureFlags)\n  (s : Option Swf.AppFeatures.SnapSettings) (d : Option Swf.AppFeatures.DepthBands),\n  Swf.AppFeatures.featuresUpdate current (Swf.Json.obj ms) = Swf.AppFeatures.FeaturesUpdate.updated e s d →\n    (∀ (v : Swf.Json),\n        Swf.AppFeatures.member ms \"enabled\" = some v →\n          ∃ f, Swf.AppFeatures.flagsCheck current.enabled v = Except.ok f) ∧\n      (∀ (v : Swf.Json),\n          Swf.AppFeatures.member ms \"snap\" = some v → ∃ x, Swf.AppFeatures.snapCheck current.snap v = Except.ok x) ∧\n        ∀ (v : Swf.Json),\n          Swf.AppFeatures.member ms \"depth\" = some v → ∃ x, Swf.AppFeatures.depthCheck current.depth v = Except.ok x",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "d1feaacee987826812c72ec53a1b16610b5ea3a15bf6b8e74ff7b37a3197536e",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppFeatures.lean",
+        "start": {
+          "line": 320,
+          "column": 1
+        },
+        "end": {
+          "line": 341,
+          "column": 70
+        }
+      }
+    },
+    {
+      "name": "Swf.AppFeatures.unknown_field_refused",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppFeatures.featuresUpdate"
+      ],
+      "specifications": [],
+      "statement": "∀ (current : Swf.AppFeatures.FeatureSettings) (ms : Array (String × Swf.Json)) (m : String × Swf.Json),\n  Array.find? (fun m => !Swf.AppFeatures.patchKeys.contains m.fst) ms = some m →\n    Swf.AppFeatures.featuresUpdate current (Swf.Json.obj ms) =\n      Swf.AppFeatures.FeaturesUpdate.refused (\"features\" ++ \".\" ++ m.fst)\n        (Swf.AppFeatures.FeatureFault.unknown Swf.AppFeatures.patchKeys)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "bf040600c70b0b0177f8a29700e12178830c68c4576412a014b3242f046bf738",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppFeatures.lean",
+        "start": {
+          "line": 313,
+          "column": 1
+        },
+        "end": {
+          "line": 318,
+          "column": 81
+        }
+      }
+    },
+    {
+      "name": "Swf.AppOrbit.designate_refuses_non_group",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppOrbit.orbitStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (s : Swf.AppOrbit.OrbitState) (c : Swf.AppOrbit.OrbitCandidate) (issue : String),\n  Swf.AppOrbit.orbitRootIssue c = some issue →\n    Swf.AppOrbit.orbitStep s (Swf.AppOrbit.OrbitEvent.designate (some c)) =\n      Swf.AppOrbit.OrbitStep.refused \"nodeId\" issue",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "b653ebebd69939fb124439a473819dff9585d967f84dcdf23cb6baba5838bd3f",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppOrbit.lean",
+        "start": {
+          "line": 195,
+          "column": 1
+        },
+        "end": {
+          "line": 199,
+          "column": 22
+        }
+      }
+    },
+    {
+      "name": "Swf.AppOrbit.disable_returns_to_camera",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppOrbit.orbitStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (s : Swf.AppOrbit.OrbitState),\n  ∃ cs,\n    Swf.AppOrbit.orbitStep s (Swf.AppOrbit.OrbitEvent.enable false) =\n      Swf.AppOrbit.OrbitStep.next\n        { enabled := false, navigation := Swf.AppOrbit.OrbitNavigation.camera, rootId := s.rootId } cs",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "2e0c4a241e99b338341d75e25da2765a7b01ddea033f4b737547db5e44e1def5",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppOrbit.lean",
+        "start": {
+          "line": 155,
+          "column": 1
+        },
+        "end": {
+          "line": 160,
+          "column": 19
+        }
+      }
+    },
+    {
+      "name": "Swf.AppOrbit.keymap_drops_only_orbit_turn",
+      "relation": "lungo.decides",
+      "subjects": [
+        "Swf.AppOrbit.orbitKeepsBinding"
+      ],
+      "specifications": [],
+      "statement": "∀ (enabled : Bool) (command : String),\n  Swf.AppOrbit.orbitKeepsBinding enabled command = true ↔ enabled = true ∨ command ≠ \"orbit.turn\"",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "c8a284bd94e7ae736f45ceb58ccd621c07d65e3fa7bdefe150d285c7144ac002",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppOrbit.lean",
+        "start": {
+          "line": 208,
+          "column": 1
+        },
+        "end": {
+          "line": 213,
+          "column": 27
+        }
+      }
+    },
+    {
+      "name": "Swf.AppOrbit.orbit_needs_enabled_and_root",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppOrbit.orbitStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (s s' : Swf.AppOrbit.OrbitState) (cs : List Swf.AppOrbit.OrbitCommand),\n  Swf.AppOrbit.orbitStep s (Swf.AppOrbit.OrbitEvent.navigate Swf.AppOrbit.OrbitNavigation.orbit) =\n      Swf.AppOrbit.OrbitStep.next s' cs →\n    s.enabled = true ∧ s.rootId.isSome = true",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "bd209e5f784d5e3387b76396142b63aa994f21647b413a8ade353f068e0630e8",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppOrbit.lean",
+        "start": {
+          "line": 126,
+          "column": 1
+        },
+        "end": {
+          "line": 133,
+          "column": 60
+        }
+      }
+    },
+    {
+      "name": "Swf.AppOrbit.repair_iff_incoherent",
+      "relation": "lungo.decides",
+      "subjects": [
+        "Swf.AppOrbit.orbitNeedsRepair"
+      ],
+      "specifications": [],
+      "statement": "∀ (s : Swf.AppOrbit.OrbitState), Swf.AppOrbit.orbitNeedsRepair s = true ↔ ¬s.Coherent",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "69c1dbc9fee58eb7686d8a910f2058e4cabf6e420f13461528af551dfed0e694",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppOrbit.lean",
+        "start": {
+          "line": 201,
+          "column": 1
+        },
+        "end": {
+          "line": 206,
+          "column": 84
+        }
+      }
+    },
+    {
+      "name": "Swf.AppOrbit.root_is_active_group",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppOrbit.orbitRootIssue"
+      ],
+      "specifications": [],
+      "statement": "∀ (c : Swf.AppOrbit.OrbitCandidate),\n  Swf.AppOrbit.orbitRootIssue c = none ↔ ∃ n, c.node = some n ∧ n.kind = \"group\" ∧ n.active = true",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "80606b45dff5219a51e8f544c385a04f3d23dc4da613d726299489cd5c434d78",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppOrbit.lean",
+        "start": {
+          "line": 116,
+          "column": 1
+        },
+        "end": {
+          "line": 124,
+          "column": 77
+        }
+      }
+    },
+    {
+      "name": "Swf.AppOrbit.step_keeps_coherent",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppOrbit.orbitStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (s s' : Swf.AppOrbit.OrbitState) (e : Swf.AppOrbit.OrbitEvent) (cs : List Swf.AppOrbit.OrbitCommand),\n  s.Coherent → Swf.AppOrbit.orbitStep s e = Swf.AppOrbit.OrbitStep.next s' cs → s'.Coherent",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "1b5dd93adad67c9e06f09a93ceb615d5793621777d83399a68a6a8babbdc310e",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppOrbit.lean",
+        "start": {
+          "line": 135,
+          "column": 1
+        },
+        "end": {
+          "line": 153,
+          "column": 77
+        }
+      }
+    },
+    {
+      "name": "Swf.AppOrbit.unchanged_emits_nothing",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppOrbit.orbitStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (s s' : Swf.AppOrbit.OrbitState) (e : Swf.AppOrbit.OrbitEvent) (cs : List Swf.AppOrbit.OrbitCommand),\n  Swf.AppOrbit.orbitStep s e = Swf.AppOrbit.OrbitStep.next s' cs →\n    (cs = [] ↔ s'.rootId = s.rootId ∧ s'.navigation = s.navigation) ∧\n      (∀ (r : Option String), Swf.AppOrbit.OrbitCommand.setRoot r ∈ cs → r = s'.rootId) ∧\n        ∀ (n : Swf.AppOrbit.OrbitNavigation), Swf.AppOrbit.OrbitCommand.setNavigation n ∈ cs → n = s'.navigation",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "efc189d6b6680aeaa7abb64cd9da3eff99a106db2c401aa80da5caf5d0181292",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppOrbit.lean",
+        "start": {
+          "line": 168,
+          "column": 1
+        },
+        "end": {
+          "line": 193,
+          "column": 73
+        }
+      }
+    },
+    {
+      "name": "Swf.AppOrbit.undesignate_returns_to_camera",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppOrbit.orbitStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (s : Swf.AppOrbit.OrbitState),\n  ∃ cs,\n    Swf.AppOrbit.orbitStep s (Swf.AppOrbit.OrbitEvent.designate none) =\n      Swf.AppOrbit.OrbitStep.next\n        { enabled := s.enabled, navigation := Swf.AppOrbit.OrbitNavigation.camera, rootId := none } cs",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "ef92ffcbc5a3814b9ecc28f16b17e9fe0f15b205f7b494d5be37f3e332ccdea2",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppOrbit.lean",
+        "start": {
+          "line": 162,
+          "column": 1
+        },
+        "end": {
+          "line": 166,
+          "column": 19
+        }
+      }
+    },
+    {
+      "name": "Swf.AppSnap.invalid_input_refused",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppSnap.snapResolve"
+      ],
+      "specifications": [],
+      "statement": "∀ (movingId : String) (m : Swf.AppSnap.SnapSeen) (neighbours : Array Swf.AppSnap.SnapNeighbour)\n  (settings : Swf.AppFeatures.SnapSettings) (field : String),\n  Swf.AppSnap.snapInvalid m neighbours settings = some field →\n    Swf.AppSnap.snapResolve movingId m neighbours settings = Swf.AppSnap.SnapOutcome.invalid field",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "b9104067f64a9687b10192edcdd5f62331579ef8bf1fe056a25a795e1478fcbb",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppSnap.lean",
+        "start": {
+          "line": 418,
+          "column": 1
+        },
+        "end": {
+          "line": 423,
+          "column": 25
+        }
+      }
+    },
+    {
+      "name": "Swf.AppSnap.nearest_wins",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppSnap.snapResolve"
+      ],
+      "specifications": [],
+      "statement": "∀ (movingId : String) (m : Swf.AppSnap.SnapSeen) (neighbours : Array Swf.AppSnap.SnapNeighbour)\n  (settings : Swf.AppFeatures.SnapSettings) (a d : Option Swf.AppSnap.SnapCandidate),\n  Swf.AppSnap.snapResolve movingId m neighbours settings = Swf.AppSnap.SnapOutcome.snapped a d →\n    ∀ (c : Swf.AppSnap.SnapCandidate) (o : Swf.AppSnap.SnapOption),\n      o ∈ Swf.AppSnap.snapOptions movingId m neighbours settings →\n        o.reachable = true →\n          o.axis = Swf.AppSnap.SnapAxis.across ∧ a = some c ∨ o.axis = Swf.AppSnap.SnapAxis.down ∧ d = some c →\n            ¬(Swf.Order.magnitudeKey o.candidate.delta < Swf.Order.magnitudeKey c.delta ∨\n                Swf.Order.magnitudeKey o.candidate.delta = Swf.Order.magnitudeKey c.delta ∧\n                  o.candidate.constraint.rank < c.constraint.rank)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "2f889b15a15fa3eb124653deff02baac05a7da3e096f8ea1ac20bff446bcd1d7",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppSnap.lean",
+        "start": {
+          "line": 355,
+          "column": 1
+        },
+        "end": {
+          "line": 378,
+          "column": 10
+        }
+      }
+    },
+    {
+      "name": "Swf.AppSnap.snap_is_candidate",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppSnap.snapResolve"
+      ],
+      "specifications": [],
+      "statement": "∀ (movingId : String) (m : Swf.AppSnap.SnapSeen) (neighbours : Array Swf.AppSnap.SnapNeighbour)\n  (settings : Swf.AppFeatures.SnapSettings) (a d : Option Swf.AppSnap.SnapCandidate),\n  Swf.AppSnap.snapResolve movingId m neighbours settings = Swf.AppSnap.SnapOutcome.snapped a d →\n    (∀ (c : Swf.AppSnap.SnapCandidate),\n        a = some c →\n          ∃ o,\n            o ∈ Swf.AppSnap.snapOptions movingId m neighbours settings ∧\n              o.axis = Swf.AppSnap.SnapAxis.across ∧ o.candidate = c ∧ o.reachable = true) ∧\n      ∀ (c : Swf.AppSnap.SnapCandidate),\n        d = some c →\n          ∃ o,\n            o ∈ Swf.AppSnap.snapOptions movingId m neighbours settings ∧\n              o.axis = Swf.AppSnap.SnapAxis.down ∧ o.candidate = c ∧ o.reachable = true",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "911d98ec5f51aeb3453257f2a71c8af61bb6e324299808e6c13ae529e0b32cb7",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppSnap.lean",
+        "start": {
+          "line": 294,
+          "column": 1
+        },
+        "end": {
+          "line": 315,
+          "column": 31
+        }
+      }
+    },
+    {
+      "name": "Swf.AppSnap.snap_within_threshold",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppSnap.snapResolve"
+      ],
+      "specifications": [],
+      "statement": "∀ (movingId : String) (m : Swf.AppSnap.SnapSeen) (neighbours : Array Swf.AppSnap.SnapNeighbour)\n  (settings : Swf.AppFeatures.SnapSettings) (a d : Option Swf.AppSnap.SnapCandidate),\n  Swf.AppSnap.snapResolve movingId m neighbours settings = Swf.AppSnap.SnapOutcome.snapped a d →\n    ∀ (c : Swf.AppSnap.SnapCandidate),\n      a = some c ∨ d = some c →\n        ∃ o,\n          o ∈ Swf.AppSnap.snapOptions movingId m neighbours settings ∧\n            o.candidate = c ∧ ↑(Swf.Order.magnitudeKey o.distance) ≤ Swf.Order.floatKey o.threshold",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "b8d507ba3b53ff1e6dfbff7b0485499401c51f8cadec5567a797c80d35745d42",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppSnap.lean",
+        "start": {
+          "line": 317,
+          "column": 1
+        },
+        "end": {
+          "line": 330,
+          "column": 64
+        }
+      }
+    },
+    {
+      "name": "Swf.AppSnap.unseen_no_snap",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppSnap.snapResolve"
+      ],
+      "specifications": [],
+      "statement": "∀ (movingId : String) (m : Swf.AppSnap.SnapSeen) (neighbours : Array Swf.AppSnap.SnapNeighbour)\n  (settings : Swf.AppFeatures.SnapSettings),\n  Swf.AppSnap.snapInvalid m neighbours settings = none →\n    ¬m.distance > 0 → Swf.AppSnap.snapResolve movingId m neighbours settings = Swf.AppSnap.SnapOutcome.unsnapped",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "1f7698f2763c13f9debf9e12062b9e7e61c6037d5ebf36433defc575a87a053a",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppSnap.lean",
+        "start": {
+          "line": 411,
+          "column": 1
+        },
+        "end": {
+          "line": 416,
+          "column": 29
+        }
+      }
+    },
+    {
+      "name": "Swf.AppSnap.unsnapped_iff_nothing_reachable",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppSnap.snapResolve"
+      ],
+      "specifications": [],
+      "statement": "∀ (movingId : String) (m : Swf.AppSnap.SnapSeen) (neighbours : Array Swf.AppSnap.SnapNeighbour)\n  (settings : Swf.AppFeatures.SnapSettings),\n  Swf.AppSnap.snapInvalid m neighbours settings = none →\n    m.distance > 0 →\n      (Swf.AppSnap.snapResolve movingId m neighbours settings = Swf.AppSnap.SnapOutcome.unsnapped ↔\n        ∀ (o : Swf.AppSnap.SnapOption),\n          o ∈ Swf.AppSnap.snapOptions movingId m neighbours settings → o.reachable = false)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "a752ff580854a8102506c15552141641a779f6c30726401376eddd1cfee26ffe",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppSnap.lean",
+        "start": {
+          "line": 380,
+          "column": 1
+        },
+        "end": {
+          "line": 409,
+          "column": 18
+        }
+      }
+    },
+    {
+      "name": "Swf.AppWorkspaces.autosave_only_when_dirty",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppWorkspaces.workspacesStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (m : Swf.AppWorkspaces.WorkspacesMachine) (saver : Swf.AppWorkspaces.SaverState),\n  m.autosave = false →\n    m.disposed = false →\n      ((Swf.AppWorkspaces.workspacesStep m (Swf.AppWorkspaces.WorkspacesEvent.setAutosave true saver)).startTimer =\n          true ↔\n        saver ≠ Swf.AppWorkspaces.SaverState.clean)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "8971a1d5fe07692663af6936ad53bc0c818418c15910e100f5159f7bd7820c51",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppWorkspaces.lean",
+        "start": {
+          "line": 258,
+          "column": 1
+        },
+        "end": {
+          "line": 264,
+          "column": 101
+        }
+      }
+    },
+    {
+      "name": "Swf.AppWorkspaces.disposed_schedules_nothing",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppWorkspaces.workspacesStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (m : Swf.AppWorkspaces.WorkspacesMachine) (e : Swf.AppWorkspaces.WorkspacesEvent),\n  m.disposed = true → (Swf.AppWorkspaces.workspacesStep m e).startTimer = false",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "a9aab423cdb75bbceefc8c3d611a840319b99546a43e38458c53b8ebc4077b44",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppWorkspaces.lean",
+        "start": {
+          "line": 290,
+          "column": 1
+        },
+        "end": {
+          "line": 301,
+          "column": 64
+        }
+      }
+    },
+    {
+      "name": "Swf.AppWorkspaces.import_needs_json_text",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppWorkspaces.workspacesImportIssue"
+      ],
+      "specifications": [],
+      "statement": "∀ (fileName : Option String) (isText : Bool),\n  Swf.AppWorkspaces.workspacesImportIssue fileName isText = none ↔\n    ∃ name, fileName = some name ∧ Swf.AppWorkspaces.jsonName name = true ∧ isText = true",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "b7d3a406266939650e3f8b5e2851b3d1284f0d3314a786e14e240e291381c3da",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppWorkspaces.lean",
+        "start": {
+          "line": 435,
+          "column": 1
+        },
+        "end": {
+          "line": 443,
+          "column": 83
+        }
+      }
+    },
+    {
+      "name": "Swf.AppWorkspaces.name_valid",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppWorkspaces.workspacesNameIssue"
+      ],
+      "specifications": [],
+      "statement": "∀ (name : Option String),\n  Swf.AppWorkspaces.workspacesNameIssue name = none ↔\n    ∃ s,\n      name = some s ∧\n        s.toList ≠ [] ∧\n          Option.any Swf.AppWorkspaces.jsSpace s.toList.head? = false ∧\n            Option.any Swf.AppWorkspaces.jsSpace s.toList.getLast? = false ∧\n              Swf.AppWorkspaces.utf16Length s ≤ Swf.AppWorkspaces.maxNameLength",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "47ee0aa71eb319fe73bbed7291702ebe14a94ebda475860d16f0bccea4cc598e",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppWorkspaces.lean",
+        "start": {
+          "line": 213,
+          "column": 1
+        },
+        "end": {
+          "line": 224,
+          "column": 36
+        }
+      }
+    },
+    {
+      "name": "Swf.AppWorkspaces.newest_is_latest",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppWorkspaces.workspacesNewest"
+      ],
+      "specifications": [],
+      "statement": "∀ (visits : Array (String × Int)) (key : String),\n  Swf.AppWorkspaces.workspacesNewest visits = some key →\n    ∃ v, v ∈ visits.toList ∧ v.fst = key ∧ ∀ (w : String × Int), w ∈ visits.toList → w.snd ≤ v.snd",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "711b0b672917e4d15065ac4c9c2b1bf31cb2e14200b9a82453ac40094a05419b",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppWorkspaces.lean",
+        "start": {
+          "line": 352,
+          "column": 1
+        },
+        "end": {
+          "line": 362,
+          "column": 40
+        }
+      }
+    },
+    {
+      "name": "Swf.AppWorkspaces.off_cancels_scheduled_save",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppWorkspaces.workspacesStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (m : Swf.AppWorkspaces.WorkspacesMachine) (saver : Swf.AppWorkspaces.SaverState),\n  m.autosave = true →\n    (Swf.AppWorkspaces.workspacesStep m (Swf.AppWorkspaces.WorkspacesEvent.setAutosave false saver)).next.pending =\n        false ∧\n      (Swf.AppWorkspaces.workspacesStep m (Swf.AppWorkspaces.WorkspacesEvent.setAutosave false saver)).cancelTimer =\n        m.pending",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "f55ebc2e2db9e5f409113c79eb6c3530abef3e4cda509473797a13d0f2712202",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppWorkspaces.lean",
+        "start": {
+          "line": 266,
+          "column": 1
+        },
+        "end": {
+          "line": 272,
+          "column": 50
+        }
+      }
+    },
+    {
+      "name": "Swf.AppWorkspaces.restore_atomic",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppWorkspaces.workspacesStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (m : Swf.AppWorkspaces.WorkspacesMachine),\n  Swf.AppWorkspaces.workspacesStep m (Swf.AppWorkspaces.WorkspacesEvent.restored false) =\n      Swf.AppWorkspaces.WorkspacesStep.quiet m ∧\n    (Swf.AppWorkspaces.workspacesStep m (Swf.AppWorkspaces.WorkspacesEvent.restored true)).adopt = true ∧\n      (Swf.AppWorkspaces.workspacesStep m (Swf.AppWorkspaces.WorkspacesEvent.restored true)).next = m",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "0da922f11e5c1c8f46ac617bca7f14ed9349f4b748af3ed7991e4c0fbf0473cd",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppWorkspaces.lean",
+        "start": {
+          "line": 281,
+          "column": 1
+        },
+        "end": {
+          "line": 288,
+          "column": 46
+        }
+      }
+    },
+    {
+      "name": "Swf.AppWorkspaces.restores_when_stored",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppWorkspaces.workspacesNewest"
+      ],
+      "specifications": [],
+      "statement": "∀ (visits : Array (String × Int)), (Swf.AppWorkspaces.workspacesNewest visits).isSome = true ↔ visits.size > 0",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "6c5a6b4f6955ec568bb2ad97ef84bf5c6dfe5c7f47c67468ff11a36662ee0567",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppWorkspaces.lean",
+        "start": {
+          "line": 364,
+          "column": 1
+        },
+        "end": {
+          "line": 388,
+          "column": 14
+        }
+      }
+    },
+    {
+      "name": "Swf.AppWorkspaces.save_now_needs_autosave",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppWorkspaces.workspacesStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (m : Swf.AppWorkspaces.WorkspacesMachine),\n  m.autosave = false →\n    (Swf.AppWorkspaces.workspacesStep m Swf.AppWorkspaces.WorkspacesEvent.saveNow).refusal = some \"saving is off\" ∧\n      (Swf.AppWorkspaces.workspacesStep m Swf.AppWorkspaces.WorkspacesEvent.saveNow).save = false",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "a8f14b79a0dfa65012898a6500f1f901123587ff9772426ac5a55ced3dc5388e",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppWorkspaces.lean",
+        "start": {
+          "line": 274,
+          "column": 1
+        },
+        "end": {
+          "line": 279,
+          "column": 50
+        }
+      }
+    },
+    {
+      "name": "Swf.AppWorkspaces.saved_at_fresh",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppWorkspaces.workspacesSavedAt"
+      ],
+      "specifications": [],
+      "statement": "∀ (now : Int) (older : Array Int),\n  now ≤ Swf.AppWorkspaces.workspacesSavedAt now older ∧\n    (∀ (o : Int), o ∈ older.toList → o < Swf.AppWorkspaces.workspacesSavedAt now older) ∧\n      (Swf.AppWorkspaces.workspacesSavedAt now older = now ∨\n        ∃ o, o ∈ older.toList ∧ Swf.AppWorkspaces.workspacesSavedAt now older = o + 1)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "b2721033a1c30ca58b727650f8e1cfa65912099ed50cc0c7a6c91bc16b791c87",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppWorkspaces.lean",
+        "start": {
+          "line": 427,
+          "column": 1
+        },
+        "end": {
+          "line": 433,
+          "column": 32
+        }
+      }
+    },
+    {
+      "name": "Swf.AppWorkspaces.stale_is_every_other_visit",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppWorkspaces.workspacesStale"
+      ],
+      "specifications": [],
+      "statement": "∀ (current : String) (visits : Array String) (k : String),\n  k ∈ Swf.AppWorkspaces.workspacesStale current visits ↔ k ∈ visits ∧ k ≠ current",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "e7df805403bbf914bf5f713278651cb4dcf716d1f58e6423221362887d410f32",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppWorkspaces.lean",
+        "start": {
+          "line": 390,
+          "column": 1
+        },
+        "end": {
+          "line": 394,
+          "column": 25
+        }
+      }
+    },
+    {
+      "name": "Swf.AppWorkspaces.timer_only_while_saving",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppWorkspaces.workspacesStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (m : Swf.AppWorkspaces.WorkspacesMachine) (e : Swf.AppWorkspaces.WorkspacesEvent),\n  m.Coherent →\n    (Swf.AppWorkspaces.workspacesStep m e).next.Coherent ∧\n      ((Swf.AppWorkspaces.workspacesStep m e).startTimer = true →\n        (Swf.AppWorkspaces.workspacesStep m e).next.autosave = true ∧\n          (Swf.AppWorkspaces.workspacesStep m e).next.disposed = false)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "c493f4ca2fbf873b06d0267e9f1ab0897d5b32779916b4ef77d114b3c1b2d030",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppWorkspaces.lean",
+        "start": {
+          "line": 230,
+          "column": 1
+        },
+        "end": {
+          "line": 256,
+          "column": 59
+        }
+      }
+    },
     {
       "name": "Swf.Arbitration.covered_frames_dropped",
       "relation": "lungo.law",
@@ -4942,6 +7787,879 @@ export const ASSURANCE = L.parseAssurance({
   "roles": [],
   "exports": [
     {
+      "name": "Swf.AppComposition.compositionFreeId",
+      "module": "Swf.AppComposition",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_array_fget_borrowed",
+          "lean_array_get_size",
+          "lean_array_mk",
+          "lean_array_to_list",
+          "lean_nat_add",
+          "lean_nat_dec_eq",
+          "lean_nat_dec_lt",
+          "lean_nat_div",
+          "lean_nat_mod",
+          "lean_nat_pow",
+          "lean_nat_sub",
+          "lean_string_append",
+          "lean_string_dec_eq",
+          "lean_string_mk",
+          "lean_string_of_usize",
+          "lean_system_platform_nbits",
+          "lean_usize_of_nat"
+        ]
+      },
+      "claims": [
+        "Swf.AppComposition.free_id_prefers_stem",
+        "Swf.AppComposition.free_id_unused"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppComposition.lean",
+        "start": {
+          "line": 149,
+          "column": 1
+        },
+        "end": {
+          "line": 151,
+          "column": 98
+        }
+      }
+    },
+    {
+      "name": "Swf.AppComposition.compositionPlan",
+      "module": "Swf.AppComposition",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [
+          "_private.Init.Data.Array.Basic.0.Array.foldlMUnsafe.fold",
+          "_private.Init.Data.Array.Basic.0.Array.forIn'Unsafe.loop"
+        ],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_array_fget_borrowed",
+          "lean_array_get_size",
+          "lean_array_mk",
+          "lean_array_push",
+          "lean_array_size",
+          "lean_array_to_list",
+          "lean_array_uget_borrowed",
+          "lean_mk_empty_array_with_capacity",
+          "lean_nat_add",
+          "lean_nat_dec_eq",
+          "lean_nat_dec_le",
+          "lean_nat_dec_lt",
+          "lean_nat_div",
+          "lean_nat_mod",
+          "lean_nat_pow",
+          "lean_nat_sub",
+          "lean_string_append",
+          "lean_string_data",
+          "lean_string_dec_eq",
+          "lean_string_mk",
+          "lean_string_of_usize",
+          "lean_system_platform_nbits",
+          "lean_uint32_dec_eq",
+          "lean_usize_add",
+          "lean_usize_dec_eq",
+          "lean_usize_dec_lt",
+          "lean_usize_of_nat"
+        ]
+      },
+      "claims": [
+        "Swf.AppComposition.detach_needs_two_surfaces",
+        "Swf.AppComposition.emptied_group_removed_only",
+        "Swf.AppComposition.merge_keeps_every_surface",
+        "Swf.AppComposition.move_keeps_every_surface",
+        "Swf.AppComposition.regroup_into_other_group"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppComposition.lean",
+        "start": {
+          "line": 242,
+          "column": 1
+        },
+        "end": {
+          "line": 248,
+          "column": 38
+        }
+      }
+    },
+    {
+      "name": "Swf.AppCursor.wrapAfterDispatch",
+      "module": "Swf.AppCursor",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_string_dec_eq"
+        ]
+      },
+      "claims": [
+        "Swf.AppCursor.released_on_up_or_cancel",
+        "Swf.AppCursor.taken_only_on_consumed_down",
+        "Swf.AppCursor.taken_stays_distinct"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppCursor.lean",
+        "start": {
+          "line": 46,
+          "column": 1
+        },
+        "end": {
+          "line": 53,
+          "column": 18
+        }
+      }
+    },
+    {
+      "name": "Swf.AppCursor.wrapPointerStep",
+      "module": "Swf.AppCursor",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "floor",
+          "lean_array_fget_borrowed",
+          "lean_array_push",
+          "lean_float_beq",
+          "lean_float_decLt",
+          "lean_float_div",
+          "lean_float_isfinite",
+          "lean_float_mul",
+          "lean_float_of_bits",
+          "lean_float_sub",
+          "lean_int_add",
+          "lean_int_dec_le",
+          "lean_int_dec_lt",
+          "lean_int_neg",
+          "lean_int_neg_succ_of_nat",
+          "lean_int_sub",
+          "lean_mk_empty_array_with_capacity",
+          "lean_nat_abs",
+          "lean_nat_add",
+          "lean_nat_dec_eq",
+          "lean_nat_dec_le",
+          "lean_nat_dec_lt",
+          "lean_nat_div",
+          "lean_nat_log2",
+          "lean_nat_lor",
+          "lean_nat_mod",
+          "lean_nat_mul",
+          "lean_nat_pow",
+          "lean_nat_shiftl",
+          "lean_nat_shiftr",
+          "lean_nat_sub",
+          "lean_nat_to_int",
+          "lean_string_dec_eq",
+          "lean_uint64_of_nat",
+          "lean_uint64_of_nat_mk",
+          "lean_uint64_to_float"
+        ]
+      },
+      "claims": [
+        "Swf.AppCursor.cursor_only_while_moving",
+        "Swf.AppCursor.invalid_width_refused",
+        "Swf.AppCursor.untaken_passes_unchanged",
+        "Swf.AppCursor.wraps_only_held_pointers_in_wrapping_views"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppCursor.lean",
+        "start": {
+          "line": 35,
+          "column": 1
+        },
+        "end": {
+          "line": 44,
+          "column": 69
+        }
+      }
+    },
+    {
+      "name": "Swf.AppDepth.depthBands",
+      "module": "Swf.AppDepth",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [
+          "_private.Init.Data.Array.Basic.0.Array.mapFinIdxMUnsafe.map"
+        ],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_array_fget_borrowed",
+          "lean_array_get_borrowed",
+          "lean_array_get_size",
+          "lean_array_push",
+          "lean_array_size",
+          "lean_array_uget",
+          "lean_array_uset",
+          "lean_float_decLt",
+          "lean_float_div",
+          "lean_float_isfinite",
+          "lean_float_isnan",
+          "lean_float_mul",
+          "lean_float_of_bits",
+          "lean_float_to_bits",
+          "lean_int_add",
+          "lean_int_dec_le",
+          "lean_int_dec_lt",
+          "lean_int_neg",
+          "lean_int_neg_succ_of_nat",
+          "lean_int_sub",
+          "lean_mk_empty_array_with_capacity",
+          "lean_nat_abs",
+          "lean_nat_add",
+          "lean_nat_dec_eq",
+          "lean_nat_dec_le",
+          "lean_nat_dec_lt",
+          "lean_nat_div",
+          "lean_nat_log2",
+          "lean_nat_lor",
+          "lean_nat_mod",
+          "lean_nat_mul",
+          "lean_nat_pow",
+          "lean_nat_shiftl",
+          "lean_nat_shiftr",
+          "lean_nat_sub",
+          "lean_nat_to_int",
+          "lean_uint64_complement",
+          "lean_uint64_dec_eq",
+          "lean_uint64_land",
+          "lean_uint64_of_nat",
+          "lean_uint64_of_nat_mk",
+          "lean_uint64_to_float",
+          "lean_uint64_to_nat",
+          "lean_usize_add",
+          "lean_usize_dec_lt",
+          "lean_usize_to_nat"
+        ]
+      },
+      "claims": [
+        "Swf.AppDepth.band_by_thresholds",
+        "Swf.AppDepth.focused_full",
+        "Swf.AppDepth.invalid_bands_refused",
+        "Swf.AppDepth.invalid_distance_refused",
+        "Swf.AppDepth.monotone",
+        "Swf.AppDepth.one_band_per_window"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppDepth.lean",
+        "start": {
+          "line": 50,
+          "column": 1
+        },
+        "end": {
+          "line": 57,
+          "column": 100
+        }
+      }
+    },
+    {
+      "name": "Swf.AppFeatures.featuresUpdate",
+      "module": "Swf.AppFeatures",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [
+          "_private.Init.Data.Array.Basic.0.Array.forIn'Unsafe.loop"
+        ],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_array_fget_borrowed",
+          "lean_array_push",
+          "lean_array_size",
+          "lean_array_uget_borrowed",
+          "lean_float_decLe",
+          "lean_float_decLt",
+          "lean_float_div",
+          "lean_float_isfinite",
+          "lean_float_mul",
+          "lean_float_of_bits",
+          "lean_float_to_bits",
+          "lean_int_add",
+          "lean_int_dec_le",
+          "lean_int_dec_lt",
+          "lean_int_neg",
+          "lean_int_neg_succ_of_nat",
+          "lean_int_sub",
+          "lean_mk_empty_array_with_capacity",
+          "lean_nat_abs",
+          "lean_nat_add",
+          "lean_nat_dec_eq",
+          "lean_nat_dec_le",
+          "lean_nat_dec_lt",
+          "lean_nat_div",
+          "lean_nat_log2",
+          "lean_nat_lor",
+          "lean_nat_mod",
+          "lean_nat_mul",
+          "lean_nat_pow",
+          "lean_nat_shiftl",
+          "lean_nat_shiftr",
+          "lean_nat_sub",
+          "lean_nat_to_int",
+          "lean_string_append",
+          "lean_string_dec_eq",
+          "lean_uint64_dec_eq",
+          "lean_uint64_of_nat",
+          "lean_uint64_of_nat_mk",
+          "lean_uint64_to_float",
+          "lean_usize_add",
+          "lean_usize_dec_lt"
+        ]
+      },
+      "claims": [
+        "Swf.AppFeatures.accepted_settings_valid",
+        "Swf.AppFeatures.changed_parts_differ",
+        "Swf.AppFeatures.empty_patch_unchanged",
+        "Swf.AppFeatures.not_object_refused",
+        "Swf.AppFeatures.refused_patch_atomic",
+        "Swf.AppFeatures.unknown_field_refused"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppFeatures.lean",
+        "start": {
+          "line": 183,
+          "column": 1
+        },
+        "end": {
+          "line": 190,
+          "column": 45
+        }
+      }
+    },
+    {
+      "name": "Swf.AppOrbit.orbitKeepsBinding",
+      "module": "Swf.AppOrbit",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_string_dec_eq"
+        ]
+      },
+      "claims": [
+        "Swf.AppOrbit.keymap_drops_only_orbit_turn"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppOrbit.lean",
+        "start": {
+          "line": 104,
+          "column": 1
+        },
+        "end": {
+          "line": 107,
+          "column": 36
+        }
+      }
+    },
+    {
+      "name": "Swf.AppOrbit.orbitNeedsRepair",
+      "module": "Swf.AppOrbit",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_nat_dec_eq"
+        ]
+      },
+      "claims": [
+        "Swf.AppOrbit.repair_iff_incoherent"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppOrbit.lean",
+        "start": {
+          "line": 99,
+          "column": 1
+        },
+        "end": {
+          "line": 102,
+          "column": 59
+        }
+      }
+    },
+    {
+      "name": "Swf.AppOrbit.orbitRootIssue",
+      "module": "Swf.AppOrbit",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_string_append",
+          "lean_string_dec_eq"
+        ]
+      },
+      "claims": [
+        "Swf.AppOrbit.root_is_active_group"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppOrbit.lean",
+        "start": {
+          "line": 64,
+          "column": 1
+        },
+        "end": {
+          "line": 72,
+          "column": 14
+        }
+      }
+    },
+    {
+      "name": "Swf.AppOrbit.orbitStep",
+      "module": "Swf.AppOrbit",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_nat_dec_eq",
+          "lean_string_append",
+          "lean_string_dec_eq"
+        ]
+      },
+      "claims": [
+        "Swf.AppOrbit.designate_refuses_non_group",
+        "Swf.AppOrbit.disable_returns_to_camera",
+        "Swf.AppOrbit.orbit_needs_enabled_and_root",
+        "Swf.AppOrbit.step_keeps_coherent",
+        "Swf.AppOrbit.unchanged_emits_nothing",
+        "Swf.AppOrbit.undesignate_returns_to_camera"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppOrbit.lean",
+        "start": {
+          "line": 78,
+          "column": 1
+        },
+        "end": {
+          "line": 97,
+          "column": 84
+        }
+      }
+    },
+    {
+      "name": "Swf.AppSnap.snapResolve",
+      "module": "Swf.AppSnap",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "fabs",
+          "floor",
+          "lean_array_fget_borrowed",
+          "lean_array_get_borrowed",
+          "lean_array_get_size",
+          "lean_array_mk",
+          "lean_array_push",
+          "lean_array_to_list",
+          "lean_float_add",
+          "lean_float_beq",
+          "lean_float_decLe",
+          "lean_float_decLt",
+          "lean_float_div",
+          "lean_float_isfinite",
+          "lean_float_mul",
+          "lean_float_negate",
+          "lean_float_of_bits",
+          "lean_float_sub",
+          "lean_float_to_bits",
+          "lean_int_add",
+          "lean_int_dec_le",
+          "lean_int_dec_lt",
+          "lean_int_neg",
+          "lean_int_neg_succ_of_nat",
+          "lean_int_sub",
+          "lean_mk_empty_array_with_capacity",
+          "lean_nat_abs",
+          "lean_nat_add",
+          "lean_nat_dec_eq",
+          "lean_nat_dec_le",
+          "lean_nat_dec_lt",
+          "lean_nat_div",
+          "lean_nat_log2",
+          "lean_nat_lor",
+          "lean_nat_mod",
+          "lean_nat_mul",
+          "lean_nat_pow",
+          "lean_nat_shiftl",
+          "lean_nat_shiftr",
+          "lean_nat_sub",
+          "lean_nat_to_int",
+          "lean_string_append",
+          "lean_string_dec_eq",
+          "lean_string_mk",
+          "lean_string_of_usize",
+          "lean_system_platform_nbits",
+          "lean_uint64_complement",
+          "lean_uint64_dec_eq",
+          "lean_uint64_land",
+          "lean_uint64_of_nat",
+          "lean_uint64_of_nat_mk",
+          "lean_uint64_to_float",
+          "lean_uint64_to_nat",
+          "lean_usize_of_nat"
+        ]
+      },
+      "claims": [
+        "Swf.AppSnap.invalid_input_refused",
+        "Swf.AppSnap.nearest_wins",
+        "Swf.AppSnap.snap_is_candidate",
+        "Swf.AppSnap.snap_within_threshold",
+        "Swf.AppSnap.unseen_no_snap",
+        "Swf.AppSnap.unsnapped_iff_nothing_reachable"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppSnap.lean",
+        "start": {
+          "line": 193,
+          "column": 1
+        },
+        "end": {
+          "line": 205,
+          "column": 80
+        }
+      }
+    },
+    {
+      "name": "Swf.AppWorkspaces.workspacesImportIssue",
+      "module": "Swf.AppWorkspaces",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_array_push",
+          "lean_array_to_list",
+          "lean_mk_empty_array_with_capacity",
+          "lean_nat_add",
+          "lean_nat_dec_eq",
+          "lean_nat_dec_lt",
+          "lean_nat_sub",
+          "lean_string_data",
+          "lean_uint32_dec_eq",
+          "lean_uint32_dec_le",
+          "lean_uint32_of_nat",
+          "lean_uint32_of_nat_mk",
+          "lean_uint32_to_nat"
+        ]
+      },
+      "claims": [
+        "Swf.AppWorkspaces.import_needs_json_text"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppWorkspaces.lean",
+        "start": {
+          "line": 175,
+          "column": 1
+        },
+        "end": {
+          "line": 180,
+          "column": 26
+        }
+      }
+    },
+    {
+      "name": "Swf.AppWorkspaces.workspacesNameIssue",
+      "module": "Swf.AppWorkspaces",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_nat_add",
+          "lean_nat_dec_lt",
+          "lean_string_data",
+          "lean_uint32_dec_eq",
+          "lean_uint32_dec_le",
+          "lean_uint32_dec_lt"
+        ]
+      },
+      "claims": [
+        "Swf.AppWorkspaces.name_valid"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppWorkspaces.lean",
+        "start": {
+          "line": 46,
+          "column": 1
+        },
+        "end": {
+          "line": 51,
+          "column": 35
+        }
+      }
+    },
+    {
+      "name": "Swf.AppWorkspaces.workspacesNewest",
+      "module": "Swf.AppWorkspaces",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_array_to_list",
+          "lean_int_dec_lt"
+        ]
+      },
+      "claims": [
+        "Swf.AppWorkspaces.newest_is_latest",
+        "Swf.AppWorkspaces.restores_when_stored"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppWorkspaces.lean",
+        "start": {
+          "line": 142,
+          "column": 1
+        },
+        "end": {
+          "line": 148,
+          "column": 70
+        }
+      }
+    },
+    {
+      "name": "Swf.AppWorkspaces.workspacesSavedAt",
+      "module": "Swf.AppWorkspaces",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_array_to_list",
+          "lean_int_add",
+          "lean_int_dec_le",
+          "lean_nat_to_int"
+        ]
+      },
+      "claims": [
+        "Swf.AppWorkspaces.saved_at_fresh"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppWorkspaces.lean",
+        "start": {
+          "line": 154,
+          "column": 1
+        },
+        "end": {
+          "line": 157,
+          "column": 65
+        }
+      }
+    },
+    {
+      "name": "Swf.AppWorkspaces.workspacesStale",
+      "module": "Swf.AppWorkspaces",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [
+          "_private.Init.Data.Array.Basic.0.Array.foldlMUnsafe.fold"
+        ],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_array_get_size",
+          "lean_array_push",
+          "lean_array_uget_borrowed",
+          "lean_mk_empty_array_with_capacity",
+          "lean_nat_dec_le",
+          "lean_nat_dec_lt",
+          "lean_string_dec_eq",
+          "lean_usize_add",
+          "lean_usize_dec_eq",
+          "lean_usize_of_nat"
+        ]
+      },
+      "claims": [
+        "Swf.AppWorkspaces.stale_is_every_other_visit"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppWorkspaces.lean",
+        "start": {
+          "line": 150,
+          "column": 1
+        },
+        "end": {
+          "line": 152,
+          "column": 31
+        }
+      }
+    },
+    {
+      "name": "Swf.AppWorkspaces.workspacesStep",
+      "module": "Swf.AppWorkspaces",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_nat_dec_eq"
+        ]
+      },
+      "claims": [
+        "Swf.AppWorkspaces.autosave_only_when_dirty",
+        "Swf.AppWorkspaces.disposed_schedules_nothing",
+        "Swf.AppWorkspaces.off_cancels_scheduled_save",
+        "Swf.AppWorkspaces.restore_atomic",
+        "Swf.AppWorkspaces.save_now_needs_autosave",
+        "Swf.AppWorkspaces.timer_only_while_saving"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppWorkspaces.lean",
+        "start": {
+          "line": 114,
+          "column": 1
+        },
+        "end": {
+          "line": 138,
+          "column": 107
+        }
+      }
+    },
+    {
       "name": "Swf.Arbitration.bestBid",
       "module": "Swf.Arbitration",
       "async": false,
@@ -6659,6 +10377,29 @@ export const ASSURANCE = L.parseAssurance({
 
 /** The layout fingerprint and descriptor of each type, by Lean name, for modules using them. */
 export const leanTypes = Object.freeze({
+  "Swf.AppComposition.CompScene": Object.freeze({ fingerprint: "8c18ebf3c4a4b5495646722a7d7aed92ec3944f5e4061b1efa8627ca0b134908", type: compSceneType }),
+  "Swf.AppComposition.CompStep": Object.freeze({ fingerprint: "8a8f799713465216f361a173463ca8ce438630acf0b70535e315d9ddb004f804", type: compStepType }),
+  "Swf.AppComposition.CompPlan": Object.freeze({ fingerprint: "585109bb5719168fb8f5ee7b9feec0a2f7edf5099ba26a755b7eb2153106c676", type: compPlanType }),
+  "Swf.AppCursor.WrapPhase": Object.freeze({ fingerprint: "a39b66c42b89ee2ea9e6a7f154af4ab10494385ad579d2bee046369b80671c52", type: wrapPhaseType }),
+  "Swf.AppCursor.WrapOutcome": Object.freeze({ fingerprint: "f6ec803404f8f0a20630c28779ed619cf44c0e449f000573f03a871d98e7883f", type: wrapOutcomeType }),
+  "Swf.AppDepth.DepthQuery": Object.freeze({ fingerprint: "c0a4fd17fa88fb5d52a00b7108f6fd22a9906f0e6bf12e281e59ac9e87a82bfb", type: depthQueryType }),
+  "Swf.AppDepth.DepthAnswer": Object.freeze({ fingerprint: "989cb3c1acd36cbed2e785c4bc15e761c6955cd7b7fb792d04676ab9de87f244", type: depthAnswerType }),
+  "Swf.AppFeatures.FeatureSettings": Object.freeze({ fingerprint: "5ade7e9be6242dde4bc0d521bbf3b7afce6078a24d71cbc3cae19517cf6788a0", type: featureSettingsType }),
+  "Swf.Json": Object.freeze({ fingerprint: "44adb8c006802c79becdc00b1fa4e555bcbcd2b22f75fd40160944f233b7f49e", type: jsonType }),
+  "Swf.AppFeatures.FeaturesUpdate": Object.freeze({ fingerprint: "3804a04c969c2faa901d491dc871ef0fde2972e5c6d7ed2a7e99d4a8c1374ba8", type: featuresUpdateType }),
+  "Swf.AppOrbit.OrbitState": Object.freeze({ fingerprint: "4f3a6fe55bfa54943759447b963f7ab7fc928f6c4858e32da376f7c964ea08ed", type: orbitStateType }),
+  "Swf.AppOrbit.OrbitCandidate": Object.freeze({ fingerprint: "af4008d5d204b958c06bc3fbb12c23d54049cb243d6905d58bd2655ed051e83e", type: orbitCandidateType }),
+  "Swf.AppOrbit.OrbitEvent": Object.freeze({ fingerprint: "83e7b135b5619ce76d3f12aef584bf7366435ef4c8cd4324a02185eb69d176af", type: orbitEventType }),
+  "Swf.AppOrbit.OrbitStep": Object.freeze({ fingerprint: "278d5d60a411a8478ae39552a53b683f3707f67019cb14742e714e6f6a7a3701", type: orbitStepType }),
+  "Swf.AppSnap.SnapSeen": Object.freeze({ fingerprint: "cb222a04da1a873be41eb0d3be51da61c3a1cdef305e1d490be5c750ddd551a8", type: snapSeenType }),
+  "Swf.AppSnap.SnapNeighbour": Object.freeze({ fingerprint: "9bbd6f2ff6ffff868c65696cd51fee8479506f2f3f574812c77214c3bbdbd58a", type: snapNeighbourType }),
+  "Swf.AppFeatures.SnapSettings": Object.freeze({ fingerprint: "05d09b5528bf70d0d0b5bdb7154a8215305c5f485cd37e3179bb0fc75700b0a3", type: snapSettingsType }),
+  "Swf.AppSnap.SnapOutcome": Object.freeze({ fingerprint: "5aba7b46f6aa4e8691b8b44a2974ee22110552ca4cd7db8604e874d45bf21fce", type: snapOutcomeType }),
+  "Swf.AppWorkspaces.ImportIssue": Object.freeze({ fingerprint: "2d32d93a15ad80bb55ce0404d74f850cc55718b3634380df2e323f608ed89bc2", type: importIssueType }),
+  "Swf.AppWorkspaces.NameIssue": Object.freeze({ fingerprint: "88ec295c857f331416bbb4fb173e91228237080b2a51c6350f6bd26a9ab4c4b7", type: nameIssueType }),
+  "Swf.AppWorkspaces.WorkspacesMachine": Object.freeze({ fingerprint: "4eccd3411cf7465ab0b1966dcfc78f2bd9f336f8e660f19810240f0517e0e698", type: workspacesMachineType }),
+  "Swf.AppWorkspaces.WorkspacesEvent": Object.freeze({ fingerprint: "ac9815afe4ad6844b2fadfb9fa5e1b27a4aa869b1be5dde3453b8e1437843baa", type: workspacesEventType }),
+  "Swf.AppWorkspaces.WorkspacesStep": Object.freeze({ fingerprint: "2322cd7bcdb9473d7ae97cff304468101e4821aacc2aaa72fc2ab8d7cce68f82", type: workspacesStepType }),
   "Swf.Arbitration.Bid": Object.freeze({ fingerprint: "ddbeedade876221719b0ee1aa1fad0b1e5c104a8b3fe06c661628df04e02346f", type: bidType }),
   "Swf.Arbitration.BidKind": Object.freeze({ fingerprint: "5f0d5191f18c37447a5584ef118f036eb8327d158b455c24e5e5262e0685ed07", type: bidKindType }),
   "Swf.Arbitration.Hit": Object.freeze({ fingerprint: "e3bdfebc4c9ca80b74bf779c208410ef330ca230d31d53c550c2b23c52e5fdc5", type: hitType }),
@@ -6705,6 +10446,20 @@ export const leanTypes = Object.freeze({
   "Swf.ViewMode.ModeEvent": Object.freeze({ fingerprint: "feb6feb87a7e30d7693c96d0493a238c99e4e00601abc124d6b93b1888d68a96", type: modeEventType }),
   "Swf.ViewMode.ViewSettings": Object.freeze({ fingerprint: "c065e9ffb7dae7f29c43844de021c3579c10a16cd117a755f99ba60a4c5ef8c3", type: viewSettingsType }),
   "Swf.ViewMode.ModeTransition": Object.freeze({ fingerprint: "0c012f74883ff9576dd75b9011f2066f8c9bbf8813984c19dac02abf04d4888c", type: modeTransitionType }),
+  "Swf.AppComposition.CompNode": Object.freeze({ fingerprint: "7700462322b1db112785ae49a0222a06d1a15d6cfc626866e6371c17944ef6f3", type: compNodeType }),
+  "Swf.AppComposition.CompSurface": Object.freeze({ fingerprint: "f79065d6c345e0c0152e23dc5c441a0aeea66696060acabc7b6cf0617018172e", type: compSurfaceType }),
+  "Swf.AppComposition.CompRef": Object.freeze({ fingerprint: "bcb8405ba94a1c70f47379bc45dbc88fdc76b154b7c5715c866ad730064995c2", type: compRefType }),
+  "Swf.AppComposition.CompTarget": Object.freeze({ fingerprint: "1cb7db847e54a5f5c06341e7fab847eb10151d69b7cbacaff6a681ba5555c6e0", type: compTargetType }),
+  "Swf.AppComposition.CompInto": Object.freeze({ fingerprint: "2ede9adadc09b2b57a7523cf2a4aff8c29be1118b7d2ea455dccb36bf218d2af", type: compIntoType }),
+  "Swf.AppFeatures.DepthBands": Object.freeze({ fingerprint: "47cbf10bfab4e99c1377fcade549955082e62a85f7050e711cf0d587716c46b8", type: depthBandsType }),
+  "Swf.AppDepth.DepthBand": Object.freeze({ fingerprint: "12523f6663a79c2798632bf724ddb95e9ff0321115b723b8d3e75f9e23a02476", type: depthBandType }),
+  "Swf.AppFeatures.FeatureFlags": Object.freeze({ fingerprint: "f729fbb16ceb9f4fbc7e135667e7070147891ce24847c17c1cb2d75802451617", type: featureFlagsType }),
+  "Swf.AppFeatures.FeatureFault": Object.freeze({ fingerprint: "74edcb60ca96ae178b38bce7644709b214c8089a00d96da261b3077831c945bf", type: featureFaultType }),
+  "Swf.AppOrbit.OrbitNavigation": Object.freeze({ fingerprint: "8cbc5241413f47546748cc0185a9073e1b4552a41fabf4d515036072ea5afbf0", type: orbitNavigationType }),
+  "Swf.AppOrbit.OrbitNode": Object.freeze({ fingerprint: "f536e1c61b51e4c6625d7255be347867ab85921cc3ed7edbaf674d8bd403bcbf", type: orbitNodeType }),
+  "Swf.AppOrbit.OrbitCommand": Object.freeze({ fingerprint: "ca02c4137f9f4fadca31e768c381ff3c0896742bcff44fc7f2d3ca3ff5b8e469", type: orbitCommandType }),
+  "Swf.AppSnap.SnapCandidate": Object.freeze({ fingerprint: "e68ee7b099602577e099f0df94df36ecac682ec5949967f59999075ae2fbf614", type: snapCandidateType }),
+  "Swf.AppWorkspaces.SaverState": Object.freeze({ fingerprint: "90da128eb07d95b58a31059160a872149140b50684da7b090f4c44806ec20de4", type: saverStateType }),
   "Swf.Arbitration.HitRegion": Object.freeze({ fingerprint: "630e6511912da7ad8ebe5ae5914ade664c8515454874900bb0821d78cc9e0bd8", type: hitRegionType }),
   "Swf.Fallback.RendererCapabilities": Object.freeze({ fingerprint: "bbead800f5d4b28c524b28c072460acd75ceed866bfc53ff139ee0928a1d33e0", type: rendererCapabilitiesType }),
   "Swf.Fallback.CompositorCapabilities": Object.freeze({ fingerprint: "cd77db5a55cb60c9dc739837f27d4bc41d09c713f3f612fee95354749407a5e1", type: compositorCapabilitiesType }),
@@ -6725,11 +10480,13 @@ export const leanTypes = Object.freeze({
   "Swf.Surface.Release": Object.freeze({ fingerprint: "c86983c9af4e3ad8cd45eb8729699fbcd25fce764f7d43da2b19763c672fafeb", type: releaseType }),
   "Swf.ViewMode.ProjectionSetting": Object.freeze({ fingerprint: "97b34823a98c76e376fd8ca30ade4a7f301eeb0077d62d331825fc32f174adbf", type: projectionSettingType }),
   "Swf.ViewMode.Quat": Object.freeze({ fingerprint: "e8a26ff475b891483592b41e9ed64c444f631505486a1cd3299c5ddcfbf1a7a7", type: quatType }),
+  "Swf.AppSnap.SnapConstraint": Object.freeze({ fingerprint: "3961fc6b2375da64e410b695ada4e32fcc307dc39ba2a2925f1cce9aba038c01", type: snapConstraintType }),
   "Swf.Fallback.Strategy": Object.freeze({ fingerprint: "a86de2295cd433fc186ec98f01ab35dd1f6570cdef96a73eb439b3f9e10d43e0", type: strategyType }),
   "Swf.Fallback.TransformMode": Object.freeze({ fingerprint: "2a4b8b93f5cb1a459e477132dd8b25c77dd354e4f13b6211f852f8e47e16681c", type: transformModeType }),
   "Swf.Fallback.Clip": Object.freeze({ fingerprint: "e92fbc8fa4ed8d35fa9a45d4a3649b143d08e2674e787b9190d3b6bc675389ad", type: clipType }),
   "Swf.Fallback.Requirement": Object.freeze({ fingerprint: "3bff8e4a7c2e0078c0527d7784e2e85c858a735831dd78fca1f2eec7a3ea6599", type: requirementType }),
-  "Swf.Json": Object.freeze({ fingerprint: "44adb8c006802c79becdc00b1fa4e555bcbcd2b22f75fd40160944f233b7f49e", type: jsonType }),
+  "Swf.AppSnap.SnapSide": Object.freeze({ fingerprint: "c4afcd6088a0b03b4e16781a66df20c09fafc4527820e2c6ad9474273095d889", type: snapSideType }),
+  "Swf.AppSnap.SnapLine": Object.freeze({ fingerprint: "257539bc8528ebc8705c81f626bc5f803ce1f38aa3985019a58ad708693e6907", type: snapLineType }),
 });
 
 /** The Lean program swf-models. */
@@ -6737,6 +10494,57 @@ export class SwfModels {
   #program;
   constructor(program) {
     this.#program = program;
+  }
+  compositionFreeId(taken, stem) {
+    return this.#program.invoke("swf_models__call_l_Swf_dAppComposition_dcompositionFreeId", [], [[L.array(L.STRING), taken], [L.STRING, stem]], L.value(L.STRING));
+  }
+  compositionPlan(s, step) {
+    return this.#program.invoke("swf_models__call_l_Swf_dAppComposition_dcompositionPlan", [], [[compSceneType(), s], [compStepType(), step]], L.value(compPlanType()));
+  }
+  wrapAfterDispatch(taken, key, phase, consumed) {
+    return this.#program.invoke("swf_models__call_l_Swf_dAppCursor_dwrapAfterDispatch", [], [[L.list(L.STRING), taken], [L.STRING, key], [wrapPhaseType(), phase], [L.BOOL, consumed]], L.value(L.option(L.list(L.STRING))));
+  }
+  wrapPointerStep(taken, key, phase, x, width, wraps) {
+    return this.#program.invoke("swf_models__call_l_Swf_dAppCursor_dwrapPointerStep", [], [[L.list(L.STRING), taken], [L.STRING, key], [wrapPhaseType(), phase], [L.FLOAT, x], [L.FLOAT, width], [L.BOOL, wraps]], L.value(wrapOutcomeType()));
+  }
+  depthBands(q) {
+    return this.#program.invoke("swf_models__call_l_Swf_dAppDepth_ddepthBands", [], [[depthQueryType(), q]], L.value(depthAnswerType()));
+  }
+  featuresUpdate(current, patch) {
+    return this.#program.invoke("swf_models__call_l_Swf_dAppFeatures_dfeaturesUpdate", [], [[featureSettingsType(), current], [jsonType(), patch]], L.value(featuresUpdateType()));
+  }
+  orbitKeepsBinding(enabled, command) {
+    return this.#program.invoke("swf_models__call_l_Swf_dAppOrbit_dorbitKeepsBinding", [], [[L.BOOL, enabled], [L.STRING, command]], L.value(L.BOOL));
+  }
+  orbitNeedsRepair(s) {
+    return this.#program.invoke("swf_models__call_l_Swf_dAppOrbit_dorbitNeedsRepair", [], [[orbitStateType(), s]], L.value(L.BOOL));
+  }
+  orbitRootIssue(c) {
+    return this.#program.invoke("swf_models__call_l_Swf_dAppOrbit_dorbitRootIssue", [], [[orbitCandidateType(), c]], L.value(L.option(L.STRING)));
+  }
+  orbitStep(s, e) {
+    return this.#program.invoke("swf_models__call_l_Swf_dAppOrbit_dorbitStep", [], [[orbitStateType(), s], [orbitEventType(), e]], L.value(orbitStepType()));
+  }
+  snapResolve(movingId, m, neighbours, settings) {
+    return this.#program.invoke("swf_models__call_l_Swf_dAppSnap_dsnapResolve", [], [[L.STRING, movingId], [snapSeenType(), m], [L.array(snapNeighbourType()), neighbours], [snapSettingsType(), settings]], L.value(snapOutcomeType()));
+  }
+  workspacesImportIssue(fileName, isText) {
+    return this.#program.invoke("swf_models__call_l_Swf_dAppWorkspaces_dworkspacesImportIssue", [], [[L.option(L.STRING), fileName], [L.BOOL, isText]], L.value(L.option(importIssueType())));
+  }
+  workspacesNameIssue(name) {
+    return this.#program.invoke("swf_models__call_l_Swf_dAppWorkspaces_dworkspacesNameIssue", [], [[L.option(L.STRING), name]], L.value(L.option(nameIssueType())));
+  }
+  workspacesNewest(visits) {
+    return this.#program.invoke("swf_models__call_l_Swf_dAppWorkspaces_dworkspacesNewest", [], [[L.array(L.pair(L.STRING, L.INT)), visits]], L.value(L.option(L.STRING)));
+  }
+  workspacesSavedAt(now, older) {
+    return this.#program.invoke("swf_models__call_l_Swf_dAppWorkspaces_dworkspacesSavedAt", [], [[L.INT, now], [L.array(L.INT), older]], L.value(L.INT));
+  }
+  workspacesStale(current, visits) {
+    return this.#program.invoke("swf_models__call_l_Swf_dAppWorkspaces_dworkspacesStale", [], [[L.STRING, current], [L.array(L.STRING), visits]], L.value(L.array(L.STRING)));
+  }
+  workspacesStep(m, e) {
+    return this.#program.invoke("swf_models__call_l_Swf_dAppWorkspaces_dworkspacesStep", [], [[workspacesMachineType(), m], [workspacesEventType(), e]], L.value(workspacesStepType()));
   }
   bestBid(bids, kind, pointers) {
     return this.#program.invoke("swf_models__call_l_Swf_dArbitration_dbestBid", [], [[L.array(bidType()), bids], [bidKindType(), kind], [L.NAT, pointers]], L.value(L.option(L.NAT)));

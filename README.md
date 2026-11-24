@@ -1075,17 +1075,26 @@ in every environment; the packages call it synchronously and keep their own publ
 their values at the boundary. The TypeScript does the work (binding, rendering, storing, moving
 attachments); the model decides each state it passes through and each request it admits.
 
-| Model           | Decides                                                                                                                                                                                               |
-| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Swf.Kernel`    | The workspace lifecycle (§13.1); a transaction's admission, idempotent replay and refusals in order; what a commit, undo, redo or restore does to the revision, the history and the idempotency cache |
-| `Swf.Hierarchy` | That a node never becomes its own ancestor (reparenting, grouping), and which commands a lock refuses                                                                                                 |
-| `Swf.Surface`   | Every surface presentation state and its announcement (§13.2), and the bind, unbind, present, replace, move and hide requests each state admits, single-owner mounts included                         |
-| `Swf.Gesture`   | Where each pointer sample, press and key goes; each gesture phase from press to commit or cancel (§13.3); the keyboard hold's admission                                                               |
-| `Swf.Save`      | The snapshot save states (§13.4), which acknowledgements count, and that the saved revision never goes back                                                                                           |
-| `Swf.Migration` | The steps that bring a snapshot of an older format to the current one, without cycles                                                                                                                 |
-| `Swf.Fallback`  | Each fragment's presentation mode, its fallback report, fidelities and layer, which fragment holds the live handle, and which fallback orders are policies; a whole frame in one call                 |
-| `Swf.Handoff`   | Each backend handoff stage (§13.5), what becomes of every attached surface, and whether a failed handoff keeps the previous backend or degrades the viewport                                          |
-| `Swf.ViewMode`  | The reference application's view-mode switch and the view a mode returns to                                                                                                                           |
+| Model                | Decides                                                                                                                                                                                               |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Swf.Kernel`         | The workspace lifecycle (§13.1); a transaction's admission, idempotent replay and refusals in order; what a commit, undo, redo or restore does to the revision, the history and the idempotency cache |
+| `Swf.Hierarchy`      | That a node never becomes its own ancestor (reparenting, grouping), and which commands a lock refuses                                                                                                 |
+| `Swf.Surface`        | Every surface presentation state and its announcement (§13.2), and the bind, unbind, present, replace, move and hide requests each state admits, single-owner mounts included                         |
+| `Swf.Gesture`        | Where each pointer sample, press and key goes; each gesture phase from press to commit or cancel (§13.3); the keyboard hold's admission                                                               |
+| `Swf.Arbitration`    | Which gesture wins a press, and which hit under a pointer is the target, in what order and whether ambiguously                                                                                        |
+| `Swf.Save`           | The snapshot save states (§13.4), which acknowledgements count, and that the saved revision never goes back                                                                                           |
+| `Swf.Migration`      | The steps that bring a snapshot of an older format to the current one, without cycles                                                                                                                 |
+| `Swf.Fallback`       | Each fragment's presentation mode, its fallback report, fidelities and layer, which fragment holds the live handle, and which fallback orders are policies; a whole frame in one call                 |
+| `Swf.Handoff`        | Each backend handoff stage (§13.5), what becomes of every attached surface, and whether a failed handoff keeps the previous backend or degrades the viewport                                          |
+| `Swf.ViewMode`       | The reference application's view-mode switch and the view a mode returns to                                                                                                                           |
+| `Swf.Order`          | An order key for doubles, so the models' claims about order (priorities, distances) are proved over integers                                                                                          |
+| `Swf.AppOrbit`       | The reference application's workspace orbit: which group it turns, what a background drag navigates, and the commands of each change                                                                  |
+| `Swf.AppCursor`      | Which pointers the wrapped cursor carries across the panorama's seam, where it wraps them, and when its virtual cursor is drawn                                                                       |
+| `Swf.AppFeatures`    | Which feature toggles and settings a patch may set, refused field by field, and what changes                                                                                                          |
+| `Swf.AppSnap`        | The magnetic snap: which neighbour edge or layer a moved window snaps to, nearest first, within its thresholds                                                                                        |
+| `Swf.AppDepth`       | The semantic-depth band of every window of a frame at once, farther never showing more                                                                                                                |
+| `Swf.AppComposition` | Composition plans (detaching, moving and merging surfaces, regrouping windows) and the IDs of new windows                                                                                             |
+| `Swf.AppWorkspaces`  | Named workspaces: valid names, autosave, saving now, restoring the newest visit, the stale visits, save times and which files import                                                                  |
 
 `lungo.toml` names the exports and requires a proved claim of every one (`require-claims`); a claim
 proved with `sorry` fails the build. Read what was proved of an export with

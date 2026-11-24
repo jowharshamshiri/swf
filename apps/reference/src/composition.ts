@@ -1,14 +1,19 @@
 import type { Id, JsonValue, NodeRecord, SceneCommand, SceneState, SurfaceRecord } from '@swf/core';
 import type { Transform3D, Vec3 } from '@swf/math';
 import { transformPoint } from '@swf/math';
+import type * as Lean from '@swf/models';
+import { models } from '@swf/models';
 
 /**
  * Multi-surface composition (FR-126, WF-06, AC-016): the surfaces a host supplied, rearranged
  * among windows. A surface can be detached into a window of its own, moved into another window,
  * or a window's surfaces merged into another's; a window can be moved into another group, or a
- * new one. Each is planned here as the scene commands of one undoable transaction, from the
- * committed scene alone. Only associations and placements change: a surface is never split, its
- * content is never looked at, and a window with one surface has nothing to detach.
+ * new one. Each step is decided from the committed scene alone by the Lean model
+ * `Swf.AppComposition` (models/Swf/AppComposition.lean), where it is proved that no surface is
+ * lost and that a new node's ID is free; this module lays the windows out round their surfaces
+ * and turns the decision into the scene commands of one undoable transaction. Only associations
+ * and placements change: a surface is never split, its content is never looked at, and a window
+ * with one surface has nothing to detach.
  */
 
 /**
@@ -58,14 +63,13 @@ export interface NewWindow {
   readonly metadata: Readonly<Record<string, JsonValue>>;
 }
 
-const refused = (field: string, reason: string): CompositionPlan =>
-  Object.freeze({ kind: 'refused', field, reason });
+/** Where a window is moved: into a group that exists, or into a new group of its own. */
+export type GroupTarget =
+  | { readonly kind: 'group'; readonly id: Id }
+  | { readonly kind: 'new'; readonly id: Id; readonly label: string };
 
 const planned = (commands: SceneCommand[], createdWindowId: Id | null = null): CompositionPlan =>
   Object.freeze({ kind: 'plan', commands: Object.freeze(commands), createdWindowId });
-
-const nameOf = (record: { readonly id: Id; readonly label: string | null }) =>
-  `“${record.label ?? record.id}”`;
 
 /** A surface's size in its window: its bounds as its own scale makes them. */
 const sizeOf = (surface: SurfaceRecord): readonly [number, number] => [
@@ -94,109 +98,162 @@ function offsetAt(layout: SurfaceLayout, index: number): Vec3 {
   return offset;
 }
 
-/** A window and its surfaces, in order, or why it is not a window. */
-function windowOf(
-  state: SceneState,
-  id: unknown,
-  field: string,
-):
-  | { readonly window: NodeRecord; readonly surfaces: readonly SurfaceRecord[] }
-  | { readonly field: string; readonly reason: string } {
-  const node = typeof id === 'string' ? state.nodes.get(id) : undefined;
-  if (node?.kind !== 'window' || node.status !== 'active') {
-    return { field, reason: `no window "${String(id)}"` };
+/** The scene's node of an ID the plan names. */
+function nodeOf(state: SceneState, id: Id): NodeRecord {
+  const node = state.nodes.get(id);
+  if (node === undefined) {
+    throw new Error(`the plan names node "${id}", which the scene lacks`);
   }
-  const surfaces = node.surfaceIds.map((surfaceId) => {
+  return node;
+}
+
+/** The surfaces of the IDs a window holds, in their order. */
+function surfacesOf(state: SceneState, window: Id, ids: readonly Id[]): SurfaceRecord[] {
+  return ids.map((surfaceId) => {
     const surface = state.surfaces.get(surfaceId);
     if (surface === undefined) {
-      throw new Error(`window "${node.id}" names surface "${surfaceId}", which the scene lacks`);
+      throw new Error(`window "${window}" names surface "${surfaceId}", which the scene lacks`);
     }
     return surface;
   });
-  return { window: node, surfaces };
+}
+
+/** The scene as composition weighs it. */
+function sceneOf(state: SceneState): Lean.CompScene {
+  return {
+    nodes: [...state.nodes.values()].map((node) => ({
+      id: node.id,
+      kind: node.kind,
+      active: node.status === 'active',
+      label: node.label,
+      parentId: node.parentId,
+      childIds: [...node.childIds],
+      surfaceIds: [...node.surfaceIds],
+    })),
+    surfaces: [...state.surfaces.values()].map((surface) => ({
+      id: surface.id,
+      label: surface.label,
+      owner: surface.ownerNodeId,
+    })),
+    orbitRootId: state.orbitRootId,
+  };
+}
+
+/** An ID as a host gave it, untyped. */
+const refOf = (id: unknown): Lean.CompRef => ({
+  id: typeof id === 'string' ? id : null,
+  shown: String(id),
+});
+
+/** The plan the model decided for a step, as scene commands. */
+function commandsOf(state: SceneState, plan: Lean.CompPlan, window?: NewWindow): CompositionPlan {
+  switch (plan.kind) {
+    case 'refused':
+      return Object.freeze({ kind: 'refused', field: plan.field, reason: plan.reason });
+    case 'detach': {
+      if (window === undefined) {
+        throw new Error('a detached surface needs what its new window is given');
+      }
+      const [surface] = surfacesOf(state, plan.window, [plan.surface]);
+      if (surface === undefined) {
+        throw new Error(`no surface "${plan.surface}"`);
+      }
+      const owner = nodeOf(state, plan.window);
+      const kept = surfacesOf(state, owner.id, plan.kept);
+      const alone = layoutSurfaces([sizeOf(surface)]);
+      const local: Transform3D = { ...surface.transform, position: offsetAt(alone, 0) };
+      const [left] = layoutSurfaces(kept.map(sizeOf)).bounds;
+      const [width] = alone.bounds;
+      // Beside the window it left, edge to edge with a gap, along that window's own right.
+      const from = owner.transform;
+      const placed: Transform3D = {
+        position: transformPoint(from, [(left + width) / 2 + WINDOW_FRAME.gap, 0, 0]),
+        rotation: from.rotation,
+        scale: from.scale,
+      };
+      return planned(
+        [
+          {
+            type: 'node.create',
+            node: {
+              id: plan.created,
+              kind: 'window',
+              parentId: plan.parentId,
+              label: plan.label,
+              tags: [...window.tags],
+              metadata: window.metadata,
+              bounds: alone.bounds,
+              transform: placed,
+            },
+          },
+          { type: 'surface.move', id: surface.id, ownerNodeId: plan.created, keep: 'local' },
+          { type: 'surface.patch', id: surface.id, transform: local },
+          ...relayout(owner, kept),
+        ],
+        plan.created,
+      );
+    }
+    case 'move':
+      return planned([
+        { type: 'surface.move', id: plan.surface, ownerNodeId: plan.target, keep: 'local' },
+        ...relayout(nodeOf(state, plan.target), surfacesOf(state, plan.target, plan.laidOut)),
+        ...(plan.left.length === 0
+          ? [{ type: 'node.delete', id: plan.source, mode: 'rejectIfChildren' } as const]
+          : relayout(nodeOf(state, plan.source), surfacesOf(state, plan.source, plan.left))),
+      ]);
+    case 'merge':
+      return planned([
+        ...plan.moved.map((surfaceId): SceneCommand => ({
+          type: 'surface.move',
+          id: surfaceId,
+          ownerNodeId: plan.target,
+          keep: 'local',
+        })),
+        ...relayout(nodeOf(state, plan.target), surfacesOf(state, plan.target, plan.laidOut)),
+        { type: 'node.delete', id: plan.source, mode: 'rejectIfChildren' },
+      ]);
+    case 'regroup': {
+      const into = plan.into;
+      const move: SceneCommand =
+        into.kind === 'group'
+          ? { type: 'node.reparent', id: plan.window, parentId: into.id, keep: 'world' }
+          : {
+              type: 'node.group',
+              nodeIds: [plan.window],
+              group: { id: into.id, label: into.label, parentId: into.parentId },
+            };
+      return planned([
+        move,
+        ...(plan.removed === null
+          ? []
+          : [{ type: 'node.delete', id: plan.removed, mode: 'rejectIfChildren' } as const]),
+      ]);
+    }
+  }
 }
 
 /** An ID for a new node made from `stem`: the stem, or the stem numbered, whichever is free. */
 export function freeId(state: SceneState, stem: string): Id {
-  const taken = (id: Id) => state.nodes.has(id) || state.surfaces.has(id);
-  if (!taken(stem)) {
-    return stem;
-  }
-  for (let n = 2; ; n += 1) {
-    const id = `${stem}-${String(n)}`;
-    if (!taken(id)) {
-      return id;
-    }
-  }
-}
-
-/** The window a detached surface gets: named after it (`note-1-surface` gives `note-1`). */
-function windowIdFor(state: SceneState, surfaceId: Id): Id {
-  const stem = surfaceId.endsWith('-surface') ? surfaceId.slice(0, -'-surface'.length) : '';
-  return freeId(state, stem === '' ? `${surfaceId}-window` : stem);
+  return models.compositionFreeId([...state.nodes.ids(), ...state.surfaces.ids()], stem);
 }
 
 /**
  * Takes a surface out of its window into a new window of its own, in the same group: the window
  * it left closes up round the rest, and the new one stands beside it, to its right, turned as it
- * is, so neither covers the other. A window's only surface cannot be detached: there is nothing
- * to split it from, and a surface's own content is never split.
+ * is, so neither covers the other. The new window is named after the surface (`note-1-surface`
+ * gives `note-1`). A window's only surface cannot be detached: there is nothing to split it from,
+ * and a surface's own content is never split.
  */
 export function detachSurface(
   state: SceneState,
   surfaceId: unknown,
   window: NewWindow,
 ): CompositionPlan {
-  const surface = typeof surfaceId === 'string' ? state.surfaces.get(surfaceId) : undefined;
-  if (surface === undefined) {
-    return refused('surfaceId', `no surface "${String(surfaceId)}"`);
-  }
-  const owner = windowOf(state, surface.ownerNodeId, 'surfaceId');
-  if ('reason' in owner) {
-    return refused('surfaceId', `surface ${nameOf(surface)} is not in a window`);
-  }
-  if (owner.surfaces.length < 2) {
-    return refused(
-      'surfaceId',
-      `${nameOf(surface)} is the only surface of ${nameOf(owner.window)}: there is nothing to detach it from, and a surface’s own content is never split`,
-    );
-  }
-  const id = windowIdFor(state, surface.id);
-  const local: Transform3D = {
-    ...surface.transform,
-    position: offsetAt(layoutSurfaces([sizeOf(surface)]), 0),
-  };
-  const kept = owner.surfaces.filter((s) => s.id !== surface.id);
-  const [left] = layoutSurfaces(kept.map(sizeOf)).bounds;
-  const [width] = layoutSurfaces([sizeOf(surface)]).bounds;
-  // Beside the window it left, edge to edge with a gap, along that window's own right.
-  const from = owner.window.transform;
-  const placed: Transform3D = {
-    position: transformPoint(from, [(left + width) / 2 + WINDOW_FRAME.gap, 0, 0]),
-    rotation: from.rotation,
-    scale: from.scale,
-  };
-  return planned(
-    [
-      {
-        type: 'node.create',
-        node: {
-          id,
-          kind: 'window',
-          parentId: owner.window.parentId,
-          label: surface.label ?? id,
-          tags: [...window.tags],
-          metadata: window.metadata,
-          bounds: layoutSurfaces([sizeOf(surface)]).bounds,
-          transform: placed,
-        },
-      },
-      { type: 'surface.move', id: surface.id, ownerNodeId: id, keep: 'local' },
-      { type: 'surface.patch', id: surface.id, transform: local },
-      ...relayout(owner.window, kept),
-    ],
-    id,
-  );
+  const plan = models.compositionPlan(sceneOf(state), {
+    kind: 'detach',
+    surface: refOf(surfaceId),
+  });
+  return commandsOf(state, plan, window);
 }
 
 /**
@@ -209,29 +266,12 @@ export function moveSurface(
   surfaceId: unknown,
   targetWindowId: unknown,
 ): CompositionPlan {
-  const surface = typeof surfaceId === 'string' ? state.surfaces.get(surfaceId) : undefined;
-  if (surface === undefined) {
-    return refused('surfaceId', `no surface "${String(surfaceId)}"`);
-  }
-  const target = windowOf(state, targetWindowId, 'windowId');
-  if ('reason' in target) {
-    return refused(target.field, target.reason);
-  }
-  if (target.window.id === surface.ownerNodeId) {
-    return refused('windowId', `${nameOf(surface)} is already in ${nameOf(target.window)}`);
-  }
-  const source = windowOf(state, surface.ownerNodeId, 'surfaceId');
-  if ('reason' in source) {
-    return refused('surfaceId', `surface ${nameOf(surface)} is not in a window`);
-  }
-  const left = source.surfaces.filter((s) => s.id !== surface.id);
-  return planned([
-    { type: 'surface.move', id: surface.id, ownerNodeId: target.window.id, keep: 'local' },
-    ...relayout(target.window, [...target.surfaces, surface]),
-    ...(left.length === 0
-      ? [{ type: 'node.delete', id: source.window.id, mode: 'rejectIfChildren' } as const]
-      : relayout(source.window, left)),
-  ]);
+  const plan = models.compositionPlan(sceneOf(state), {
+    kind: 'move',
+    surface: refOf(surfaceId),
+    window: refOf(targetWindowId),
+  });
+  return commandsOf(state, plan);
 }
 
 /**
@@ -243,36 +283,13 @@ export function mergeWindow(
   windowId: unknown,
   targetWindowId: unknown,
 ): CompositionPlan {
-  const source = windowOf(state, windowId, 'windowId');
-  if ('reason' in source) {
-    return refused(source.field, source.reason);
-  }
-  const target = windowOf(state, targetWindowId, 'targetId');
-  if ('reason' in target) {
-    return refused(target.field, target.reason);
-  }
-  if (target.window.id === source.window.id) {
-    return refused('targetId', 'a window cannot be merged into itself');
-  }
-  if (source.window.childIds.length > 0) {
-    return refused('windowId', `${nameOf(source.window)} holds other nodes and cannot be emptied`);
-  }
-  return planned([
-    ...source.surfaces.map((surface): SceneCommand => ({
-      type: 'surface.move',
-      id: surface.id,
-      ownerNodeId: target.window.id,
-      keep: 'local',
-    })),
-    ...relayout(target.window, [...target.surfaces, ...source.surfaces]),
-    { type: 'node.delete', id: source.window.id, mode: 'rejectIfChildren' },
-  ]);
+  const plan = models.compositionPlan(sceneOf(state), {
+    kind: 'merge',
+    window: refOf(windowId),
+    target: refOf(targetWindowId),
+  });
+  return commandsOf(state, plan);
 }
-
-/** Where a window is moved: into a group that exists, or into a new group of its own. */
-export type GroupTarget =
-  | { readonly kind: 'group'; readonly id: Id }
-  | { readonly kind: 'new'; readonly id: Id; readonly label: string };
 
 /**
  * Moves a window into another group, keeping its place in the world. A group it leaves empty is
@@ -283,45 +300,15 @@ export function regroupWindow(
   windowId: unknown,
   target: GroupTarget,
 ): CompositionPlan {
-  const found = windowOf(state, windowId, 'windowId');
-  if ('reason' in found) {
-    return refused(found.field, found.reason);
-  }
-  const window = found.window;
-  let move: SceneCommand[];
-  if (target.kind === 'new') {
-    if (state.nodes.has(target.id) || state.surfaces.has(target.id)) {
-      return refused('groupId', `the ID "${target.id}" is taken`);
-    }
-    move = [
-      {
-        type: 'node.group',
-        nodeIds: [window.id],
-        group: { id: target.id, label: target.label, parentId: window.parentId },
-      },
-    ];
-  } else {
-    const group = state.nodes.get(target.id);
-    if (group?.kind !== 'group' || group.status !== 'active') {
-      return refused('groupId', `no group "${target.id}"`);
-    }
-    if (window.parentId === group.id) {
-      return refused('groupId', `${nameOf(window)} is already in ${nameOf(group)}`);
-    }
-    move = [{ type: 'node.reparent', id: window.id, parentId: group.id, keep: 'world' }];
-  }
-  const left = window.parentId === null ? undefined : state.nodes.get(window.parentId);
-  const emptied =
-    left?.kind === 'group' &&
-    left.id !== state.orbitRootId &&
-    left.childIds.length === 1 &&
-    left.surfaceIds.length === 0 &&
-    // A new group is made inside the old one: it is not emptied.
-    target.kind === 'group';
-  return planned([
-    ...move,
-    ...(emptied ? [{ type: 'node.delete', id: left.id, mode: 'rejectIfChildren' } as const] : []),
-  ]);
+  const plan = models.compositionPlan(sceneOf(state), {
+    kind: 'regroup',
+    window: refOf(windowId),
+    target:
+      target.kind === 'group'
+        ? { kind: 'group', id: target.id }
+        : { kind: 'fresh', id: target.id, label: target.label },
+  });
+  return commandsOf(state, plan);
 }
 
 /** A composition step that cannot be done, naming the field at fault. */

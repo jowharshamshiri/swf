@@ -18,6 +18,8 @@ import {
   quatRotate,
   sub,
 } from '@swf/math';
+import type * as Lean from '@swf/models';
+import { models } from '@swf/models';
 import type { SnapSettings } from './features.js';
 
 /**
@@ -30,10 +32,13 @@ import type { SnapSettings } from './features.js';
  *   window's distance;
  * - its centre's heading or elevation to a neighbour's, or its elevation to the horizon: the
  *   angular threshold, in degrees.
- * Each axis takes the nearest snap on it. Only neighbours side by side with the window snap: those
- * whose distance from the camera is within a quarter of its own; farther ones lie behind it.
- * A snap turns the window about the camera, so it keeps its distance and keeps facing the camera
- * as it did. Nothing here touches a scene.
+ * Each axis takes the nearest snap on it; at the same distance edges win over line-ups, line-ups
+ * over the horizon, and then the first neighbour. Only neighbours side by side with the window
+ * snap: those whose distance from the camera is within a quarter of its own; farther ones lie
+ * behind it. The snap is decided by the Lean model `Swf.AppSnap` (models/Swf/AppSnap.lean),
+ * where it is proved to be the nearest within reach; this module measures where the windows are
+ * seen from the camera, and turns the window by the snap: it keeps its distance and keeps facing
+ * the camera as it did. Nothing here touches a scene.
  */
 
 /** A window as snapping sees it. */
@@ -79,32 +84,10 @@ export const NO_SNAP: Snap = Object.freeze({
   constraints: Object.freeze([]),
 });
 
-/** Neighbours whose distance differs by at most this share of the moving window's lie beside it. */
-export const SAME_LAYER = 0.25;
-
-const RADIANS = Math.PI / 180;
-
-/** An angle wrapped to (-π, π]. */
-function wrap(angle: number): number {
-  const turned = angle - 2 * Math.PI * Math.floor((angle + Math.PI) / (2 * Math.PI));
-  return turned === -Math.PI ? Math.PI : turned;
-}
-
-/** Where a box is seen from the eye: heading, elevation, distance and angular half sizes. */
-interface Seen {
-  readonly heading: number;
-  readonly elevation: number;
-  readonly distance: number;
-  readonly halfWidth: number;
-  readonly halfHeight: number;
-}
-
-function seen(box: SnapBox, eye: Vec3): Seen | null {
+/** A box as seen from the eye: its centre's heading, elevation and distance, and its angular half sizes. */
+function seen(box: SnapBox, eye: Vec3): Lean.SnapSeen {
   const [x, y, z] = sub(box.centre, eye);
   const distance = Math.hypot(x, y, z);
-  if (!(distance > 0)) {
-    return null;
-  }
   return {
     heading: Math.atan2(x, -z),
     elevation: Math.atan2(y, Math.hypot(x, z)),
@@ -114,25 +97,9 @@ function seen(box: SnapBox, eye: Vec3): Seen | null {
   };
 }
 
-interface Candidate {
-  readonly delta: number;
-  /** Lower ranks win ties: edges, then alignments, then the horizon. */
-  readonly rank: number;
-  readonly constraint: SnapConstraint;
-}
-
-function better(a: Candidate | null, b: Candidate): Candidate {
-  if (a === null) {
-    return b;
-  }
-  const da = Math.abs(a.delta);
-  const db = Math.abs(b.delta);
-  return db < da - 1e-12 || (Math.abs(db - da) <= 1e-12 && b.rank < a.rank) ? b : a;
-}
-
 /**
  * The snap for a window proposed at `moving`, among `neighbours` (in a stable order: ties go to
- * the first), as seen from `eye`.
+ * the first), as seen from `eye`. Throws a RangeError when a number it weighs is not finite.
  */
 export function resolveSnap(
   moving: SnapBox,
@@ -140,98 +107,44 @@ export function resolveSnap(
   eye: Vec3,
   settings: SnapSettings,
 ): Snap {
-  const m = seen(moving, eye);
-  if (m === null) {
-    return NO_SNAP;
-  }
-  const linear = settings.linear / m.distance;
-  const pad = settings.padding / m.distance;
-  const angular = settings.angular * RADIANS;
-  const best: { across: Candidate | null; down: Candidate | null } = { across: null, down: null };
-  /** Takes a candidate whose distance (an edge's gap or overlap, or a line-up's offset) is within the threshold. */
-  const consider = (
-    axis: 'across' | 'down',
-    candidate: Candidate,
-    distance: number,
-    threshold: number,
-  ) => {
-    if (Math.abs(distance) <= threshold) {
-      best[axis] = better(best[axis], candidate);
-    }
-  };
-  for (const neighbour of neighbours) {
-    if (neighbour.id === moving.id) {
-      continue;
-    }
-    const n = seen(neighbour, eye);
-    if (n === null || Math.abs(n.distance - m.distance) > SAME_LAYER * m.distance) {
-      continue;
-    }
-    const named = { neighbourId: neighbour.id, neighbourLabel: neighbour.label };
-    // The neighbour's place relative to the moving window's centre heading.
-    const h = wrap(n.heading - m.heading);
-    const left = h - n.halfWidth;
-    const right = h + n.halfWidth;
-    const top = n.elevation + n.halfHeight;
-    const bottom = n.elevation - n.halfHeight;
-    const rows =
-      Math.min(top, m.elevation + m.halfHeight) - Math.max(bottom, m.elevation - m.halfHeight);
-    const columns = Math.min(right, m.halfWidth) - Math.max(left, -m.halfWidth);
-    if (rows > 0) {
-      // Side by side: the moving window's left edge to the neighbour's right, or its right to the left.
-      const leftGap = -m.halfWidth - right;
-      const rightGap = left - m.halfWidth;
-      consider(
-        'across',
-        { delta: pad - leftGap, rank: 0, constraint: { kind: 'edge', side: 'left', ...named } },
-        leftGap,
-        linear,
-      );
-      consider(
-        'across',
-        { delta: rightGap - pad, rank: 0, constraint: { kind: 'edge', side: 'right', ...named } },
-        rightGap,
-        linear,
-      );
-    }
-    if (columns > 0) {
-      // One above the other: the moving window's bottom edge to the neighbour's top, or its top to the bottom.
-      const bottomGap = m.elevation - m.halfHeight - top;
-      const topGap = bottom - (m.elevation + m.halfHeight);
-      consider(
-        'down',
-        { delta: pad - bottomGap, rank: 0, constraint: { kind: 'edge', side: 'bottom', ...named } },
-        bottomGap,
-        linear,
-      );
-      consider(
-        'down',
-        { delta: topGap - pad, rank: 0, constraint: { kind: 'edge', side: 'top', ...named } },
-        topGap,
-        linear,
-      );
-    }
-    const across = { kind: 'align', axis: 'heading', ...named } as const;
-    const down = { kind: 'align', axis: 'elevation', ...named } as const;
-    consider('across', { delta: h, rank: 1, constraint: across }, h, angular);
-    const level = n.elevation - m.elevation;
-    consider('down', { delta: level, rank: 1, constraint: down }, level, angular);
-  }
-  consider(
-    'down',
-    { delta: -m.elevation, rank: 2, constraint: { kind: 'horizon' } },
-    m.elevation,
-    angular,
+  const outcome = models.snapResolve(
+    moving.id,
+    seen(moving, eye),
+    neighbours.map((neighbour) => ({ id: neighbour.id, seen: seen(neighbour, eye) })),
+    { linear: settings.linear, angular: settings.angular, padding: settings.padding },
   );
-  const chosen = [best.across, best.down].filter((c): c is Candidate => c !== null);
-  if (chosen.length === 0) {
-    return NO_SNAP;
+  switch (outcome.kind) {
+    case 'invalid':
+      throw new RangeError(`magnetic positioning weighs finite numbers; ${outcome.field} is not`);
+    case 'unsnapped':
+      return NO_SNAP;
+    case 'snapped': {
+      const constraintOf = (candidate: Lean.SnapCandidate): SnapConstraint => {
+        const c = candidate.constraint;
+        if (c.kind === 'horizon') {
+          return Object.freeze({ kind: 'horizon' });
+        }
+        const neighbour = neighbours[Number(c.neighbour)];
+        if (neighbour === undefined) {
+          throw new Error(`the snap names neighbour ${String(c.neighbour)}, which is not given`);
+        }
+        const named = { neighbourId: neighbour.id, neighbourLabel: neighbour.label };
+        return Object.freeze(
+          c.kind === 'edge'
+            ? { kind: 'edge', side: c.side.kind, ...named }
+            : { kind: 'align', axis: c.line.kind, ...named },
+        );
+      };
+      const chosen = [outcome.across, outcome.down].filter(
+        (c): c is Lean.SnapCandidate => c !== null,
+      );
+      return Object.freeze({
+        heading: outcome.across?.delta ?? 0,
+        elevation: outcome.down?.delta ?? 0,
+        constraints: Object.freeze(chosen.map(constraintOf)),
+      });
+    }
   }
-  return Object.freeze({
-    heading: best.across?.delta ?? 0,
-    elevation: best.down?.delta ?? 0,
-    constraints: Object.freeze(chosen.map((c) => Object.freeze(c.constraint))),
-  });
 }
 
 /** The direction seen at a heading and elevation. */
