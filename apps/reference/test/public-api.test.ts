@@ -153,8 +153,12 @@ describe('the application uses only the public API (FR-185, ARCH-020)', () => {
         ...json.devDependencies,
         ...json.peerDependencies,
       });
+      // The models run on lungo's WebAssembly host, the one dependency outside the framework.
       expect(
-        all.filter((name) => !name.startsWith('@swf/')),
+        all.filter(
+          (name) =>
+            !name.startsWith('@swf/') && !(json.name === '@swf/models' && name === 'lungo-ts'),
+        ),
         json.name,
       ).toEqual([]);
     }

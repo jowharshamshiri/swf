@@ -12,10 +12,276 @@ async function programModule() {
   return response.arrayBuffer();
 }
 
+/** Describes Swf.Kernel.Lifecycle for polymorphic functions. */
+export function lifecycleType() {
+  return new L.Type(
+    L.inductiveExpr(0),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.Lifecycle");
+      switch (v.kind) {
+        case "ready":
+          w.u32(0);
+          return;
+        case "disposing":
+          w.u32(1);
+          L.BOOL.encode(w, v.announced);
+          return;
+        case "disposed":
+          w.u32(2);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.Kernel.Lifecycle`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "ready" });
+        case 1: return ({ kind: "disposing", announced: L.BOOL.decode(r) });
+        case 2: return ({ kind: "disposed" });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.Kernel.Lifecycle`);
+      }
+    },
+  );
+}
+
+/** Describes Swf.Kernel.Ledger for polymorphic functions. */
+export function ledgerType() {
+  return new L.Type(
+    L.inductiveExpr(1),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.Ledger");
+      w.u32(0);
+      lifecycleType().encode(w, v.lifecycle);
+      L.NAT.encode(w, v.revision);
+      L.NAT.encode(w, v.undo);
+      L.NAT.encode(w, v.redo);
+      L.NAT.encode(w, v.undoCapacity);
+      L.NAT.encode(w, v.keys);
+      L.NAT.encode(w, v.keyCapacity);
+    },
+    (r) => {
+      const c = r.u32();
+      if (c !== 0) throw new L.MalformedError(`constructor index ${c} of Swf.Kernel.Ledger`);
+      return ({ lifecycle: lifecycleType().decode(r), revision: L.NAT.decode(r), undo: L.NAT.decode(r), redo: L.NAT.decode(r), undoCapacity: L.NAT.decode(r), keys: L.NAT.decode(r), keyCapacity: L.NAT.decode(r) });
+    },
+  );
+}
+
+/** Describes Swf.Kernel.Direction for polymorphic functions. */
+export function directionType() {
+  return new L.Type(
+    L.inductiveExpr(2),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.Direction");
+      switch (v.kind) {
+        case "undo":
+          w.u32(0);
+          return;
+        case "redo":
+          w.u32(1);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.Kernel.Direction`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "undo" });
+        case 1: return ({ kind: "redo" });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.Kernel.Direction`);
+      }
+    },
+  );
+}
+
+/** Describes Swf.Kernel.Change for polymorphic functions. */
+export function changeType() {
+  return new L.Type(
+    L.inductiveExpr(3),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.Change");
+      switch (v.kind) {
+        case "commands":
+          w.u32(0);
+          L.BOOL.encode(w, v.layout);
+          L.BOOL.encode(w, v.keyed);
+          return;
+        case "restore":
+          w.u32(1);
+          L.BOOL.encode(w, v.layout);
+          L.NAT.encode(w, v.snapshotRevision);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.Kernel.Change`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "commands", layout: L.BOOL.decode(r), keyed: L.BOOL.decode(r) });
+        case 1: return ({ kind: "restore", layout: L.BOOL.decode(r), snapshotRevision: L.NAT.decode(r) });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.Kernel.Change`);
+      }
+    },
+  );
+}
+
+/** Describes Swf.Kernel.Commit for polymorphic functions. */
+export function commitType() {
+  return new L.Type(
+    L.inductiveExpr(4),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.Commit");
+      w.u32(0);
+      ledgerType().encode(w, v.next);
+      L.BOOL.encode(w, v.clearRedo);
+      L.BOOL.encode(w, v.push);
+      L.BOOL.encode(w, v.dropOldest);
+      L.NAT.encode(w, v.evictKeys);
+    },
+    (r) => {
+      const c = r.u32();
+      if (c !== 0) throw new L.MalformedError(`constructor index ${c} of Swf.Kernel.Commit`);
+      return ({ next: ledgerType().decode(r), clearRedo: L.BOOL.decode(r), push: L.BOOL.decode(r), dropOldest: L.BOOL.decode(r), evictKeys: L.NAT.decode(r) });
+    },
+  );
+}
+
+/** Describes Swf.Kernel.TxRequest for polymorphic functions. */
+export function txRequestType() {
+  return new L.Type(
+    L.inductiveExpr(5),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.TxRequest");
+      w.u32(0);
+      L.option(L.BOOL).encode(w, v.known);
+      L.option(L.NAT).encode(w, v.expected);
+    },
+    (r) => {
+      const c = r.u32();
+      if (c !== 0) throw new L.MalformedError(`constructor index ${c} of Swf.Kernel.TxRequest`);
+      return ({ known: L.option(L.BOOL).decode(r), expected: L.option(L.NAT).decode(r) });
+    },
+  );
+}
+
+/** Describes Swf.Kernel.TxGate for polymorphic functions. */
+export function txGateType() {
+  return new L.Type(
+    L.inductiveExpr(6),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.TxGate");
+      switch (v.kind) {
+        case "proceed":
+          w.u32(0);
+          return;
+        case "replay":
+          w.u32(1);
+          return;
+        case "refuseDisposed":
+          w.u32(2);
+          return;
+        case "refuseKeyReused":
+          w.u32(3);
+          return;
+        case "refuseStale":
+          w.u32(4);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.Kernel.TxGate`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "proceed" });
+        case 1: return ({ kind: "replay" });
+        case 2: return ({ kind: "refuseDisposed" });
+        case 3: return ({ kind: "refuseKeyReused" });
+        case 4: return ({ kind: "refuseStale" });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.Kernel.TxGate`);
+      }
+    },
+  );
+}
+
+/** Describes Swf.Kernel.IdleStep for polymorphic functions. */
+export function idleStepType() {
+  return new L.Type(
+    L.inductiveExpr(7),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.IdleStep");
+      switch (v.kind) {
+        case "announce":
+          w.u32(0);
+          ledgerType().encode(w, v.next);
+          return;
+        case "finish":
+          w.u32(1);
+          ledgerType().encode(w, v.next);
+          return;
+        case "rest":
+          w.u32(2);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.Kernel.IdleStep`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "announce", next: ledgerType().decode(r) });
+        case 1: return ({ kind: "finish", next: ledgerType().decode(r) });
+        case 2: return ({ kind: "rest" });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.Kernel.IdleStep`);
+      }
+    },
+  );
+}
+
+/** Describes Swf.Kernel.Travel for polymorphic functions. */
+export function travelType() {
+  return new L.Type(
+    L.inductiveExpr(8),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.Travel");
+      switch (v.kind) {
+        case "commit":
+          w.u32(0);
+          ledgerType().encode(w, v.next);
+          return;
+        case "refuseDisposed":
+          w.u32(1);
+          return;
+        case "refuseEmpty":
+          w.u32(2);
+          return;
+        case "refuseStale":
+          w.u32(3);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.Kernel.Travel`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "commit", next: ledgerType().decode(r) });
+        case 1: return ({ kind: "refuseDisposed" });
+        case 2: return ({ kind: "refuseEmpty" });
+        case 3: return ({ kind: "refuseStale" });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.Kernel.Travel`);
+      }
+    },
+  );
+}
+
 /** Describes Swf.ViewMode.ModeMachine for polymorphic functions. */
 export function modeMachineType() {
   return new L.Type(
-    L.inductiveExpr(0),
+    L.inductiveExpr(9),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.ViewMode.ModeMachine");
       w.u32(0);
@@ -33,7 +299,7 @@ export function modeMachineType() {
 /** Describes Swf.ViewMode.ModeEvent for polymorphic functions. */
 export function modeEventType() {
   return new L.Type(
-    L.inductiveExpr(1),
+    L.inductiveExpr(10),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.ViewMode.ModeEvent");
       switch (v.kind) {
@@ -62,7 +328,7 @@ export function modeEventType() {
 /** Describes Swf.ViewMode.ViewSettings for polymorphic functions. */
 export function viewSettingsType() {
   return new L.Type(
-    L.inductiveExpr(2),
+    L.inductiveExpr(11),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.ViewMode.ViewSettings");
       w.u32(0);
@@ -81,7 +347,7 @@ export function viewSettingsType() {
 /** Describes Swf.ViewMode.ModeTransition for polymorphic functions. */
 export function modeTransitionType() {
   return new L.Type(
-    L.inductiveExpr(3),
+    L.inductiveExpr(12),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.ViewMode.ModeTransition");
       switch (v.kind) {
@@ -114,7 +380,7 @@ export function modeTransitionType() {
 /** Describes Swf.ViewMode.ProjectionSetting for polymorphic functions. */
 export function projectionSettingType() {
   return new L.Type(
-    L.inductiveExpr(4),
+    L.inductiveExpr(13),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.ViewMode.ProjectionSetting");
       w.u32(0);
@@ -132,7 +398,7 @@ export function projectionSettingType() {
 /** Describes Swf.ViewMode.Quat for polymorphic functions. */
 export function quatType() {
   return new L.Type(
-    L.inductiveExpr(5),
+    L.inductiveExpr(14),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.ViewMode.Quat");
       w.u32(0);
@@ -152,7 +418,7 @@ export function quatType() {
 /** Describes Swf.Json for polymorphic functions. */
 export function jsonType() {
   return new L.Type(
-    L.inductiveExpr(6),
+    L.inductiveExpr(15),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Json");
       switch (v.kind) {
@@ -218,6 +484,673 @@ export const ASSURANCE = L.parseAssurance({
   "facilities": [],
   "assumptions": [],
   "claims": [
+    {
+      "name": "Swf.Hierarchy.lockRefuses_iff",
+      "relation": "lungo.decides",
+      "subjects": [
+        "Swf.Hierarchy.lockRefuses"
+      ],
+      "specifications": [],
+      "statement": "∀ (byUser locked : Bool), Swf.Hierarchy.lockRefuses byUser locked = true ↔ byUser = true ∧ locked = true",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "aa2c1df71f3550b3dc80d3944e2093e1c4bc9df812153399f05d59e1b7feec0f",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Hierarchy.lean",
+        "start": {
+          "line": 43,
+          "column": 1
+        },
+        "end": {
+          "line": 46,
+          "column": 21
+        }
+      }
+    },
+    {
+      "name": "Swf.Hierarchy.mayParent_keeps_acyclic",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Hierarchy.mayParent"
+      ],
+      "specifications": [],
+      "statement": "∀ (node : String) (parentChain : List String),\n  Swf.Hierarchy.mayParent node parentChain = true → parentChain.Nodup → (node :: parentChain).Nodup",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "be4fad2238e4e82900801f0f47b4e77cadc5aab4517ad885a0e755b03f221c12",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Hierarchy.lean",
+        "start": {
+          "line": 27,
+          "column": 1
+        },
+        "end": {
+          "line": 34,
+          "column": 41
+        }
+      }
+    },
+    {
+      "name": "Swf.Hierarchy.mayParent_refuses_own_line",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Hierarchy.mayParent"
+      ],
+      "specifications": [],
+      "statement": "∀ (node : String) (parentChain : List String), node ∈ parentChain → Swf.Hierarchy.mayParent node parentChain = false",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "41a2271ffe448d6b6eceb249a121a0fc44ba26cd52825989f8f1019b32ecd080",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Hierarchy.lean",
+        "start": {
+          "line": 36,
+          "column": 1
+        },
+        "end": {
+          "line": 41,
+          "column": 38
+        }
+      }
+    },
+    {
+      "name": "Swf.Hierarchy.memberInChain_none",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Hierarchy.memberInChain"
+      ],
+      "specifications": [],
+      "statement": "∀ (members : Array String) (chain : List String),\n  Swf.Hierarchy.memberInChain members chain = none →\n    ∀ (i : Nat), i < members.size → Swf.Hierarchy.mayParent members[i]! chain = true",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "75bce1457fb500bfccbdf00c192c6a9007c48dff57123151dead7ea176e69903",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Hierarchy.lean",
+        "start": {
+          "line": 84,
+          "column": 1
+        },
+        "end": {
+          "line": 91,
+          "column": 49
+        }
+      }
+    },
+    {
+      "name": "Swf.Hierarchy.memberInChain_some",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Hierarchy.memberInChain"
+      ],
+      "specifications": [],
+      "statement": "∀ (members : Array String) (chain : List String) (i : Nat),\n  Swf.Hierarchy.memberInChain members chain = some i → members[i]! ∈ chain",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "cef64528e125808f516997a97b73e540324500bfade561a6d55edb8ebb6ccdf4",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Hierarchy.lean",
+        "start": {
+          "line": 93,
+          "column": 1
+        },
+        "end": {
+          "line": 99,
+          "column": 17
+        }
+      }
+    },
+    {
+      "name": "Swf.Hierarchy.nestedMember_none",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Hierarchy.nestedMember"
+      ],
+      "specifications": [],
+      "statement": "∀ (members : Array (String × List String)),\n  Swf.Hierarchy.nestedMember members = none →\n    ∀ (i j : Nat), i < members.size → j < members.size → i ≠ j → ¬members[j]!.fst ∈ members[i]!.snd",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "e3128063ca1a1273c07de6b624e9afeec57f8d7a9e8dc48f577157814253bd27",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Hierarchy.lean",
+        "start": {
+          "line": 61,
+          "column": 1
+        },
+        "end": {
+          "line": 69,
+          "column": 31
+        }
+      }
+    },
+    {
+      "name": "Swf.Hierarchy.nestedMember_some",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Hierarchy.nestedMember"
+      ],
+      "specifications": [],
+      "statement": "∀ (members : Array (String × List String)) (i j : Nat),\n  Swf.Hierarchy.nestedMember members = some (i, j) → i ≠ j ∧ members[j]!.fst ∈ members[i]!.snd",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "5434c10bffce23d4b035132b8a036d35667287d7e681b6ee1e8f385b90e322de",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Hierarchy.lean",
+        "start": {
+          "line": 71,
+          "column": 1
+        },
+        "end": {
+          "line": 82,
+          "column": 8
+        }
+      }
+    },
+    {
+      "name": "Swf.Hierarchy.selfOrAncestor_iff",
+      "relation": "lungo.decides",
+      "subjects": [
+        "Swf.Hierarchy.selfOrAncestor"
+      ],
+      "specifications": [],
+      "statement": "∀ (ancestor : String) (chain : List String), Swf.Hierarchy.selfOrAncestor ancestor chain = true ↔ ancestor ∈ chain",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "ea20545a91e1fae81312844899e9f4e413e5626281419be10ab10e0d80014776",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Hierarchy.lean",
+        "start": {
+          "line": 22,
+          "column": 1
+        },
+        "end": {
+          "line": 25,
+          "column": 24
+        }
+      }
+    },
+    {
+      "name": "Swf.Kernel.admits_iff_ready",
+      "relation": "lungo.decides",
+      "subjects": [
+        "Swf.Kernel.admits"
+      ],
+      "specifications": [],
+      "statement": "∀ (l : Swf.Kernel.Lifecycle), Swf.Kernel.admits l = true ↔ l = Swf.Kernel.Lifecycle.ready",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "b478cda5305192657aebeb0460d690476ed81a9c700dbe7714aec719fbdaaba2",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Kernel.lean",
+        "start": {
+          "line": 178,
+          "column": 1
+        },
+        "end": {
+          "line": 181,
+          "column": 16
+        }
+      }
+    },
+    {
+      "name": "Swf.Kernel.can_travel_iff",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Kernel.canTravel",
+        "Swf.Kernel.travel"
+      ],
+      "specifications": [],
+      "statement": "∀ (l : Swf.Kernel.Ledger) (d : Swf.Kernel.Direction),\n  Swf.Kernel.canTravel l d = true ↔\n    Swf.Kernel.travel l d false ≠ Swf.Kernel.Travel.refuseDisposed ∧\n      Swf.Kernel.travel l d false ≠ Swf.Kernel.Travel.refuseEmpty",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "917394db9e11d201901a85d1d174c3aaf74a746476b1d1cd018b8c745f7cb0cc",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Kernel.lean",
+        "start": {
+          "line": 293,
+          "column": 1
+        },
+        "end": {
+          "line": 297,
+          "column": 111
+        }
+      }
+    },
+    {
+      "name": "Swf.Kernel.commit_advances_revision",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Kernel.commit"
+      ],
+      "specifications": [],
+      "statement": "∀ (l : Swf.Kernel.Ledger) (layout keyed : Bool) (s : Nat),\n  (Swf.Kernel.commit l (Swf.Kernel.Change.commands layout keyed)).next.revision = l.revision + 1 ∧\n    l.revision + 1 ≤ (Swf.Kernel.commit l (Swf.Kernel.Change.restore layout s)).next.revision ∧\n      s ≤ (Swf.Kernel.commit l (Swf.Kernel.Change.restore layout s)).next.revision",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "316278f054f02f1c40abbf3c91e944a08a3d432de654f118228b872a59d55d9b",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Kernel.lean",
+        "start": {
+          "line": 229,
+          "column": 1
+        },
+        "end": {
+          "line": 236,
+          "column": 23
+        }
+      }
+    },
+    {
+      "name": "Swf.Kernel.commit_bounded",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Kernel.commit"
+      ],
+      "specifications": [],
+      "statement": "∀ (l : Swf.Kernel.Ledger) (c : Swf.Kernel.Change),\n  Swf.Kernel.Bounded l → Swf.Kernel.Bounded (Swf.Kernel.commit l c).next",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "2a0145986fa9cdcc83302f460704ed81fa111c792eaa24285ceedc3635ab98aa",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Kernel.lean",
+        "start": {
+          "line": 264,
+          "column": 1
+        },
+        "end": {
+          "line": 277,
+          "column": 59
+        }
+      }
+    },
+    {
+      "name": "Swf.Kernel.commit_history",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Kernel.commit"
+      ],
+      "specifications": [],
+      "statement": "∀ (l : Swf.Kernel.Ledger) (c : Swf.Kernel.Change),\n  have r := Swf.Kernel.commit l c;\n  (r.clearRedo = true → r.next.redo = 0) ∧\n    (r.clearRedo = false → r.next.undo = l.undo ∧ r.next.redo = l.redo ∧ r.push = false ∧ r.dropOldest = false)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "2fc76cc7552c97d350c2a410f5e51465f2bf80e8129a56fd9fc24ebcbedc72ea",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Kernel.lean",
+        "start": {
+          "line": 238,
+          "column": 1
+        },
+        "end": {
+          "line": 246,
+          "column": 67
+        }
+      }
+    },
+    {
+      "name": "Swf.Kernel.commit_mirrors_records",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Kernel.commit"
+      ],
+      "specifications": [],
+      "statement": "∀ (l : Swf.Kernel.Ledger) (layout keyed : Bool) (s : Nat),\n  (have r := Swf.Kernel.commit l (Swf.Kernel.Change.commands layout keyed);\n    ((r.next.undo + if r.dropOldest = true then 1 else 0) = l.undo + if r.push = true then 1 else 0) ∧\n      (r.next.redo = if r.clearRedo = true then 0 else l.redo) ∧\n        r.next.keys + r.evictKeys = l.keys + if keyed = true then 1 else 0) ∧\n    have r := Swf.Kernel.commit l (Swf.Kernel.Change.restore layout s);\n    ((r.next.undo + if r.dropOldest = true then 1 else 0) = l.undo + if r.push = true then 1 else 0) ∧\n      (r.next.redo = if r.clearRedo = true then 0 else l.redo) ∧ r.next.keys = l.keys ∧ r.evictKeys = 0",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "c3d8b2694a0f0b3d3c218632ca9fb736ada2e57f433e152669d1f4c73a14a661",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Kernel.lean",
+        "start": {
+          "line": 248,
+          "column": 1
+        },
+        "end": {
+          "line": 262,
+          "column": 97
+        }
+      }
+    },
+    {
+      "name": "Swf.Kernel.delivers_iff",
+      "relation": "lungo.decides",
+      "subjects": [
+        "Swf.Kernel.delivers"
+      ],
+      "specifications": [],
+      "statement": "∀ (l : Swf.Kernel.Lifecycle), Swf.Kernel.delivers l = true ↔ l ≠ Swf.Kernel.Lifecycle.disposed",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "4b3fe24699a33e01639456421aa6033e1328313a2e5493d23d810db81dae4c04",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Kernel.lean",
+        "start": {
+          "line": 207,
+          "column": 1
+        },
+        "end": {
+          "line": 209,
+          "column": 18
+        }
+      }
+    },
+    {
+      "name": "Swf.Kernel.dispose_order",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Kernel.dispose",
+        "Swf.Kernel.idle"
+      ],
+      "specifications": [],
+      "statement": "∀ (l : Swf.Kernel.Ledger),\n  l.lifecycle = Swf.Kernel.Lifecycle.ready →\n    Swf.Kernel.idle l = Swf.Kernel.IdleStep.rest ∧\n      Swf.Kernel.idle (Swf.Kernel.dispose l) =\n          Swf.Kernel.IdleStep.announce\n            { lifecycle := Swf.Kernel.Lifecycle.disposing true, revision := l.revision, undo := l.undo, redo := l.redo,\n              undoCapacity := l.undoCapacity, keys := l.keys, keyCapacity := l.keyCapacity } ∧\n        Swf.Kernel.idle\n            { lifecycle := Swf.Kernel.Lifecycle.disposing true, revision := l.revision, undo := l.undo, redo := l.redo,\n              undoCapacity := l.undoCapacity, keys := l.keys, keyCapacity := l.keyCapacity } =\n          Swf.Kernel.IdleStep.finish\n            { lifecycle := Swf.Kernel.Lifecycle.disposed, revision := l.revision, undo := 0, redo := 0,\n              undoCapacity := l.undoCapacity, keys := 0, keyCapacity := l.keyCapacity }",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "3b08e7e10e3fa2686362420ca0a9ded071b9a92b8bf8457048620d555e6c998a",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Kernel.lean",
+        "start": {
+          "line": 192,
+          "column": 1
+        },
+        "end": {
+          "line": 201,
+          "column": 26
+        }
+      }
+    },
+    {
+      "name": "Swf.Kernel.disposed_absorbing",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Kernel.dispose",
+        "Swf.Kernel.idle",
+        "Swf.Kernel.gate",
+        "Swf.Kernel.travel"
+      ],
+      "specifications": [],
+      "statement": "∀ (l : Swf.Kernel.Ledger),\n  l.lifecycle = Swf.Kernel.Lifecycle.disposed →\n    ∀ (r : Swf.Kernel.TxRequest) (d : Swf.Kernel.Direction) (stale : Bool),\n      Swf.Kernel.dispose l = l ∧\n        Swf.Kernel.idle l = Swf.Kernel.IdleStep.rest ∧\n          Swf.Kernel.gate l r = Swf.Kernel.TxGate.refuseDisposed ∧\n            Swf.Kernel.travel l d stale = Swf.Kernel.Travel.refuseDisposed",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "54b0cddd9ac2b7ebcd7ec49c0334e3e88bb4d68d96c9f73ae1a95adf37e4f976",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Kernel.lean",
+        "start": {
+          "line": 183,
+          "column": 1
+        },
+        "end": {
+          "line": 190,
+          "column": 40
+        }
+      }
+    },
+    {
+      "name": "Swf.Kernel.gate_order",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Kernel.gate"
+      ],
+      "specifications": [],
+      "statement": "∀ (l : Swf.Kernel.Ledger),\n  l.lifecycle = Swf.Kernel.Lifecycle.ready →\n    ∀ (e : Option Nat),\n      Swf.Kernel.gate l { known := some true, expected := e } = Swf.Kernel.TxGate.replay ∧\n        Swf.Kernel.gate l { known := some false, expected := e } = Swf.Kernel.TxGate.refuseKeyReused ∧\n          (Swf.Kernel.gate l { known := none, expected := e } = Swf.Kernel.TxGate.proceed ↔\n            e = none ∨ e = some l.revision)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "feb85a077fddcc2a56ec76532be6be04345994205627aa48ba052ca4ce308e8e",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Kernel.lean",
+        "start": {
+          "line": 217,
+          "column": 1
+        },
+        "end": {
+          "line": 227,
+          "column": 66
+        }
+      }
+    },
+    {
+      "name": "Swf.Kernel.initial_bounded",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Kernel.initial"
+      ],
+      "specifications": [],
+      "statement": "∀ (u k : Nat),\n  (Swf.Kernel.initial u k).lifecycle = Swf.Kernel.Lifecycle.ready ∧\n    (Swf.Kernel.initial u k).revision = 0 ∧ Swf.Kernel.Bounded (Swf.Kernel.initial u k)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "2b0cb2e440279e0072ba629d37fe01cf039a8e45333773573fa232ec56d7ea8a",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Kernel.lean",
+        "start": {
+          "line": 172,
+          "column": 1
+        },
+        "end": {
+          "line": 176,
+          "column": 26
+        }
+      }
+    },
+    {
+      "name": "Swf.Kernel.not_ready_refuses",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Kernel.gate"
+      ],
+      "specifications": [],
+      "statement": "∀ (l : Swf.Kernel.Ledger) (r : Swf.Kernel.TxRequest),\n  l.lifecycle ≠ Swf.Kernel.Lifecycle.ready → Swf.Kernel.gate l r = Swf.Kernel.TxGate.refuseDisposed",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "b8c8e59abd2263352003577ab7aacb280214f13ec2015382db6bded4e6ff0c82",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Kernel.lean",
+        "start": {
+          "line": 211,
+          "column": 1
+        },
+        "end": {
+          "line": 215,
+          "column": 17
+        }
+      }
+    },
+    {
+      "name": "Swf.Kernel.travel_moves_one",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Kernel.travel"
+      ],
+      "specifications": [],
+      "statement": "∀ (l : Swf.Kernel.Ledger) (d : Swf.Kernel.Direction) (stale : Bool) (next : Swf.Kernel.Ledger),\n  Swf.Kernel.Bounded l →\n    Swf.Kernel.travel l d stale = Swf.Kernel.Travel.commit next →\n      stale = false ∧ next.revision = l.revision + 1 ∧ next.undo + next.redo = l.undo + l.redo ∧ Swf.Kernel.Bounded next",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "4f98bcd6d294cfa2f472ef18921387da9b455d26c3a27b36842b50a16cf25438",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Kernel.lean",
+        "start": {
+          "line": 279,
+          "column": 1
+        },
+        "end": {
+          "line": 291,
+          "column": 35
+        }
+      }
+    },
     {
       "name": "Swf.ViewMode.back_restores_entry_view",
       "relation": "lungo.law",
@@ -441,6 +1374,439 @@ export const ASSURANCE = L.parseAssurance({
   "roles": [],
   "exports": [
     {
+      "name": "Swf.Hierarchy.lockRefuses",
+      "module": "Swf.Hierarchy",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": []
+      },
+      "claims": [
+        "Swf.Hierarchy.lockRefuses_iff"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Hierarchy.lean",
+        "start": {
+          "line": 18,
+          "column": 1
+        },
+        "end": {
+          "line": 20,
+          "column": 66
+        }
+      }
+    },
+    {
+      "name": "Swf.Hierarchy.mayParent",
+      "module": "Swf.Hierarchy",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_string_dec_eq"
+        ]
+      },
+      "claims": [
+        "Swf.Hierarchy.mayParent_keeps_acyclic",
+        "Swf.Hierarchy.mayParent_refuses_own_line"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Hierarchy.lean",
+        "start": {
+          "line": 14,
+          "column": 1
+        },
+        "end": {
+          "line": 16,
+          "column": 101
+        }
+      }
+    },
+    {
+      "name": "Swf.Hierarchy.memberInChain",
+      "module": "Swf.Hierarchy",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_array_get_borrowed",
+          "lean_array_get_size",
+          "lean_nat_dec_eq",
+          "lean_nat_sub",
+          "lean_string_dec_eq"
+        ]
+      },
+      "claims": [
+        "Swf.Hierarchy.memberInChain_none",
+        "Swf.Hierarchy.memberInChain_some"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Hierarchy.lean",
+        "start": {
+          "line": 56,
+          "column": 1
+        },
+        "end": {
+          "line": 59,
+          "column": 70
+        }
+      }
+    },
+    {
+      "name": "Swf.Hierarchy.nestedMember",
+      "module": "Swf.Hierarchy",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_array_get_borrowed",
+          "lean_array_get_size",
+          "lean_nat_dec_eq",
+          "lean_nat_sub",
+          "lean_string_dec_eq"
+        ]
+      },
+      "claims": [
+        "Swf.Hierarchy.nestedMember_none",
+        "Swf.Hierarchy.nestedMember_some"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Hierarchy.lean",
+        "start": {
+          "line": 48,
+          "column": 1
+        },
+        "end": {
+          "line": 54,
+          "column": 80
+        }
+      }
+    },
+    {
+      "name": "Swf.Kernel.admits",
+      "module": "Swf.Kernel",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": []
+      },
+      "claims": [
+        "Swf.Kernel.admits_iff_ready"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Kernel.lean",
+        "start": {
+          "line": 36,
+          "column": 1
+        },
+        "end": {
+          "line": 38,
+          "column": 48
+        }
+      }
+    },
+    {
+      "name": "Swf.Kernel.canTravel",
+      "module": "Swf.Kernel",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_nat_dec_lt"
+        ]
+      },
+      "claims": [
+        "Swf.Kernel.can_travel_iff"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Kernel.lean",
+        "start": {
+          "line": 162,
+          "column": 1
+        },
+        "end": {
+          "line": 164,
+          "column": 81
+        }
+      }
+    },
+    {
+      "name": "Swf.Kernel.commit",
+      "module": "Swf.Kernel",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_nat_add",
+          "lean_nat_dec_le",
+          "lean_nat_dec_lt",
+          "lean_nat_sub"
+        ]
+      },
+      "claims": [
+        "Swf.Kernel.commit_advances_revision",
+        "Swf.Kernel.commit_bounded",
+        "Swf.Kernel.commit_history",
+        "Swf.Kernel.commit_mirrors_records"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Kernel.lean",
+        "start": {
+          "line": 114,
+          "column": 1
+        },
+        "end": {
+          "line": 133,
+          "column": 25
+        }
+      }
+    },
+    {
+      "name": "Swf.Kernel.delivers",
+      "module": "Swf.Kernel",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": []
+      },
+      "claims": [
+        "Swf.Kernel.delivers_iff"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Kernel.lean",
+        "start": {
+          "line": 203,
+          "column": 1
+        },
+        "end": {
+          "line": 205,
+          "column": 53
+        }
+      }
+    },
+    {
+      "name": "Swf.Kernel.dispose",
+      "module": "Swf.Kernel",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": []
+      },
+      "claims": [
+        "Swf.Kernel.dispose_order",
+        "Swf.Kernel.disposed_absorbing"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Kernel.lean",
+        "start": {
+          "line": 44,
+          "column": 1
+        },
+        "end": {
+          "line": 49,
+          "column": 11
+        }
+      }
+    },
+    {
+      "name": "Swf.Kernel.gate",
+      "module": "Swf.Kernel",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_nat_dec_eq"
+        ]
+      },
+      "claims": [
+        "Swf.Kernel.disposed_absorbing",
+        "Swf.Kernel.gate_order",
+        "Swf.Kernel.not_ready_refuses"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Kernel.lean",
+        "start": {
+          "line": 84,
+          "column": 1
+        },
+        "end": {
+          "line": 92,
+          "column": 25
+        }
+      }
+    },
+    {
+      "name": "Swf.Kernel.idle",
+      "module": "Swf.Kernel",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": []
+      },
+      "claims": [
+        "Swf.Kernel.dispose_order",
+        "Swf.Kernel.disposed_absorbing"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Kernel.lean",
+        "start": {
+          "line": 60,
+          "column": 1
+        },
+        "end": {
+          "line": 64,
+          "column": 15
+        }
+      }
+    },
+    {
+      "name": "Swf.Kernel.initial",
+      "module": "Swf.Kernel",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": []
+      },
+      "claims": [
+        "Swf.Kernel.initial_bounded"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Kernel.lean",
+        "start": {
+          "line": 40,
+          "column": 1
+        },
+        "end": {
+          "line": 42,
+          "column": 101
+        }
+      }
+    },
+    {
+      "name": "Swf.Kernel.travel",
+      "module": "Swf.Kernel",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_nat_add",
+          "lean_nat_dec_eq",
+          "lean_nat_sub"
+        ]
+      },
+      "claims": [
+        "Swf.Kernel.can_travel_iff",
+        "Swf.Kernel.disposed_absorbing",
+        "Swf.Kernel.travel_moves_one"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Kernel.lean",
+        "start": {
+          "line": 150,
+          "column": 1
+        },
+        "end": {
+          "line": 160,
+          "column": 97
+        }
+      }
+    },
+    {
       "name": "Swf.ViewMode.observed",
       "module": "Swf.ViewMode",
       "async": false,
@@ -517,6 +1883,15 @@ export const ASSURANCE = L.parseAssurance({
 
 /** The layout fingerprint and descriptor of each type, by Lean name, for modules using them. */
 export const leanTypes = Object.freeze({
+  "Swf.Kernel.Lifecycle": Object.freeze({ fingerprint: "2c835e6526aff4101d4bbb4b9d142f054824f1bdb476b84b0b62f4aacbd3d96a", type: lifecycleType }),
+  "Swf.Kernel.Ledger": Object.freeze({ fingerprint: "c220d887d23ae5ca11e8e818db6a2bfc08e2400ee159795866f856e91978e3b7", type: ledgerType }),
+  "Swf.Kernel.Direction": Object.freeze({ fingerprint: "17f21a59b3409ae5cc98ff66c27a7bf7d3bf29a8a9ce98aafed6304be9d63e4d", type: directionType }),
+  "Swf.Kernel.Change": Object.freeze({ fingerprint: "9c0def9665c0846d190e98eeab0602405f0f947733b730f5b4e6f84be8f1d16f", type: changeType }),
+  "Swf.Kernel.Commit": Object.freeze({ fingerprint: "d16bd60db386fa2253305d7d31fb6b2b45e2f6d1d761481e1c6da3ba0b35e629", type: commitType }),
+  "Swf.Kernel.TxRequest": Object.freeze({ fingerprint: "1c312f9c47cd212e5311f1a0393682a732340d0bad50b957efb53f7c7ffdf1a9", type: txRequestType }),
+  "Swf.Kernel.TxGate": Object.freeze({ fingerprint: "5c5785c6e4e9e146c13696dd7cbde448a35f15d669c395f9c81a50e6bf0fb90d", type: txGateType }),
+  "Swf.Kernel.IdleStep": Object.freeze({ fingerprint: "86d76c1a0899b0e4705e48b52c236b397fce1702ed61fd67204dc7e88d7a8347", type: idleStepType }),
+  "Swf.Kernel.Travel": Object.freeze({ fingerprint: "dd1c26af833a66c6bd4a6f509a862c776e79e39ecdaeeb03ed36de4bff315c13", type: travelType }),
   "Swf.ViewMode.ModeMachine": Object.freeze({ fingerprint: "8cf62c84c8d3f2b2eca32e61c97c83ba5fd47043d63f74ee19be10654bf83ff0", type: modeMachineType }),
   "Swf.ViewMode.ModeEvent": Object.freeze({ fingerprint: "feb6feb87a7e30d7693c96d0493a238c99e4e00601abc124d6b93b1888d68a96", type: modeEventType }),
   "Swf.ViewMode.ViewSettings": Object.freeze({ fingerprint: "c065e9ffb7dae7f29c43844de021c3579c10a16cd117a755f99ba60a4c5ef8c3", type: viewSettingsType }),
@@ -531,6 +1906,45 @@ export class SwfModels {
   #program;
   constructor(program) {
     this.#program = program;
+  }
+  lockRefuses(byUser, locked) {
+    return this.#program.invoke("swf_models__call_l_Swf_dHierarchy_dlockRefuses", [], [[L.BOOL, byUser], [L.BOOL, locked]], L.value(L.BOOL));
+  }
+  mayParent(node, parentChain) {
+    return this.#program.invoke("swf_models__call_l_Swf_dHierarchy_dmayParent", [], [[L.STRING, node], [L.list(L.STRING), parentChain]], L.value(L.BOOL));
+  }
+  memberInChain(members, chain) {
+    return this.#program.invoke("swf_models__call_l_Swf_dHierarchy_dmemberInChain", [], [[L.array(L.STRING), members], [L.list(L.STRING), chain]], L.value(L.option(L.NAT)));
+  }
+  nestedMember(members) {
+    return this.#program.invoke("swf_models__call_l_Swf_dHierarchy_dnestedMember", [], [[L.array(L.pair(L.STRING, L.list(L.STRING))), members]], L.value(L.option(L.pair(L.NAT, L.NAT))));
+  }
+  admits(l) {
+    return this.#program.invoke("swf_models__call_l_Swf_dKernel_dadmits", [], [[lifecycleType(), l]], L.value(L.BOOL));
+  }
+  canTravel(l, d) {
+    return this.#program.invoke("swf_models__call_l_Swf_dKernel_dcanTravel", [], [[ledgerType(), l], [directionType(), d]], L.value(L.BOOL));
+  }
+  commit(l, c) {
+    return this.#program.invoke("swf_models__call_l_Swf_dKernel_dcommit", [], [[ledgerType(), l], [changeType(), c]], L.value(commitType()));
+  }
+  delivers(l) {
+    return this.#program.invoke("swf_models__call_l_Swf_dKernel_ddelivers", [], [[lifecycleType(), l]], L.value(L.BOOL));
+  }
+  dispose(l) {
+    return this.#program.invoke("swf_models__call_l_Swf_dKernel_ddispose", [], [[ledgerType(), l]], L.value(ledgerType()));
+  }
+  gate(l, r_) {
+    return this.#program.invoke("swf_models__call_l_Swf_dKernel_dgate", [], [[ledgerType(), l], [txRequestType(), r_]], L.value(txGateType()));
+  }
+  idle(l) {
+    return this.#program.invoke("swf_models__call_l_Swf_dKernel_didle", [], [[ledgerType(), l]], L.value(idleStepType()));
+  }
+  initial(undoCapacity, keyCapacity) {
+    return this.#program.invoke("swf_models__call_l_Swf_dKernel_dinitial", [], [[L.NAT, undoCapacity], [L.NAT, keyCapacity]], L.value(ledgerType()));
+  }
+  travel(l, d, stale) {
+    return this.#program.invoke("swf_models__call_l_Swf_dKernel_dtravel", [], [[ledgerType(), l], [directionType(), d], [L.BOOL, stale]], L.value(travelType()));
   }
   observed(m, recorded) {
     return this.#program.invoke("swf_models__call_l_Swf_dViewMode_dobserved", [], [[modeMachineType(), m], [L.STRING, recorded]], L.value(L.option(modeMachineType())));

@@ -1,5 +1,5 @@
 {
-  "build_key": "062959ef63858640cdb5be73bfdd4196435a74bbbd01678d9e1462a73483f342",
+  "build_key": "f98c42d5307858dcbb7e4ec46a2a2c1514bce12dd445e150f669723f63376e26",
   "lean_version": "4.35.0",
   "lean_githash": "eb6cafb7290e8bd5f2937522d8d804f58f02bafc",
   "bir_version": 3,
@@ -8,8 +8,10 @@
   "runtime_abi": 3,
   "worker_identity": "2bea70bceafce1540bf050a85435cb87948f2eec485bafb82c49d084ebcf093e",
   "input_digests": {
-    "Swf.lean": "93d8c2501bb0859f6cf544c3b4c7ddd20af71a011c3d82115a34a87fe768aa52",
+    "Swf.lean": "f8642e30f9b7176c373692f1a216cc301333f97bd601f1cfaf005b0548e3a780",
+    "Swf/Hierarchy.lean": "7f30f759bfb333e8ed5fae95c977f7afbe907b1f054e782f5c9572ba6efc94ec",
     "Swf/Json.lean": "9653f829230e93d81bc867be8fe57cda75bd0f5ba159a1642d9d9ebd104edbf2",
+    "Swf/Kernel.lean": "f9094107d7df62212c30e0e13dbcacff429f3b31061581ba57589c64a9116a30",
     "Swf/ViewMode.lean": "60d69d4b1461170ea9cf258dc4721f641cf614e1de8d0d12e5d05ffc55bc4908",
     "lake-manifest.json": "9e1fb1e929a5fba9f7a0b2290e810533924fc2051bc97f1981a379a894274bdd",
     "lakefile.toml": "549987f6847d8b9222a171ef30f2744c9c3ec4ec26ee93d38ca639d5ff704f96",
@@ -18,9 +20,9 @@
   "project": ".",
   "link_directives": [],
   "output_digests": {
-    "assurance.json": "57e53e38cf9f956829ad59e78aa244ef89c2928540a1984093f63fb4c9c25a71",
-    "index.d.ts": "ec9c7fc8cc82cd657b985f4772099f5fdf08b474d694421a18b49449fdde2e65",
-    "index.js": "ade728dd4dfb3d33562516c0b6cc6508d90b366424bfc20aa77baa7250585b93"
+    "assurance.json": "a8492ef63ecc311154b5a16f53606764ff7fbf79475634725faf7d19b454813d",
+    "index.d.ts": "a71e820a2dda5f8988858c86c2b02a7a2b9d391266fc7a627872857b7ef71180",
+    "index.js": "97757bc4a826d2cab40231a5e6d558947135574757ab4978cbacd9ba5ad9c0b3"
   },
   "platform_products": [
     "program.wasm"

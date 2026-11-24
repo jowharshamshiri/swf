@@ -1,3 +1,5 @@
+import type { Direction, Ledger } from '@swf/models';
+import { models } from '@swf/models';
 import type { ApplyContext, ApplyOutcome } from './apply.js';
 import { applyCommands } from './apply.js';
 import type { EventSource, OperationType, SceneCommand } from './commands.js';
@@ -330,10 +332,12 @@ interface Meta {
 
 class WorkspaceImpl implements Workspace {
   readonly id: Id;
-  #lifecycle: WorkspaceLifecycle = 'ready';
+  /**
+   * The lifecycle, revision and history counts, as the kernel model (`Swf.Kernel`) keeps them:
+   * every admission, commit, undo, redo and disposal step is its decision.
+   */
+  #ledger: Ledger;
   #state: SceneState;
-  readonly #undoCapacity: number;
-  readonly #idempotencyCapacity: number;
   readonly #diagnosticsCapacity: number;
   readonly #now: () => number;
   readonly #timer: () => number;
@@ -366,15 +370,13 @@ class WorkspaceImpl implements Workspace {
   #txSeq = 0;
   #eventSeq = 0;
   #idSeq = 0;
-  #disposalAnnounced = false;
   #disposed: Promise<void> | null = null;
   #resolveDisposed: (() => void) | null = null;
 
   constructor(options: WorkspaceOptions) {
     const record = checkOptions(options);
     this.id = record.id;
-    this.#undoCapacity = record.undoCapacity;
-    this.#idempotencyCapacity = record.idempotencyCapacity;
+    this.#ledger = models.initial(BigInt(record.undoCapacity), BigInt(record.idempotencyCapacity));
     this.#diagnosticsCapacity = record.diagnosticsCapacity;
     this.#now = record.now;
     this.#timer = record.timer;
@@ -417,7 +419,12 @@ class WorkspaceImpl implements Workspace {
   }
 
   get lifecycle(): WorkspaceLifecycle {
-    return this.#lifecycle;
+    return this.#ledger.lifecycle.kind;
+  }
+
+  /** Whether the workspace admits an operation now. */
+  #ready(): boolean {
+    return models.admits(this.#ledger.lifecycle);
   }
 
   getState(): SceneState {
@@ -453,11 +460,11 @@ class WorkspaceImpl implements Workspace {
   }
 
   canUndo(): boolean {
-    return this.#lifecycle === 'ready' && this.#undo.length > 0;
+    return models.canTravel(this.#ledger, UNDO);
   }
 
   canRedo(): boolean {
-    return this.#lifecycle === 'ready' && this.#redo.length > 0;
+    return models.canTravel(this.#ledger, REDO);
   }
 
   getDiagnostics(): readonly Diagnostic[] {
@@ -526,8 +533,8 @@ class WorkspaceImpl implements Workspace {
         `listener must be a function (got ${describe(listener)})`,
       );
     }
-    if (this.#lifecycle !== 'ready') {
-      throw this.#failure('WORKSPACE_DISPOSED', `workspace "${this.id}" is ${this.#lifecycle}`);
+    if (!this.#ready()) {
+      throw this.#failure('WORKSPACE_DISPOSED', `workspace "${this.id}" is ${this.lifecycle}`);
     }
     // Each subscription is its own entry, so subscribing one function twice delivers twice.
     const entry: Listener = (event) => {
@@ -560,8 +567,8 @@ class WorkspaceImpl implements Workspace {
   // --- constraints ------------------------------------------------------------------------
 
   registerConstraint(constraint: Constraint): () => void {
-    if (this.#lifecycle !== 'ready') {
-      throw this.#failure('WORKSPACE_DISPOSED', `workspace "${this.id}" is ${this.#lifecycle}`);
+    if (!this.#ready()) {
+      throw this.#failure('WORKSPACE_DISPOSED', `workspace "${this.id}" is ${this.lifecycle}`);
     }
     this.#addConstraint(constraint);
     return () => {
@@ -573,8 +580,8 @@ class WorkspaceImpl implements Workspace {
   }
 
   registerProjectionKind(kind: ProjectionKind): () => void {
-    if (this.#lifecycle !== 'ready') {
-      throw this.#failure('WORKSPACE_DISPOSED', `workspace "${this.id}" is ${this.#lifecycle}`);
+    if (!this.#ready()) {
+      throw this.#failure('WORKSPACE_DISPOSED', `workspace "${this.id}" is ${this.lifecycle}`);
     }
     return this.#addProjectionKind(kind);
   }
@@ -588,8 +595,8 @@ class WorkspaceImpl implements Workspace {
   }
 
   registerGeometry(provider: GeometryProvider): () => void {
-    if (this.#lifecycle !== 'ready') {
-      throw this.#failure('WORKSPACE_DISPOSED', `workspace "${this.id}" is ${this.#lifecycle}`);
+    if (!this.#ready()) {
+      throw this.#failure('WORKSPACE_DISPOSED', `workspace "${this.id}" is ${this.lifecycle}`);
     }
     return this.#addGeometry(provider);
   }
@@ -632,7 +639,7 @@ class WorkspaceImpl implements Workspace {
   cancelPreview(previewId: string, reason: CancelReason): boolean | Queued<boolean> {
     return this.#schedule(() => {
       const record = this.#previews.get(previewId);
-      if (record === undefined || this.#lifecycle !== 'ready') {
+      if (record === undefined || !this.#ready()) {
         return false;
       }
       this.#previews.delete(previewId);
@@ -668,7 +675,7 @@ class WorkspaceImpl implements Workspace {
     this.#disposed = new Promise((resolve) => {
       this.#resolveDisposed = resolve;
     });
-    this.#lifecycle = 'disposing';
+    this.#ledger = models.dispose(this.#ledger);
     this.#drain();
     return this.#disposed;
   }
@@ -716,45 +723,41 @@ class WorkspaceImpl implements Workspace {
       }
       return outcome;
     };
-    if (this.#lifecycle !== 'ready') {
-      return settle(this.#reject(transactionId, this.#disposedSignal(), { ...meta, commands }));
-    }
-    let fingerprint: string | null = null;
-    if (options.idempotencyKey !== null) {
-      fingerprint = fingerprintOf(commands, options);
-      const known = this.#idempotency.get(options.idempotencyKey);
-      if (known !== undefined) {
-        if (known.fingerprint === fingerprint) {
-          return settle({ ...known.result, replayed: true });
+    const key = this.#ready() ? options.idempotencyKey : null;
+    const fingerprint = key === null ? null : fingerprintOf(commands, options);
+    const known = key === null ? undefined : this.#idempotency.get(key);
+    const gate = models.gate(this.#ledger, {
+      known: known === undefined ? null : known.fingerprint === fingerprint,
+      expected: options.expectedRevision === null ? null : BigInt(options.expectedRevision),
+    });
+    switch (gate.kind) {
+      case 'refuseDisposed':
+        return settle(this.#reject(transactionId, this.#disposedSignal(), { ...meta, commands }));
+      case 'replay':
+        if (known === undefined) {
+          throw new Error(
+            'the kernel model replayed an idempotency key the workspace does not know',
+          );
         }
+        return settle({ ...known.result, replayed: true });
+      case 'refuseKeyReused':
         return settle(
           this.#reject(
             transactionId,
             new RejectionSignal(
               'INVALID_INPUT',
-              `options.idempotencyKey "${options.idempotencyKey}" was already used for different commands`,
+              `options.idempotencyKey "${String(key)}" was already used for different commands`,
               { path: 'options.idempotencyKey' },
             ),
             { ...meta, commands },
           ),
         );
-      }
-    }
-    if (options.expectedRevision !== null && options.expectedRevision !== this.#state.revision) {
-      return settle(
-        this.#reject(
-          transactionId,
-          new RejectionSignal(
-            'CONFLICT',
-            `the scene is at revision ${this.#state.revision}, not the expected ${options.expectedRevision}`,
-            {
-              path: 'options.expectedRevision',
-              details: { currentRevision: this.#state.revision },
-            },
-          ),
-          { ...meta, commands },
-        ),
-      );
+      case 'refuseStale':
+        return settle(
+          this.#reject(transactionId, this.#staleSignal(options), { ...meta, commands }),
+        );
+      case 'proceed':
+        break;
     }
     let outcome: ApplyOutcome;
     try {
@@ -769,20 +772,28 @@ class WorkspaceImpl implements Workspace {
     if (options.previewId !== null) {
       this.#previews.delete(options.previewId);
     }
-    const result = this.#commit(outcome, meta, {
+    const decision = models.commit(this.#ledger, {
+      kind: 'commands',
+      layout: layoutChanged(this.#state, outcome),
+      keyed: key !== null,
+    });
+    const result = this.#commit(outcome, meta, decision, {
       idempotencyKey: options.idempotencyKey,
       previewId: options.previewId,
       history: null,
       // Validated by applying them.
       commands: commands as readonly SceneCommand[],
     });
-    if (options.idempotencyKey !== null && fingerprint !== null) {
-      this.#idempotency.set(options.idempotencyKey, { fingerprint, result });
-      for (const key of this.#idempotency.keys()) {
-        if (this.#idempotency.size <= this.#idempotencyCapacity) {
+    if (key !== null && fingerprint !== null) {
+      this.#idempotency.set(key, { fingerprint, result });
+      // The oldest keys first: the one just remembered is the newest.
+      let evict = Number(decision.evictKeys);
+      for (const old of this.#idempotency.keys()) {
+        if (evict === 0) {
           break;
         }
-        this.#idempotency.delete(key);
+        this.#idempotency.delete(old);
+        evict -= 1;
       }
     }
     return result;
@@ -812,21 +823,20 @@ class WorkspaceImpl implements Workspace {
       timestamp: this.#now(),
       started,
     };
-    if (this.#lifecycle !== 'ready') {
+    const gate = models.gate(this.#ledger, {
+      known: null,
+      expected: options.expectedRevision === null ? null : BigInt(options.expectedRevision),
+    });
+    if (gate.kind === 'refuseDisposed') {
       return this.#reject(transactionId, this.#disposedSignal(), { ...meta, commands });
     }
-    const before = this.#state;
-    if (options.expectedRevision !== null && options.expectedRevision !== before.revision) {
-      return this.#reject(
-        transactionId,
-        new RejectionSignal(
-          'CONFLICT',
-          `the scene is at revision ${before.revision}, not the expected ${options.expectedRevision}`,
-          { path: 'options.expectedRevision', details: { currentRevision: before.revision } },
-        ),
-        { ...meta, commands },
-      );
+    if (gate.kind === 'refuseStale') {
+      return this.#reject(transactionId, this.#staleSignal(options), { ...meta, commands });
     }
+    if (gate.kind !== 'proceed') {
+      throw new Error(`the kernel model answered a restore with ${gate.kind}`);
+    }
+    const before = this.#state;
     let scene: SceneSnapshot;
     try {
       scene = validateSceneSnapshot(snapshot);
@@ -848,33 +858,34 @@ class WorkspaceImpl implements Workspace {
     const sameRoots =
       before.rootIds.length === scene.rootIds.length &&
       before.rootIds.every((id, i) => scene.rootIds[i] === id);
-    return this.#commit(
-      {
-        nodes: nodes.table,
-        surfaces: surfaces.table,
-        cameras: cameras.table,
-        viewports: viewports.table,
-        orbitRootId: scene.orbitRootId,
-        rootIds: sameRoots ? before.rootIds : scene.rootIds,
-        selection: Object.freeze(scene.selection.filter(selectable)),
-        focusedId: scene.focusedId !== null && selectable(scene.focusedId) ? scene.focusedId : null,
-        commandTypes: Object.freeze(['scene.restore' as const]),
-        touched: nodes.changed,
-        touchedSurfaces: surfaces.changed,
-        touchedCameras: cameras.changed,
-        touchedViewports: viewports.changed,
-        createdIds: Object.freeze([]),
-      },
-      meta,
-      {
-        idempotencyKey: null,
-        previewId: null,
-        history: null,
-        commands: null,
-        // The revision never goes back, and a restored scene is never older than its snapshot.
-        revision: Math.max(before.revision + 1, scene.revision),
-      },
-    );
+    const outcome: ApplyOutcome = {
+      nodes: nodes.table,
+      surfaces: surfaces.table,
+      cameras: cameras.table,
+      viewports: viewports.table,
+      orbitRootId: scene.orbitRootId,
+      rootIds: sameRoots ? before.rootIds : scene.rootIds,
+      selection: Object.freeze(scene.selection.filter(selectable)),
+      focusedId: scene.focusedId !== null && selectable(scene.focusedId) ? scene.focusedId : null,
+      commandTypes: Object.freeze(['scene.restore' as const]),
+      touched: nodes.changed,
+      touchedSurfaces: surfaces.changed,
+      touchedCameras: cameras.changed,
+      touchedViewports: viewports.changed,
+      createdIds: Object.freeze([]),
+    };
+    // The revision never goes back, and a restored scene is never older than its snapshot.
+    const decision = models.commit(this.#ledger, {
+      kind: 'restore',
+      layout: layoutChanged(before, outcome),
+      snapshotRevision: BigInt(scene.revision),
+    });
+    return this.#commit(outcome, meta, decision, {
+      idempotencyKey: null,
+      previewId: null,
+      history: null,
+      commands: null,
+    });
   }
 
   /**
@@ -942,20 +953,25 @@ class WorkspaceImpl implements Workspace {
   #commit(
     outcome: ApplyOutcome,
     meta: Meta,
+    /** What the kernel model decided the commit does to the revision and the history. */
+    decision: {
+      readonly next: Ledger;
+      readonly clearRedo: boolean;
+      readonly push: boolean;
+      readonly dropOldest: boolean;
+    },
     extra: {
       idempotencyKey: string | null;
       previewId: string | null;
       history: { action: 'undo' | 'redo'; transactionId: string } | null;
       /** The commands committed; null for an undo, redo or restore. */
       commands: readonly SceneCommand[] | null;
-      /** The new revision, when not the next one. */
-      revision?: number;
     },
   ): TxCommitted {
     const before = this.#state;
     const after: SceneState = Object.freeze({
       workspaceId: this.id,
-      revision: extra.revision ?? before.revision + 1,
+      revision: Number(decision.next.revision),
       rootIds: outcome.rootIds,
       nodes: outcome.nodes,
       surfaces: outcome.surfaces,
@@ -966,12 +982,15 @@ class WorkspaceImpl implements Workspace {
       focusedId: outcome.focusedId,
     });
     this.#state = after;
-    const layoutChanged =
-      outcome.touched.length > 0 ||
-      outcome.touchedSurfaces.length > 0 ||
-      before.rootIds !== after.rootIds;
-    if (extra.history === null && layoutChanged) {
+    this.#ledger = decision.next;
+    if (decision.clearRedo) {
+      this.#redo.length = 0;
+    }
+    if (decision.push) {
       this.#record(before, after, outcome, meta);
+    }
+    if (decision.dropOldest) {
+      this.#undo.shift();
     }
     for (const event of diffScenes(before, after, {
       nodes: outcome.touched,
@@ -1016,10 +1035,6 @@ class WorkspaceImpl implements Workspace {
   }
 
   #record(before: SceneState, after: SceneState, outcome: ApplyOutcome, meta: Meta): void {
-    this.#redo.length = 0;
-    if (this.#undoCapacity === 0) {
-      return;
-    }
     this.#undo.push({
       entry: Object.freeze({
         transactionId: meta.transactionId,
@@ -1038,9 +1053,6 @@ class WorkspaceImpl implements Workspace {
       rootsBefore: before.rootIds,
       rootsAfter: after.rootIds,
     });
-    if (this.#undo.length > this.#undoCapacity) {
-      this.#undo.shift();
-    }
   }
 
   /**
@@ -1069,52 +1081,64 @@ class WorkspaceImpl implements Workspace {
       timestamp: this.#now(),
       started,
     };
-    if (this.#lifecycle !== 'ready') {
-      return this.#reject(transactionId, this.#disposedSignal(), { ...meta, commands: [] });
-    }
-    const stack = action === 'undo' ? this.#undo : this.#redo;
-    const record = stack.at(-1);
-    if (record === undefined) {
-      return this.#reject(
-        transactionId,
-        new RejectionSignal('INVALID_INPUT', `there is nothing to ${action}`),
-        { ...meta, commands: [] },
-      );
-    }
     const undoing = action === 'undo';
-    const nodesExpected = undoing ? record.nodesAfter : record.nodesBefore;
-    const nodesTarget = undoing ? record.nodesBefore : record.nodesAfter;
-    const surfacesExpected = undoing ? record.surfacesAfter : record.surfacesBefore;
-    const surfacesTarget = undoing ? record.surfacesBefore : record.surfacesAfter;
-    const rootsExpected = undoing ? record.rootsAfter : record.rootsBefore;
-    const rootsTarget = undoing ? record.rootsBefore : record.rootsAfter;
+    const stack = undoing ? this.#undo : this.#redo;
+    const record = stack.at(-1);
     const state = this.#state;
-    const staleNode = [...nodesExpected].find(([id, value]) => state.nodes.get(id) !== value);
-    const staleSurface = [...surfacesExpected].find(
-      ([id, value]) => state.surfaces.get(id) !== value,
-    );
-    const staleRoots = rootsExpected !== rootsTarget && state.rootIds !== rootsExpected;
-    if (staleNode !== undefined || staleSurface !== undefined || staleRoots) {
-      const what =
-        staleNode !== undefined
-          ? `node "${staleNode[0]}"`
-          : staleSurface !== undefined
-            ? `surface "${staleSurface[0]}"`
-            : 'the root order';
-      const entityId = staleNode?.[0] ?? staleSurface?.[0];
-      return this.#reject(
-        transactionId,
-        new RejectionSignal(
-          'CONFLICT',
-          `cannot ${action} transaction ${record.entry.transactionId}: ${what} has changed since`,
-          {
-            ...(entityId === undefined ? {} : { entityId }),
-            details: { currentRevision: state.revision },
-          },
-        ),
-        { ...meta, commands: [] },
+    // What the step would restore that has changed since it was recorded, if there is a step.
+    let stale: { readonly what: string; readonly entityId: Id | undefined } | null = null;
+    if (record !== undefined) {
+      const nodesExpected = undoing ? record.nodesAfter : record.nodesBefore;
+      const surfacesExpected = undoing ? record.surfacesAfter : record.surfacesBefore;
+      const rootsExpected = undoing ? record.rootsAfter : record.rootsBefore;
+      const rootsTarget = undoing ? record.rootsBefore : record.rootsAfter;
+      const staleNode = [...nodesExpected].find(([id, value]) => state.nodes.get(id) !== value);
+      const staleSurface = [...surfacesExpected].find(
+        ([id, value]) => state.surfaces.get(id) !== value,
       );
+      if (staleNode !== undefined) {
+        stale = { what: `node "${staleNode[0]}"`, entityId: staleNode[0] };
+      } else if (staleSurface !== undefined) {
+        stale = { what: `surface "${staleSurface[0]}"`, entityId: staleSurface[0] };
+      } else if (rootsExpected !== rootsTarget && state.rootIds !== rootsExpected) {
+        stale = { what: 'the root order', entityId: undefined };
+      }
     }
+    const travel = models.travel(this.#ledger, undoing ? UNDO : REDO, stale !== null);
+    switch (travel.kind) {
+      case 'refuseDisposed':
+        return this.#reject(transactionId, this.#disposedSignal(), { ...meta, commands: [] });
+      case 'refuseEmpty':
+        return this.#reject(
+          transactionId,
+          new RejectionSignal('INVALID_INPUT', `there is nothing to ${action}`),
+          { ...meta, commands: [] },
+        );
+      case 'refuseStale':
+        if (record === undefined || stale === null) {
+          throw new Error(`the kernel model refused an ${action} the workspace has no record of`);
+        }
+        return this.#reject(
+          transactionId,
+          new RejectionSignal(
+            'CONFLICT',
+            `cannot ${action} transaction ${record.entry.transactionId}: ${stale.what} has changed since`,
+            {
+              ...(stale.entityId === undefined ? {} : { entityId: stale.entityId }),
+              details: { currentRevision: state.revision },
+            },
+          ),
+          { ...meta, commands: [] },
+        );
+      case 'commit':
+        break;
+    }
+    if (record === undefined) {
+      throw new Error(`the kernel model took an ${action} the workspace has no record of`);
+    }
+    const nodesTarget = undoing ? record.nodesBefore : record.nodesAfter;
+    const surfacesTarget = undoing ? record.surfacesBefore : record.surfacesAfter;
+    const rootsTarget = undoing ? record.rootsBefore : record.rootsAfter;
     const restored = restoreRecords(state.nodes, nodesTarget);
     const selectable = (id: Id) => effectiveState(restored, id)?.selectable === true;
     const selection = state.selection.filter(selectable);
@@ -1141,6 +1165,7 @@ class WorkspaceImpl implements Workspace {
         createdIds: Object.freeze([]),
       },
       meta,
+      { next: travel.next, clearRedo: false, push: false, dropOldest: false },
       {
         idempotencyKey: null,
         previewId: null,
@@ -1163,7 +1188,7 @@ class WorkspaceImpl implements Workspace {
     } catch (error) {
       return this.#reject(transactionId, error, null);
     }
-    if (this.#lifecycle !== 'ready') {
+    if (!this.#ready()) {
       return this.#reject(transactionId, this.#disposedSignal(), null);
     }
     let preview: {
@@ -1348,7 +1373,7 @@ class WorkspaceImpl implements Workspace {
       ...(error.path === undefined ? {} : { path: error.path }),
       ...(error.details === undefined ? {} : { details: error.details }),
     });
-    if (meta !== null && this.#lifecycle === 'ready') {
+    if (meta !== null && this.#ready()) {
       this.#emit(
         'transaction.rejected',
         {
@@ -1369,9 +1394,16 @@ class WorkspaceImpl implements Workspace {
   }
 
   #disposedSignal(): RejectionSignal {
+    return new RejectionSignal('WORKSPACE_DISPOSED', `workspace "${this.id}" is ${this.lifecycle}`);
+  }
+
+  /** The scene is not at the revision a transaction expected. */
+  #staleSignal(options: CheckedTxOptions): RejectionSignal {
+    const revision = this.#state.revision;
     return new RejectionSignal(
-      'WORKSPACE_DISPOSED',
-      `workspace "${this.id}" is ${this.#lifecycle}`,
+      'CONFLICT',
+      `the scene is at revision ${revision}, not the expected ${String(options.expectedRevision)}`,
+      { path: 'options.expectedRevision', details: { currentRevision: revision } },
     );
   }
 
@@ -1447,7 +1479,7 @@ class WorkspaceImpl implements Workspace {
       this.#flushRequested = true;
       this.#frameBoundary(() => {
         this.#flushRequested = false;
-        if (this.#held.size > 0 && this.#lifecycle !== 'disposed') {
+        if (this.#held.size > 0 && models.delivers(this.#ledger.lifecycle)) {
           this.#releaseHeld();
           this.#drain();
         }
@@ -1500,7 +1532,9 @@ class WorkspaceImpl implements Workspace {
           op();
           continue;
         }
-        if (this.#lifecycle === 'disposing' && !this.#disposalAnnounced) {
+        const step = models.idle(this.#ledger);
+        if (step.kind === 'announce') {
+          this.#ledger = step.next;
           this.#announceDisposal();
           continue;
         }
@@ -1509,7 +1543,9 @@ class WorkspaceImpl implements Workspace {
     } finally {
       this.#delivering = false;
     }
-    if (this.#lifecycle === 'disposing' && this.#disposalAnnounced) {
+    const step = models.idle(this.#ledger);
+    if (step.kind === 'finish') {
+      this.#ledger = step.next;
       this.#finishDisposal();
     }
   }
@@ -1542,7 +1578,6 @@ class WorkspaceImpl implements Workspace {
   }
 
   #announceDisposal(): void {
-    this.#disposalAnnounced = true;
     for (const [previewId, record] of this.#previews) {
       this.#emit(
         'preview.cancelled',
@@ -1559,7 +1594,6 @@ class WorkspaceImpl implements Workspace {
   }
 
   #finishDisposal(): void {
-    this.#lifecycle = 'disposed';
     this.#listeners.clear();
     this.#undo.length = 0;
     this.#redo.length = 0;
@@ -1569,6 +1603,19 @@ class WorkspaceImpl implements Workspace {
     this.#resolveDisposed?.();
     this.#resolveDisposed = null;
   }
+}
+
+const UNDO: Direction = Object.freeze({ kind: 'undo' });
+const REDO: Direction = Object.freeze({ kind: 'redo' });
+
+/** Whether an outcome changes the layout: any node, any surface or the root order. Only such a
+ * commit is recorded for undo. */
+function layoutChanged(before: SceneState, outcome: ApplyOutcome): boolean {
+  return (
+    outcome.touched.length > 0 ||
+    outcome.touchedSurfaces.length > 0 ||
+    before.rootIds !== outcome.rootIds
+  );
 }
 
 interface CheckedTxOptions {

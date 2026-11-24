@@ -3,7 +3,8 @@
   "compilerOptions": {
     "noEmit": true,
     "paths": {
-      "@swf/math": ["../math/src/index.ts"]
+      "@swf/math": ["../math/src/index.ts"],
+      "@swf/models": ["../models/src/index.ts"]
     }
   },
   "include": ["src", "test"]

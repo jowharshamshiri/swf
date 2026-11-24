@@ -1,4 +1,5 @@
 import type { Aabb, Mat4, Transform3D, Vec3 } from '@swf/math';
+import { models } from '@swf/models';
 import {
   aabbCenter,
   aabbOfBox,
@@ -36,7 +37,6 @@ import {
   ancestorIds,
   descendantIds,
   effectiveState,
-  isSelfOrAncestor,
   parentWorldMatrix,
   worldMatrix,
 } from './query.js';
@@ -579,7 +579,7 @@ class Draft {
     const parentId = expectIdOrNull(command['parentId'], `${path}.parentId`);
     if (parentId !== null) {
       this.#requireNode(parentId, `${path}.parentId`);
-      if (isSelfOrAncestor(this.#nodes, node.id, parentId)) {
+      if (!models.mayParent(node.id, this.#chain(parentId))) {
         throw invalid(`${path}.parentId`, `would make "${node.id}" its own ancestor`);
       }
     }
@@ -722,15 +722,14 @@ class Draft {
       this.#assertUnlocked(member, 'node', `${path}.nodeIds[${i}]`, 'be grouped');
       return member;
     });
-    members.forEach((a, i) => {
-      const container = members.find((b) => a !== b && isSelfOrAncestor(this.#nodes, b.id, a.id));
-      if (container !== undefined) {
-        throw invalid(
-          `${path}.nodeIds[${i}]`,
-          `names "${a.id}", which is inside member "${container.id}"`,
-        );
-      }
-    });
+    const nested = models.nestedMember(members.map((m) => [m.id, this.#chain(m.id)]));
+    if (nested !== null) {
+      const [i, j] = nested;
+      throw invalid(
+        `${path}.nodeIds[${String(i)}]`,
+        `names "${String(members[Number(i)]?.id)}", which is inside member "${String(members[Number(j)]?.id)}"`,
+      );
+    }
     const spec =
       command['group'] === undefined
         ? {}
@@ -974,9 +973,12 @@ class Draft {
     const parentId = expectIdOrNull(raw, path);
     if (parentId !== null) {
       this.#requireNode(parentId, path);
-      const inside = members.find((m) => isSelfOrAncestor(this.#nodes, m.id, parentId));
-      if (inside !== undefined) {
-        throw invalid(path, `is inside member "${inside.id}"`);
+      const inside = models.memberInChain(
+        members.map((m) => m.id),
+        this.#chain(parentId),
+      );
+      if (inside !== null) {
+        throw invalid(path, `is inside member "${String(members[Number(inside)]?.id)}"`);
       }
     }
     return parentId;
@@ -1057,6 +1059,11 @@ class Draft {
     return m;
   }
 
+  /** The node, then its ancestors, nearest first. */
+  #chain(id: Id): Id[] {
+    return [id, ...ancestorIds(this.#nodes, id)];
+  }
+
   #assertSelectable(id: Id, path: string): void {
     this.#requireNode(id, path);
     if (effectiveState(this.#nodes, id)?.selectable !== true) {
@@ -1127,7 +1134,7 @@ class Draft {
     path: string,
     action: string,
   ): void {
-    if (this.#ctx.source === 'user' && entity.flags.locked) {
+    if (models.lockRefuses(this.#ctx.source === 'user', entity.flags.locked)) {
       throw new RejectionSignal(
         'LOCKED',
         `${path}: ${what} "${entity.id}" is locked, so it cannot ${action}`,

@@ -7,11 +7,13 @@ import { describe, expect, it } from 'vitest';
  */
 const ALLOWED: Readonly<Record<string, readonly string[]>> = {
   math: [],
-  core: ['@swf/math'],
-  surfaces: ['@swf/math', '@swf/core'],
-  presentation: ['@swf/math', '@swf/core', '@swf/surfaces'],
+  // The state machines and decision logic, compiled from Lean, on lungo's WebAssembly host.
+  models: ['lungo-ts'],
+  core: ['@swf/math', '@swf/models'],
+  surfaces: ['@swf/math', '@swf/core', '@swf/models'],
+  presentation: ['@swf/math', '@swf/core', '@swf/surfaces', '@swf/models'],
   projections: ['@swf/math', '@swf/core', '@swf/presentation'],
-  interaction: ['@swf/math', '@swf/core', '@swf/presentation', '@swf/projections'],
+  interaction: ['@swf/math', '@swf/core', '@swf/presentation', '@swf/projections', '@swf/models'],
   'backend-dom': [
     '@swf/math',
     '@swf/core',
@@ -29,7 +31,7 @@ const ALLOWED: Readonly<Record<string, readonly string[]>> = {
   ],
   conformance: ['@swf/math', '@swf/core', '@swf/surfaces', '@swf/presentation'],
   diagnostics: ['@swf/core', '@swf/surfaces', '@swf/presentation'],
-  persistence: ['@swf/math', '@swf/core'],
+  persistence: ['@swf/math', '@swf/core', '@swf/models'],
   // The benchmark presents its fixtures as a host would, with the DOM backend.
   benchmark: [
     '@swf/math',
@@ -65,15 +67,21 @@ function packageOf(path: string): string {
   throw new Error(`cannot tell the package of ${path}`);
 }
 
+/** The packages a source imports, by name: a subpath (`lungo-ts/wasi.js`) is its package. */
 function imports(source: string): string[] {
   const found = new Set<string>();
   for (const match of source.matchAll(/(?:import|export)[^'"]*?from\s+['"]([^'"]+)['"]/g)) {
     const specifier = match[1];
     if (specifier !== undefined && !specifier.startsWith('.')) {
-      found.add(specifier);
+      found.add(packageName(specifier));
     }
   }
   return [...found];
+}
+
+function packageName(specifier: string): string {
+  const parts = specifier.split('/');
+  return (specifier.startsWith('@') ? parts.slice(0, 2) : parts.slice(0, 1)).join('/');
 }
 
 describe('package boundaries', () => {

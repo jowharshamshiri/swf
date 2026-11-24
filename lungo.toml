@@ -6,6 +6,19 @@ project = "models"
 [lean]
 name = "swf-models"
 exports = [
+  "Swf.Kernel.admits",
+  "Swf.Kernel.initial",
+  "Swf.Kernel.dispose",
+  "Swf.Kernel.idle",
+  "Swf.Kernel.gate",
+  "Swf.Kernel.commit",
+  "Swf.Kernel.travel",
+  "Swf.Kernel.canTravel",
+  "Swf.Kernel.delivers",
+  "Swf.Hierarchy.mayParent",
+  "Swf.Hierarchy.nestedMember",
+  "Swf.Hierarchy.memberInChain",
+  "Swf.Hierarchy.lockRefuses",
   "Swf.ViewMode.transition",
   "Swf.ViewMode.observed",
 ]

@@ -13,4 +13,6 @@ wsb
 packages/models/program
 # Lake's build of the models and lungo's scratch space.
 models/.lake
+# Lake's manifest of the models' dependencies, as lake writes it.
+models/lake-manifest.json
 .lungo

@@ -9,5 +9,12 @@
     "sourceMap": true
   },
   "include": ["src"],
-  "references": [{ "path": "../math/tsconfig.build.json" }]
+  "references": [
+    {
+      "path": "../math/tsconfig.build.json"
+    },
+    {
+      "path": "../models/tsconfig.build.json"
+    }
+  ]
 }
