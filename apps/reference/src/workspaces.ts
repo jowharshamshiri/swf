@@ -115,6 +115,11 @@ export interface Workspaces {
    * saved. A snapshot that cannot be restored leaves the workspace as it is and is reported.
    */
   restoreLast(): Promise<RestoreOutcome | null>;
+  /**
+   * Saves the workspace now, as the save after a change would, without waiting for it (and
+   * instead of it). Throws {@link WorkspaceRefusal} when saving is off or the store refuses it.
+   */
+  saveNow(): Promise<void>;
   /** The named workspaces, by name. */
   named(): Promise<readonly NamedWorkspace[]>;
   /**
@@ -447,6 +452,21 @@ export function createWorkspaces(options: WorkspacesOptions): Workspaces {
         replaceSaver(stored.key, { revision: stored.revision, changes: persistence.changes() });
       }
       return outcome;
+    },
+    async saveNow() {
+      if (!autosave) {
+        throw new WorkspaceRefusal('save', 'saving is off');
+      }
+      if (timerId !== null) {
+        clearTimeout(timerId);
+        timerId = null;
+      }
+      const started = timer();
+      const outcome = await saver.save();
+      if (outcome.status === 'failed') {
+        throw new WorkspaceRefusal('save', outcome.error.message, outcome.error);
+      }
+      measures.lastSaveMs = timer() - started;
     },
     async named() {
       return [...(await namedEntries())]

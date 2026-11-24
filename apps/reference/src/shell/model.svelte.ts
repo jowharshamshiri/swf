@@ -1,4 +1,5 @@
-import { worldMatrix } from '@swf/core';
+import type { CommandOutcome } from '@swf/interaction';
+import { KEYBOARD_HOLD_ID } from '@swf/interaction';
 import type { FrameMetrics, Representation } from '@swf/presentation';
 import type { AppStatus, ReferenceApp, ReferenceAppOptions } from '../app.js';
 import { createReferenceApp, VIEWPORT_ID } from '../app.js';
@@ -6,7 +7,8 @@ import type { AppCommandId, AppCommandSpecs } from '../commands.js';
 import { APP_COMMAND_NAMES } from '../commands.js';
 import type { AppConfig } from '../config.js';
 import { ConfigError } from '../config.js';
-import type { Messages } from '../messages.js';
+import type { MessageId, Messages } from '../messages.js';
+import type { Pose } from '../pose.js';
 import type { PolicyStatus } from '../policies.js';
 import type { NamedWorkspace, SnapshotPreview, WorkspacesStatus } from '../workspaces.js';
 import { WorkspaceRefusal } from '../workspaces.js';
@@ -45,17 +47,11 @@ export type ShellAppOptions = Omit<ReferenceAppOptions, 'root' | 'config' | 'mes
  * Nothing of the UI framework reaches the application or the framework's packages.
  */
 
-/** The selected window, as the inspector shows it. */
-export interface SelectedWindow {
+/** The selected window, as the inspector shows it: where it stands as the panorama shows it. */
+export interface SelectedWindow extends Pose {
   readonly id: string;
   readonly label: string | null;
   readonly content: 'note' | 'tile' | null;
-  /** Degrees to the right of straight ahead. */
-  readonly heading: number;
-  /** Degrees above the horizon. */
-  readonly elevation: number;
-  /** World units from the camera. */
-  readonly distance: number;
   readonly presentation: 'live' | 'proxy';
   /** How the view represents it (by semantic depth), or null while it is not shown. */
   readonly representation: Representation | null;
@@ -74,7 +70,38 @@ export interface WindowEntry {
   readonly label: string;
 }
 
-const DEGREES = 180 / Math.PI;
+/** Something said to assistive technology alone; `count` rises with each, so a repeat is said. */
+export interface Announcement {
+  readonly text: string;
+  readonly count: number;
+}
+
+/** What each framework operation a key runs is called, when it does nothing. */
+const OPERATION_NAMES: Readonly<Record<string, MessageId>> = Object.freeze({
+  'node.move': 'operation.node.move',
+  'node.rotate': 'operation.node.rotate',
+  'node.resize': 'operation.node.resize',
+  'gesture.grab': 'operation.gesture.grab',
+  'gesture.drop': 'operation.gesture.drop',
+  'selection.next': 'operation.selection.next',
+  'selection.previous': 'operation.selection.previous',
+  'focus.selected': 'operation.focus.selected',
+  'history.undo': 'operation.history.undo',
+  'history.redo': 'operation.history.redo',
+  'camera.turn': 'operation.camera.turn',
+  'orbit.turn': 'operation.orbit.turn',
+});
+
+/** The commands that move a window, and what is said once each is done. */
+const PLACING: Readonly<Partial<Record<AppCommandId, 'moved' | 'turned' | 'resized'>>> =
+  Object.freeze({
+    'reference.window.nudge': 'moved',
+    'reference.window.place': 'moved',
+    'reference.window.turn': 'turned',
+    'reference.window.face': 'turned',
+    'reference.window.resize': 'resized',
+    'reference.window.size': 'resized',
+  });
 
 /** The commands the scene view runs: their refusals are said there, the rest over the centre. */
 const SCENE_COMMANDS: readonly AppCommandId[] = Object.freeze([
@@ -107,6 +134,15 @@ const WORKSPACE_COMMANDS: readonly AppCommandId[] = Object.freeze([
 
 /** The commands the inspector runs: their refusals are said there. */
 const INSPECTOR_COMMANDS: readonly AppCommandId[] = Object.freeze([
+  'reference.window.nudge',
+  'reference.window.place',
+  'reference.window.turn',
+  'reference.window.face',
+  'reference.window.resize',
+  'reference.window.size',
+  'reference.window.lock',
+  'reference.gesture.grab',
+  'reference.gesture.drop',
   'reference.window.remove',
   'reference.surface.detach',
   'reference.surface.move',
@@ -146,6 +182,12 @@ export class ShellModel {
   removal = $state<Removal | null>(null);
   /** What the workspaces view says after its last action. */
   workspaceNote = $state<WorkspaceNote | null>(null);
+  /** The last thing said to assistive technology alone (UX-013). */
+  announcement = $state<Announcement | null>(null);
+  /** Why the last key pressed in the panorama did nothing, until a key next does something. */
+  keyRefusal = $state<string | null>(null);
+  /** Whether the panorama itself has the keyboard (not a window's content in it). */
+  panoramaFocused = $state(false);
 
   readonly messages: Messages;
   readonly #config: AppConfig | ConfigError;
@@ -238,6 +280,28 @@ export class ShellModel {
       app.search.subscribe(() => {
         this.searchVersion += 1;
       }),
+      app.observeInput(({ intent, result }) => {
+        const operation = result.operation;
+        if (intent.kind === 'key' && operation !== null && 'status' in operation.outcome) {
+          this.#keyed(operation.name, operation.outcome);
+        }
+      }),
+      app.router.subscribe((event) => {
+        if (event.type === 'gesture.started' && event.policyId === KEYBOARD_HOLD_ID) {
+          this.#held = { gestureId: event.gestureId, nodeId: event.nodeId };
+          this.#say('announce.held', event.nodeId);
+        } else if (event.type === 'gesture.ended' && event.gestureId === this.#held?.gestureId) {
+          const nodeId = this.#held.nodeId;
+          this.#held = null;
+          if (event.finish.outcome === 'cancelled') {
+            this.announce(
+              this.messages.format('announce.cancelled', { label: this.#labelOf(nodeId) }),
+            );
+          } else {
+            this.#say('announce.dropped', nodeId);
+          }
+        }
+      }),
       app.presenter.subscribe((event) => {
         if (event.type === 'frame' && event.viewportId === VIEWPORT_ID) {
           this.frame = event.metrics;
@@ -260,7 +324,175 @@ export class ShellModel {
       this.refusal = { command: id, field: outcome.field, message: outcome.message };
       return false;
     }
+    this.#ran(id, params);
     return true;
+  }
+
+  /** Gives the panorama the keyboard; false while there is none to give it to. */
+  focusPanorama(): boolean {
+    const root = this.#app?.root;
+    if (root === undefined) {
+      return false;
+    }
+    root.focus();
+    return true;
+  }
+
+  /** Says a text to assistive technology alone, politely, after what it is reading. */
+  announce(text: string): void {
+    this.announcement = { text, count: (this.announcement?.count ?? 0) + 1 };
+  }
+
+  /** The gesture holding a window from the keyboard, and the window, while one does. */
+  #held: { readonly gestureId: string; readonly nodeId: string | null } | null = null;
+
+  #labelOf(id: string | null): string {
+    const node = id === null ? undefined : this.#app?.workspace.getState().nodes.get(id);
+    return node?.label ?? id ?? '';
+  }
+
+  /** Where a window stands, in words. */
+  where(pose: Pose): string {
+    const t = this.messages;
+    const round = (value: number, digits = 0) => Number(Math.abs(value).toFixed(digits));
+    return t.format('where.text', {
+      heading: round(pose.heading),
+      side: t.format(pose.heading < 0 ? 'where.left' : 'where.right'),
+      elevation: round(pose.elevation),
+      updown: t.format(pose.elevation < 0 ? 'where.down' : 'where.up'),
+      distance: round(pose.distance, 2),
+    });
+  }
+
+  /** Says what a window is now, by a message that names its label and where it is. */
+  #say(
+    id:
+      | 'announce.selected'
+      | 'announce.moved'
+      | 'announce.turned'
+      | 'announce.resized'
+      | 'announce.held'
+      | 'announce.preview'
+      | 'announce.dropped',
+    nodeId: string | null,
+  ): void {
+    const pose = nodeId === null ? null : (this.#app?.poseOf(nodeId) ?? null);
+    if (pose === null) {
+      return;
+    }
+    const round = (value: number, digits: number) => Number(value.toFixed(digits));
+    this.announce(
+      this.messages.format(id, {
+        label: this.#labelOf(nodeId),
+        where: this.where(pose),
+        degrees: round(pose.turned, 1),
+        width: round(pose.width, 2),
+        height: round(pose.height, 2),
+      }),
+    );
+  }
+
+  /** What a key pressed in the panorama did: said, or why it did nothing shown. */
+  #keyed(name: string, outcome: CommandOutcome): void {
+    switch (outcome.status) {
+      case 'rejected':
+      case 'unchanged':
+        this.keyRefusal = this.messages.format('keys.refused', {
+          operation: this.messages.format(OPERATION_NAMES[name] ?? 'operation.other'),
+          reason:
+            outcome.status === 'unchanged'
+              ? outcome.reason
+              : outcome.error.code === 'LOCKED'
+                ? this.messages.format('keys.locked', {
+                    label: this.#labelOf(outcome.error.entityId ?? this.selected?.id ?? null),
+                  })
+                : outcome.error.message,
+        });
+        return;
+      case 'cancelled':
+        this.keyRefusal = null;
+        return;
+      case 'previewed':
+        this.keyRefusal = null;
+        // Picking up is said when the hold starts; each change while held says where it would go.
+        if (name !== 'gesture.grab') {
+          this.#say('announce.preview', this.#held?.nodeId ?? null);
+        }
+        return;
+      case 'committed': {
+        this.keyRefusal = null;
+        const selected = this.#app?.workspace.getState().selection[0] ?? null;
+        switch (name) {
+          case 'node.move':
+            this.#say('announce.moved', selected);
+            return;
+          case 'node.rotate':
+            this.#say('announce.turned', selected);
+            return;
+          case 'node.resize':
+            this.#say('announce.resized', selected);
+            return;
+          case 'selection.next':
+          case 'selection.previous':
+            this.#say('announce.selected', selected);
+            return;
+          case 'history.undo':
+            this.announce(this.messages.format('announce.undone'));
+            return;
+          case 'history.redo':
+            this.announce(this.messages.format('announce.redone'));
+            return;
+          default:
+            return;
+        }
+      }
+    }
+  }
+
+  /** What a command the shell ran did, said where nothing on screen says it (UX-013). */
+  #ran<K extends AppCommandId>(id: K, params: AppCommandSpecs[K]): void {
+    const placing = PLACING[id];
+    const windowId =
+      typeof params === 'object' && 'id' in params && typeof params.id === 'string'
+        ? params.id
+        : null;
+    if (placing !== undefined) {
+      // A held window's change is said as the hold's preview.
+      this.#say(
+        this.#held !== null
+          ? 'announce.preview'
+          : placing === 'moved'
+            ? 'announce.moved'
+            : placing === 'turned'
+              ? 'announce.turned'
+              : 'announce.resized',
+        windowId,
+      );
+      return;
+    }
+    switch (id) {
+      case 'reference.window.lock':
+        this.announce(
+          this.messages.format(
+            (params as AppCommandSpecs['reference.window.lock']).locked
+              ? 'announce.locked'
+              : 'announce.unlocked',
+            { label: this.#labelOf(windowId) },
+          ),
+        );
+        return;
+      case 'reference.workspace.saveNow':
+        this.announce(this.messages.format('announce.saved'));
+        return;
+      case 'reference.history.undo':
+        this.announce(this.messages.format('announce.undone'));
+        return;
+      case 'reference.history.redo':
+        this.announce(this.messages.format('announce.redone'));
+        return;
+      default:
+        return;
+    }
   }
 
   /** Whether a refusal is of a workspaces command, said in the workspaces view. */
@@ -489,31 +721,30 @@ export class ShellModel {
       this.selected = null;
       return;
     }
-    // Where it is in the world, whatever group it is in and however that group is turned.
-    const world = worldMatrix(state.nodes, node.id);
-    const [x, y, z] =
-      world === undefined ? node.transform.position : [world[12], world[13], world[14]];
+    // Where it stands as the panorama shows it, whatever group it is in and however that group
+    // is turned, a held window where it is held.
+    const pose = app.poseOf(node.id);
+    if (pose === null) {
+      this.selected = null;
+      return;
+    }
     const tag = node.tags.find((t) => t === 'note' || t === 'tile');
     const surfaceId = node.surfaceIds[0];
     const next: SelectedWindow = {
+      ...pose,
       id: node.id,
       label: node.label,
       content: tag ?? null,
-      heading: Math.atan2(x, -z) * DEGREES,
-      elevation: Math.atan2(y, Math.hypot(x, z)) * DEGREES,
-      distance: Math.hypot(x, y, z),
       presentation: surfaceId === undefined ? 'proxy' : app.viewport.presentation(surfaceId),
       representation: app.policies.representationOf(node.id),
     };
     const last = this.selected;
     if (
-      last?.id !== next.id ||
-      last.label !== next.label ||
-      last.heading !== next.heading ||
-      last.elevation !== next.elevation ||
-      last.distance !== next.distance ||
-      last.presentation !== next.presentation ||
-      last.representation !== next.representation
+      last === null ||
+      (Object.keys(next) as (keyof SelectedWindow)[]).some(
+        (key) => key !== 'position' && last[key] !== next[key],
+      ) ||
+      next.position.some((value, i) => value !== last.position[i])
     ) {
       this.selected = next;
     }

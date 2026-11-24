@@ -75,6 +75,16 @@
     return row;
   }
 
+  /**
+   * Where a window stands, in words: the list says what the panorama shows, so it stands in for
+   * the panorama for whoever cannot see it (UX-013, NFR-024).
+   */
+  const whereOf = (id: string): string | null => {
+    void model.revision;
+    const pose = model.app?.poseOf(id) ?? null;
+    return pose === null ? null : model.where(pose);
+  };
+
   const setFilter = (filters: Partial<SearchFilters>) => {
     view?.search.setFilters(filters);
   };
@@ -84,15 +94,18 @@
 
 {#snippet row(index: number)}
   {@const result = resultAt(index)}
+  {@const where = whereOf(result.id)}
   {#snippet actions()}
     <WindowActions {model} id={result.id} handle="page.windows.row" />
   {/snippet}
   <ListItem
     handle={keyed('page.windows.window', result.id)}
     title={result.label}
-    detail={result.groups.length === 0
-      ? result.id
-      : `${result.id} · ${t('search.in.groups', { groups: result.groups.join(' / ') })}`}
+    detail={[
+      result.id,
+      ...(where === null ? [] : [where]),
+      ...(result.groups.length === 0 ? [] : [t('search.in.groups', { groups: result.groups.join(' / ') })]),
+    ].join(' · ')}
     icon="document"
     selected={model.selected?.id === result.id}
     {actions}

@@ -47,6 +47,14 @@ async function mouse(ctx, action, x, y, modifiers = []) {
   }
 }
 
+/**
+ * Emulates what the reader asked their browser for: reduced motion, a dark or light appearance.
+ * Each is kept until it is emulated again; `null` puts the platform's own back.
+ */
+async function emulate(ctx, media) {
+  await ctx.page.emulateMedia(media);
+}
+
 export default defineConfig({
   resolve: nodeConfig.resolve,
   // The reference application's shell is Svelte, built from the kit.
@@ -59,7 +67,7 @@ export default defineConfig({
       // Room for an 800 × 400 view and more.
       viewport: { width: 1280, height: 900 },
       provider: playwright(),
-      commands: { mouse },
+      commands: { mouse, emulate },
       instances: browsers.map((browser) =>
         browser === 'chromium' && channel !== undefined && channel !== ''
           ? { browser, provider: playwright({ launchOptions: { channel } }) }

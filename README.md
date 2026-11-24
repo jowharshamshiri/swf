@@ -718,7 +718,10 @@ control, look and automation handle is the kit's. The scene's controls and the w
 search) are on the left; what is selected is on the right; the panorama is the whole centre, with the
 view mode, the backend, the command list and the panel across its top; how the panorama is
 presented is in the panel below it. In a narrow window one side at a time floats
-over the panorama. Ctrl+Shift+P or F1 opens the command list, which runs every command and goes
+over the panorama, and a panorama narrower than 600 CSS pixels (a phone's) has the view mode as a
+list across its top, leaving what drags turn and the backend to the command list and Features, so
+the actions stay within it: at 320 pixels the scene, the overview, selection and the inspector are
+all there. Ctrl+Shift+P or F1 opens the command list, which runs every command and goes
 to any window by its name. The page installs the kit's automation driver as
 `window.wsbAutomation`, which presses controls by their handles as a person does. The page
 mounts the window in the body's first element (`#app`), which the kit lays out as the whole
@@ -773,19 +776,57 @@ pack is given, and each action is a command with a stable ID (`reference.preset.
 `reference.scene.reset`, `reference.scene.reseed`, `reference.mode.switch`,
 `reference.backend.switch`, `reference.window.reveal`, `reference.focus.enter`,
 `reference.focus.exit`, `reference.focus.step`, `reference.window.map`,
-`reference.window.inspect`, `reference.window.place`, `reference.feature.set`,
+`reference.window.inspect`, `reference.window.place`, `reference.window.nudge`,
+`reference.window.turn`, `reference.window.resize`, `reference.window.size`,
+`reference.window.face`, `reference.window.lock`, `reference.gesture.grab`,
+`reference.gesture.drop`, `reference.feature.set`,
 `reference.feature.reset`, `reference.snap.configure`, `reference.depth.configure`,
 `reference.navigation.set`, `reference.orbit.designate`, `reference.orbit.turn`,
 `reference.history.undo`, `reference.history.redo`, `reference.gesture.cancel`,
 `reference.feature.combine`, `reference.window.remove`, `reference.surface.detach`,
 `reference.surface.move`, `reference.window.merge`, `reference.window.regroup`,
 `reference.workspace.save`, `reference.workspace.open`, `reference.workspace.delete`,
-`reference.workspace.deleteAll`, `reference.workspace.export`, `reference.workspace.import`). Undo and redo
-are also across the top of the centre, with the editor's usual keys (Ctrl+Z, Ctrl+Shift+Z or
-Ctrl+Y) while the panorama has the keyboard.
+`reference.workspace.deleteAll`, `reference.workspace.export`, `reference.workspace.import`,
+`reference.workspace.saveNow`). Undo and redo are also across the top of the centre.
 
 Every preset's windows are in one group, Workspace, which stands unturned at the camera's place and
 is designated as the group workspace orbit turns.
+
+### Keyboard and assistive technology
+
+Everything is done with the keyboard alone, and nothing needs a pointer's precision: finding a
+window (the command list, or the Windows view's search), selecting, focusing, moving it on each
+axis and in depth, turning, resizing, grouping and locking it, undoing and redoing, cancelling a
+gesture, saving and restoring.
+
+- **The panorama** is one stop of the page's keyboard order, an application a screen reader
+  names "Panorama" and describes by its keys (`aria-description`). With the keyboard there, the
+  framework's keymap acts on the selected window (arrows, Page Up/Down, `[` `]`, `+` `-`, N and
+  P, Enter, Space to pick it up), and the panel's hint lists the keys. Tab leaves it, through the
+  windows' own content, which keeps its own keys. The selected window is outlined in the kit's
+  focus colour and the focused one in its warning colour, in both backends and appearances.
+- **Anywhere but a field or a window's content**: Ctrl+Z undoes, Ctrl+Shift+Z or Ctrl+Y redoes,
+  Ctrl+S saves the workspace now (Cmd on a Mac), Escape cancels the gesture running (a drag, or a
+  window held from the keyboard) or else closes focus, and Ctrl+Shift+P or F1 opens the command
+  list, which also goes to the panorama, picks the selected window up, and locks or unlocks it.
+- **The inspector's Place** moves the selected window a step at a time (left, right, up, down,
+  nearer, farther), turns it (15°), resizes it (0.1 units), picks it up and puts it down, takes its
+  exact place, turn (0 faces the camera) and size, and locks it. Each is one undoable change; a
+  locked window's controls are disabled, saying why. These are also what touch and pen use for
+  every gesture: a drag, a resize handle, the wheel with Shift and a pinch each have their
+  control, a background drag has each window's Reveal and Features' turns, and a tap has the
+  Windows list.
+- **The Windows view** stands in for the panorama for whoever cannot see it: every window, by
+  name, with where it is (degrees right or left, up or down, and units away), selected, focused,
+  revealed or inspected from its row.
+- **What happens is said.** What a key or a control did (a window selected, moved, turned,
+  resized, picked up, put down, cancelled, locked, the workspace saved) is spoken by one polite
+  live region that takes no room; what was refused, and why, is shown as an alert where it was
+  asked for (over the panorama for its keys, in the inspector for its controls).
+- The kit draws every control at 24 CSS pixels at least, with its focus ring, its contrast in
+  both appearances, and no motion when the reader asks for reduced motion; the application moves
+  nothing of its own (the camera jumps). Windows' content is the host's and outside the
+  framework's accessibility guarantee.
 
 ### View modes
 
@@ -972,6 +1013,12 @@ npx playwright install --with-deps chromium firefox webkit && npm run test:brows
 `SWF_CHROMIUM_CHANNEL` runs Chromium as an installed browser instead of Playwright's own, for
 example `SWF_BROWSERS=chromium SWF_CHROMIUM_CHANNEL=chrome npm run test:browser` with Google
 Chrome installed.
+
+The reference application's browser tests check its accessibility with axe-core (WCAG 2.2 A and
+AA) and by hand: keyboard order, focus rings, target sizes, reduced motion, contrast, what is
+said and alerted, a control for every gesture and the 320-pixel layout
+(`apps/reference/test/browser/accessibility.browser.test.ts`). The keyboard-only scenario is one
+self-contained test, `apps/reference/test/browser/keyboard.browser.test.ts`.
 
 The reference application's build and development server are tested in Chromium, and that the
 development server's page shows the application filling the window in Chromium, Firefox and

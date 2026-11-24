@@ -2,6 +2,7 @@
   // COMMAND AND SEARCH: every command of the application, and every window by its name, picked
   // by typing a few letters. Picking a window selects it and turns the camera to it.
   import { QuickPick } from '@wsb/uikit/components';
+  import { tick } from 'svelte';
   import { handleOf } from '@wsb/uikit/handles';
   import type { AppCommandId, AppCommandSpecs } from '../commands.js';
   import { BACKEND_IDS } from '../config.js';
@@ -83,8 +84,35 @@
             run: () => (model.selected === null ? Promise.resolve(false) : model.removeWindow(model.selected.id)),
           },
         ]),
+    ...(model.selected === null
+      ? []
+      : [
+          command(
+            'window.lock',
+            t(model.selected.locked ? 'command.window.unlock.named' : 'command.window.lock.named', {
+              label: model.selected.label ?? model.selected.id,
+            }),
+            'reference.window.lock',
+            { id: model.selected.id, locked: !model.selected.locked },
+          ),
+          command(
+            'gesture.grab',
+            t('command.gesture.grab.named', { label: model.selected.label ?? model.selected.id }),
+            'reference.gesture.grab',
+            { id: model.selected.id },
+          ),
+        ]),
+    {
+      value: 'panorama.focus',
+      label: t('command.panorama.focus'),
+      detail: t('palette.command'),
+      run: () => Promise.resolve(model.focusPanorama()),
+    },
     ...(model.policies?.features.enabled.persistence === true
-      ? [command('workspace.export', t('command.workspace.export'), 'reference.workspace.export', {})]
+      ? [
+          command('workspace.saveNow', t('command.workspace.saveNow'), 'reference.workspace.saveNow', {}),
+          command('workspace.export', t('command.workspace.export'), 'reference.workspace.export', {}),
+        ]
       : []),
     ...(model.status?.mode === FOCUS_ID
       ? [
@@ -175,7 +203,9 @@
   onselect={(value) => {
     const entry = entries.find((e) => e.value === value);
     onclose();
-    void entry?.run();
+    // It runs once the list is gone and has given the keyboard back, so what it does with the
+    // keyboard (going to the panorama) stands.
+    void tick().then(() => entry?.run());
   }}
   {onclose}
 />

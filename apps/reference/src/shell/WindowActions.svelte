@@ -13,9 +13,11 @@
     /** The handle the actions are named under: `<handle>.focus#<id>`, and so on. */
     handle: string;
     disabled?: boolean;
+    /** Offers to inspect it: not where it is being inspected already. */
+    inspect?: boolean;
   }
 
-  let { model, id, handle, disabled = false }: Props = $props();
+  let { model, id, handle, disabled = false, inspect = true }: Props = $props();
   const t = (message: MessageId) => model.messages.format(message);
   const focusOn = $derived(model.policies?.features.enabled.focus ?? false);
   const mapOn = $derived(model.policies?.features.enabled.map ?? false);
@@ -51,13 +53,15 @@
     void model.showInMap(id);
   }}
 />
-<IconButton
-  handle={keyed(`${handle}.inspect`, id)}
-  icon="info"
-  label={t('action.inspect')}
-  size="small"
-  {disabled}
-  onpress={() => {
-    void model.inspect(id);
-  }}
-/>
+{#if inspect}
+  <IconButton
+    handle={keyed(`${handle}.inspect`, id)}
+    icon="info"
+    label={t('action.inspect')}
+    size="small"
+    {disabled}
+    onpress={() => {
+      void model.inspect(id);
+    }}
+  />
+{/if}

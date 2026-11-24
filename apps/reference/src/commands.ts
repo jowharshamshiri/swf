@@ -1,4 +1,4 @@
-import type { TxResult } from '@swf/core';
+import type { JsonValue, TxResult } from '@swf/core';
 import type { ReferenceApp } from './app.js';
 import type { BackendId } from './config.js';
 import { BACKEND_IDS } from './config.js';
@@ -12,6 +12,7 @@ import { PolicyRefusal } from './policies.js';
 import type { PresetId } from './presets.js';
 import { PRESET_IDS } from './presets.js';
 import { seedIssue } from './random.js';
+import { wrapDegrees } from './pose.js';
 import { WorkspaceRefusal } from './workspaces.js';
 
 /**
@@ -37,6 +38,26 @@ export interface AppCommandSpecs {
     readonly y?: number;
     readonly z?: number;
   };
+  /** Moves a window by world units along the camera's right and up, and away from the camera. */
+  'reference.window.nudge': {
+    readonly id: string;
+    readonly right?: number;
+    readonly up?: number;
+    readonly depth?: number;
+  };
+  /** Turns a window about the vertical through it, by degrees to the right. */
+  'reference.window.turn': { readonly id: string; readonly degrees: number };
+  /** Changes a window's width and height by world units. */
+  'reference.window.resize': {
+    readonly id: string;
+    readonly width?: number;
+    readonly height?: number;
+  };
+  /** Gives a window a width and a height, in world units. */
+  'reference.window.size': { readonly id: string; readonly width: number; readonly height: number };
+  /** Turns a window to stand this many degrees to the right of facing the camera. */
+  'reference.window.face': { readonly id: string; readonly degrees: number };
+  'reference.window.lock': { readonly id: string; readonly locked: boolean };
   'reference.feature.set': { readonly feature: FeatureId; readonly enabled: boolean };
   'reference.feature.reset': Readonly<Record<string, never>>;
   'reference.feature.combine': Readonly<Record<string, never>>;
@@ -52,6 +73,9 @@ export interface AppCommandSpecs {
   'reference.history.undo': Readonly<Record<string, never>>;
   'reference.history.redo': Readonly<Record<string, never>>;
   'reference.gesture.cancel': Readonly<Record<string, never>>;
+  /** Picks a window up: its moves preview until it is put down or the gesture is cancelled. */
+  'reference.gesture.grab': { readonly id: string };
+  'reference.gesture.drop': Readonly<Record<string, never>>;
   'reference.window.remove': { readonly id: string };
   'reference.surface.detach': { readonly surfaceId: string };
   'reference.surface.move': { readonly surfaceId: string; readonly windowId: string };
@@ -68,6 +92,8 @@ export interface AppCommandSpecs {
   'reference.workspace.deleteAll': Readonly<Record<string, never>>;
   'reference.workspace.export': Readonly<Record<string, never>>;
   'reference.workspace.import': { readonly fileName: string; readonly text: string };
+  /** Saves the workspace as it is now, without waiting for the save that follows a change. */
+  'reference.workspace.saveNow': Readonly<Record<string, never>>;
 }
 
 export type AppCommandId = keyof AppCommandSpecs;
@@ -85,6 +111,12 @@ export const APP_COMMAND_NAMES: Readonly<Record<AppCommandId, MessageId>> = Obje
   'reference.window.map': 'command.window.map',
   'reference.window.inspect': 'command.window.inspect',
   'reference.window.place': 'command.window.place',
+  'reference.window.nudge': 'command.window.nudge',
+  'reference.window.turn': 'command.window.turn',
+  'reference.window.resize': 'command.window.resize',
+  'reference.window.size': 'command.window.size',
+  'reference.window.face': 'command.window.face',
+  'reference.window.lock': 'command.window.lock',
   'reference.feature.set': 'command.feature.set',
   'reference.feature.reset': 'command.feature.reset',
   'reference.feature.combine': 'command.feature.combine',
@@ -96,6 +128,8 @@ export const APP_COMMAND_NAMES: Readonly<Record<AppCommandId, MessageId>> = Obje
   'reference.history.undo': 'command.history.undo',
   'reference.history.redo': 'command.history.redo',
   'reference.gesture.cancel': 'command.gesture.cancel',
+  'reference.gesture.grab': 'command.gesture.grab',
+  'reference.gesture.drop': 'command.gesture.drop',
   'reference.window.remove': 'command.window.remove',
   'reference.surface.detach': 'command.surface.detach',
   'reference.surface.move': 'command.surface.move',
@@ -107,6 +141,7 @@ export const APP_COMMAND_NAMES: Readonly<Record<AppCommandId, MessageId>> = Obje
   'reference.workspace.deleteAll': 'command.workspace.deleteAll',
   'reference.workspace.export': 'command.workspace.export',
   'reference.workspace.import': 'command.workspace.import',
+  'reference.workspace.saveNow': 'command.workspace.saveNow',
 });
 
 /** What running a command did. */
@@ -211,6 +246,8 @@ export function createAppCommands(app: () => ReferenceApp): AppCommands {
           return rejected('orbit', outcome.reason);
         case 'cancelled':
           return rejected('orbit', 'the turn was cancelled');
+        case 'previewed':
+          throw new Error('turning the workspace previewed instead of committing');
       }
     } catch (error) {
       if (error instanceof PolicyRefusal) {
@@ -225,6 +262,44 @@ export function createAppCommands(app: () => ReferenceApp): AppCommands {
       ? null
       : rejected('feature', `${what} is turned off`);
   const saving = () => off('persistence', 'saving and opening workspaces');
+  /** What a spatial command of the framework did, said as the command's outcome. */
+  const spatial = (command: string, args: Readonly<Record<string, JsonValue>>) => {
+    const outcome = app().spatial(command, args);
+    switch (outcome.status) {
+      case 'committed':
+      case 'previewed':
+        return DONE;
+      case 'rejected':
+        return rejected(outcome.error.path ?? 'scene', outcome.error.message);
+      case 'unchanged':
+        return rejected('id', outcome.reason);
+      case 'cancelled':
+        throw new Error(`${command} cancelled gestures instead of acting on a window`);
+    }
+  };
+  /** Each value given a finite number, or the refusal naming the first that is not. */
+  const numbers = (
+    values: readonly (readonly [string, unknown])[],
+    unit: string,
+  ): AppCommandOutcome | null => {
+    for (const [field, value] of values) {
+      if (value !== undefined) {
+        const bad = finite(value, field, unit);
+        if (bad !== null) {
+          return bad;
+        }
+      }
+    }
+    return null;
+  };
+  /** How a window stands now, or the refusal for a window that is not there. */
+  const poseFor = (id: string) => (isWindow(id) ? app().poseOf(id) : null);
+  const RADIANS = Math.PI / 180;
+  /** A command that is done at once, as every command is: its outcome, as a promise. */
+  const now =
+    <P>(run: (params: P) => AppCommandOutcome) =>
+    (params: P): Promise<AppCommandOutcome> =>
+      Promise.resolve(run(params));
   const handlers: Handlers = {
     'reference.preset.load': async ({ preset, seed }) => {
       if (!(PRESET_IDS as readonly string[]).includes(preset)) {
@@ -321,6 +396,100 @@ export function createAppCommands(app: () => ReferenceApp): AppCommands {
       }
       return committed(app().placeWindow(id, { x, y, z }));
     },
+    'reference.window.nudge': now(({ id, right, up, depth }) => {
+      if (!isWindow(id)) {
+        return rejected('id', `no window "${id}"`);
+      }
+      return (
+        numbers(
+          [
+            ['right', right],
+            ['up', up],
+            ['depth', depth],
+          ],
+          'world units',
+        ) ??
+        spatial('node.move', {
+          nodeId: id,
+          viewportId: app().viewport.viewportId,
+          right: right ?? 0,
+          up: up ?? 0,
+          depth: depth ?? 0,
+        })
+      );
+    }),
+    'reference.window.turn': now(({ id, degrees }) => {
+      if (!isWindow(id)) {
+        return rejected('id', `no window "${id}"`);
+      }
+      return (
+        finite(degrees, 'degrees', 'degrees') ??
+        spatial('node.rotate', { nodeId: id, yaw: degrees * RADIANS })
+      );
+    }),
+    'reference.window.resize': now(({ id, width, height }) => {
+      if (!isWindow(id)) {
+        return rejected('id', `no window "${id}"`);
+      }
+      return (
+        numbers(
+          [
+            ['width', width],
+            ['height', height],
+          ],
+          'world units',
+        ) ?? spatial('node.resize', { nodeId: id, width: width ?? 0, height: height ?? 0 })
+      );
+    }),
+    'reference.window.size': now(({ id, width, height }) => {
+      const pose = poseFor(id);
+      if (pose === null) {
+        return rejected('id', `no window "${id}"`);
+      }
+      const least = app().router.settings().minSize;
+      for (const [field, value] of [
+        ['width', width],
+        ['height', height],
+      ] as const) {
+        const bad = finite(value, field, 'world units');
+        if (bad !== null) {
+          return bad;
+        }
+        if (value < least) {
+          return rejected(field, `${field} must be at least ${String(least)} world units`);
+        }
+      }
+      return spatial('node.resize', {
+        nodeId: id,
+        width: width - pose.width,
+        height: height - pose.height,
+      });
+    }),
+    'reference.window.face': now(({ id, degrees }) => {
+      const pose = poseFor(id);
+      if (pose === null) {
+        return rejected('id', `no window "${id}"`);
+      }
+      return (
+        finite(degrees, 'degrees', 'degrees') ??
+        spatial('node.rotate', {
+          nodeId: id,
+          yaw: wrapDegrees(degrees - pose.turned) * RADIANS,
+        })
+      );
+    }),
+    'reference.window.lock': async ({ id, locked }) => {
+      if (!isWindow(id)) {
+        return rejected('id', `no window "${id}"`);
+      }
+      const asked: unknown = locked;
+      if (typeof asked !== 'boolean') {
+        return rejected('locked', 'locked must be true or false');
+      }
+      return committed(
+        app().workspace.dispatch({ type: 'node.patch', id, flags: { locked } }, { source: 'user' }),
+      );
+    },
     'reference.feature.set': async ({ feature, enabled }) => {
       if (!(FEATURE_IDS as readonly string[]).includes(feature)) {
         return rejected('feature', `a feature must be one of ${FEATURE_IDS.join(', ')}`);
@@ -380,6 +549,29 @@ export function createAppCommands(app: () => ReferenceApp): AppCommands {
       Promise.resolve(
         app().router.cancel('host') > 0 ? DONE : rejected('gesture', 'no gesture is running'),
       ),
+    'reference.gesture.grab': now(({ id }) => {
+      if (!isWindow(id)) {
+        return rejected('id', `no window "${id}"`);
+      }
+      return spatial('gesture.grab', { nodeId: id, viewportId: app().viewport.viewportId });
+    }),
+    'reference.gesture.drop': now(() => {
+      if (app().policies.status().gesture?.operation !== 'gesture.grab') {
+        return rejected('gesture', 'no window is held');
+      }
+      const outcome = app().spatial('gesture.drop', {});
+      switch (outcome.status) {
+        // Put down where it was picked up, it changes nothing: done all the same.
+        case 'committed':
+        case 'unchanged':
+          return DONE;
+        case 'rejected':
+          return rejected(outcome.error.path ?? 'scene', outcome.error.message);
+        case 'previewed':
+        case 'cancelled':
+          throw new Error(`putting a window down ${outcome.status} instead`);
+      }
+    }),
     'reference.window.remove': async ({ id }) => {
       if (!isWindow(id)) {
         return rejected('id', `no window "${id}"`);
@@ -440,6 +632,11 @@ export function createAppCommands(app: () => ReferenceApp): AppCommands {
       saving() ??
       stored(async () => {
         app().saveFile(exportName(new Date()), await app().workspaces.exportText());
+      }),
+    'reference.workspace.saveNow': async () =>
+      saving() ??
+      stored(async () => {
+        await app().workspaces.saveNow();
       }),
     'reference.workspace.import': async ({ fileName, text }) => {
       const refusal = saving();

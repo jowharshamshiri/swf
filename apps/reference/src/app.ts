@@ -1,3 +1,4 @@
+import type { ChromeInks } from '@swf/backend-dom';
 import {
   animationFrames,
   createDomInput,
@@ -7,7 +8,9 @@ import {
   DomRenderer,
   showDegraded,
 } from '@swf/backend-dom';
+import type { GeometryInks } from '@swf/backend-geometry';
 import {
+  DEFAULT_GEOMETRY_INKS,
   GEOMETRY_RENDERER_ID,
   GeometryRenderer,
   LAYER_COMPOSITOR_ID,
@@ -17,6 +20,7 @@ import {
 import type { Id, JsonValue, SceneCommand, SceneState, TxResult, Workspace } from '@swf/core';
 import { createWorkspace, nodeFrameGeometry, worldMatrix } from '@swf/core';
 import type {
+  CommandOutcome,
   DispatchResult,
   InputAdapter,
   InputIntent,
@@ -82,6 +86,8 @@ import {
 import type { Attachment, Search } from './search.js';
 import { createSearch } from './search.js';
 import { MAX_SEED, seedIssue } from './random.js';
+import type { Pose } from './pose.js';
+import { poseOf } from './pose.js';
 import type { Workspaces } from './workspaces.js';
 import { createWorkspaces, hostExtension } from './workspaces.js';
 
@@ -96,6 +102,96 @@ const PIXELS_PER_UNIT = 160;
 
 /** How focus frames a window: three-quarters of the view, at most two and a half times its size. */
 const FOCUS = Object.freeze({ fill: 0.75, maxMagnification: 2.5, pixelsPerUnit: PIXELS_PER_UNIT });
+
+/**
+ * The kit's colours window chrome is drawn in (UX-013): frames in the kit's quiet ink, the selected
+ * window in its focus ring's, the focused one in its warning ink, text in the editor's ink. The kit
+ * checks each against the grounds it is drawn on, in both appearances.
+ */
+const KIT_INKS = Object.freeze({
+  frame: '--vscode-descriptionForeground',
+  selected: '--vscode-focusBorder',
+  focused: '--vscode-editorWarning-foreground',
+  text: '--vscode-editor-foreground',
+});
+
+/** The kit's inks for chrome laid out as DOM: its custom properties, resolved by the browser. */
+const DOM_INKS: ChromeInks = Object.freeze({
+  frame: `var(${KIT_INKS.frame})`,
+  selected: `var(${KIT_INKS.selected})`,
+  focused: `var(${KIT_INKS.focused})`,
+});
+
+/**
+ * The kit's inks for chrome drawn on a canvas, which takes no custom property: each resolved to a
+ * colour as the page's appearance has it, again whenever the appearance changes.
+ */
+function kitInks(document: Document): () => GeometryInks {
+  const view = document.defaultView;
+  if (view === null) {
+    throw new Error('the document is not in a window');
+  }
+  const dark = view.matchMedia('(prefers-color-scheme: dark)');
+  let resolvedFor: string | null = null;
+  let inks: GeometryInks = DEFAULT_GEOMETRY_INKS;
+  const resolve = (token: string, probe: HTMLElement): string => {
+    probe.style.setProperty('color', `var(${token})`);
+    const colour = view.getComputedStyle(probe).color;
+    if (colour === '') {
+      throw new Error(`the kit's ${token} does not resolve to a colour`);
+    }
+    return colour;
+  };
+  return () => {
+    const appearance = `${String(dark.matches)}/${document.documentElement.dataset['appearance'] ?? ''}`;
+    if (appearance !== resolvedFor) {
+      // Never shown: it only lets the browser resolve a token as this page has it.
+      const probe = document.createElement('span');
+      probe.hidden = true;
+      document.body.append(probe);
+      try {
+        inks = Object.freeze({
+          frame: resolve(KIT_INKS.frame, probe),
+          selected: resolve(KIT_INKS.selected, probe),
+          focused: resolve(KIT_INKS.focused, probe),
+          text: resolve(KIT_INKS.text, probe),
+        });
+      } finally {
+        probe.remove();
+      }
+      resolvedFor = appearance;
+    }
+    return inks;
+  };
+}
+
+/**
+ * Makes the element the panorama is presented in one stop of the page's keyboard order, a
+ * spatial workspace the keyboard operates (FR-109, UX-012, UX-013): it says what it is and which
+ * keys act there. Returns what puts the element back as it was.
+ */
+function keyboardTarget(element: HTMLElement, messages: Messages): () => void {
+  const attributes: Readonly<Record<string, string>> = {
+    tabindex: '0',
+    role: 'application',
+    'aria-roledescription': messages.format('panorama.role'),
+    'aria-label': messages.format('panorama.label'),
+    'aria-description': messages.format('panorama.keys'),
+  };
+  const before = Object.keys(attributes).map((name) => [name, element.getAttribute(name)] as const);
+  for (const [name, value] of Object.entries(attributes)) {
+    element.setAttribute(name, value);
+  }
+  return () => {
+    for (const [name, value] of before) {
+      if (value === null) {
+        element.removeAttribute(name);
+      } else {
+        element.setAttribute(name, value);
+      }
+    }
+  };
+}
 
 /** The layered renderer: live content from the DOM, everything else drawn on canvases. */
 export const LAYERED_RENDERER_ID = 'swf.layered-renderer/1';
@@ -209,6 +305,13 @@ export interface ReferenceApp {
   ): TxResult;
   /** The windows around the focused one while focus is shown; null otherwise. */
   focusNeighbours(): FocusContext | null;
+  /** How a window stands as the panorama shows it now (a held window where it is held). */
+  poseOf(id: string): Pose | null;
+  /**
+   * Runs one of the framework's spatial commands as the application's controls do, in the
+   * panorama's view: what it did, or why it did nothing. A held window's moves preview.
+   */
+  spatial(command: string, args: Readonly<Record<string, JsonValue>>): CommandOutcome;
   /**
    * Removes a window from the workspace, with what it holds, as one undoable change (UX-011). Its
    * surfaces' content is the host's: removing a window never deletes or stops it.
@@ -325,6 +428,7 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
   runtime.registerAdapter(content.notes);
   runtime.registerAdapter(content.tiles);
 
+  const geometryInks = kitInks(document);
   // What a stand-in says, in the application's words.
   const standIn = (reason: StandInReason) => messages.format(`standIn.${reason}`);
   const renderers: Readonly<Record<BackendId, () => () => void>> = {
@@ -333,7 +437,7 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
         new DomRenderer({
           document,
           pixelsPerUnit: PIXELS_PER_UNIT,
-          chrome: { projections },
+          chrome: { projections, inks: DOM_INKS },
           standIn,
         }),
       ),
@@ -346,6 +450,7 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
             projections,
             drawables: (surfaceId) => runtime.handleOf(surfaceId),
             standIn,
+            inks: geometryInks,
           }),
         }),
       ),
@@ -447,10 +552,12 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
       ),
     );
     resizes.observe(element);
+    const restoreElement = keyboardTarget(element, messages);
     return {
       root: element,
       viewport: opened,
       async release() {
+        restoreElement();
         resizes.disconnect();
         unregisterInput();
         detach();
@@ -765,6 +872,28 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
         case 'regroup':
           return commitPlan(regroupWindow(state, step.windowId, step.target));
       }
+    },
+    poseOf(id) {
+      const scene = workspace.getPresented();
+      const camera = scene.cameras.get(CAMERA_ID);
+      if (camera === undefined) {
+        throw new Error(`no camera "${CAMERA_ID}"`);
+      }
+      return poseOf(scene, id, camera.position);
+    },
+    spatial(command, args) {
+      const result = router.dispatch({
+        kind: 'command',
+        command,
+        args: { ...args },
+        deviceId: 'reference.controls',
+        timestamp: view.performance.now(),
+      });
+      const outcome = result.operation?.outcome;
+      if (outcome === undefined || !('status' in outcome)) {
+        throw new Error(`${command} did not run: ${String(result.reason)}`);
+      }
+      return outcome;
     },
     observeInput(listener) {
       inputs.add(listener);

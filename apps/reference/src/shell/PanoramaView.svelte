@@ -29,7 +29,19 @@
     if (surface === undefined) {
       throw new Error('the panorama has no surface to present in');
     }
-    void model.start(surface);
+    const element = surface;
+    void model.start(element);
+    // Whether the panorama itself has the keyboard, so its keys can be shown where hints are.
+    const follow = () => {
+      model.panoramaFocused = element.ownerDocument.activeElement === element;
+    };
+    element.addEventListener('focusin', follow);
+    element.addEventListener('focusout', follow);
+    return () => {
+      element.removeEventListener('focusin', follow);
+      element.removeEventListener('focusout', follow);
+      model.panoramaFocused = false;
+    };
   });
 
   const focus = $derived.by(() => {
@@ -55,8 +67,11 @@
 
   const degrees = (neighbour: Neighbour) => Math.round(Math.abs(neighbour.bearing));
 
-  /** Gestures that change the scene: each shows its preview, its snap, its cancel and its end. */
-  const MODIFYING = ['node.move', 'node.resize', 'orbit.turn'];
+  /**
+   * Gestures that change the scene: each shows its preview, its snap, its cancel and its end. A
+   * window held from the keyboard (`gesture.grab`) is one too.
+   */
+  const MODIFYING = ['node.move', 'node.resize', 'orbit.turn', 'gesture.grab'];
 
   const labelOf = (id: string | null) => {
     void model.revision;
@@ -83,17 +98,22 @@
       return null;
     }
     const label = labelOf(gesture.nodeId);
+    const held = gesture.operation === 'gesture.grab';
     const what =
       gesture.operation === 'node.move'
         ? t('gesture.node.move', { label })
         : gesture.operation === 'node.resize'
           ? t('gesture.node.resize', { label })
-          : t('gesture.orbit.turn');
+          : held
+            ? t('gesture.gesture.grab', { label })
+            : t('gesture.orbit.turn');
     const snapping = model.policies?.features.enabled.snap === true && gesture.operation === 'node.move';
     return {
       what,
-      detail:
-        gesture.snap !== null && gesture.snap.constraints.length > 0
+      held,
+      detail: held
+        ? t('panorama.held.keys')
+        : gesture.snap !== null && gesture.snap.constraints.length > 0
           ? snapText(gesture.snap.constraints)
           : snapping
             ? t('gesture.free')
@@ -117,7 +137,9 @@
         ? t('gesture.done.node.move', { label })
         : last.operation === 'node.resize'
           ? t('gesture.done.node.resize', { label })
-          : t('gesture.done.orbit.turn');
+          : last.operation === 'gesture.grab'
+            ? t('gesture.done.gesture.grab', { label })
+            : t('gesture.done.orbit.turn');
     return {
       last,
       committed: last.outcome === 'committed',
@@ -200,6 +222,17 @@
       <Text>{running.what}</Text>
       <Text quiet>{running.detail}</Text>
       {#snippet end()}
+        {#if running.held}
+          <Button
+            handle={handleOf`page.gesture.drop`}
+            label={t('gesture.drop')}
+            size="small"
+            variant="primary"
+            onpress={() => {
+              void model.run('reference.gesture.drop', {});
+            }}
+          />
+        {/if}
         <Button
           handle={handleOf`page.gesture.cancel`}
           label={t('gesture.cancel')}
@@ -314,6 +347,9 @@
   {/if}
   {#if model.refusal !== null && !model.isSceneRefusal(model.refusal) && !model.isFeatureRefusal(model.refusal) && !model.isWorkspaceRefusal(model.refusal) && !model.isInspectorRefusal(model.refusal)}
     <Notice tone="danger" title={model.refusalText(model.refusal)} handle={handleOf`page.panorama.refusal`} />
+  {/if}
+  {#if model.keyRefusal !== null}
+    <Notice tone="danger" title={model.keyRefusal} handle={handleOf`page.panorama.keys.refusal`} />
   {/if}
   {#if model.status !== null && model.status.windows === 0}
     <EmptyState title={t('empty.title')} detail={t('empty.body')} icon="add">

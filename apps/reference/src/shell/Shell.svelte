@@ -3,7 +3,16 @@
   // windows on the left, what is selected on the right, the panorama as the whole centre with
   // the view's commands across its top, and how it is presented in the panel below. A narrow
   // window floats one side at a time over the panorama, so nothing is lost.
-  import { Badge, IconButton, Segmented, StatusItem, Tabs } from '@wsb/uikit/components';
+  import {
+    Badge,
+    IconButton,
+    Segmented,
+    Select,
+    StatusItem,
+    Tabs,
+    VisuallyHidden,
+  } from '@wsb/uikit/components';
+  import { VIEWPORT_ID } from '../app.js';
   import { handleOf } from '@wsb/uikit/handles';
   import { Application } from '@wsb/uikit/surfaces/application';
   import { BACKEND_IDS } from '../config.js';
@@ -33,6 +42,8 @@
   }
 
   let { model, developer = null }: Props = $props();
+  /** Inputs that are pressed or chosen, not typed in. */
+  const NOT_TYPED = ['checkbox', 'radio', 'button', 'submit', 'reset', 'range', 'color', 'file'];
   const t = (id: MessageId, params?: Readonly<Record<string, string | number>>) =>
     model.messages.format(id, params);
 
@@ -44,31 +55,52 @@
   let paletteOpen = $state(false);
 
   /**
-   * Opens the command list as VS Code opens its command palette: Ctrl+Shift+P, or F1. Escape
-   * closes the focus, as it leaves VS Code's zen mode, unless something else took it first or it
-   * was pressed in a field or in a window's own content.
+   * The application's keys, wherever the keyboard is but in a field or a window's own content,
+   * which keep their own (UX-012). As VS Code: Ctrl+Shift+P or F1 opens the command list; Ctrl+Z
+   * undoes, Ctrl+Shift+Z or Ctrl+Y redoes; Ctrl+S saves now (Cmd on a Mac). Escape cancels a
+   * gesture running, or else closes the focus, as it leaves VS Code's zen mode, unless something
+   * else took it first. In the panorama the framework's keys act first.
    */
   function onkeydown(event: KeyboardEvent): void {
-    const palette =
-      event.key === 'F1' ||
-      ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'p');
+    const command = event.ctrlKey || event.metaKey;
+    const key = event.key.toLowerCase();
+    const palette = event.key === 'F1' || (command && event.shiftKey && key === 'p');
     if (palette && model.app !== null) {
       event.preventDefault();
       paletteOpen = true;
       return;
     }
     const target = event.target;
+    // A field that takes typing keeps its own keys (its own undo among them), as a window's own
+    // content does; a checkbox, a choice or a button takes none of these.
     const typing =
       target instanceof HTMLElement &&
       (target.isContentEditable ||
-        target.closest('input, textarea, select, [data-swf-viewport] [data-swf-surface]') !== null);
-    if (
-      event.key === 'Escape' &&
-      !event.defaultPrevented &&
-      !paletteOpen &&
-      !typing &&
-      model.status?.mode === FOCUS_ID
-    ) {
+        (target instanceof HTMLInputElement && !NOT_TYPED.includes(target.type)) ||
+        target.closest('textarea, select, [data-swf-viewport] [data-swf-surface]') !== null);
+    if (event.defaultPrevented || paletteOpen || typing || model.app === null) {
+      return;
+    }
+    if (command && !event.altKey) {
+      const undo = key === 'z' && !event.shiftKey;
+      const redo = (key === 'z' && event.shiftKey) || (key === 'y' && !event.shiftKey);
+      if (undo || redo) {
+        event.preventDefault();
+        void model.run(undo ? 'reference.history.undo' : 'reference.history.redo', {});
+        return;
+      }
+      if (key === 's' && !event.shiftKey) {
+        event.preventDefault();
+        void model.run('reference.workspace.saveNow', {});
+        return;
+      }
+    }
+    if (event.key === 'Escape' && model.policies?.gesture != null) {
+      event.preventDefault();
+      void model.run('reference.gesture.cancel', {});
+      return;
+    }
+    if (event.key === 'Escape' && model.status?.mode === FOCUS_ID) {
       event.preventDefault();
       void model.run('reference.focus.exit', {});
     }
@@ -149,6 +181,17 @@
   const backends = $derived(BACKEND_IDS.map((id) => ({ value: id, label: t(`backend.${id}`) })));
   const status = $derived(model.status);
   const policies = $derived(model.policies);
+  /**
+   * A centre too narrow for every action across its top (a phone, NFR-023): the mode is chosen
+   * from a list, and what drags turn and the backend are left to the command list and Features,
+   * so the actions stay within the centre.
+   */
+  const COMPACT_BELOW = 600;
+  const compact = $derived.by(() => {
+    void model.revision;
+    const width = model.app?.workspace.getState().viewports.get(VIEWPORT_ID)?.size.width;
+    return width !== undefined && width < COMPACT_BELOW;
+  });
 </script>
 
 <svelte:window {onkeydown} />
@@ -182,6 +225,17 @@
   {#if status !== null && modes.length === 1}
     <!-- One mode is not a choice: it is said, and becomes a switcher once a second registers. -->
     <Badge handle={handleOf`editor.actions.mode`} label={modes[0]?.label ?? status.mode} title={t('mode.label')} />
+  {:else if status !== null && modes.length > 1 && compact}
+    <Select
+      handle={handleOf`editor.actions.mode`}
+      id="reference-mode"
+      ariaLabel={t('mode.label')}
+      options={modes.map((mode) => ({ value: mode.value, label: mode.label, disabled: mode.disabled }))}
+      value={status.mode}
+      onchange={(mode) => {
+        void model.run('reference.mode.switch', { mode });
+      }}
+    />
   {:else if status !== null && modes.length > 1}
     <Segmented
       handle={handleOf`editor.actions.mode`}
@@ -193,7 +247,7 @@
       }}
     />
   {/if}
-  {#if policies !== null && policies.features.enabled.orbit}
+  {#if policies !== null && policies.features.enabled.orbit && !compact}
     <!-- What a background drag turns is said where the view is, and changed there. -->
     <Segmented
       handle={handleOf`editor.actions.navigation`}
@@ -216,7 +270,7 @@
       }}
     />
   {/if}
-  {#if status !== null}
+  {#if status !== null && !compact}
     <Segmented
       handle={handleOf`editor.actions.backend`}
       ariaLabel={t('backend.label')}
@@ -291,7 +345,17 @@
   {#if saveStatus !== null}
     <StatusItem handle={handleOf`application.panel.save`} label={saveStatus} icon="save" />
   {/if}
-  <StatusItem handle={handleOf`application.panel.takeover`} label={t('view.takeover')} icon="hint" />
+  {#if model.panoramaFocused}
+    <!-- The panorama has the keyboard: what its keys do, where the reader looks for hints. -->
+    <StatusItem
+      handle={handleOf`application.panel.keys`}
+      label={t('panorama.keys.short')}
+      title={t('panorama.keys')}
+      icon="hint"
+    />
+  {:else}
+    <StatusItem handle={handleOf`application.panel.takeover`} label={t('view.takeover')} icon="hint" />
+  {/if}
   <IconButton
     handle={handleOf`application.panel.toggle`}
     icon={panelOpen ? 'chevron-down' : 'chevron-up'}
@@ -364,6 +428,16 @@
     body: panelBody,
   }}
 />
+
+<!--
+  What is said to assistive technology alone: one polite live region holding the kit's visually
+  hidden text, until the kit has an announcer of its own (wsb card PVTI_lAHOAHykxc4Bnwg2zhLhL6A).
+-->
+<div role="status" data-wsb="application.announcer">
+  {#key model.announcement?.count}
+    {#if model.announcement !== null}<VisuallyHidden text={model.announcement.text} />{/if}
+  {/key}
+</div>
 
 {#if model.pendingReplace !== null}
   <ReplaceDialog {model} pending={model.pendingReplace} />

@@ -6,6 +6,8 @@
   // and removing it from the workspace, which says it does not delete or stop its content (UX-011).
   import {
     Button,
+    ButtonGroup,
+    Checkbox,
     EmptyState,
     Facts,
     Field,
@@ -23,7 +25,9 @@
   import { handleOf, keyed } from '@wsb/uikit/handles';
   import type { MessageId } from '../messages.js';
   import { contentOf } from '../presets.js';
+  import type { AppCommandId } from '../commands.js';
   import type { ShellModel } from './model.svelte.js';
+  import WindowActions from './WindowActions.svelte';
 
   interface Props {
     model: ShellModel;
@@ -55,6 +59,21 @@
           {
             term: t('inspector.distance'),
             value: t('inspector.units', { value: round(selected.distance, 2) }),
+          },
+          {
+            term: t('inspector.turned'),
+            value: t('inspector.degrees', { value: round(selected.turned, 1) }),
+          },
+          {
+            term: t('inspector.size'),
+            value: t('inspector.size.value', {
+              width: round(selected.width, 2),
+              height: round(selected.height, 2),
+            }),
+          },
+          {
+            term: t('inspector.locked'),
+            value: t(selected.locked ? 'inspector.locked.yes' : 'inspector.locked.no'),
           },
           {
             term: t('inspector.presentation'),
@@ -125,7 +144,119 @@
   const refusal = $derived(
     model.refusal !== null && model.isInspectorRefusal(model.refusal) ? model.refusal : null,
   );
+
+  // PLACING IT (UX-006, UX-012, UX-014): every drag, resize handle and wheel or pinch has its
+  // control here, so neither a pointer's precision nor a device's gestures are needed. A step is
+  // coarse enough to see; the exact entries take any value.
+  const STEP = Object.freeze({ move: 0.25, depth: 0.25, degrees: 15, size: 0.1 });
+  const held = $derived(
+    model.policies?.gesture?.operation === 'gesture.grab' &&
+      model.policies.gesture.nodeId === selected?.id,
+  );
+  // What stops it being placed, said under the controls it disables.
+  const fixed = $derived.by(() => {
+    if (selected === null) {
+      return [];
+    }
+    if (selected.locked) {
+      return [t('inspector.place.locked')];
+    }
+    return [
+      ...(selected.movable ? [] : [t('inspector.place.fixed.move')]),
+      ...(selected.rotatable ? [] : [t('inspector.place.fixed.rotate')]),
+      ...(selected.resizable ? [] : [t('inspector.place.fixed.resize')]),
+    ];
+  });
+  const canMove = $derived(selected !== null && selected.movable && !selected.locked);
+  const canTurn = $derived(selected !== null && selected.rotatable && !selected.locked);
+  const canSize = $derived(selected !== null && selected.resizable && !selected.locked);
+
+  type Exact = 'x' | 'y' | 'z' | 'turned' | 'width' | 'height';
+  const EXACT: readonly Exact[] = ['x', 'y', 'z', 'turned', 'width', 'height'];
+  /** What is typed in each exact entry, until it is applied; none shows the value now. */
+  let drafts = $state<Partial<Record<Exact, string>>>({});
+  $effect(() => {
+    void selected?.id;
+    drafts = {};
+  });
+  const current = (field: Exact): number => {
+    if (selected === null) {
+      return 0;
+    }
+    switch (field) {
+      case 'x':
+        return selected.position[0];
+      case 'y':
+        return selected.position[1];
+      case 'z':
+        return selected.position[2];
+      case 'turned':
+        return selected.turned;
+      case 'width':
+        return selected.width;
+      case 'height':
+        return selected.height;
+    }
+  };
+  const shown = (field: Exact) => drafts[field] ?? String(round(current(field), 3));
+  const typed = (field: Exact): number | undefined => {
+    const draft = drafts[field];
+    return draft === undefined ? undefined : draft.trim() === '' ? Number.NaN : Number(draft);
+  };
+  /** The commands an exact entry's refusal belongs to, by the field it names. */
+  const EXACT_COMMANDS: Readonly<Record<Exact, AppCommandId>> = {
+    x: 'reference.window.place',
+    y: 'reference.window.place',
+    z: 'reference.window.place',
+    turned: 'reference.window.face',
+    width: 'reference.window.size',
+    height: 'reference.window.size',
+  };
+  const REFUSED_FIELD: Readonly<Record<string, Exact>> = { degrees: 'turned' };
+  const messageOf = (field: Exact): string | undefined =>
+    refusal !== null &&
+    refusal.command === EXACT_COMMANDS[field] &&
+    (REFUSED_FIELD[refusal.field] ?? refusal.field) === field
+      ? refusal.message
+      : undefined;
+
+  /** Places the window as the exact entries say: each changed entry, one change apiece. */
+  async function applyExact(id: string): Promise<void> {
+    const [x, y, z] = [typed('x'), typed('y'), typed('z')];
+    if (x !== undefined || y !== undefined || z !== undefined) {
+      // A place on the ground is given whole: the entry not changed keeps its value.
+      const ground = x !== undefined || z !== undefined;
+      const done = await model.run('reference.window.place', {
+        id,
+        ...(ground ? { x: x ?? current('x'), z: z ?? current('z') } : {}),
+        ...(y === undefined ? {} : { y }),
+      });
+      if (!done) {
+        return;
+      }
+    }
+    const turned = typed('turned');
+    if (turned !== undefined && !(await model.run('reference.window.face', { id, degrees: turned }))) {
+      return;
+    }
+    const [width, height] = [typed('width'), typed('height')];
+    if (
+      (width !== undefined || height !== undefined) &&
+      !(await model.run('reference.window.size', {
+        id,
+        width: width ?? current('width'),
+        height: height ?? current('height'),
+      }))
+    ) {
+      return;
+    }
+    drafts = {};
+  }
 </script>
+
+{#snippet step(handle: string, label: string, enabled: boolean, command: () => void)}
+  <Button handle={keyed('page.inspector.step', handle)} {label} size="small" disabled={!enabled} onpress={command} />
+{/snippet}
 
 <Panel title={t('inspector.title')} titled={false} handle={handleOf`page.inspector`}>
   {#if selected === null}
@@ -133,9 +264,137 @@
   {:else}
     <Stack inset gap="large">
       <Facts ariaLabel={t('inspector.label')} items={facts} />
+      <ButtonGroup ariaLabel={t('inspector.actions')}>
+        <WindowActions {model} id={selected.id} handle="page.inspector.window" inspect={false} />
+      </ButtonGroup>
       {#if refusal !== null}
         <Notice tone="danger" title={model.refusalText(refusal)} handle={handleOf`page.inspector.refusal`} />
       {/if}
+      <Section title={t('inspector.place')} detail={t('inspector.place.detail')} handle={handleOf`page.inspector.place`}>
+        <Stack gap="small">
+          {#each fixed as reason (reason)}
+            <Text quiet>{reason}</Text>
+          {/each}
+          <ButtonGroup ariaLabel={t('inspector.place.steps')}>
+            {@render step('left', t('inspector.place.left'), canMove, () => {
+              void model.run('reference.window.nudge', { id: selected.id, right: -STEP.move });
+            })}
+            {@render step('right', t('inspector.place.right'), canMove, () => {
+              void model.run('reference.window.nudge', { id: selected.id, right: STEP.move });
+            })}
+            {@render step('up', t('inspector.place.up'), canMove, () => {
+              void model.run('reference.window.nudge', { id: selected.id, up: STEP.move });
+            })}
+            {@render step('down', t('inspector.place.down'), canMove, () => {
+              void model.run('reference.window.nudge', { id: selected.id, up: -STEP.move });
+            })}
+            {@render step('nearer', t('inspector.place.nearer'), canMove, () => {
+              void model.run('reference.window.nudge', { id: selected.id, depth: -STEP.depth });
+            })}
+            {@render step('farther', t('inspector.place.farther'), canMove, () => {
+              void model.run('reference.window.nudge', { id: selected.id, depth: STEP.depth });
+            })}
+            {@render step('turn-left', t('inspector.place.turnLeft'), canTurn, () => {
+              void model.run('reference.window.turn', { id: selected.id, degrees: -STEP.degrees });
+            })}
+            {@render step('turn-right', t('inspector.place.turnRight'), canTurn, () => {
+              void model.run('reference.window.turn', { id: selected.id, degrees: STEP.degrees });
+            })}
+            {@render step('narrower', t('inspector.place.narrower'), canSize, () => {
+              void model.run('reference.window.resize', { id: selected.id, width: -STEP.size });
+            })}
+            {@render step('wider', t('inspector.place.wider'), canSize, () => {
+              void model.run('reference.window.resize', { id: selected.id, width: STEP.size });
+            })}
+            {@render step('shorter', t('inspector.place.shorter'), canSize, () => {
+              void model.run('reference.window.resize', { id: selected.id, height: -STEP.size });
+            })}
+            {@render step('taller', t('inspector.place.taller'), canSize, () => {
+              void model.run('reference.window.resize', { id: selected.id, height: STEP.size });
+            })}
+          </ButtonGroup>
+          <Stack direction="row" gap="small" wrap>
+            {#if held}
+              <Button
+                handle={handleOf`page.inspector.drop`}
+                label={t('command.gesture.drop')}
+                size="small"
+                variant="primary"
+                onpress={() => {
+                  void model.run('reference.gesture.drop', {});
+                }}
+              />
+              <Button
+                handle={handleOf`page.inspector.cancel`}
+                label={t('gesture.cancel')}
+                size="small"
+                onpress={() => {
+                  void model.run('reference.gesture.cancel', {});
+                }}
+              />
+            {:else}
+              <Button
+                handle={handleOf`page.inspector.grab`}
+                label={t('command.gesture.grab.named', { label: selected.label ?? selected.id })}
+                size="small"
+                disabled={!(canMove || canTurn || canSize)}
+                onpress={() => {
+                  void model.run('reference.gesture.grab', { id: selected.id });
+                }}
+              />
+            {/if}
+          </Stack>
+          {#each EXACT as field (field)}
+            {#snippet exactControl()}
+              <Input
+                handle={keyed('page.inspector.exact', field)}
+                id={`reference-exact-${field}`}
+                type="text"
+                value={shown(field)}
+                invalid={messageOf(field) !== undefined}
+                disabled={field === 'turned' ? !canTurn : field === 'width' || field === 'height' ? !canSize : !canMove}
+                oninput={(value) => {
+                  drafts = { ...drafts, [field]: value };
+                }}
+                onkeydown={(event) => {
+                  if (event.key === 'Enter') {
+                    void applyExact(selected.id);
+                  }
+                }}
+              />
+            {/snippet}
+            <Field
+              label={t(`inspector.place.${field === 'turned' ? 'turned' : field}`)}
+              for={`reference-exact-${field}`}
+              control={exactControl}
+              hint={field === 'y' ? t('inspector.place.position.hint') : field === 'turned' ? t('inspector.place.turned.hint') : field === 'height' ? t('inspector.place.size.hint') : undefined}
+              message={messageOf(field)}
+              messageTone="danger"
+            />
+          {/each}
+          <Stack direction="row">
+            <Button
+              handle={handleOf`page.inspector.exact.apply`}
+              label={t('inspector.place.apply')}
+              size="small"
+              disabled={Object.keys(drafts).length === 0}
+              onpress={() => {
+                void applyExact(selected.id);
+              }}
+            />
+          </Stack>
+          <Checkbox
+            handle={handleOf`page.inspector.lock`}
+            id="reference-lock"
+            label={t('inspector.lock')}
+            detail={t('inspector.lock.detail')}
+            checked={selected.locked}
+            onchange={(locked) => {
+              void model.run('reference.window.lock', { id: selected.id, locked });
+            }}
+          />
+        </Stack>
+      </Section>
       {#if scene !== null}
         <Section
           title={t('inspector.surfaces')}
