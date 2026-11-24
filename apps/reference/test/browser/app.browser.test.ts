@@ -180,7 +180,7 @@ describe('the panorama on the DOM backend (UX-002, WF-01)', () => {
     }
   });
 
-  it('drags a window across the seam as one target, with no jump, committing once', async () => {
+  it('drags a window across the seam as one target, with no jump, committing once, undone in one step (§33.2 scenario 2)', async () => {
     const a = await start({ preset: 'seam' });
     await frame(a);
     const gestures: string[] = [];

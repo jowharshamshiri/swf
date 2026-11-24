@@ -1,0 +1,19 @@
+apiVersion: test.machinegenesis.dev/v1
+kind: TestPlan
+metadata: { name: windows }
+targets:
+  windows:
+    uses: windows-11-x86-64-pve
+    resources: { cpu: 4, memory: 8GiB, disk: 96GiB }
+    # A fresh Windows guest takes this long to be made and booted.
+    allocationTimeout: 45m
+tasks:
+  # The browser suites in Google Chrome and Mozilla Firefox, each as installed
+  # from its publisher, recorded per browser; then the performance benchmark in
+  # both, one at a time.
+  browsers:
+    target: windows
+    shell: powershell
+    command: powershell -NoProfile -ExecutionPolicy Bypass -File "$env:MG_TEST_WORKSPACE\mg-test\windows.ps1"
+    timeout: 3h
+    evidence: [out/**]

@@ -1,5 +1,5 @@
 {
-  "version": "0.32.1022",
+  "version": "0.33.1036",
   "name": "swf",
   "private": true,
   "description": "Spatial Workspace Framework: a browser-first TypeScript framework for spatial presentation and window management.",
@@ -20,6 +20,7 @@
     "packages/conformance",
     "packages/diagnostics",
     "packages/persistence",
+    "packages/benchmark",
     "apps/reference"
   ],
   "scripts": {
@@ -33,6 +34,8 @@
     "test": "vitest run",
     "test:browser": "vitest run --config vitest.browser.config.mjs",
     "test:build": "vitest run --config vitest.build.config.mjs",
+    "conformance": "node scripts/conformance.mjs",
+    "bench": "node scripts/bench.mjs",
     "test:watch": "vitest",
     "check": "npm run format:check && npm run build:packages && npm run typecheck && npm run lint && npm run test && npm run build",
     "dev": "npm run dev -w @swf/reference"

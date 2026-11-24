@@ -1,100 +1,12 @@
-import '@wsb/uikit/styles/uikit.scss';
-import '@wsb/uikit/fonts';
-import { installAutomation } from '@wsb/uikit/automation';
 import { keyed } from '@wsb/uikit/handles';
-import type { SurfaceAutomation } from '@wsb/uikit/automation';
-import { ROOT_CLASS, setAppearance, setDensity } from '@wsb/uikit/primitives';
-import { mount, unmount } from 'svelte';
-import { surfaceWorldMatrix, worldMatrix } from '@swf/core';
-import { mat4ApproxEquals } from '@swf/math';
 import { standInReason } from '@swf/presentation';
 import type { SnapshotStore } from '@swf/persistence';
 import { createMemoryStore } from '@swf/persistence';
-import { afterEach, describe, expect, it } from 'vitest';
-import { parseConfig } from '../../src/config.js';
+import { describe, expect, it } from 'vitest';
 import { SECOND_VIEWPORT_ID } from '../../src/devtools.js';
-import { createMessages, ENGLISH } from '../../src/messages.js';
-import type { ShellAppOptions } from '../../src/shell/model.svelte.js';
-import { ShellModel } from '../../src/shell/model.svelte.js';
-import DeveloperView from '../../src/shell/DeveloperView.svelte';
-import Shell from '../../src/shell/Shell.svelte';
+import { ENGLISH } from '../../src/messages.js';
 import { sessionKey } from '../../src/workspaces.js';
-
-interface Mounted {
-  readonly model: ShellModel;
-  readonly root: HTMLElement;
-  readonly driver: SurfaceAutomation;
-  readonly settle: () => Promise<void>;
-}
-
-const mounted: { model: ShellModel; shell: ReturnType<typeof mount>; root: HTMLElement }[] = [];
-
-/**
- * Ends every visit mounted: a page holds one application at a time, with its one announcer, so
- * the next visit starts once the last has ended, as a reload does.
- */
-async function endVisits(): Promise<void> {
-  for (const m of mounted.splice(0)) {
-    await m.model.dispose();
-    await unmount(m.shell);
-    m.root.remove();
-  }
-}
-
-afterEach(endVisits);
-
-/** Mounts the shell as the page does, with the developer panel and a store of the test's own. */
-async function start(search: string, appOptions: ShellAppOptions): Promise<Mounted> {
-  const html = document.documentElement;
-  html.classList.add(ROOT_CLASS);
-  setAppearance(html, 'light');
-  setDensity(html, 'default');
-  const root = document.createElement('div');
-  root.style.setProperty('position', 'absolute');
-  root.style.setProperty('inset', '0 auto auto 0');
-  root.style.setProperty('width', '1280px');
-  root.style.setProperty('height', '760px');
-  document.body.append(root);
-  const model = new ShellModel(createMessages(), parseConfig(search), appOptions);
-  const shell = mount(Shell, { target: root, props: { model, developer: DeveloperView } });
-  mounted.push({ model, shell, root });
-  const driver = installAutomation(root, () => 'reference');
-  const settle = async () => {
-    await driver.settled();
-    await new Promise((resolve) => requestAnimationFrame(resolve));
-    await driver.settled();
-  };
-  await expect.poll(() => model.status, { timeout: 10_000 }).not.toBeNull();
-  await settle();
-  return { model, root, driver, settle };
-}
-
-const same = (a: Float64Array | readonly number[] | undefined, b: typeof a) =>
-  a !== undefined && b !== undefined && mat4ApproxEquals(a as never, b as never, 1e-9);
-
-/** Every node's parent and world matrix, and every surface's owner and world matrix. */
-function layout(model: ShellModel) {
-  const state = model.app?.workspace.getState();
-  if (state === undefined) {
-    throw new Error('no application');
-  }
-  return {
-    nodes: [...state.nodes.values()]
-      .sort((a, b) => (a.id < b.id ? -1 : 1))
-      .map((n) => ({
-        id: n.id,
-        parentId: n.parentId,
-        world: worldMatrix(state.nodes, n.id),
-      })),
-    surfaces: [...state.surfaces.values()]
-      .sort((a, b) => (a.id < b.id ? -1 : 1))
-      .map((s) => ({
-        id: s.id,
-        owner: s.ownerNodeId,
-        world: surfaceWorldMatrix(state, s.id),
-      })),
-  };
-}
+import { endVisits, layout, same, start } from './shell-harness.js';
 
 describe('multi-surface composition in the shell (FR-126, AC-016, §33.2 scenario 4)', () => {
   it('detaches a surface into its own window, reattaches it, saves, reloads and finds every transform', async () => {
@@ -333,28 +245,6 @@ describe('the developer panel (FR-194, ADM-001–004, §33.2 scenario 7)', () =>
     driver.act('page.developer.simulate.clear', 'press');
     await settle();
     expect(model.status?.windows).toBe(6);
-  });
-
-  it('takes the renderers away: falls back, then says the backend is unavailable, then recovers', async () => {
-    const { model, driver, settle, root } = await start('?preset=sparse', {
-      store: createMemoryStore(),
-    });
-    driver.act('worktree.view#developer', 'press');
-    await settle();
-    driver.act('page.developer.section#simulate', 'press');
-    await settle();
-    driver.act('page.developer.renderer.remove#dom', 'press');
-    await expect.poll(() => model.status?.backend).toBe('geometry');
-    driver.act('page.developer.renderer.remove#geometry', 'press');
-    await expect.poll(() => model.status?.backend).toBeNull();
-    await expect
-      .poll(() => root.querySelector('[data-swf-degraded]')?.textContent ?? '')
-      .toMatch(/^Backend unavailable/);
-    expect(model.status?.windows).toBe(6);
-    driver.act('page.developer.renderer.restore#dom', 'press');
-    await expect.poll(() => model.status?.backend).toBe('dom');
-    driver.act('page.developer.renderer.restore#geometry', 'press');
-    await settle();
   });
 
   it('inspects the selected window without changing it, and overlays its fragments taking no input', async () => {

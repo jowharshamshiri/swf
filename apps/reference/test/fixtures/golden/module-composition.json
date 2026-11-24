@@ -1,0 +1,831 @@
+{
+  "operations": {
+    "disclosed": {
+      "bindingKeys": false,
+      "hostData": false,
+      "labels": false,
+      "messages": false,
+      "timings": false
+    },
+    "dropped": 0,
+    "entries": [
+      {
+        "causeId": null,
+        "changedNodeIds": [
+          "window-02",
+          "workspace",
+          "board"
+        ],
+        "changedSurfaceIds": [
+          "window-02-surface",
+          "window-01-surface",
+          "window-03-surface"
+        ],
+        "commandTypes": [
+          "node.create",
+          "surface.move",
+          "surface.patch",
+          "node.patch",
+          "surface.patch",
+          "surface.patch"
+        ],
+        "commands": [
+          {
+            "node": {
+              "bounds": [
+                1.4,
+                1,
+                0.01
+              ],
+              "id": "window-02",
+              "kind": "window",
+              "label": "[label]",
+              "metadata": "[host data]",
+              "parentId": "workspace",
+              "tags": "[host data]",
+              "transform": {
+                "position": [
+                  1.995,
+                  0,
+                  -3.2
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0,
+                  1
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ]
+              }
+            },
+            "type": "node.create"
+          },
+          {
+            "id": "window-02-surface",
+            "keep": "local",
+            "ownerNodeId": "window-02",
+            "type": "surface.move"
+          },
+          {
+            "id": "window-02-surface",
+            "transform": {
+              "position": [
+                0,
+                -0.06,
+                0
+              ],
+              "rotation": [
+                0,
+                0,
+                0,
+                1
+              ],
+              "scale": [
+                1,
+                1,
+                1
+              ]
+            },
+            "type": "surface.patch"
+          },
+          {
+            "bounds": [
+              2.47,
+              0.95,
+              0.01
+            ],
+            "id": "board",
+            "type": "node.patch"
+          },
+          {
+            "id": "window-01-surface",
+            "transform": {
+              "position": [
+                -0.59,
+                -0.06,
+                0
+              ],
+              "rotation": [
+                0,
+                0,
+                0,
+                1
+              ],
+              "scale": [
+                1,
+                1,
+                1
+              ]
+            },
+            "type": "surface.patch"
+          },
+          {
+            "id": "window-03-surface",
+            "transform": {
+              "position": [
+                0.595,
+                -0.06,
+                0
+              ],
+              "rotation": [
+                0,
+                0,
+                0,
+                1
+              ],
+              "scale": [
+                1,
+                1,
+                1
+              ]
+            },
+            "type": "surface.patch"
+          }
+        ],
+        "error": null,
+        "history": null,
+        "outcome": "committed",
+        "previousRevision": 1,
+        "revision": 2,
+        "seq": 1,
+        "source": "user",
+        "transactionId": "test/tx-2"
+      },
+      {
+        "causeId": null,
+        "changedNodeIds": [
+          "window-02",
+          "window-04",
+          "workspace"
+        ],
+        "changedSurfaceIds": [
+          "window-02-surface",
+          "window-04-surface"
+        ],
+        "commandTypes": [
+          "surface.move",
+          "node.patch",
+          "surface.patch",
+          "surface.patch",
+          "node.delete"
+        ],
+        "commands": [
+          {
+            "id": "window-02-surface",
+            "keep": "local",
+            "ownerNodeId": "window-04",
+            "type": "surface.move"
+          },
+          {
+            "bounds": [
+              2.7,
+              1,
+              0.01
+            ],
+            "id": "window-04",
+            "type": "node.patch"
+          },
+          {
+            "id": "window-04-surface",
+            "transform": {
+              "position": [
+                -0.65,
+                -0.06,
+                0
+              ],
+              "rotation": [
+                0,
+                0,
+                0,
+                1
+              ],
+              "scale": [
+                1,
+                1,
+                1
+              ]
+            },
+            "type": "surface.patch"
+          },
+          {
+            "id": "window-02-surface",
+            "transform": {
+              "position": [
+                0.65,
+                -0.06,
+                0
+              ],
+              "rotation": [
+                0,
+                0,
+                0,
+                1
+              ],
+              "scale": [
+                1,
+                1,
+                1
+              ]
+            },
+            "type": "surface.patch"
+          },
+          {
+            "id": "window-02",
+            "mode": "rejectIfChildren",
+            "type": "node.delete"
+          }
+        ],
+        "error": null,
+        "history": null,
+        "outcome": "committed",
+        "previousRevision": 2,
+        "revision": 3,
+        "seq": 2,
+        "source": "user",
+        "transactionId": "test/tx-3"
+      },
+      {
+        "causeId": null,
+        "changedNodeIds": [
+          "window-05",
+          "board",
+          "workspace"
+        ],
+        "changedSurfaceIds": [
+          "window-05-surface",
+          "window-01-surface",
+          "window-03-surface"
+        ],
+        "commandTypes": [
+          "surface.move",
+          "node.patch",
+          "surface.patch",
+          "surface.patch",
+          "surface.patch",
+          "node.delete"
+        ],
+        "commands": [
+          {
+            "id": "window-05-surface",
+            "keep": "local",
+            "ownerNodeId": "board",
+            "type": "surface.move"
+          },
+          {
+            "bounds": [
+              3.77,
+              1,
+              0.01
+            ],
+            "id": "board",
+            "type": "node.patch"
+          },
+          {
+            "id": "window-01-surface",
+            "transform": {
+              "position": [
+                -1.24,
+                -0.06,
+                0
+              ],
+              "rotation": [
+                0,
+                0,
+                0,
+                1
+              ],
+              "scale": [
+                1,
+                1,
+                1
+              ]
+            },
+            "type": "surface.patch"
+          },
+          {
+            "id": "window-03-surface",
+            "transform": {
+              "position": [
+                -0.055,
+                -0.06,
+                0
+              ],
+              "rotation": [
+                0,
+                0,
+                0,
+                1
+              ],
+              "scale": [
+                1,
+                1,
+                1
+              ]
+            },
+            "type": "surface.patch"
+          },
+          {
+            "id": "window-05-surface",
+            "transform": {
+              "position": [
+                1.185,
+                -0.06,
+                0
+              ],
+              "rotation": [
+                0,
+                0,
+                0,
+                1
+              ],
+              "scale": [
+                1,
+                1,
+                1
+              ]
+            },
+            "type": "surface.patch"
+          },
+          {
+            "id": "window-05",
+            "mode": "rejectIfChildren",
+            "type": "node.delete"
+          }
+        ],
+        "error": null,
+        "history": null,
+        "outcome": "committed",
+        "previousRevision": 3,
+        "revision": 4,
+        "seq": 3,
+        "source": "user",
+        "transactionId": "test/tx-4"
+      }
+    ],
+    "trace": "swf.operation-trace/1",
+    "workspaceId": "test"
+  },
+  "scene": {
+    "workspaceId": "test",
+    "revision": 4,
+    "rootIds": [
+      "workspace"
+    ],
+    "nodes": [
+      {
+        "id": "board",
+        "kind": "window",
+        "parentId": "workspace",
+        "childIds": [],
+        "surfaceIds": [
+          "window-01-surface",
+          "window-03-surface",
+          "window-05-surface"
+        ],
+        "transform": {
+          "position": [
+            0,
+            0,
+            -3.2
+          ],
+          "rotation": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        "bounds": [
+          3.77,
+          1,
+          0.01
+        ],
+        "flags": {
+          "visible": true,
+          "selectable": true,
+          "draggable": true,
+          "resizable": true,
+          "rotatable": true,
+          "pointerEnabled": true,
+          "locked": false,
+          "presentationPriority": 0
+        },
+        "label": "Board",
+        "tags": [
+          "note",
+          "tile"
+        ],
+        "metadata": {
+          "host.reference.colour": "Cyan"
+        },
+        "status": "active",
+        "createdAt": 0,
+        "updatedAt": 0
+      },
+      {
+        "id": "window-04",
+        "kind": "window",
+        "parentId": "workspace",
+        "childIds": [],
+        "surfaceIds": [
+          "window-04-surface",
+          "window-02-surface"
+        ],
+        "transform": {
+          "position": [
+            -3.006901889,
+            -0.027924914,
+            -1.094422785
+          ],
+          "rotation": [
+            -0.003574214,
+            0.573570976,
+            0.002502691,
+            0.819144247
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        "bounds": [
+          2.7,
+          1,
+          0.01
+        ],
+        "flags": {
+          "visible": true,
+          "selectable": true,
+          "draggable": true,
+          "resizable": true,
+          "rotatable": true,
+          "pointerEnabled": true,
+          "locked": false,
+          "presentationPriority": 0
+        },
+        "label": "Note 04",
+        "tags": [
+          "note"
+        ],
+        "metadata": {
+          "host.reference.colour": "Cyan"
+        },
+        "status": "active",
+        "createdAt": 0,
+        "updatedAt": 0
+      },
+      {
+        "id": "workspace",
+        "kind": "group",
+        "parentId": null,
+        "childIds": [
+          "board",
+          "window-04"
+        ],
+        "surfaceIds": [],
+        "transform": {
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        "bounds": [
+          10.300371777,
+          10.300371777,
+          10.300371777
+        ],
+        "flags": {
+          "visible": true,
+          "selectable": true,
+          "draggable": true,
+          "resizable": true,
+          "rotatable": true,
+          "pointerEnabled": true,
+          "locked": false,
+          "presentationPriority": 0
+        },
+        "label": "Workspace",
+        "tags": [],
+        "metadata": {},
+        "status": "active",
+        "createdAt": 0,
+        "updatedAt": 0
+      }
+    ],
+    "surfaces": [
+      {
+        "id": "window-01-surface",
+        "ownerNodeId": "board",
+        "bindingKey": "composed/note/1/01",
+        "adapterTypeId": "reference.note/1",
+        "transform": {
+          "position": [
+            -1.24,
+            -0.06,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        "bounds": [
+          1.13,
+          0.52,
+          0.01
+        ],
+        "geometry": {
+          "kind": "rect",
+          "params": null
+        },
+        "interaction": "content",
+        "flags": {
+          "visible": true,
+          "selectable": true,
+          "draggable": true,
+          "resizable": true,
+          "rotatable": true,
+          "pointerEnabled": true,
+          "locked": false,
+          "presentationPriority": 0
+        },
+        "label": "Note 01",
+        "metadata": {},
+        "createdAt": 0,
+        "updatedAt": 0
+      },
+      {
+        "id": "window-02-surface",
+        "ownerNodeId": "window-04",
+        "bindingKey": "composed/tile/1/02",
+        "adapterTypeId": "reference.tile/1",
+        "transform": {
+          "position": [
+            0.65,
+            -0.06,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        "bounds": [
+          1.24,
+          0.72,
+          0.01
+        ],
+        "geometry": {
+          "kind": "rect",
+          "params": null
+        },
+        "interaction": "content",
+        "flags": {
+          "visible": true,
+          "selectable": true,
+          "draggable": true,
+          "resizable": true,
+          "rotatable": true,
+          "pointerEnabled": true,
+          "locked": false,
+          "presentationPriority": 0
+        },
+        "label": "Tile 02",
+        "metadata": {},
+        "createdAt": 0,
+        "updatedAt": 0
+      },
+      {
+        "id": "window-03-surface",
+        "ownerNodeId": "board",
+        "bindingKey": "composed/note/1/03",
+        "adapterTypeId": "reference.note/1",
+        "transform": {
+          "position": [
+            -0.055,
+            -0.06,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        "bounds": [
+          1.12,
+          0.67,
+          0.01
+        ],
+        "geometry": {
+          "kind": "rect",
+          "params": null
+        },
+        "interaction": "content",
+        "flags": {
+          "visible": true,
+          "selectable": true,
+          "draggable": true,
+          "resizable": true,
+          "rotatable": true,
+          "pointerEnabled": true,
+          "locked": false,
+          "presentationPriority": 0
+        },
+        "label": "Note 03",
+        "metadata": {},
+        "createdAt": 0,
+        "updatedAt": 0
+      },
+      {
+        "id": "window-04-surface",
+        "ownerNodeId": "window-04",
+        "bindingKey": "composed/note/1/04",
+        "adapterTypeId": "reference.note/1",
+        "transform": {
+          "position": [
+            -0.65,
+            -0.06,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        "bounds": [
+          1.24,
+          0.72,
+          0.01
+        ],
+        "geometry": {
+          "kind": "rect",
+          "params": null
+        },
+        "interaction": "content",
+        "flags": {
+          "visible": true,
+          "selectable": true,
+          "draggable": true,
+          "resizable": true,
+          "rotatable": true,
+          "pointerEnabled": true,
+          "locked": false,
+          "presentationPriority": 0
+        },
+        "label": "Note 04",
+        "metadata": {},
+        "createdAt": 0,
+        "updatedAt": 0
+      },
+      {
+        "id": "window-05-surface",
+        "ownerNodeId": "board",
+        "bindingKey": "composed/tile/1/05",
+        "adapterTypeId": "reference.tile/1",
+        "transform": {
+          "position": [
+            1.185,
+            -0.06,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        "bounds": [
+          1.24,
+          0.72,
+          0.01
+        ],
+        "geometry": {
+          "kind": "rect",
+          "params": null
+        },
+        "interaction": "content",
+        "flags": {
+          "visible": true,
+          "selectable": true,
+          "draggable": true,
+          "resizable": true,
+          "rotatable": true,
+          "pointerEnabled": true,
+          "locked": false,
+          "presentationPriority": 0
+        },
+        "label": "Tile 05",
+        "metadata": {},
+        "createdAt": 0,
+        "updatedAt": 0
+      }
+    ],
+    "cameras": [
+      {
+        "id": "camera",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "near": 0.05,
+        "far": null,
+        "label": null,
+        "metadata": {},
+        "createdAt": 0,
+        "updatedAt": 0
+      }
+    ],
+    "viewports": [
+      {
+        "id": "main",
+        "cameraId": "camera",
+        "projection": {
+          "id": "equirectangular/1",
+          "config": {
+            "horizontal": 360,
+            "vertical": 120
+          }
+        },
+        "mode": "panorama",
+        "size": {
+          "width": 800,
+          "height": 400,
+          "devicePixelRatio": 1
+        },
+        "navigation": "camera",
+        "renderer": null,
+        "compositor": null,
+        "label": null,
+        "metadata": {},
+        "createdAt": 0,
+        "updatedAt": 0
+      }
+    ],
+    "orbitRootId": "workspace",
+    "selection": [],
+    "focusedId": null
+  }
+}

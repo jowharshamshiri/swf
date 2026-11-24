@@ -1,0 +1,874 @@
+{
+  "operations": {
+    "disclosed": {
+      "bindingKeys": false,
+      "hostData": false,
+      "labels": false,
+      "messages": false,
+      "timings": false
+    },
+    "dropped": 0,
+    "entries": [
+      {
+        "causeId": null,
+        "changedNodeIds": [
+          "window-01"
+        ],
+        "changedSurfaceIds": [],
+        "commandTypes": [
+          "node.patch"
+        ],
+        "commands": [
+          {
+            "id": "window-01",
+            "transform": {
+              "position": [
+                -1.84272161,
+                0,
+                3.368544322
+              ],
+              "rotation": [
+                0,
+                -1,
+                0,
+                0
+              ],
+              "scale": [
+                1,
+                1,
+                1
+              ]
+            },
+            "type": "node.patch"
+          }
+        ],
+        "error": null,
+        "history": null,
+        "outcome": "committed",
+        "previousRevision": 1,
+        "revision": 2,
+        "seq": 1,
+        "source": "user",
+        "transactionId": "test/tx-7"
+      }
+    ],
+    "trace": "swf.operation-trace/1",
+    "workspaceId": "test"
+  },
+  "scene": {
+    "workspaceId": "test",
+    "revision": 2,
+    "rootIds": [
+      "workspace"
+    ],
+    "nodes": [
+      {
+        "id": "window-01",
+        "kind": "window",
+        "parentId": "workspace",
+        "childIds": [],
+        "surfaceIds": [
+          "window-01-surface"
+        ],
+        "transform": {
+          "position": [
+            -1.84272161,
+            0,
+            3.368544322
+          ],
+          "rotation": [
+            0,
+            -1,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        "bounds": [
+          2.4,
+          1.4,
+          0.01
+        ],
+        "flags": {
+          "visible": true,
+          "selectable": true,
+          "draggable": true,
+          "resizable": true,
+          "rotatable": true,
+          "pointerEnabled": true,
+          "locked": false,
+          "presentationPriority": 0
+        },
+        "label": "Note 01",
+        "tags": [
+          "note"
+        ],
+        "metadata": {
+          "host.reference.colour": "Azure"
+        },
+        "status": "active",
+        "createdAt": 0,
+        "updatedAt": 0
+      },
+      {
+        "id": "window-02",
+        "kind": "window",
+        "parentId": "workspace",
+        "childIds": [],
+        "surfaceIds": [
+          "window-02-surface"
+        ],
+        "transform": {
+          "position": [
+            0.580704443,
+            -0.988854382,
+            2.987465374
+          ],
+          "rotation": [
+            -0.014993579,
+            -0.983141219,
+            -0.155714272,
+            0.094665732
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        "bounds": [
+          1.8,
+          1,
+          0.01
+        ],
+        "flags": {
+          "visible": true,
+          "selectable": true,
+          "draggable": true,
+          "resizable": true,
+          "rotatable": true,
+          "pointerEnabled": true,
+          "locked": false,
+          "presentationPriority": 0
+        },
+        "label": "Tile 02",
+        "tags": [
+          "tile"
+        ],
+        "metadata": {
+          "host.reference.colour": "Violet"
+        },
+        "status": "active",
+        "createdAt": 0,
+        "updatedAt": 0
+      },
+      {
+        "id": "window-03",
+        "kind": "window",
+        "parentId": "workspace",
+        "childIds": [],
+        "surfaceIds": [
+          "window-03-surface"
+        ],
+        "transform": {
+          "position": [
+            -0.294673877,
+            1.02606043,
+            2.803634659
+          ],
+          "rotation": [
+            0.009088043,
+            0.983458108,
+            -0.173410199,
+            0.051540855
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        "bounds": [
+          1.2,
+          0.8,
+          0.01
+        ],
+        "flags": {
+          "visible": true,
+          "selectable": true,
+          "draggable": true,
+          "resizable": true,
+          "rotatable": true,
+          "pointerEnabled": true,
+          "locked": false,
+          "presentationPriority": 0
+        },
+        "label": "Note 03",
+        "tags": [
+          "note"
+        ],
+        "metadata": {
+          "host.reference.colour": "Mint"
+        },
+        "status": "active",
+        "createdAt": 0,
+        "updatedAt": 0
+      },
+      {
+        "id": "window-04",
+        "kind": "window",
+        "parentId": "workspace",
+        "childIds": [],
+        "surfaceIds": [
+          "window-04-surface"
+        ],
+        "transform": {
+          "position": [
+            2.175047191,
+            -0.118658289,
+            2.61057272
+          ],
+          "rotation": [
+            -0.005940442,
+            -0.940144917,
+            -0.016410291,
+            0.340327709
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        "bounds": [
+          1.4,
+          1,
+          0.01
+        ],
+        "flags": {
+          "visible": true,
+          "selectable": true,
+          "draggable": true,
+          "resizable": true,
+          "rotatable": true,
+          "pointerEnabled": true,
+          "locked": false,
+          "presentationPriority": 0
+        },
+        "label": "Tile 04",
+        "tags": [
+          "tile"
+        ],
+        "metadata": {
+          "host.reference.colour": "Red"
+        },
+        "status": "active",
+        "createdAt": 0,
+        "updatedAt": 0
+      },
+      {
+        "id": "window-05",
+        "kind": "window",
+        "parentId": "workspace",
+        "childIds": [],
+        "surfaceIds": [
+          "window-05-surface"
+        ],
+        "transform": {
+          "position": [
+            -2.555874349,
+            0.237172011,
+            2.229631303
+          ],
+          "rotation": [
+            0.014444867,
+            0.909768268,
+            -0.031769808,
+            0.413646858
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        "bounds": [
+          1.4,
+          1,
+          0.01
+        ],
+        "flags": {
+          "visible": true,
+          "selectable": true,
+          "draggable": true,
+          "resizable": true,
+          "rotatable": true,
+          "pointerEnabled": true,
+          "locked": false,
+          "presentationPriority": 0
+        },
+        "label": "Note 05",
+        "tags": [
+          "note"
+        ],
+        "metadata": {
+          "host.reference.colour": "Mint"
+        },
+        "status": "active",
+        "createdAt": 0,
+        "updatedAt": 0
+      },
+      {
+        "id": "window-06",
+        "kind": "window",
+        "parentId": "workspace",
+        "childIds": [],
+        "surfaceIds": [
+          "window-06-surface"
+        ],
+        "transform": {
+          "position": [
+            -0.112383413,
+            2.713753908,
+            1.692013504
+          ],
+          "rotation": [
+            0.016073949,
+            0.874138855,
+            -0.48454308,
+            0.028998172
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        "bounds": [
+          1.6,
+          1,
+          0.01
+        ],
+        "flags": {
+          "visible": true,
+          "selectable": true,
+          "draggable": true,
+          "resizable": true,
+          "rotatable": true,
+          "pointerEnabled": true,
+          "locked": false,
+          "presentationPriority": 0
+        },
+        "label": "Tile 06",
+        "tags": [
+          "tile"
+        ],
+        "metadata": {
+          "host.reference.colour": "Cyan"
+        },
+        "status": "active",
+        "createdAt": 0,
+        "updatedAt": 0
+      },
+      {
+        "id": "window-07",
+        "kind": "window",
+        "parentId": "workspace",
+        "childIds": [],
+        "surfaceIds": [
+          "window-07-surface"
+        ],
+        "transform": {
+          "position": [
+            -0.094232277,
+            0,
+            -2.998519681
+          ],
+          "rotation": [
+            0,
+            0.015707317,
+            0,
+            0.999876632
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        "bounds": [
+          1.6,
+          1,
+          0.01
+        ],
+        "flags": {
+          "visible": true,
+          "selectable": true,
+          "draggable": true,
+          "resizable": true,
+          "rotatable": true,
+          "pointerEnabled": true,
+          "locked": false,
+          "presentationPriority": 0
+        },
+        "label": "Note 07",
+        "tags": [
+          "note"
+        ],
+        "metadata": {
+          "host.reference.colour": "Yellow"
+        },
+        "status": "active",
+        "createdAt": 0,
+        "updatedAt": 0
+      },
+      {
+        "id": "workspace",
+        "kind": "group",
+        "parentId": null,
+        "childIds": [
+          "window-01",
+          "window-02",
+          "window-03",
+          "window-04",
+          "window-05",
+          "window-06",
+          "window-07"
+        ],
+        "surfaceIds": [],
+        "transform": {
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        "bounds": [
+          8.778488798,
+          8.778488798,
+          8.778488798
+        ],
+        "flags": {
+          "visible": true,
+          "selectable": true,
+          "draggable": true,
+          "resizable": true,
+          "rotatable": true,
+          "pointerEnabled": true,
+          "locked": false,
+          "presentationPriority": 0
+        },
+        "label": "Workspace",
+        "tags": [],
+        "metadata": {},
+        "status": "active",
+        "createdAt": 0,
+        "updatedAt": 0
+      }
+    ],
+    "surfaces": [
+      {
+        "id": "window-01-surface",
+        "ownerNodeId": "window-01",
+        "bindingKey": "seam/note/1/01",
+        "adapterTypeId": "reference.note/1",
+        "transform": {
+          "position": [
+            0,
+            -0.06,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        "bounds": [
+          2.24,
+          1.12,
+          0.01
+        ],
+        "geometry": {
+          "kind": "rect",
+          "params": null
+        },
+        "interaction": "content",
+        "flags": {
+          "visible": true,
+          "selectable": true,
+          "draggable": true,
+          "resizable": true,
+          "rotatable": true,
+          "pointerEnabled": true,
+          "locked": false,
+          "presentationPriority": 0
+        },
+        "label": "Note 01",
+        "metadata": {},
+        "createdAt": 0,
+        "updatedAt": 0
+      },
+      {
+        "id": "window-02-surface",
+        "ownerNodeId": "window-02",
+        "bindingKey": "seam/tile/1/02",
+        "adapterTypeId": "reference.tile/1",
+        "transform": {
+          "position": [
+            0,
+            -0.06,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        "bounds": [
+          1.64,
+          0.72,
+          0.01
+        ],
+        "geometry": {
+          "kind": "rect",
+          "params": null
+        },
+        "interaction": "content",
+        "flags": {
+          "visible": true,
+          "selectable": true,
+          "draggable": true,
+          "resizable": true,
+          "rotatable": true,
+          "pointerEnabled": true,
+          "locked": false,
+          "presentationPriority": 0
+        },
+        "label": "Tile 02",
+        "metadata": {},
+        "createdAt": 0,
+        "updatedAt": 0
+      },
+      {
+        "id": "window-03-surface",
+        "ownerNodeId": "window-03",
+        "bindingKey": "seam/note/1/03",
+        "adapterTypeId": "reference.note/1",
+        "transform": {
+          "position": [
+            0,
+            -0.06,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        "bounds": [
+          1.04,
+          0.52,
+          0.01
+        ],
+        "geometry": {
+          "kind": "rect",
+          "params": null
+        },
+        "interaction": "content",
+        "flags": {
+          "visible": true,
+          "selectable": true,
+          "draggable": true,
+          "resizable": true,
+          "rotatable": true,
+          "pointerEnabled": true,
+          "locked": false,
+          "presentationPriority": 0
+        },
+        "label": "Note 03",
+        "metadata": {},
+        "createdAt": 0,
+        "updatedAt": 0
+      },
+      {
+        "id": "window-04-surface",
+        "ownerNodeId": "window-04",
+        "bindingKey": "seam/tile/1/04",
+        "adapterTypeId": "reference.tile/1",
+        "transform": {
+          "position": [
+            0,
+            -0.06,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        "bounds": [
+          1.24,
+          0.72,
+          0.01
+        ],
+        "geometry": {
+          "kind": "rect",
+          "params": null
+        },
+        "interaction": "content",
+        "flags": {
+          "visible": true,
+          "selectable": true,
+          "draggable": true,
+          "resizable": true,
+          "rotatable": true,
+          "pointerEnabled": true,
+          "locked": false,
+          "presentationPriority": 0
+        },
+        "label": "Tile 04",
+        "metadata": {},
+        "createdAt": 0,
+        "updatedAt": 0
+      },
+      {
+        "id": "window-05-surface",
+        "ownerNodeId": "window-05",
+        "bindingKey": "seam/note/1/05",
+        "adapterTypeId": "reference.note/1",
+        "transform": {
+          "position": [
+            0,
+            -0.06,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        "bounds": [
+          1.24,
+          0.72,
+          0.01
+        ],
+        "geometry": {
+          "kind": "rect",
+          "params": null
+        },
+        "interaction": "content",
+        "flags": {
+          "visible": true,
+          "selectable": true,
+          "draggable": true,
+          "resizable": true,
+          "rotatable": true,
+          "pointerEnabled": true,
+          "locked": false,
+          "presentationPriority": 0
+        },
+        "label": "Note 05",
+        "metadata": {},
+        "createdAt": 0,
+        "updatedAt": 0
+      },
+      {
+        "id": "window-06-surface",
+        "ownerNodeId": "window-06",
+        "bindingKey": "seam/tile/1/06",
+        "adapterTypeId": "reference.tile/1",
+        "transform": {
+          "position": [
+            0,
+            -0.06,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        "bounds": [
+          1.44,
+          0.72,
+          0.01
+        ],
+        "geometry": {
+          "kind": "rect",
+          "params": null
+        },
+        "interaction": "content",
+        "flags": {
+          "visible": true,
+          "selectable": true,
+          "draggable": true,
+          "resizable": true,
+          "rotatable": true,
+          "pointerEnabled": true,
+          "locked": false,
+          "presentationPriority": 0
+        },
+        "label": "Tile 06",
+        "metadata": {},
+        "createdAt": 0,
+        "updatedAt": 0
+      },
+      {
+        "id": "window-07-surface",
+        "ownerNodeId": "window-07",
+        "bindingKey": "seam/note/1/07",
+        "adapterTypeId": "reference.note/1",
+        "transform": {
+          "position": [
+            0,
+            -0.06,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        "bounds": [
+          1.44,
+          0.72,
+          0.01
+        ],
+        "geometry": {
+          "kind": "rect",
+          "params": null
+        },
+        "interaction": "content",
+        "flags": {
+          "visible": true,
+          "selectable": true,
+          "draggable": true,
+          "resizable": true,
+          "rotatable": true,
+          "pointerEnabled": true,
+          "locked": false,
+          "presentationPriority": 0
+        },
+        "label": "Note 07",
+        "metadata": {},
+        "createdAt": 0,
+        "updatedAt": 0
+      }
+    ],
+    "cameras": [
+      {
+        "id": "camera",
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "near": 0.05,
+        "far": null,
+        "label": null,
+        "metadata": {},
+        "createdAt": 0,
+        "updatedAt": 0
+      }
+    ],
+    "viewports": [
+      {
+        "id": "main",
+        "cameraId": "camera",
+        "projection": {
+          "id": "equirectangular/1",
+          "config": {
+            "horizontal": 360,
+            "vertical": 120
+          }
+        },
+        "mode": "panorama",
+        "size": {
+          "width": 800,
+          "height": 400,
+          "devicePixelRatio": 1
+        },
+        "navigation": "camera",
+        "renderer": null,
+        "compositor": null,
+        "label": null,
+        "metadata": {},
+        "createdAt": 0,
+        "updatedAt": 0
+      }
+    ],
+    "orbitRootId": "workspace",
+    "selection": [],
+    "focusedId": null
+  }
+}

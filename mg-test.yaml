@@ -1,0 +1,10 @@
+apiVersion: test.machinegenesis.dev/v1
+kind: TestProject
+metadata: { name: swf }
+# The checkout as it stands: what git tracks and would track, the wsb submodule's
+# UI kit included (the reference application is built from it); build output,
+# installed packages and anything else ignored left out.
+source: { type: workspace, root: ., contents: tracked }
+plans: [mg-test/windows.yaml]
+defaults:
+  taskTimeout: 3h

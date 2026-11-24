@@ -4,7 +4,8 @@ package-lock.json
 .scrap
 .wsb
 .vitest
-# Snapshot fixtures are canonical text, byte for byte.
+# Snapshot fixtures and golden traces are canonical text, compared byte for byte.
 packages/persistence/fixtures
+apps/reference/test/fixtures/golden
 # The pinned checkout of wsb, for its UI kit: its own formatting
 wsb

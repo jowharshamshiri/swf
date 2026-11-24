@@ -52,6 +52,11 @@ interaction; the host owns whatever is presented.
   a validator that matches it, policy parameters and opaque extension state with size limits,
   two-phase restore with format migrations, a replaceable storage interface with in-memory, Web
   Storage and IndexedDB stores, and the save state machine.
+- `@swf/benchmark`: the performance benchmark. Seeded standard and stress fixtures, a host that
+  presents a fixture through the framework as an application would, the measures a run takes in
+  the page (frame intervals, input-to-preview latency, hit queries), the statistics results are
+  reported in, and a probe of the listeners, observers, frames and timers a page holds, for
+  disposal soaks.
 
 ## Using the kernel
 
@@ -587,6 +592,53 @@ export holds identifiers, performance numbers and error codes by default; labels
 the host's data, error messages and timings are added only when chosen, each in its own section
 keyed by ID, and the host's own measures go in as given. Nothing walks a surface's content.
 
+## Measuring performance
+
+```ts
+import {
+  analyseFrames,
+  createBenchmarkHost,
+  layoutViewports,
+  planFixture,
+  recordFrames,
+  STANDARD,
+} from '@swf/benchmark';
+
+const fixture = planFixture(STANDARD, 1);
+const host = await createBenchmarkHost({
+  fixture,
+  containers: layoutViewports(document.body, fixture),
+});
+await host.settled();
+const frames = recordFrames(window);
+// ... turn the camera, drag a window ...
+const analysis = analyseFrames(frames.stop());
+await host.dispose();
+```
+
+`planFixture` plans a seeded fixture, the same on every run and engine (AN-010). The standard
+fixture (`STANDARD`, §26.1) holds 250 windows with 300 surfaces among them (every fifth window
+holds two, the second drawn), in five groups nested one inside the next with windows at every
+depth, in five rings round the camera; two viewports side by side on the 1920×1080 page, one
+looking ahead and one behind, each 64° by 72° (the same degrees per pixel each way), each show 30
+to 50 surfaces wherever its camera turns. The stress fixture (`STRESS`) doubles it. Content is
+plain elements and proxies, so frames measure the framework. `createBenchmarkHost` presents a
+fixture with the DOM backend on the page's animation frames, with input over the first viewport
+routed by the built-in policies; the elements are the caller's, and disposing the host leaves
+them holding nothing of the framework's.
+
+A run measures with `recordFrames` (animation-frame timestamps), `recordPreviewLatency` (from
+each pointer event's timestamp to the start of the frame after the one that shows its preview,
+with the most moves waiting at once), `recordPicks` (the router's own hit-query times) and
+`timePicks` (hit queries at fixed points, many per point so that a coarse clock still resolves
+them). `summarize` gives median, 95th percentile (by nearest rank) and maximum; `analyseFrames`
+gives intervals, a histogram in 1 ms bins, skipped frames and the share of intervals that were
+one display frame, and `meetsFrameBudget` holds NFR-001: at least 95% of intervals one 60 Hz
+frame, at the 60 Hz rate itself. `growthExponent` fits how a cost grows with the scene (about 1
+for linear, 2 for quadratic). `createResourceProbe` wraps a window's listener, observer,
+animation-frame and timer registration and counts what is held: compared before a workspace is
+made and after it is disposed, it shows what disposal left behind (NFR-010).
+
 ## Saving layouts
 
 ```ts
@@ -1026,10 +1078,39 @@ through Playwright:
 npx playwright install --with-deps chromium firefox webkit && npm run test:browser
 ```
 
-`SWF_BROWSERS` picks the browsers (comma-separated; all three by default), and
-`SWF_CHROMIUM_CHANNEL` runs Chromium as an installed browser instead of Playwright's own, for
-example `SWF_BROWSERS=chromium SWF_CHROMIUM_CHANNEL=chrome npm run test:browser` with Google
-Chrome installed.
+`SWF_BROWSERS` picks the browsers (comma-separated; all three by default).
+`SWF_CHROMIUM_CHANNEL` runs Chromium as an installed browser instead of Playwright's own build
+(`chrome` for Google Chrome), and `SWF_FIREFOX_CHANNEL` does the same for Firefox (`moz-firefox`
+for Mozilla Firefox, driven over WebDriver BiDi): for example
+`SWF_BROWSERS=chromium,firefox SWF_CHROMIUM_CHANNEL=chrome SWF_FIREFOX_CHANNEL=moz-firefox npm run test:browser`.
+
+Conformance is recorded per browser: `npm run conformance -- --out <folder>` runs the browser
+suites in each browser in turn and writes each browser's report, `conformance.json` and
+`conformance.md`, which name the browser, its version and the machine, and gather the tests of
+each end-to-end acceptance scenario of §33.2 (a test names its scenario as `§33.2 scenario <n>`).
+It exits non-zero when a test failed or a scenario has no test.
+
+The performance benchmark runs one browser at a time on a 1920×1080 page:
+`npm run bench -- --out <folder>` writes what each browser measured on the standard and stress
+fixtures as JSON, and `benchmark.md` with every measure's median, 95th percentile and maximum
+over five trials, the environment and the method, and a verdict for each budget on the standard
+fixture (the stress fixture records how far it degrades, held only to sub-quadratic growth). A
+trial times cold creation (NFR-007), the retained heap (NFR-006), hit queries (NFR-003), and 60
+seconds after a warm-up each of turning the camera by its background and dragging a window by
+its frame with the real mouse (NFR-001, NFR-004), and one window's move at 125 to 1000 windows
+(NFR-008). The heap is measured where the engine reports it to automation, which only Chromium
+does (over the DevTools protocol, after forced collections): in Firefox and Safari it is
+recorded as not measurable. `SWF_BENCH_TRIALS`, `SWF_BENCH_WARMUP_MS` and `SWF_BENCH_TRIAL_MS`
+shorten a run for trying it out, and the report says what they were.
+
+On Windows both run on an mg-test guest, in Google Chrome and Mozilla Firefox as their publishers
+ship them (each installer's signature checked, Node.js checked against its release's checksums):
+`mg-test run mg-test.yaml --plan windows` brings back `out/conformance` and `out/bench`
+(`mg-test/windows.ps1` says what it does).
+
+Golden scenes and scripted interaction traces of the reference application's four view modes
+and eight behaviour modules are committed under `apps/reference/test/fixtures/golden` (QA-012):
+a change in behaviour shows as a changed fixture, reviewed and updated with `npx vitest -u`.
 
 The reference application's browser tests check its accessibility with axe-core (WCAG 2.2 A and
 AA) and by hand: keyboard order, focus rings, target sizes, reduced motion, contrast, what is

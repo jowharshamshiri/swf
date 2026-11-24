@@ -37,12 +37,17 @@ export interface PolicyWorld {
 /**
  * A preset's scene in the panorama (800×400, 360°×120°) with the reference application's policies
  * installed on a router through the framework's public API, as the application installs them.
+ * `now` fixes the workspace's clock, for scenes compared byte for byte.
  */
 export function policyWorld(
   scene: PresetId | readonly PlannedWindow[] = 'sparse',
   features?: FeatureSettings,
+  options: { readonly now?: () => number } = {},
 ): PolicyWorld {
-  const ws = createWorkspace({ id: 'test' });
+  const ws = createWorkspace({
+    id: 'test',
+    ...(options.now === undefined ? {} : { now: options.now }),
+  });
   const projections = createProjectionRegistry({
     kinds: ws.mutator(),
     projectors: createPresentationRegistry().registrar(),

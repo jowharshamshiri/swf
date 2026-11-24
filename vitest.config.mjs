@@ -18,6 +18,7 @@ export default defineConfig({
       '@swf/conformance': source('conformance'),
       '@swf/diagnostics': source('diagnostics'),
       '@swf/persistence': source('persistence'),
+      '@swf/benchmark': source('benchmark'),
     },
   },
   test: {

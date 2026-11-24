@@ -30,6 +30,16 @@ const ALLOWED: Readonly<Record<string, readonly string[]>> = {
   conformance: ['@swf/math', '@swf/core', '@swf/surfaces', '@swf/presentation'],
   diagnostics: ['@swf/core', '@swf/surfaces', '@swf/presentation'],
   persistence: ['@swf/math', '@swf/core'],
+  // The benchmark presents its fixtures as a host would, with the DOM backend.
+  benchmark: [
+    '@swf/math',
+    '@swf/core',
+    '@swf/surfaces',
+    '@swf/presentation',
+    '@swf/projections',
+    '@swf/interaction',
+    '@swf/backend-dom',
+  ],
 };
 
 const sources = import.meta.glob<string>('../../*/src/**/*.ts', {
