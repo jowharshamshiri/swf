@@ -538,6 +538,60 @@ describe('spatial and metadata queries', () => {
     expect(ws.findNodes({ text: 'work' })).toEqual(['a']);
   });
 
+  it('matches exposed metadata and group paths only when asked, never other metadata', () => {
+    const ws = makeWorkspace();
+    committed(
+      ws.transaction([
+        {
+          type: 'node.create',
+          node: { id: 'g', kind: 'group', bounds: [1, 1, 1], label: 'Ｗｅｓｔ Wall' },
+        },
+        window('a', {
+          parentId: 'g',
+          label: 'Notes',
+          metadata: { 'host.colour': 'Teal', 'host.secret': 'teal', 'host.count': 42 },
+        }),
+        window('b', { label: 'Plans', metadata: { 'host.colour': 'Amber' } }),
+        window('c', { label: 'Logs', metadata: { 'host.colour': { nested: 'teal' } } }),
+      ]),
+    );
+    const state = ws.getState();
+    // Metadata is never searched unless its key is exposed.
+    expect(findNodes(state, { text: 'teal' })).toEqual([]);
+    expect(findNodes(state, { text: 'TEAL', metadataKeys: ['host.colour'] })).toEqual(['a']);
+    // Numbers are matched as written; objects and arrays are not descriptive text.
+    expect(findNodes(state, { text: '42', metadataKeys: ['host.count'] })).toEqual(['a']);
+    // A window is found by the label of a group it is in, when group paths are searched.
+    expect(findNodes(state, { text: 'west wall', kinds: ['window'] })).toEqual([]);
+    expect(findNodes(state, { text: 'west wall', kinds: ['window'], groupPath: true })).toEqual([
+      'a',
+    ]);
+    expect(() => findNodes(state, { text: 'x', metadataKeys: ['colour'] })).toThrow(/colour/);
+  });
+
+  it('filters by effective group membership, visibility and lock', () => {
+    const ws = makeWorkspace();
+    committed(
+      ws.transaction([
+        { type: 'node.create', node: { id: 'g', kind: 'group', bounds: [1, 1, 1] } },
+        { type: 'node.create', node: { id: 'h', kind: 'group', bounds: [1, 1, 1], parentId: 'g' } },
+        window('a', { parentId: 'h' }),
+        window('b', { flags: { locked: true } }),
+        window('c'),
+      ]),
+    );
+    committed(ws.dispatch({ type: 'node.patch', id: 'g', flags: { visible: false } }));
+    const state = ws.getState();
+    expect(findNodes(state, { kinds: ['window'], within: 'g' })).toEqual(['a']);
+    expect(findNodes(state, { kinds: ['window'], within: 'a' })).toEqual([]);
+    // Hidden through its group: effectively hidden, though its own flag is visible.
+    expect(findNodes(state, { kinds: ['window'], visible: false })).toEqual(['a']);
+    expect(findNodes(state, { kinds: ['window'], visible: true })).toEqual(['b', 'c']);
+    expect(findNodes(state, { kinds: ['window'], locked: true })).toEqual(['b']);
+    expect(findNodes(state, { kinds: ['window'], locked: false })).toEqual(['a', 'c']);
+    expect(() => findNodes(state, { within: 'missing' })).toThrow(/missing/);
+  });
+
   it('reports world transforms through nested rotated parents', () => {
     const ws = makeWorkspace();
     committed(

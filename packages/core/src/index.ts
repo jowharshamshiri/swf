@@ -113,6 +113,7 @@ export {
   descendantIds,
   effectiveState,
   findNodes,
+  fold,
   nodeFrameGeometry,
   nodesInBox,
   raycastBounds,

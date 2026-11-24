@@ -12,6 +12,8 @@ import type { ResolvedGeometry } from './geometry.js';
 import { GeometryRegistry, RECT_GEOMETRY, resolveGeometry } from './geometry.js';
 import type { Id, NodeRecord, SceneState } from './model.js';
 import type { RecordLookup } from './table.js';
+import { makeError, RejectionSignal, SwfFailure } from './errors.js';
+import { checkMetadataKey } from './json.js';
 import { Table } from './table.js';
 
 type NodeLookup = RecordLookup<NodeRecord>;
@@ -276,21 +278,70 @@ function included(state: SceneState, id: Id, options: SpatialQueryOptions): bool
 }
 
 export interface NodeQuery {
-  /** Case-insensitive, Unicode-normalized (NFKC) substring of the label, ID or a tag. */
+  /**
+   * Case-insensitive, Unicode-normalized (NFKC) substring of the ID, the label, a tag, a value at
+   * one of `metadataKeys`, or (with `groupPath`) an ancestor's label or ID.
+   */
   readonly text?: string;
+  /**
+   * The host-exposed descriptive metadata the text also matches: keys namespaced as metadata keys
+   * are (`host.<name>`, `ext.<id>.<name>`). Only string and number values are text; any other
+   * metadata is never searched.
+   */
+  readonly metadataKeys?: readonly string[];
+  /** The text also matches the labels and IDs of the node's ancestors: the groups it is in. */
+  readonly groupPath?: boolean;
   /** Every listed tag must be present. */
   readonly tags?: readonly string[];
   readonly kinds?: readonly string[];
+  /** Only nodes inside this node's subtree (not the node itself). */
+  readonly within?: Id;
+  /** Only nodes whose effective visibility, inherited from their ancestors, is this. */
+  readonly visible?: boolean;
+  /** Only nodes whose own lock flag is this. */
+  readonly locked?: boolean;
   /** Include archived nodes. Default false. */
   readonly includeArchived?: boolean;
 }
 
-/** Nodes matching descriptive metadata only, in scene order. Surface content is never consulted. */
+/**
+ * Nodes matching descriptive metadata only, in scene order. Surface content is never consulted,
+ * nor any metadata the query does not expose. Throws {@link SwfFailure} (`INVALID_INPUT`) for a
+ * metadata key that is not namespaced, and (`UNKNOWN_ENTITY`) for a `within` node that does not
+ * exist.
+ */
 export function findNodes(state: SceneState, query: NodeQuery): Id[] {
+  const keys = query.metadataKeys ?? [];
+  keys.forEach((key, i) => {
+    try {
+      checkMetadataKey(key, `query.metadataKeys[${String(i)}]`);
+    } catch (error) {
+      if (error instanceof RejectionSignal) {
+        throw new SwfFailure(
+          makeError(
+            error.code,
+            error.message,
+            error.path === undefined ? {} : { path: error.path },
+          ),
+        );
+      }
+      throw error;
+    }
+  });
+  if (query.within !== undefined && !state.nodes.has(query.within)) {
+    throw new SwfFailure(
+      makeError('UNKNOWN_ENTITY', `query.within names no node "${query.within}"`, {
+        workspaceId: state.workspaceId,
+        entityId: query.within,
+        path: 'query.within',
+      }),
+    );
+  }
   const needle = query.text === undefined ? null : fold(query.text);
   const out: Id[] = [];
   for (const node of state.nodes) {
-    if (query.includeArchived !== true && effectiveState(state.nodes, node.id)?.active !== true) {
+    const effective = effectiveState(state.nodes, node.id);
+    if (query.includeArchived !== true && effective?.active !== true) {
       continue;
     }
     if (query.kinds !== undefined && !query.kinds.includes(node.kind)) {
@@ -299,7 +350,16 @@ export function findNodes(state: SceneState, query: NodeQuery): Id[] {
     if (query.tags !== undefined && !query.tags.every((tag) => node.tags.includes(tag))) {
       continue;
     }
-    if (needle !== null && !matchesText(node, needle)) {
+    if (query.visible !== undefined && effective?.visible !== query.visible) {
+      continue;
+    }
+    if (query.locked !== undefined && node.flags.locked !== query.locked) {
+      continue;
+    }
+    if (query.within !== undefined && !ancestorIds(state.nodes, node.id).includes(query.within)) {
+      continue;
+    }
+    if (needle !== null && !matchesText(state, node, needle, keys, query.groupPath === true)) {
       continue;
     }
     out.push(node.id);
@@ -307,12 +367,69 @@ export function findNodes(state: SceneState, query: NodeQuery): Id[] {
   return out;
 }
 
-function matchesText(node: NodeRecord, needle: string): boolean {
-  const haystacks = [node.id, ...node.tags];
-  if (node.label !== null) {
-    haystacks.push(node.label);
+/**
+ * The folded text of a node's own descriptive fields, kept per record: records are immutable, so a
+ * folded entry stays right for as long as its record is current and goes with it.
+ */
+const foldedOwn = new WeakMap<NodeRecord, readonly string[]>();
+const foldedMetadata = new WeakMap<NodeRecord, Map<string, string | null>>();
+
+function ownText(node: NodeRecord): readonly string[] {
+  let text = foldedOwn.get(node);
+  if (text === undefined) {
+    text = Object.freeze(
+      [node.id, ...node.tags, ...(node.label === null ? [] : [node.label])].map(fold),
+    );
+    foldedOwn.set(node, text);
   }
-  return haystacks.some((text) => fold(text).includes(needle));
+  return text;
+}
+
+function metadataText(node: NodeRecord, key: string): string | null {
+  let byKey = foldedMetadata.get(node);
+  if (byKey === undefined) {
+    byKey = new Map();
+    foldedMetadata.set(node, byKey);
+  }
+  let text = byKey.get(key);
+  if (text === undefined) {
+    const value = Object.hasOwn(node.metadata, key) ? node.metadata[key] : undefined;
+    text =
+      typeof value === 'string'
+        ? fold(value)
+        : typeof value === 'number'
+          ? fold(String(value))
+          : null;
+    byKey.set(key, text);
+  }
+  return text;
+}
+
+function matchesText(
+  state: SceneState,
+  node: NodeRecord,
+  needle: string,
+  keys: readonly string[],
+  groupPath: boolean,
+): boolean {
+  if (ownText(node).some((text) => text.includes(needle))) {
+    return true;
+  }
+  if (keys.some((key) => metadataText(node, key)?.includes(needle) === true)) {
+    return true;
+  }
+  if (!groupPath) {
+    return false;
+  }
+  return ancestorIds(state.nodes, node.id).some((id) => {
+    const ancestor = state.nodes.get(id);
+    return (
+      ancestor !== undefined &&
+      [ancestor.id, ...(ancestor.label === null ? [] : [ancestor.label])].some((text) =>
+        fold(text).includes(needle),
+      )
+    );
+  });
 }
 
 /** Unicode compatibility normalization plus locale-independent lower-casing. */
