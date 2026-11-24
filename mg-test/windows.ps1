@@ -101,6 +101,23 @@ Say "node $(& (Join-Path $node 'node.exe') --version)"
 Install-Msi -Name 'chrome' -Uri 'https://dl.google.com/dl/chrome/install/googlechromestandaloneenterprise64.msi' -Signer 'Google LLC'
 Install-Msi -Name 'firefox' -Uri 'https://download.mozilla.org/?product=firefox-msi-latest-ssl&os=win64&lang=en-US' -Signer 'Mozilla Corporation'
 
+# The machine the record is made on: Windows build, processor, memory, and each display adapter
+# with its driver, as section 26.1 asks a reference machine to be documented.
+$os = Get-CimInstance Win32_OperatingSystem
+$machine = [ordered]@{
+    os = "$($os.Caption) $($os.Version) build $($os.BuildNumber)"
+    processor = (Get-CimInstance Win32_Processor | Select-Object -First 1).Name
+    cores = (Get-CimInstance Win32_Processor | Measure-Object -Property NumberOfLogicalProcessors -Sum).Sum
+    memoryBytes = $os.TotalVisibleMemorySize * 1024
+    adapters = @(Get-CimInstance Win32_VideoController | ForEach-Object {
+        [ordered]@{ name = $_.Name; driver = $_.DriverVersion; driverDate = "$($_.DriverDate)" }
+    })
+    chrome = (Get-Item 'C:\Program Files\Google\Chrome\Application\chrome.exe').VersionInfo.ProductVersion
+    firefox = (Get-Item 'C:\Program Files\Mozilla Firefox\firefox.exe').VersionInfo.ProductVersion
+}
+$machine | ConvertTo-Json -Depth 4 | Set-Content -Encoding ASCII -Path (Join-Path $out 'machine.json')
+Say "machine: $($machine.os); $($machine.processor); $(($machine.adapters | ForEach-Object { $_.name + ' ' + $_.driver }) -join ', ')"
+
 Set-Location $workspace
 Say 'installing the locked packages'
 $code = Invoke-Native -Program (Join-Path $node 'npm.cmd') -Arguments @('ci', '--no-audit', '--no-fund')
