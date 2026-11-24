@@ -1,17 +1,17 @@
 import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { Browser, Page } from 'playwright';
-import { chromium } from 'playwright';
+import type { Browser, BrowserType, Page } from 'playwright';
+import { chromium, firefox, webkit } from 'playwright';
 import type { ViteDevServer } from 'vite';
 import { createServer } from 'vite';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 /**
  * Development (ENV-003): the dev server serves the application from its sources, with no
- * credentials or external services, and an edited module replaces the running application in
- * place. The server runs on a copy of the application, so the test edits nothing of the
- * repository's.
+ * credentials or external services, laid out as the build lays it out, and an edited module
+ * replaces the running application in place. The server runs on a copy of the application, so
+ * the test edits nothing of the repository's.
  */
 
 const app = fileURLToPath(new URL('../..', import.meta.url));
@@ -43,15 +43,69 @@ afterAll(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
+/** The browsers the application is shown in. */
+const engines: Record<string, BrowserType> = { chromium, firefox, webkit };
+
+/** The address the dev server answers at. */
+function address(): string {
+  const url = server.resolvedUrls?.local[0];
+  if (url === undefined) {
+    throw new Error('the dev server has no address');
+  }
+  return url;
+}
+
 const noteText = (page: Page) =>
   page.locator('[data-reference-content] p').evaluateAll((ps) => ps.map((p) => p.textContent));
 
 describe('the development server', () => {
+  // The kit lays out the body's first element as the window's whole height (its README: a host
+  // mounts its application into the body's first element). Anything else in that place, such as
+  // the page's module script, takes the window and pushes the application below it.
+  for (const [name, engine] of Object.entries(engines)) {
+    it(`shows the application filling the window in ${name}`, async () => {
+      const shown = await engine.launch();
+      try {
+        const viewport = { width: 1200, height: 500 };
+        const page = await shown.newPage({ viewport });
+        const errors: string[] = [];
+        page.on('pageerror', (error) => errors.push(error.message));
+        await page.goto(address());
+        await page.locator('.wsb-application [data-swf-viewport]').waitFor({ timeout: 15_000 });
+        const layout = await page.evaluate(() => {
+          const application = document.querySelector('.wsb-application');
+          if (application === null) {
+            throw new Error('the page has no application');
+          }
+          // The element of the body's the application is mounted in.
+          let mount: Element | null = application;
+          while (mount !== null && mount.parentElement !== document.body) {
+            mount = mount.parentElement;
+          }
+          const box = application.getBoundingClientRect();
+          const centre = document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2);
+          return {
+            mountedFirst: mount !== null && mount === document.body.firstElementChild,
+            box: { x: box.x, y: box.y, width: box.width, height: box.height },
+            centreIsApplication: centre !== null && application.contains(centre),
+            scrollHeight: document.documentElement.scrollHeight,
+          };
+        });
+        expect(layout).toEqual({
+          mountedFirst: true,
+          box: { x: 0, y: 0, ...viewport },
+          centreIsApplication: true,
+          scrollHeight: viewport.height,
+        });
+        expect(errors).toEqual([]);
+      } finally {
+        await shown.close();
+      }
+    });
+  }
+
   it('serves the application, and replaces it in place when a module is edited', async () => {
-    const url = server.resolvedUrls?.local[0];
-    if (url === undefined) {
-      throw new Error('the dev server has no address');
-    }
+    const url = address();
     const page = await browser.newPage({ viewport: { width: 1200, height: 500 } });
     const errors: string[] = [];
     page.on('pageerror', (error) => errors.push(error.message));

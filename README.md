@@ -616,7 +616,9 @@ view mode, the backend, the command list and the panel across its top; how the p
 presented is in the panel below it. In a narrow window one side at a time floats
 over the panorama. Ctrl+Shift+P or F1 opens the command list, which runs every command and goes
 to any window by its name. The page installs the kit's automation driver as
-`window.wsbAutomation`, which presses controls by their handles as a person does.
+`window.wsbAutomation`, which presses controls by their handles as a person does. The page
+mounts the window in the body's first element (`#app`), which the kit lays out as the whole
+window; a page without it there is refused, saying so.
 
 The kit is taken from a checkout of wsb pinned as the git submodule `wsb`, at the commit the
 application builds with; the application depends on the kit's folder there
@@ -692,8 +694,10 @@ npx playwright install --with-deps chromium firefox webkit && npm run test:brows
 example `SWF_BROWSERS=chromium SWF_CHROMIUM_CHANNEL=chrome npm run test:browser` with Google
 Chrome installed.
 
-The reference application's build and development server are tested in Chromium:
+The reference application's build and development server are tested in Chromium, and that the
+development server's page shows the application filling the window in Chromium, Firefox and
+WebKit:
 
 ```sh
-npx playwright install chromium && npm run test:build
+npx playwright install --with-deps chromium firefox webkit && npm run test:build
 ```

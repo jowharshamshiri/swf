@@ -1,7 +1,8 @@
 import { defineConfig } from 'vitest/config';
 
 // Tests of the reference application as built and served: they build it, run its dev server and
-// open it in Chromium through Playwright (`npx playwright install chromium` once).
+// open it through Playwright, in Chromium, and the dev server's page also in Firefox and WebKit
+// (`npx playwright install --with-deps chromium firefox webkit` once).
 export default defineConfig({
   test: {
     include: ['apps/*/test/**/*.build.test.ts'],

@@ -26,9 +26,13 @@ function configOf(search: string): ReturnType<typeof parseConfig> | ConfigError 
   }
 }
 
+/** The page's element the application is mounted in. */
+const MOUNT = 'app';
+
 /**
  * Starts the application in the page: the kit's root class, appearance (the system's) and
- * density on the document, then the shell, which starts the workspace in its viewport.
+ * density on the document, then the shell, which starts the workspace in its viewport. The shell
+ * is mounted in the body's first element, which the kit lays out as the whole window.
  */
 async function main(): Promise<void> {
   // In development an edit to the application or the framework replaces the running application
@@ -37,13 +41,23 @@ async function main(): Promise<void> {
   const data = hot?.data as HotData | undefined;
   await data?.disposing;
 
+  const target = document.getElementById(MOUNT);
+  if (target === null) {
+    throw new Error(`the page has no element with id "${MOUNT}" to mount the application in`);
+  }
+  if (target !== document.body.firstElementChild) {
+    throw new Error(
+      `the page's element "${MOUNT}" is not the body's first element, which the kit lays out as the window`,
+    );
+  }
+
   const html = document.documentElement;
   html.classList.add(ROOT_CLASS);
   setAppearance(html, null);
   setDensity(html, 'default');
 
   const model = new ShellModel(createMessages(), configOf(window.location.search));
-  const shell = mount(Shell, { target: document.body, props: { model, diagnostics } });
+  const shell = mount(Shell, { target, props: { model, diagnostics } });
   // Automation presses what a person presses, by the kit's handles.
   installAutomation(document.body, () => 'reference');
   hot?.dispose((next: HotData) => {
