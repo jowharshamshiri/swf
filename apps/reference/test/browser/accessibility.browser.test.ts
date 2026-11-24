@@ -9,7 +9,7 @@ import { DOM_ATTRIBUTES } from '@swf/backend-dom';
 import { createMemoryStore } from '@swf/persistence';
 import axe from 'axe-core';
 import { mount, unmount } from 'svelte';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, inject, it } from 'vitest';
 import { commands, userEvent } from 'vitest/browser';
 import { parseConfig } from '../../src/config.js';
 import { createMessages } from '../../src/messages.js';
@@ -26,11 +26,33 @@ declare module 'vitest/browser' {
   }
 }
 
+declare module 'vitest' {
+  export interface ProvidedContext {
+    swfEmulatesMedia: boolean;
+  }
+}
+
+/**
+ * Whether this browser's automation can emulate an appearance or reduced motion. Playwright
+ * cannot in Firefox driven over WebDriver BiDi: the cases that ask for them run where it can.
+ */
+const emulatesMedia = inject('swfEmulatesMedia');
+
 let current: { model: ShellModel; shell: ReturnType<typeof mount>; root: HTMLElement } | null =
   null;
 
+/** Whether this case emulated media features, to put the platform's own back after it. */
+let emulated = false;
+async function emulate(media: Parameters<typeof commands.emulate>[0]): Promise<void> {
+  emulated = true;
+  await commands.emulate(media);
+}
+
 afterEach(async () => {
-  await commands.emulate({ reducedMotion: null, colorScheme: null });
+  if (emulated) {
+    emulated = false;
+    await commands.emulate({ reducedMotion: null, colorScheme: null });
+  }
   if (current !== null) {
     await current.model.dispose();
     await unmount(current.shell);
@@ -127,28 +149,31 @@ function groundOf(element: HTMLElement): string {
 
 describe('the reference controls (QA-009, UX-013, NFR-024)', () => {
   for (const appearance of ['light', 'dark'] as const) {
-    it(`meet WCAG 2.2 A and AA in the ${appearance} appearance, with the selection, its inspector and the windows listed`, async () => {
-      const { root, driver, settle } = await start('?preset=sparse', { appearance });
-      await commands.emulate({ colorScheme: appearance });
-      driver.act('workshop.view#windows', 'press');
-      await settle();
-      driver.act(`page.windows.window#${FIRST.id}`, 'press');
-      await settle();
-      const result = await axe.run(
-        { include: [root], exclude: [[`[${DOM_ATTRIBUTES.slot}]`]] },
-        {
-          runOnly: {
-            type: 'tag',
-            values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22a', 'wcag22aa'],
+    it.runIf(emulatesMedia)(
+      `meet WCAG 2.2 A and AA in the ${appearance} appearance, with the selection, its inspector and the windows listed`,
+      async () => {
+        const { root, driver, settle } = await start('?preset=sparse', { appearance });
+        await emulate({ colorScheme: appearance });
+        driver.act('workshop.view#windows', 'press');
+        await settle();
+        driver.act(`page.windows.window#${FIRST.id}`, 'press');
+        await settle();
+        const result = await axe.run(
+          { include: [root], exclude: [[`[${DOM_ATTRIBUTES.slot}]`]] },
+          {
+            runOnly: {
+              type: 'tag',
+              values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22a', 'wcag22aa'],
+            },
           },
-        },
-      );
-      expect(
-        result.violations.map(
-          (v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(' | ')}`,
-        ),
-      ).toEqual([]);
-    });
+        );
+        expect(
+          result.violations.map(
+            (v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(' | ')}`,
+          ),
+        ).toEqual([]);
+      },
+    );
   }
 
   it('reaches the panorama in the page’s order and lets the keyboard leave it (WCAG 2.1.1, 2.1.2, 2.4.3)', async () => {
@@ -240,43 +265,51 @@ describe('the reference controls (QA-009, UX-013, NFR-024)', () => {
     expect(unringed).toEqual([]);
   });
 
-  it('rings the panorama inside its own edge while it has the keyboard, where nothing clips it (WCAG 2.4.7, 1.4.11)', async () => {
-    for (const appearance of ['light', 'dark'] as const) {
-      const { app, root } = await start('?preset=sparse', { appearance });
-      await commands.emulate({ colorScheme: appearance });
-      const frame = root.querySelector('[data-wsb="page.panorama.viewport"]')?.parentElement;
-      if (frame === null || frame === undefined) {
-        throw new Error('no panorama frame');
+  it.runIf(emulatesMedia)(
+    'rings the panorama inside its own edge while it has the keyboard, where nothing clips it (WCAG 2.4.7, 1.4.11)',
+    async () => {
+      for (const appearance of ['light', 'dark'] as const) {
+        const { app, root } = await start('?preset=sparse', { appearance });
+        await emulate({ colorScheme: appearance });
+        const frame = root.querySelector('[data-wsb="page.panorama.viewport"]')?.parentElement;
+        if (frame === null || frame === undefined) {
+          throw new Error('no panorama frame');
+        }
+        for (let stop = 0; stop < 200 && document.activeElement !== app.root; stop += 1) {
+          await userEvent.tab();
+        }
+        expect(document.activeElement).toBe(app.root);
+        const ring = getComputedStyle(frame, '::after');
+        expect(ring.content).not.toBe('none');
+        expect(ring.borderTopStyle).toBe('solid');
+        expect(parseFloat(ring.borderTopWidth)).toBeGreaterThanOrEqual(2);
+        // Drawn within the frame's own box, so the viewport's edge cannot cut it off.
+        expect([ring.top, ring.right, ring.bottom, ring.left]).toEqual([
+          '0px',
+          '0px',
+          '0px',
+          '0px',
+        ]);
+        const box = frame.getBoundingClientRect();
+        const page = root.getBoundingClientRect();
+        expect(box.left).toBeGreaterThanOrEqual(page.left);
+        expect(box.right).toBeLessThanOrEqual(page.right);
+        // In the focus colour, standing out from what is around the view.
+        expect(
+          contrast(ring.borderTopColor, groundOf(frame.parentElement ?? frame)),
+        ).toBeGreaterThanOrEqual(3);
+        // Gone when the keyboard leaves.
+        await userEvent.tab({ shift: true });
+        expect(getComputedStyle(frame, '::after').content).toBe('none');
+        await current?.model.dispose();
+        if (current !== null) {
+          await unmount(current.shell);
+          current.root.remove();
+          current = null;
+        }
       }
-      for (let stop = 0; stop < 200 && document.activeElement !== app.root; stop += 1) {
-        await userEvent.tab();
-      }
-      expect(document.activeElement).toBe(app.root);
-      const ring = getComputedStyle(frame, '::after');
-      expect(ring.content).not.toBe('none');
-      expect(ring.borderTopStyle).toBe('solid');
-      expect(parseFloat(ring.borderTopWidth)).toBeGreaterThanOrEqual(2);
-      // Drawn within the frame's own box, so the viewport's edge cannot cut it off.
-      expect([ring.top, ring.right, ring.bottom, ring.left]).toEqual(['0px', '0px', '0px', '0px']);
-      const box = frame.getBoundingClientRect();
-      const page = root.getBoundingClientRect();
-      expect(box.left).toBeGreaterThanOrEqual(page.left);
-      expect(box.right).toBeLessThanOrEqual(page.right);
-      // In the focus colour, standing out from what is around the view.
-      expect(
-        contrast(ring.borderTopColor, groundOf(frame.parentElement ?? frame)),
-      ).toBeGreaterThanOrEqual(3);
-      // Gone when the keyboard leaves.
-      await userEvent.tab({ shift: true });
-      expect(getComputedStyle(frame, '::after').content).toBe('none');
-      await current?.model.dispose();
-      if (current !== null) {
-        await unmount(current.shell);
-        current.root.remove();
-        current = null;
-      }
-    }
-  });
+    },
+  );
 
   it('keeps every control at least 24 by 24 CSS pixels (WCAG 2.5.8, UX-013)', async () => {
     const { model, root, settle } = await start('?preset=sparse');
@@ -308,84 +341,90 @@ describe('the reference controls (QA-009, UX-013, NFR-024)', () => {
     expect(small).toEqual([]);
   });
 
-  it('moves nothing when the reader asks for reduced motion, and moves nothing on its own anyway (WCAG 2.3.3)', async () => {
-    await commands.emulate({ reducedMotion: 'reduce' });
-    const { model, root, driver, settle } = await start('?preset=sparse');
-    expect(getComputedStyle(root).getPropertyValue('--wsb-motion-base').trim()).toBe('0ms');
-    // Going to a window, focusing it and showing the map are instant: the camera jumps.
-    await model.run('reference.window.reveal', { id: FIRST.id });
-    await model.run('reference.focus.enter', { id: FIRST.id });
-    driver.act('editor.actions.mode#map', 'press');
-    await settle();
-    expect(document.getAnimations().filter((a) => a.playState === 'running')).toEqual([]);
-  });
-
-  it('draws window frames, the selection and the focused window in the kit’s inks, standing out from the view in both appearances (WCAG 1.4.11)', async () => {
-    for (const appearance of ['light', 'dark'] as const) {
-      const { app, settle } = await start('?preset=sparse', { appearance });
-      await commands.emulate({ colorScheme: appearance });
-      const ground = groundOf(app.root);
-      const frameOf = (id: string) =>
-        app.root.querySelector<HTMLElement>(
-          `[${DOM_ATTRIBUTES.layer}="chrome"][${DOM_ATTRIBUTES.node}="${id}"] [${DOM_ATTRIBUTES.layer}="chrome-frame"]`,
-        );
-      const second = SPARSE[1]?.id ?? '';
-      app.workspace.transaction([
-        { type: 'selection.set', ids: [FIRST.id] },
-        { type: 'focus.set', id: second },
-      ]);
+  it.runIf(emulatesMedia)(
+    'moves nothing when the reader asks for reduced motion, and moves nothing on its own anyway (WCAG 2.3.3)',
+    async () => {
+      await emulate({ reducedMotion: 'reduce' });
+      const { model, root, driver, settle } = await start('?preset=sparse');
+      expect(getComputedStyle(root).getPropertyValue('--wsb-motion-base').trim()).toBe('0ms');
+      // Going to a window, focusing it and showing the map are instant: the camera jumps.
+      await model.run('reference.window.reveal', { id: FIRST.id });
+      await model.run('reference.focus.enter', { id: FIRST.id });
+      driver.act('editor.actions.mode#map', 'press');
       await settle();
-      const third = SPARSE.find(
-        (w) => w.id !== FIRST.id && w.id !== second && frameOf(w.id) !== null,
-      );
-      const colours = {
-        frame:
-          frameOf(third?.id ?? '')?.style &&
-          getComputedStyle(frameOf(third?.id ?? '') ?? app.root).borderTopColor,
-        selected: getComputedStyle(frameOf(FIRST.id) ?? app.root).borderTopColor,
-        focused: getComputedStyle(frameOf(second) ?? app.root).borderTopColor,
-      };
-      for (const [what, colour] of Object.entries(colours)) {
-        expect(typeof colour, what).toBe('string');
-        expect(
-          contrast(String(colour), ground),
-          `${what} ${String(colour)} on ${ground}`,
-        ).toBeGreaterThanOrEqual(3);
+      expect(document.getAnimations().filter((a) => a.playState === 'running')).toEqual([]);
+    },
+  );
+
+  it.runIf(emulatesMedia)(
+    'draws window frames, the selection and the focused window in the kit’s inks, standing out from the view in both appearances (WCAG 1.4.11)',
+    async () => {
+      for (const appearance of ['light', 'dark'] as const) {
+        const { app, settle } = await start('?preset=sparse', { appearance });
+        await emulate({ colorScheme: appearance });
+        const ground = groundOf(app.root);
+        const frameOf = (id: string) =>
+          app.root.querySelector<HTMLElement>(
+            `[${DOM_ATTRIBUTES.layer}="chrome"][${DOM_ATTRIBUTES.node}="${id}"] [${DOM_ATTRIBUTES.layer}="chrome-frame"]`,
+          );
+        const second = SPARSE[1]?.id ?? '';
+        app.workspace.transaction([
+          { type: 'selection.set', ids: [FIRST.id] },
+          { type: 'focus.set', id: second },
+        ]);
+        await settle();
+        const third = SPARSE.find(
+          (w) => w.id !== FIRST.id && w.id !== second && frameOf(w.id) !== null,
+        );
+        const colours = {
+          frame:
+            frameOf(third?.id ?? '')?.style &&
+            getComputedStyle(frameOf(third?.id ?? '') ?? app.root).borderTopColor,
+          selected: getComputedStyle(frameOf(FIRST.id) ?? app.root).borderTopColor,
+          focused: getComputedStyle(frameOf(second) ?? app.root).borderTopColor,
+        };
+        for (const [what, colour] of Object.entries(colours)) {
+          expect(typeof colour, what).toBe('string');
+          expect(
+            contrast(String(colour), ground),
+            `${what} ${String(colour)} on ${ground}`,
+          ).toBeGreaterThanOrEqual(3);
+        }
+        expect(new Set(Object.values(colours)).size).toBe(3);
+        // They are the kit's own colours for the appearance, as the kit checks them.
+        const probe = document.createElement('span');
+        app.root.append(probe);
+        const kit = (token: string) => {
+          probe.style.setProperty('color', `var(${token})`);
+          return getComputedStyle(probe).color;
+        };
+        expect(colours).toEqual({
+          frame: kit('--vscode-descriptionForeground'),
+          selected: kit('--vscode-focusBorder'),
+          focused: kit('--vscode-editorWarning-foreground'),
+        });
+        probe.remove();
+        // The windows' titles are the framework's text, over the view's ground (axe cannot decide
+        // them: the layers overlap).
+        const titles = [
+          ...app.root.querySelectorAll<HTMLElement>(`[${DOM_ATTRIBUTES.label}]`),
+        ].filter((title) => title.textContent !== '');
+        expect(titles.length).toBeGreaterThan(0);
+        for (const title of titles) {
+          expect(
+            contrast(getComputedStyle(title).color, ground),
+            title.textContent,
+          ).toBeGreaterThanOrEqual(4.5);
+        }
+        await current?.model.dispose();
+        if (current !== null) {
+          await unmount(current.shell);
+          current.root.remove();
+          current = null;
+        }
       }
-      expect(new Set(Object.values(colours)).size).toBe(3);
-      // They are the kit's own colours for the appearance, as the kit checks them.
-      const probe = document.createElement('span');
-      app.root.append(probe);
-      const kit = (token: string) => {
-        probe.style.setProperty('color', `var(${token})`);
-        return getComputedStyle(probe).color;
-      };
-      expect(colours).toEqual({
-        frame: kit('--vscode-descriptionForeground'),
-        selected: kit('--vscode-focusBorder'),
-        focused: kit('--vscode-editorWarning-foreground'),
-      });
-      probe.remove();
-      // The windows' titles are the framework's text, over the view's ground (axe cannot decide
-      // them: the layers overlap).
-      const titles = [
-        ...app.root.querySelectorAll<HTMLElement>(`[${DOM_ATTRIBUTES.label}]`),
-      ].filter((title) => title.textContent !== '');
-      expect(titles.length).toBeGreaterThan(0);
-      for (const title of titles) {
-        expect(
-          contrast(getComputedStyle(title).color, ground),
-          title.textContent,
-        ).toBeGreaterThanOrEqual(4.5);
-      }
-      await current?.model.dispose();
-      if (current !== null) {
-        await unmount(current.shell);
-        current.root.remove();
-        current = null;
-      }
-    }
-  });
+    },
+  );
 
   it('says what it did to assistive technology, and alerts what it refused (WCAG 4.1.3, 3.3.1)', async () => {
     const { model, root, driver, settle } = await start('?preset=sparse');

@@ -49,11 +49,24 @@ export function browserInstances(env = process.env) {
     firefox: env.SWF_FIREFOX_CHANNEL ?? '',
     webkit: '',
   };
-  return browsers.map((browser) =>
-    channels[browser] === ''
-      ? { browser }
-      : { browser, provider: playwright({ launchOptions: { channel: channels[browser] } }) },
-  );
+  return browsers.map((browser) => ({
+    browser,
+    ...(channels[browser] === ''
+      ? {}
+      : { provider: playwright({ launchOptions: { channel: channels[browser] } }) }),
+    // What the suites can ask of this browser's automation (see `emulate`).
+    provide: { swfEmulatesMedia: emulatesMedia(browser, env) },
+  }));
+}
+
+/**
+ * Whether a browser's automation can emulate media features (an appearance, reduced motion).
+ * Playwright cannot in Firefox driven over WebDriver BiDi (the `moz-firefox` channel): it asks
+ * the protocol to emulate them in the test's frame too, which the protocol refuses ("is not
+ * top-level").
+ */
+export function emulatesMedia(browser, env = process.env) {
+  return !(browser === 'firefox' && (env.SWF_FIREFOX_CHANNEL ?? '') === 'moz-firefox');
 }
 
 /** Where the test frame stands on the page, so points of the frame map to the page. */
@@ -92,6 +105,12 @@ export async function mouse(ctx, action, x, y, modifiers = []) {
  * Each is kept until it is emulated again; `null` puts the platform's own back.
  */
 export async function emulate(ctx, media) {
+  const browser = ctx.context.browser()?.browserType().name();
+  if (!emulatesMedia(browser)) {
+    throw new Error(
+      `${String(browser)} over WebDriver BiDi cannot emulate media features through Playwright`,
+    );
+  }
   await ctx.page.emulateMedia(media);
 }
 
