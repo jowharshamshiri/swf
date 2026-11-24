@@ -626,7 +626,9 @@ validator enforces everything the schema says, plus what a schema cannot: unit r
 camera's far beyond its near, unique IDs, references that hold, a hierarchy without cycles, data
 nested at most 64 levels deep, and the size limits. Reading a snapshot checks its size before
 parsing it, and rejects non-finite numbers, unknown or missing fields, cycles and keys that could
-reach an object's prototype, naming the failing path. Nothing in a snapshot is ever run.
+reach an object's prototype, naming the failing path. Text that is not JSON is refused with the
+line and column where it breaks and what was expected there (`details.line`, `details.column`),
+found the same way in every engine (`jsonSyntaxError`). Nothing in a snapshot is ever run.
 
 Each extension's state is captured on its own, within a timeout (`hookTimeoutMs`, 5 s by
 default) and the size limits (1 MiB per namespace and 10 MiB in all by default, set with

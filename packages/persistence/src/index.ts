@@ -28,6 +28,8 @@ export {
 } from './document.js';
 export type { Migrated, MigrationStep, SchemaMigration } from './migrations.js';
 export { migrateDocument, SNAPSHOT_MIGRATIONS } from './migrations.js';
+export type { JsonSyntaxError } from './syntax.js';
+export { jsonSyntaxError } from './syntax.js';
 export type {
   Capture,
   CaptureFailure,

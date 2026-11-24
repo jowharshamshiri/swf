@@ -9,6 +9,7 @@ import {
   VERSIONED_ID,
 } from '@swf/core';
 import schema from './schema/swf.workspace-1.schema.json' with { type: 'json' };
+import { jsonSyntaxError } from './syntax.js';
 
 /** The snapshot format this package reads and writes. */
 export const SNAPSHOT_SCHEMA_ID = 'swf.workspace/1';
@@ -179,9 +180,19 @@ export function parseJson(
   try {
     return JSON.parse(text) as unknown;
   } catch (error) {
+    // Engines say where differently, or not at all: the line and column are found the same way
+    // everywhere.
+    const where = jsonSyntaxError(text);
+    if (where === null) {
+      throw invalidSnapshot(
+        `the snapshot is not JSON: ${error instanceof Error ? error.message : String(error)}`,
+        undefined,
+      );
+    }
     throw invalidSnapshot(
-      `the snapshot is not JSON: ${error instanceof Error ? error.message : String(error)}`,
+      `the snapshot is not JSON: at line ${String(where.line)}, column ${String(where.column)}, ${where.expected} was expected`,
       undefined,
+      { line: where.line, column: where.column, offset: where.offset },
     );
   }
 }
