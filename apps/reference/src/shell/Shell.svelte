@@ -1,15 +1,11 @@
 <script lang="ts">
   // THE REFERENCE APPLICATION'S WINDOW, as the kit lays a window out: the scene and the list of
-  // windows on the left, what is selected on the right, the panorama as the centre's document
-  // with the view's commands at its strip's end, and how it is presented in the panel below.
-  // A narrow window floats one side at a time over the panorama, so nothing is lost.
+  // windows on the left, what is selected on the right, the panorama as the whole centre with
+  // the view's commands across its top, and how it is presented in the panel below. A narrow
+  // window floats one side at a time over the panorama, so nothing is lost.
   import { Badge, IconButton, Segmented, StatusItem, Tabs } from '@wsb/uikit/components';
-  import type { TabAction } from '@wsb/uikit/components';
-  import { EmptyState, Button } from '@wsb/uikit/components';
   import { handleOf } from '@wsb/uikit/handles';
-  import { Workbench } from '@wsb/uikit/host/workbench';
   import { Application } from '@wsb/uikit/surfaces/application';
-  import type { Direction } from '@wsb/uikit/surfaces/application';
   import { BACKEND_IDS } from '../config.js';
   import type { BackendId } from '../config.js';
   import type { MessageId } from '../messages.js';
@@ -18,7 +14,7 @@
   import InspectorView from './InspectorView.svelte';
   import type { ShellModel } from './model.svelte.js';
   import Palette from './Palette.svelte';
-  import PanoramaDocument from './PanoramaDocument.svelte';
+  import PanoramaView from './PanoramaView.svelte';
   import SceneView from './SceneView.svelte';
   import StatusBody from './StatusBody.svelte';
   import WindowsView from './WindowsView.svelte';
@@ -36,65 +32,12 @@
   const t = (id: MessageId, params?: Readonly<Record<string, string | number>>) =>
     model.messages.format(id, params);
 
-  /** The centre's one document. */
-  const PANORAMA_TAB = 'panorama';
-  const bench = new Workbench<typeof PANORAMA_TAB>();
-  const openPanorama = () => {
-    bench.open(
-      { key: PANORAMA_TAB, label: t('view.tab'), icon: 'home', input: PANORAMA_TAB },
-      { keep: true },
-    );
-  };
-  openPanorama();
-
   let leftView = $state<string | null>('scene');
   let rightView = $state<string | null>('inspector');
   let widths = $state({ left: 280, right: 280 });
   let panelOpen = $state(true);
   let panelHeight = $state(190);
   let paletteOpen = $state(false);
-
-  const SPLITS: Readonly<Record<string, Direction>> = {
-    'split-up': 'up',
-    'split-down': 'down',
-    'split-left': 'left',
-    'split-right': 'right',
-  };
-
-  function tabAction(group: string, key: string, action: TabAction): void {
-    switch (action) {
-      case 'close':
-      case 'close-others':
-      case 'close-to-right':
-        // The panorama is the only document: closing others or those after it closes nothing.
-        if (action === 'close') {
-          bench.close(group, key);
-        }
-        return;
-      case 'keep':
-        bench.keep(group, key);
-        return;
-      case 'beside':
-        openPanoramaBeside();
-        return;
-      case 'copy-address':
-        throw new Error('the panorama has no address to copy');
-      default: {
-        const side = SPLITS[action];
-        if (side === undefined) {
-          throw new Error(`no answer to the tab action ${action}`);
-        }
-        bench.split(group, side, key);
-      }
-    }
-  }
-
-  function openPanoramaBeside(): void {
-    bench.open(
-      { key: PANORAMA_TAB, label: t('view.tab'), icon: 'home', input: PANORAMA_TAB },
-      { keep: true, beside: true },
-    );
-  }
 
   /** Opens the command list as VS Code opens its command palette: Ctrl+Shift+P, or F1. */
   function onkeydown(event: KeyboardEvent): void {
@@ -127,7 +70,6 @@
   );
   const backends = $derived(BACKEND_IDS.map((id) => ({ value: id, label: t(`backend.${id}`) })));
   const status = $derived(model.status);
-  const groups = $derived(bench.groups.map((group) => ({ ...group, tabs: group.tabs.map((tab) => ({ ...tab })) })));
 </script>
 
 <svelte:window {onkeydown} />
@@ -149,23 +91,8 @@
   {/if}
 {/snippet}
 
-{#snippet content(_group: string, key: string)}
-  {#if key === PANORAMA_TAB}
-    <PanoramaDocument {model} />
-  {/if}
-{/snippet}
-
-{#snippet empty(_group: string)}
-  <EmptyState icon="home" title={t('panorama.closed.title')} detail={t('panorama.closed.detail')}>
-    {#snippet action()}
-      <Button
-        handle={handleOf`editor.panorama.open`}
-        label={t('panorama.open')}
-        variant="primary"
-        onpress={openPanorama}
-      />
-    {/snippet}
-  </EmptyState>
+{#snippet centreView()}
+  <PanoramaView {model} />
 {/snippet}
 
 {#snippet editorActions()}
@@ -287,37 +214,7 @@
     },
     view: rightContent,
   }}
-  centre={{
-    groups,
-    grid: bench.grid,
-    focused: bench.focused,
-    keyboard: bench.keyboard,
-    onfocus: (group) => {
-      bench.focus(group);
-    },
-    onactivate: (group, tab) => {
-      bench.activate(group, tab);
-    },
-    onkeep: (group, tab) => {
-      bench.keep(group, tab);
-    },
-    onclose: (group, tab) => {
-      bench.close(group, tab);
-    },
-    ontabaction: tabAction,
-    ondrop: (from, to) => {
-      bench.drop(from, to);
-    },
-    onmove: (from, to) => {
-      bench.move(from, to);
-    },
-    onresize: (split, index, delta, extent) => {
-      bench.resize(split, index, delta, extent);
-    },
-    content,
-    empty,
-    actions: editorActions,
-  }}
+  centre={{ label: t('view.label'), view: centreView, actions: editorActions }}
   panel={{
     open: panelOpen,
     height: panelHeight,

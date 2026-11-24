@@ -205,29 +205,21 @@ describe('the panorama in the centre (UX-002)', () => {
     await settle();
   });
 
-  it('keeps presenting the same workspace when its tab is closed and shown again', async () => {
-    const { model, driver, root, settle } = await start('?preset=seam');
-    /** The scene's layout: everything but view state, which follows the view's new size. */
-    const layout = () => {
-      const s = model.app?.workspace.serialize();
-      return JSON.stringify([s?.nodes, s?.surfaces, s?.selection]);
-    };
-    const before = layout();
-    driver.act('editor.tabs.tab.close#group:1|panorama', 'press');
-    await settle();
-    expect(root.querySelectorAll('[data-swf-viewport]')).toHaveLength(0);
-    expect(root.textContent).toContain(ENGLISH['panorama.closed.title']);
-    driver.act('editor.panorama.open', 'press');
-    await settle();
-    await expect
-      .poll(() => root.querySelectorAll(`${PANORAMA} [data-swf-viewport]`).length, {
-        timeout: 5000,
-      })
-      .toBe(1);
-    expect(layout()).toBe(before);
-    expect(root.querySelectorAll('[data-reference-content]').length).toBe(
-      planPreset('seam', 1).filter((w) => w.content === 'note').length,
-    );
+  it('is the whole centre: the view the kit hosts, with no tab, strip or group around it', async () => {
+    const { driver, root } = await start('?preset=seam');
+    const centre = root.querySelector('[data-wsb="editor.view"]');
+    expect(centre?.getAttribute('aria-label')).toBe(ENGLISH['view.label']);
+    expect(centre?.querySelector(PANORAMA)).not.toBeNull();
+    expect(centre?.querySelectorAll('[data-swf-viewport]')).toHaveLength(1);
+    for (const handle of ['editor.tabs', 'editor.group', 'editor.menu']) {
+      const named = [...root.querySelectorAll('[data-wsb]')].filter((element) =>
+        element.getAttribute('data-wsb')?.startsWith(handle),
+      );
+      expect(named, handle).toEqual([]);
+    }
+    // The view's commands end the head across the centre's top.
+    expect(driver.has('editor.actions.backend')).toBe(true);
+    expect(driver.has('editor.actions.commands')).toBe(true);
   });
 });
 

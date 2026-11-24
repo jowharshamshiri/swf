@@ -102,7 +102,6 @@ export interface ReferenceApp {
   readonly projections: ProjectionRegistry;
   readonly presentation: PresentationRegistry;
   readonly presenter: Presenter;
-  /** The viewport as it is presented now, in the element it was last given. */
   readonly viewport: PresentedViewport;
   readonly router: InteractionRouter;
   readonly modes: Modes;
@@ -127,12 +126,6 @@ export interface ReferenceApp {
    * window itself does not move.
    */
   revealWindow(id: string): TxResult;
-  /**
-   * Presents the viewport in another element, as when the view that shows it moves: the view in
-   * the old element is released and one is opened in the new, on the same backend, with input
-   * taken there instead. The scene is untouched.
-   */
-  rehome(root: HTMLElement): Promise<void>;
   dispose(): Promise<void>;
 }
 
@@ -282,7 +275,7 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
     };
   };
 
-  let mount = await mountIn(root, BACKENDS[config.backend]);
+  const mount = await mountIn(root, BACKENDS[config.backend]);
 
   const modes = createModes(workspace, VIEWPORT_ID);
   modes.register(PANORAMA);
@@ -365,9 +358,7 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
     projections,
     presentation,
     presenter,
-    get viewport() {
-      return mount.viewport;
-    },
+    viewport: mount.viewport,
     router,
     modes,
     content,
@@ -407,15 +398,6 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
         ],
         { source: 'user' },
       );
-    },
-    async rehome(element) {
-      if (element === mount.root) {
-        return;
-      }
-      const current = backendOf(mount.viewport.backend?.renderer) ?? config.backend;
-      await mount.release();
-      mount = await mountIn(element, BACKENDS[current]);
-      announce();
     },
     async dispose() {
       await mount.release();

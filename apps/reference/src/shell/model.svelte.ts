@@ -77,21 +77,13 @@ export class ShellModel {
     return this.#app;
   }
 
-  /**
-   * Presents the workspace in the element the panorama's view gives it: the first starts the
-   * application, and each later one (the view shown elsewhere, or again) moves it there.
-   */
-  async present(root: HTMLElement): Promise<void> {
-    if (this.#disposed) {
-      return;
+  /** Starts the application in the element the panorama's view gives it, once. */
+  async start(root: HTMLElement): Promise<void> {
+    if (this.#disposed || this.#starting !== null) {
+      throw new Error('the application is started once, and never after the shell is disposed');
     }
-    if (this.#starting === null) {
-      this.#starting = this.#start(root);
-      await this.#starting;
-      return;
-    }
+    this.#starting = this.#start(root);
     await this.#starting;
-    await this.#app?.rehome(root);
   }
 
   async #start(root: HTMLElement): Promise<void> {

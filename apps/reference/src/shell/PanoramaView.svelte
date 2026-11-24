@@ -1,6 +1,5 @@
 <script lang="ts">
-  // THE PANORAMA, as a document of the centre: full-bleed, named by its tab. The workspace is
-  // presented in the surface the kit hands out, and follows the document wherever it is shown.
+  // THE PANORAMA, the whole centre: the workspace is presented in the surface the kit hands out.
   // An empty workspace says so above it, with the way to fill it.
   import { Button, EmptyState, Notice, ScaledView, Stack } from '@wsb/uikit/components';
   import { handleOf } from '@wsb/uikit/handles';
@@ -18,9 +17,9 @@
 
   onMount(() => {
     if (surface === undefined) {
-      throw new Error('the panorama document has no surface to present in');
+      throw new Error('the panorama has no surface to present in');
     }
-    void model.present(surface);
+    void model.start(surface);
   });
 </script>
 

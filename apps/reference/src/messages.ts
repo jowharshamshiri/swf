@@ -40,11 +40,6 @@ export const ENGLISH = Object.freeze({
   'scene.seed.invalid': 'A seed is a whole number from 0 to 4294967295.',
   'scene.summary': '{preset} scene, seed {seed}: {windows} windows',
   'view.label': 'The workspace, all the way round',
-  'view.tab': 'Panorama',
-  'panorama.closed.title': 'The panorama is closed',
-  'panorama.closed.detail':
-    'The workspace keeps running; show the panorama to see and work in it again.',
-  'panorama.open': 'Show the panorama',
   'panel.label': 'Panel',
   'panel.toggle': 'Show or hide the panel',
   'panel.fold': 'Fold the panel',

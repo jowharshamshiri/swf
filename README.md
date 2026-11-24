@@ -611,9 +611,9 @@ scene as a 360° panorama around the camera.
 
 Its window is built from wsb's UI kit (`@wsb/uikit`) with Svelte 5, and nothing else: every
 control, look and automation handle is the kit's. The scene's controls and the list of windows
-are on the left; what is selected is on the right; the panorama is the document in the centre,
-with the view mode, the backend, the command list and the panel at the end of its tab strip; how
-the panorama is presented is in the panel below it. In a narrow window one side at a time floats
+are on the left; what is selected is on the right; the panorama is the whole centre, with the
+view mode, the backend, the command list and the panel across its top; how the panorama is
+presented is in the panel below it. In a narrow window one side at a time floats
 over the panorama. Ctrl+Shift+P or F1 opens the command list, which runs every command and goes
 to any window by its name. The page installs the kit's automation driver as
 `window.wsbAutomation`, which presses controls by their handles as a person does.
