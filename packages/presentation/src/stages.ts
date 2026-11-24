@@ -42,15 +42,31 @@ export const PRESENTATION_STAGES = Object.freeze([
 ] as const);
 
 /**
+ * What a projector made for a view in the frame before: the scene it projected and the fragments
+ * it gave, for the very same view geometry.
+ */
+export interface PreviousProjection {
+  readonly scene: SceneState;
+  readonly fragments: readonly ProjectedFragment[];
+}
+
+/**
  * Stage 4: computes a viewport's visible fragments for a scene. A projector reads the scene and
  * surface geometry only; it never changes either.
  */
 export interface ViewProjector {
   readonly profile: ProjectionProfile;
+  /**
+   * The fragments of every visible surface, in the scene's surface order. With `previous` (given
+   * only when the view geometry is unchanged since that projection), a projector may keep the
+   * fragments of each surface whose placement did not change, projecting only the rest; what it
+   * returns must equal a projection made afresh (NFR-005, NFR-020).
+   */
   project(
     scene: SceneState,
     view: ViewGeometry,
     geometry: (surfaceId: Id) => ResolvedGeometry | undefined,
+    previous?: PreviousProjection,
   ): ProjectedFragment[];
 }
 

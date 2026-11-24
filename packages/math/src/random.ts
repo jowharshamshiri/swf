@@ -1,6 +1,7 @@
 /**
  * A seeded pseudo-random generator (Mulberry32). The same seed always gives the same sequence on
- * every engine, so demo scenes generated from a seed are reproducible across runs and releases.
+ * every engine, so scenes generated from a seed (demo presets, benchmark fixtures) are
+ * reproducible across runs, engines and releases.
  */
 export interface Random {
   /** The next number in [0, 1). */

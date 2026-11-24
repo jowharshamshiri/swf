@@ -5,6 +5,7 @@ import {
   dot,
   length,
   mat4TransformDirection,
+  mat4TransformPoint,
   normalize,
   quatFromAxisAngle,
   quatNormalize,
@@ -299,6 +300,85 @@ describe('seam-continuous interaction (FR-070, FR-071)', () => {
     const { projection, view } = setup({ config: { horizontal: 180, vertical: 90 } });
     const result = projection.interactionRay(W / 2, H / 2, view, { previousLongitude: 7 });
     expect(result.kind === 'ray' && result.longitude).toBe(0);
+  });
+});
+
+describe('ruling out surfaces beyond a narrow view (NFR-017)', () => {
+  /** A placed surface whose outline is counted each time its world placement is read. */
+  const counted = (placement: Placement) => {
+    const geometry = geometryOf(placement);
+    let reads = 0;
+    const watched = Object.create(geometry) as typeof geometry;
+    Object.defineProperty(watched, 'world', {
+      get: () => {
+        reads += 1;
+        return geometry.world;
+      },
+    });
+    return { geometry: watched, reads: () => reads };
+  };
+  const narrow = { config: { horizontal: 64, vertical: 72 } };
+
+  it('decides from its bounds alone that a surface behind, beside or above the view shows nothing', () => {
+    const { projection, view } = setup(narrow);
+    for (const placement of [
+      { id: 'behind', heading: Math.PI, distance: 3 },
+      { id: 'beside', heading: 1.2, distance: 3 },
+      { id: 'above', heading: 0, distance: 3, y: 4 },
+    ]) {
+      const surface = counted(placement);
+      expect(projection.projectGeometry(surface.geometry, view)).toEqual([]);
+      expect(surface.reads()).toBe(0);
+    }
+    // One in view is projected from its outline, as before.
+    const ahead = counted({ id: 'ahead', heading: 0.3, distance: 3 });
+    expect(projection.projectGeometry(ahead.geometry, view)).toHaveLength(1);
+    expect(ahead.reads()).toBeGreaterThan(0);
+  });
+
+  it('never rules out a surface any point of which the view shows, for any placement and view', () => {
+    fc.assert(
+      fc.property(
+        fc.double({ min: -Math.PI, max: Math.PI, noNaN: true }),
+        fc.double({ min: 0.3, max: 8, noNaN: true }),
+        fc.double({ min: -6, max: 6, noNaN: true }),
+        fc.double({ min: 0.05, max: 4, noNaN: true }),
+        fc.double({ min: 0.05, max: 3, noNaN: true }),
+        fc.double({ min: -Math.PI, max: Math.PI, noNaN: true }),
+        fc.integer({ min: 5, max: 360 }),
+        fc.integer({ min: 5, max: 180 }),
+        fc.double({ min: -Math.PI, max: Math.PI, noNaN: true }),
+        (heading, distance, y, w, h, turn, horizontal, vertical, look) => {
+          const { projection, view } = setup({
+            config: { horizontal, vertical },
+            rotation: quatFromAxisAngle([0, 1, 0], look),
+          });
+          const placement = {
+            id: 's',
+            heading,
+            distance,
+            y,
+            size: [w, h] as const,
+            rotation: quatFromAxisAngle([0, 1, 0], turn),
+          };
+          const geometry = geometryOf(placement);
+          if (projection.projectGeometry(geometry, view).length > 0) {
+            return;
+          }
+          // Ruled out: no point of the surface, edges and inside, has an image in the view.
+          for (let i = 0; i <= 12; i++) {
+            for (let j = 0; j <= 12; j++) {
+              const local: Vec3 = [w * (i / 12 - 0.5), h * (j / 12 - 0.5), 0];
+              const world = mat4TransformPoint(geometry.world, local);
+              if (length(world) > view.near) {
+                expect(projection.projectDirection(world, view).images).toEqual([]);
+              }
+            }
+          }
+        },
+      ),
+      { numRuns: 400 },
+    );
   });
 });
 

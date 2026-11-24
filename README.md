@@ -8,7 +8,7 @@ interaction; the host owns whatever is presented.
 ## Packages
 
 - `@swf/math`: vectors, unit quaternions, position/rotation/scale transforms, affine matrices,
-  rays and axis-aligned boxes. The world is right-handed and +Y up; the default camera looks along
+  rays, axis-aligned boxes, and a seeded random sequence that is the same on every engine. The world is right-handed and +Y up; the default camera looks along
   -Z with +X to the right. Lengths are arbitrary world units.
 - `@swf/core`: the scene kernel. Spatial nodes and their hierarchy, surface associations with
   their geometry, cameras and viewports, constraints, atomic revisioned transactions, previews, undo and redo,
@@ -196,6 +196,12 @@ option), and the DOM renderer marks it `data-swf-stand-in`; a stand-in chosen by
 or a seam's secondary proxy, says nothing, since the view shows why. A viewport with no working
 backend says `Backend unavailable` and why.
 
+A viewport projects again only what changed (NFR-005, NFR-020): while its view is the same, the
+presenter hands the projector the scene and fragments of its last frame, and the projector keeps
+the fragments of every surface whose record, owner and ancestors are the same objects, projecting
+only the rest; the result equals a projection made afresh. A camera turn or a resize changes the
+view, and everything is projected again.
+
 Rendering order depends only on the scene revision and the view: layers come in the plan's order
 whatever order fragments were produced in, and a compositor declares how overlapping layers
 occlude each other (`occlusion`): `depth`, by a per-pixel depth test across layers, or
@@ -250,7 +256,9 @@ The equirectangular projection maps longitude across and latitude down. It cover
 wrapping at a seam behind the camera, and 120° up and down by default (up to 180°, which reaches
 the poles); narrower angles are configurable. A direction on the seam has two images; a pole is a
 whole edge row. A surface crossing the seam yields one fragment on each side, both referring to
-the same surface, and surfaces behind the camera are kept, not dropped. Its inverse is exact.
+the same surface, and surfaces behind the camera are kept, not dropped. Its inverse is exact. A
+surface whose bounding sphere lies wholly above, below or (short of the full circle) beside the
+view is ruled out from its bounds alone, without sampling its outline (NFR-017).
 `pickAt` returns every selectable surface under a point, nearest first; given the previous
 longitude of a drag, the longitude is unwrapped so it stays continuous across the seam.
 
@@ -352,10 +360,14 @@ import {
 } from '@swf/backend-dom';
 import { createPresenter } from '@swf/presentation';
 
-// Drag previews are announced once per animation frame, not once per pointer move.
+// One frame source paces both the workspace and the presenter: drag previews are announced once
+// per animation frame, not once per pointer move, and presented in the frame that announces them.
+const frames = animationFrames(window);
 const workspace = createWorkspace({
   id: 'main',
-  frameBoundary: (flush) => requestAnimationFrame(flush),
+  frameBoundary: (flush) => {
+    frames.request(flush);
+  },
 });
 // … projections, the surface runtime and the presentation registry as above …
 
@@ -366,7 +378,7 @@ const presenter = createPresenter({
   workspace,
   runtime: surfaces,
   registry: presentation,
-  frames: animationFrames(window),
+  frames,
   showDegraded,
 });
 const container = document.querySelector('#main');

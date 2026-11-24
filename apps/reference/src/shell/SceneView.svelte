@@ -5,7 +5,7 @@
   import type { MessageId } from '../messages.js';
   import type { PresetId } from '../presets.js';
   import { PRESET_IDS, PRESETS } from '../presets.js';
-  import { seedIssue } from '../random.js';
+  import { seedIssue } from '@swf/math';
   import type { ShellModel } from './model.svelte.js';
 
   interface Props {

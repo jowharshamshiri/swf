@@ -19,7 +19,7 @@ import {
   PRESETS,
   presetCommands,
 } from '../src/presets.js';
-import { createRandom, MAX_SEED } from '../src/random.js';
+import { MAX_SEED } from '@swf/math';
 
 const W = 1440;
 const H = 480;
@@ -52,28 +52,6 @@ function seeded(preset: PresetId, seed: number) {
   }
   return ws;
 }
-
-describe('the seeded generator', () => {
-  it('gives the same sequence for a seed, and another for another seed', () => {
-    const take = (seed: number) => {
-      const r = createRandom(seed);
-      return Array.from({ length: 8 }, () => r.next());
-    };
-    expect(take(1)).toEqual(take(1));
-    expect(take(1)).not.toEqual(take(2));
-    expect(take(MAX_SEED)).toEqual(take(MAX_SEED));
-    for (const value of take(3)) {
-      expect(value).toBeGreaterThanOrEqual(0);
-      expect(value).toBeLessThan(1);
-    }
-  });
-
-  it('rejects a seed that is not an unsigned 32-bit integer', () => {
-    for (const seed of [-1, 1.5, MAX_SEED + 1, Number.NaN, Infinity]) {
-      expect(() => createRandom(seed)).toThrow(/seed must be an integer from 0 to 4294967295/);
-    }
-  });
-});
 
 describe('demo presets (FR-131, MIG-005, AN-010)', () => {
   it('offers sparse, dense, seam/behind-camera and composed scenes besides the empty one', () => {

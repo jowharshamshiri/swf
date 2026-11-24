@@ -2,8 +2,8 @@ import type { SceneCommand } from '@swf/core';
 import { cameraRotation } from '@swf/projections';
 import { layoutSurfaces, WINDOW_FRAME } from './composition.js';
 import type { MessageId } from './messages.js';
-import type { Random } from './random.js';
-import { createRandom, seedIssue } from './random.js';
+import type { Random } from '@swf/math';
+import { createRandom, seedIssue } from '@swf/math';
 
 /**
  * The demo scenes the reference application seeds. Each preset is a stable scenario definition:

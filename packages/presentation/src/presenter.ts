@@ -923,14 +923,17 @@ class ViewportImpl implements PresentedViewport {
     }
     const key = viewKey(view);
     const seen = this.#seen;
+    // The same view keeps what it projected: all of it while the scene shows the same, and what
+    // stands where it stood otherwise.
+    const sameView = seen !== null && seen.view === key && seen.projectorId === view.projectionId;
     const fragments =
-      seen !== null &&
-      seen.view === key &&
-      seen.projectorId === view.projectionId &&
-      sameContent(scene, seen.scene)
+      sameView && sameContent(scene, seen.scene)
         ? seen.fragments
-        : projector.module.project(scene, view, (id) =>
-            this.#presenter.options.workspace.presentedGeometry(id),
+        : projector.module.project(
+            scene,
+            view,
+            (id) => this.#presenter.options.workspace.presentedGeometry(id),
+            sameView ? { scene: seen.scene, fragments: seen.fragments } : undefined,
           );
     this.#seen = { scene, view: key, fragments, projectorId: view.projectionId };
     return createViewOutput(scene, this.viewportId, fragments);

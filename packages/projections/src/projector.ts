@@ -1,7 +1,12 @@
 import type { Id, ResolvedGeometry, SceneState } from '@swf/core';
 import { effectiveState, makeError, SwfFailure } from '@swf/core';
 import type { Ray, Vec3 } from '@swf/math';
-import type { ProjectedFragment, ViewGeometry, ViewProjector } from '@swf/presentation';
+import type {
+  PreviousProjection,
+  ProjectedFragment,
+  ViewGeometry,
+  ViewProjector,
+} from '@swf/presentation';
 import { viewGeometryIssue } from '@swf/presentation';
 import type { Continuity, Projection, ProjectionModule } from './contract.js';
 
@@ -42,15 +47,62 @@ export function projectionFor(module: ProjectionModule, view: ViewGeometry): Pro
 export function projectorOf(module: ProjectionModule): ViewProjector {
   return Object.freeze({
     profile: module.profile,
-    project(scene: SceneState, view: ViewGeometry, geometry: GeometryOf): ProjectedFragment[] {
+    project(
+      scene: SceneState,
+      view: ViewGeometry,
+      geometry: GeometryOf,
+      previous?: PreviousProjection,
+    ): ProjectedFragment[] {
       const projection = projectionFor(module, view);
+      const kept = previous === undefined ? null : keptFragments(previous);
       const fragments: ProjectedFragment[] = [];
       for (const surfaceId of shownSurfaces(scene, 'visible')) {
-        fragments.push(...projection.projectGeometry(resolved(scene, geometry, surfaceId), view));
+        const same =
+          kept !== null && previous !== undefined && samePlacement(scene, previous.scene, surfaceId)
+            ? kept.get(surfaceId)
+            : undefined;
+        fragments.push(
+          ...(same ?? projection.projectGeometry(resolved(scene, geometry, surfaceId), view)),
+        );
       }
       return fragments;
     },
   });
+}
+
+/**
+ * The fragments of each surface the previous projection showed, by surface: a surface it showed
+ * with none (wholly out of view) has an empty list, so it is known and kept too.
+ */
+function keptFragments(previous: PreviousProjection): Map<Id, ProjectedFragment[]> {
+  const kept = new Map<Id, ProjectedFragment[]>();
+  for (const surfaceId of shownSurfaces(previous.scene, 'visible')) {
+    kept.set(surfaceId, []);
+  }
+  for (const fragment of previous.fragments) {
+    kept.get(fragment.surfaceId)?.push(fragment);
+  }
+  return kept;
+}
+
+/**
+ * Whether a surface stands exactly where it stood: its record and those of its owner and every
+ * ancestor are the same objects (records are immutable, so the same object means unchanged), and
+ * its placement and visibility depend on nothing else.
+ */
+function samePlacement(scene: SceneState, before: SceneState, surfaceId: Id): boolean {
+  const surface = scene.surfaces.get(surfaceId);
+  if (surface === undefined || before.surfaces.get(surfaceId) !== surface) {
+    return false;
+  }
+  for (let id: Id | null = surface.ownerNodeId; id !== null;) {
+    const node = scene.nodes.get(id);
+    if (node === undefined || before.nodes.get(id) !== node) {
+      return false;
+    }
+    id = node.parentId;
+  }
+  return true;
 }
 
 /** A surface a pointer ray hits. */

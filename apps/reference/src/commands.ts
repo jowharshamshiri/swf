@@ -11,7 +11,7 @@ import { ModeRefusal } from './modes.js';
 import { PolicyRefusal } from './policies.js';
 import type { PresetId } from './presets.js';
 import { PRESET_IDS } from './presets.js';
-import { seedIssue } from './random.js';
+import { seedIssue } from '@swf/math';
 import { wrapDegrees } from './pose.js';
 import { WorkspaceRefusal } from './workspaces.js';
 

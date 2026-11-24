@@ -218,9 +218,17 @@ export async function stage(
 ): Promise<Stage> {
   const viewports = options.viewports ?? ['v'];
   const animated = options.animationFrames === true;
+  // One frame source paces both the workspace's preview announcements and the presenter.
+  const frames = animated ? animationFrames(window) : new ManualFrames();
   const ws = createWorkspace({
     id: 'ws',
-    ...(animated ? { frameBoundary: (flush: () => void) => requestAnimationFrame(flush) } : {}),
+    ...(animated
+      ? {
+          frameBoundary: (flush: () => void) => {
+            frames.request(flush);
+          },
+        }
+      : {}),
   });
   const presentation = createPresentationRegistry();
   const projections = createProjectionRegistry({
@@ -259,7 +267,6 @@ export async function stage(
   });
   const unregister = presentation.registerRenderer(renderer);
   presentation.registerCompositor(new DomCompositor());
-  const frames = animated ? animationFrames(window) : new ManualFrames();
   const presenter = createPresenter({
     workspace: ws,
     runtime,

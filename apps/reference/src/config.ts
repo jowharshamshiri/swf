@@ -1,6 +1,6 @@
 import type { PresetId } from './presets.js';
 import { PRESETS, presetIssue } from './presets.js';
-import { seedIssue } from './random.js';
+import { seedIssue } from '@swf/math';
 
 /** The presentation backends a viewport can be shown with. */
 export const BACKEND_IDS = ['dom', 'geometry'] as const;

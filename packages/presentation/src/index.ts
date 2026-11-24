@@ -106,5 +106,5 @@ export {
   standInReason,
   surfaceCondition,
 } from './conditions.js';
-export type { FrameInput, ViewProjector } from './stages.js';
+export type { FrameInput, PreviousProjection, ViewProjector } from './stages.js';
 export { groupFallbacks, planFrame, PRESENTATION_STAGES } from './stages.js';

@@ -103,4 +103,38 @@ describe('frames in a real browser (FR-143, NFR-005, NFR-009)', () => {
     // The preview is shown, not committed.
     expect(s.ws.getState().nodes.get('a')?.transform.position[0]).toBeCloseTo(0);
   });
+
+  it('presents a drag preview in the animation frame that announces it, not the frame after (NFR-004)', async () => {
+    current = await stage([{ id: 'a', heading: 0, distance: 3 }], { animationFrames: true });
+    const s = current;
+    for (let trial = 0; trial < 5; trial++) {
+      await nextFrame();
+      // A pointer move between frames previews the window.
+      s.ws.preview('drag', [{ type: 'node.patch', id: 'a', transform: at((trial + 1) / 100) }], {
+        source: 'user',
+      });
+      const announced = new Promise<number>((resolve) => {
+        const stop = s.ws.subscribe((e) => {
+          if (e.type === 'transform.preview') {
+            stop();
+            resolve(Number(document.timeline.currentTime));
+          }
+        });
+      });
+      const presented = new Promise<number>((resolve) => {
+        const stop = s.presenter.subscribe((e) => {
+          if (e.type === 'frame') {
+            stop();
+            resolve(Number(document.timeline.currentTime));
+          }
+        });
+      });
+      const [when, shown] = await Promise.all([announced, presented]);
+      // Both happen in the same animation frame, whose time they share.
+      expect(shown).toBe(when);
+      const position = s.views.get('v')?.viewport.lastFrame()?.frame.scene.nodes.get('a')?.transform
+        .position[0];
+      expect(position).toBeCloseTo(3 * Math.sin((trial + 1) / 100));
+    }
+  });
 });

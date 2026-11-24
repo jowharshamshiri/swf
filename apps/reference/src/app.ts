@@ -85,7 +85,7 @@ import {
 } from './presets.js';
 import type { Attachment, Search } from './search.js';
 import { createSearch } from './search.js';
-import { MAX_SEED, seedIssue } from './random.js';
+import { MAX_SEED, seedIssue } from '@swf/math';
 import type { Pose } from './pose.js';
 import { poseOf } from './pose.js';
 import type { Workspaces } from './workspaces.js';
@@ -387,10 +387,15 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
   /** A monotonic clock with sub-millisecond resolution: operations and hit queries are timed by it. */
   const timer = () => view.performance.now();
 
+  // One frame source paces the workspace's announcements and the presenter's frames, so a drag
+  // preview announced at an animation frame is presented in that frame.
+  const frames = animationFrames(view);
   const workspace = createWorkspace({
     id: 'reference',
     // Drag previews are announced once per animation frame.
-    frameBoundary: (flush) => view.requestAnimationFrame(flush),
+    frameBoundary: (flush) => {
+      frames.request(flush);
+    },
     timer,
   });
   const presentation = createPresentationRegistry();
@@ -466,8 +471,9 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
     workspace,
     runtime,
     registry: presentation,
-    frames: animationFrames(view),
+    frames,
     showDegraded,
+    now: timer,
   });
   /** The viewport presented in one element: its view, the input taken there, its size kept. */
   interface Mount {

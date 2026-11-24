@@ -237,6 +237,9 @@ class Equirectangular implements Projection {
   }
 
   projectGeometry(geometry: ResolvedGeometry, view: ViewGeometry): ProjectedFragment[] {
+    if (this.#beyond(geometry, view)) {
+      return [];
+    }
     const outline = this.#outline(geometry, view);
     if (outline === null) {
       return [];
@@ -351,6 +354,36 @@ class Equirectangular implements Projection {
    * continuously in longitude, centred so their mean lies in (-π, π]. Null when the surface is
    * beyond the far distance or the camera is within the near distance of it.
    */
+  /**
+   * Whether a surface lies wholly beyond the image, decided from its world bounds alone (NFR-017):
+   * the sphere round its bounding box, seen from the eye, covers a cap of the sky; when that cap
+   * lies above or below the image, or (short of the full circle) to either side of it, no part of
+   * the surface can show, and its outline need not be sampled. A cap the eye is inside, or one
+   * reaching a pole, is never ruled out.
+   */
+  #beyond(geometry: ResolvedGeometry, view: ViewGeometry): boolean {
+    const { min, max } = geometry.worldBounds;
+    const centre: Vec3 = [(min[0] + max[0]) / 2, (min[1] + max[1]) / 2, (min[2] + max[2]) / 2];
+    const radius = length(sub(max, min)) / 2;
+    const frame = frameOf(view);
+    const d = mat4TransformDirection(frame.toCamera, sub(centre, frame.eye));
+    const distance = length(d);
+    if (!(distance > radius)) {
+      return false;
+    }
+    const cap = Math.asin(radius / distance);
+    const { longitude, latitude } = anglesOf(d);
+    if (latitude - cap > this.#v / 2 + EPS || latitude + cap < -this.#v / 2 - EPS) {
+      return true;
+    }
+    if (this.#fullCircle || Math.abs(latitude) + cap >= Math.PI / 2) {
+      return false;
+    }
+    // The cap's half-width in longitude at its latitude.
+    const across = Math.asin(Math.min(1, Math.sin(cap) / Math.cos(latitude)));
+    return Math.abs(longitude) - across > this.#h / 2 + EPS;
+  }
+
   #outline(geometry: ResolvedGeometry, view: ViewGeometry) {
     const frame = frameOf(view);
     const world = (p: Vec3) => mat4TransformPoint(geometry.world, p);

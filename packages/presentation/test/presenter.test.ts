@@ -6,7 +6,7 @@ import {
   MockRenderer,
 } from '@swf/conformance';
 import type { MockRendererSession } from '@swf/conformance';
-import type { SceneCommand, SwfError, Workspace } from '@swf/core';
+import type { SceneCommand, SceneState, SwfError, Workspace } from '@swf/core';
 import { createWorkspace, surfaceEffectiveState, SwfFailure } from '@swf/core';
 import type { PresentationHint, SurfaceCapabilities, SurfaceRuntime } from '@swf/surfaces';
 import { createSurfaceRuntime } from '@swf/surfaces';
@@ -16,9 +16,11 @@ import type {
   PresentedViewport,
   Presenter,
   PresenterEvent,
+  PreviousProjection,
   ProjectedFragment,
   ProjectionProfile,
   RepresentationPolicy,
+  ViewGeometry,
   ViewportOptions,
   ViewProjector,
 } from '../src/index.js';
@@ -41,49 +43,64 @@ const SPARE = { renderer: 'spare.renderer/1', compositor: 'mock.compositor/1' };
 
 /**
  * A flat projection for tests: a window at (x, y, z) shows as a 100×60 box centred 100 px per
- * unit from the view's centre, clipped to the view, at depth -z. Counts its projections.
+ * unit from the view's centre, clipped to the view, at depth -z. Counts its projections and keeps
+ * what each was given and gave.
  */
-function flatProjector(): ViewProjector & { calls: Map<string, number> } {
+function flatProjector(): ViewProjector & {
+  calls: Map<string, number>;
+  given: { scene: SceneState; fragments: ProjectedFragment[]; previous?: PreviousProjection }[];
+} {
   const calls = new Map<string, number>();
+  const given: {
+    scene: SceneState;
+    fragments: ProjectedFragment[];
+    previous?: PreviousProjection;
+  }[] = [];
+  const afresh = (scene: SceneState, view: ViewGeometry): ProjectedFragment[] => {
+    const out: ProjectedFragment[] = [];
+    for (const surface of scene.surfaces.values()) {
+      const node = scene.nodes.get(surface.ownerNodeId);
+      if (node === undefined || surfaceEffectiveState(scene, surface.id)?.visible !== true) {
+        continue;
+      }
+      const [x, y, z] = node.transform.position;
+      const left = view.width / 2 + x * 100 - 50;
+      const top = view.height / 2 - y * 100 - 30;
+      const x0 = Math.max(0, left);
+      const y0 = Math.max(0, top);
+      const x1 = Math.min(view.width, left + 100);
+      const y1 = Math.min(view.height, top + 60);
+      if (x1 <= x0 || y1 <= y0) {
+        continue;
+      }
+      out.push({
+        id: fragmentId(view.viewportId, surface.id, 0),
+        surfaceId: surface.id,
+        viewportId: view.viewportId,
+        ordinal: 0,
+        bounds: [x0, y0, x1 - x0, y1 - y0],
+        corners: [
+          [left, top],
+          [left + 100, top],
+          [left + 100, top + 60],
+          [left, top + 60],
+        ],
+        depth: -z,
+        geometricFidelity: 'exact',
+        nativeOwner: true,
+      });
+    }
+    return out;
+  };
   return {
     profile: FLAT,
     calls,
-    project(scene, view) {
+    given,
+    project(scene, view, _geometry, previous) {
       calls.set(view.viewportId, (calls.get(view.viewportId) ?? 0) + 1);
-      const out: ProjectedFragment[] = [];
-      for (const surface of scene.surfaces.values()) {
-        const node = scene.nodes.get(surface.ownerNodeId);
-        if (node === undefined || surfaceEffectiveState(scene, surface.id)?.visible !== true) {
-          continue;
-        }
-        const [x, y, z] = node.transform.position;
-        const left = view.width / 2 + x * 100 - 50;
-        const top = view.height / 2 - y * 100 - 30;
-        const x0 = Math.max(0, left);
-        const y0 = Math.max(0, top);
-        const x1 = Math.min(view.width, left + 100);
-        const y1 = Math.min(view.height, top + 60);
-        if (x1 <= x0 || y1 <= y0) {
-          continue;
-        }
-        out.push({
-          id: fragmentId(view.viewportId, surface.id, 0),
-          surfaceId: surface.id,
-          viewportId: view.viewportId,
-          ordinal: 0,
-          bounds: [x0, y0, x1 - x0, y1 - y0],
-          corners: [
-            [left, top],
-            [left + 100, top],
-            [left + 100, top + 60],
-            [left, top + 60],
-          ],
-          depth: -z,
-          geometricFidelity: 'exact',
-          nativeOwner: true,
-        });
-      }
-      return out;
+      const fragments = afresh(scene, view);
+      given.push({ scene, fragments, ...(previous === undefined ? {} : { previous }) });
+      return fragments;
     },
   };
 }
@@ -314,6 +331,22 @@ describe('frames at frame boundaries (FR-143, FR-148, NFR-005, NFR-009)', () => 
     await h.frames.flush();
     expect(h.projector.calls.get('v')).toBe(projected.v);
     expect(frames(h.events, 'v').at(-1)?.metrics.dirty).toEqual(['requested']);
+  });
+
+  it('hands the projector what it projected last while the view is unchanged, and nothing after the view changed (NFR-020)', async () => {
+    const h = await harness();
+    await h.open();
+    await h.frames.flush();
+    const before = h.projector.given.at(-1);
+    expect(before?.previous).toBeUndefined();
+    h.ws.dispatch(move('a', 1));
+    await h.frames.flush();
+    const moved = h.projector.given.at(-1);
+    expect(moved?.previous?.scene).toBe(before?.scene);
+    expect(moved?.previous?.fragments).toEqual(before?.fragments);
+    h.ws.dispatch({ type: 'camera.patch', id: 'cam', position: [0, 1, 0] });
+    await h.frames.flush();
+    expect(h.projector.given.at(-1)?.previous).toBeUndefined();
   });
 
   it('shows open previews without committing them', async () => {
