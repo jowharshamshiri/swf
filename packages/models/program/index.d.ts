@@ -79,6 +79,75 @@ export type Travel =
 ;
 export function travelType(): L.Type<Travel>;
 
+/** Lean's Swf.Surface.Presentation. */
+export type Presentation =
+  | { readonly kind: "unbound"; readonly reason: UnboundReason }
+  | { readonly kind: "binding" }
+  | { readonly kind: "ready" }
+  | { readonly kind: "presented" }
+  | { readonly kind: "hidden" }
+  | { readonly kind: "error" }
+  | { readonly kind: "detaching" }
+  | { readonly kind: "detached" }
+;
+export function presentationType(): L.Type<Presentation>;
+
+/** Lean's Swf.Surface.SurfaceRefusal. */
+export type SurfaceRefusal =
+  | { readonly kind: "disposed" }
+  | { readonly kind: "notUnboundOrFailed" }
+  | { readonly kind: "detaching" }
+  | { readonly kind: "replacing" }
+  | { readonly kind: "notBound" }
+  | { readonly kind: "invalidViewport" }
+  | { readonly kind: "alreadyPresented" }
+  | { readonly kind: "singleOwnerElsewhere" }
+  | { readonly kind: "endpointPresented" }
+  | { readonly kind: "notAttached" }
+;
+export function surfaceRefusalType(): L.Type<SurfaceRefusal>;
+
+/** Lean's Swf.Surface.PresentFacts. */
+export interface PresentFacts {
+  readonly disposed: boolean;
+  readonly viewportValid: boolean;
+  readonly replacing: boolean;
+  readonly phase: Presentation;
+  readonly existing: L.Option<boolean>;
+  readonly pending: boolean;
+  readonly singleOwner: boolean;
+  readonly attachedAnywhere: boolean;
+  readonly endpointElsewhere: boolean;
+}
+export function presentFactsType(): L.Type<PresentFacts>;
+
+/** Lean's Swf.Surface.SurfaceEvent. */
+export type SurfaceEvent =
+  | { readonly kind: "bindingStarts"; readonly reason: UnboundReason }
+  | { readonly kind: "resolved"; readonly r: Resolution }
+  | { readonly kind: "releaseStarts" }
+  | { readonly kind: "releaseEnds"; readonly final: Release }
+  | { readonly kind: "fails" }
+  | { readonly kind: "attachmentsChanged"; readonly visible: boolean; readonly attached: boolean }
+  | { readonly kind: "rebound"; readonly reason: UnboundReason }
+;
+export function surfaceEventType(): L.Type<SurfaceEvent>;
+
+/** Lean's Swf.Surface.SurfaceStep. */
+export interface SurfaceStep {
+  readonly next: Presentation;
+  readonly announce: boolean;
+}
+export function surfaceStepType(): L.Type<SurfaceStep>;
+
+/** Lean's Swf.Surface.UnbindGate. */
+export type UnbindGate =
+  | { readonly kind: "release" }
+  | { readonly kind: "done" }
+  | { readonly kind: "refuse"; readonly why: SurfaceRefusal }
+;
+export function unbindGateType(): L.Type<UnbindGate>;
+
 /** Lean's Swf.ViewMode.ModeMachine. */
 export interface ModeMachine {
   readonly mode: string;
@@ -107,6 +176,30 @@ export type ModeTransition =
   | { readonly kind: "refused"; readonly reason: string }
 ;
 export function modeTransitionType(): L.Type<ModeTransition>;
+
+/** Lean's Swf.Surface.UnboundReason. */
+export type UnboundReason =
+  | { readonly kind: "noBindingKey" }
+  | { readonly kind: "adapterUnavailable" }
+  | { readonly kind: "unknownBindingKey" }
+  | { readonly kind: "released" }
+;
+export function unboundReasonType(): L.Type<UnboundReason>;
+
+/** Lean's Swf.Surface.Resolution. */
+export type Resolution =
+  | { readonly kind: "bound" }
+  | { readonly kind: "unknownKey" }
+  | { readonly kind: "failed" }
+;
+export function resolutionType(): L.Type<Resolution>;
+
+/** Lean's Swf.Surface.Release. */
+export type Release =
+  | { readonly kind: "unbound"; readonly reason: UnboundReason }
+  | { readonly kind: "detached" }
+;
+export function releaseType(): L.Type<Release>;
 
 /** Lean's Swf.ViewMode.ProjectionSetting. */
 export interface ProjectionSetting {
@@ -169,6 +262,26 @@ export class SwfModels {
   initial(undoCapacity: bigint, keyCapacity: bigint): Ledger;
   /** Lean's Swf.Kernel.travel : Swf.Kernel.Ledger → Swf.Kernel.Direction → Bool → Swf.Kernel.Travel */
   travel(l: Ledger, d: Direction, stale: boolean): Travel;
+  /** Lean's Swf.Surface.bindGate : Bool → Swf.Surface.Presentation → Option Swf.Surface.SurfaceRefusal */
+  bindGate(disposed: boolean, p: Presentation): L.Option<SurfaceRefusal>;
+  /** Lean's Swf.Surface.bindsOnAdapter : Swf.Surface.Presentation → Bool */
+  bindsOnAdapter(p: Presentation): boolean;
+  /** Lean's Swf.Surface.hideGate : Bool → Bool → Option Swf.Surface.SurfaceRefusal */
+  hideGate(attached: boolean, replacing: boolean): L.Option<SurfaceRefusal>;
+  /** Lean's Swf.Surface.hideReleases : Bool → Bool → Bool */
+  hideReleases(requested: boolean, safeDetach: boolean): boolean;
+  /** Lean's Swf.Surface.holdsBinding : Swf.Surface.Presentation → Bool */
+  holdsBinding(p: Presentation): boolean;
+  /** Lean's Swf.Surface.moveGate : Bool → Bool → Bool → Option Swf.Surface.SurfaceRefusal */
+  moveGate(disposed: boolean, attached: boolean, replacing: boolean): L.Option<SurfaceRefusal>;
+  /** Lean's Swf.Surface.presentGate : Swf.Surface.PresentFacts → Option Swf.Surface.SurfaceRefusal */
+  presentGate(f: PresentFacts): L.Option<SurfaceRefusal>;
+  /** Lean's Swf.Surface.replaceGate : Bool → Swf.Surface.Presentation → Bool → Bool → Bool → Option Swf.Surface.SurfaceRefusal */
+  replaceGate(disposed: boolean, p: Presentation, replacing: boolean, hasAdapter: boolean, pending: boolean): L.Option<SurfaceRefusal>;
+  /** Lean's Swf.Surface.surfaceStep : Swf.Surface.Presentation → Swf.Surface.SurfaceEvent → Swf.Surface.SurfaceStep */
+  surfaceStep(p: Presentation, e: SurfaceEvent): SurfaceStep;
+  /** Lean's Swf.Surface.unbindGate : Swf.Surface.Presentation → Bool → Swf.Surface.UnbindGate */
+  unbindGate(p: Presentation, replacing: boolean): UnbindGate;
   /** Lean's Swf.ViewMode.observed : Swf.ViewMode.ModeMachine → String → Option Swf.ViewMode.ModeMachine */
   observed(m: ModeMachine, recorded: string): L.Option<ModeMachine>;
   /** Lean's Swf.ViewMode.transition : Swf.ViewMode.ModeMachine → Swf.ViewMode.ModeEvent → Swf.ViewMode.ViewSettings → Bool → Swf.ViewMode.ModeTransition */

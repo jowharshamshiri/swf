@@ -278,10 +278,253 @@ export function travelType() {
   );
 }
 
+/** Describes Swf.Surface.Presentation for polymorphic functions. */
+export function presentationType() {
+  return new L.Type(
+    L.inductiveExpr(9),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.Presentation");
+      switch (v.kind) {
+        case "unbound":
+          w.u32(0);
+          unboundReasonType().encode(w, v.reason);
+          return;
+        case "binding":
+          w.u32(1);
+          return;
+        case "ready":
+          w.u32(2);
+          return;
+        case "presented":
+          w.u32(3);
+          return;
+        case "hidden":
+          w.u32(4);
+          return;
+        case "error":
+          w.u32(5);
+          return;
+        case "detaching":
+          w.u32(6);
+          return;
+        case "detached":
+          w.u32(7);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.Surface.Presentation`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "unbound", reason: unboundReasonType().decode(r) });
+        case 1: return ({ kind: "binding" });
+        case 2: return ({ kind: "ready" });
+        case 3: return ({ kind: "presented" });
+        case 4: return ({ kind: "hidden" });
+        case 5: return ({ kind: "error" });
+        case 6: return ({ kind: "detaching" });
+        case 7: return ({ kind: "detached" });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.Surface.Presentation`);
+      }
+    },
+  );
+}
+
+/** Describes Swf.Surface.SurfaceRefusal for polymorphic functions. */
+export function surfaceRefusalType() {
+  return new L.Type(
+    L.inductiveExpr(10),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.SurfaceRefusal");
+      switch (v.kind) {
+        case "disposed":
+          w.u32(0);
+          return;
+        case "notUnboundOrFailed":
+          w.u32(1);
+          return;
+        case "detaching":
+          w.u32(2);
+          return;
+        case "replacing":
+          w.u32(3);
+          return;
+        case "notBound":
+          w.u32(4);
+          return;
+        case "invalidViewport":
+          w.u32(5);
+          return;
+        case "alreadyPresented":
+          w.u32(6);
+          return;
+        case "singleOwnerElsewhere":
+          w.u32(7);
+          return;
+        case "endpointPresented":
+          w.u32(8);
+          return;
+        case "notAttached":
+          w.u32(9);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.Surface.SurfaceRefusal`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "disposed" });
+        case 1: return ({ kind: "notUnboundOrFailed" });
+        case 2: return ({ kind: "detaching" });
+        case 3: return ({ kind: "replacing" });
+        case 4: return ({ kind: "notBound" });
+        case 5: return ({ kind: "invalidViewport" });
+        case 6: return ({ kind: "alreadyPresented" });
+        case 7: return ({ kind: "singleOwnerElsewhere" });
+        case 8: return ({ kind: "endpointPresented" });
+        case 9: return ({ kind: "notAttached" });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.Surface.SurfaceRefusal`);
+      }
+    },
+  );
+}
+
+/** Describes Swf.Surface.PresentFacts for polymorphic functions. */
+export function presentFactsType() {
+  return new L.Type(
+    L.inductiveExpr(11),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.PresentFacts");
+      w.u32(0);
+      L.BOOL.encode(w, v.disposed);
+      L.BOOL.encode(w, v.viewportValid);
+      L.BOOL.encode(w, v.replacing);
+      presentationType().encode(w, v.phase);
+      L.option(L.BOOL).encode(w, v.existing);
+      L.BOOL.encode(w, v.pending);
+      L.BOOL.encode(w, v.singleOwner);
+      L.BOOL.encode(w, v.attachedAnywhere);
+      L.BOOL.encode(w, v.endpointElsewhere);
+    },
+    (r) => {
+      const c = r.u32();
+      if (c !== 0) throw new L.MalformedError(`constructor index ${c} of Swf.Surface.PresentFacts`);
+      return ({ disposed: L.BOOL.decode(r), viewportValid: L.BOOL.decode(r), replacing: L.BOOL.decode(r), phase: presentationType().decode(r), existing: L.option(L.BOOL).decode(r), pending: L.BOOL.decode(r), singleOwner: L.BOOL.decode(r), attachedAnywhere: L.BOOL.decode(r), endpointElsewhere: L.BOOL.decode(r) });
+    },
+  );
+}
+
+/** Describes Swf.Surface.SurfaceEvent for polymorphic functions. */
+export function surfaceEventType() {
+  return new L.Type(
+    L.inductiveExpr(12),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.SurfaceEvent");
+      switch (v.kind) {
+        case "bindingStarts":
+          w.u32(0);
+          unboundReasonType().encode(w, v.reason);
+          return;
+        case "resolved":
+          w.u32(1);
+          resolutionType().encode(w, v.r);
+          return;
+        case "releaseStarts":
+          w.u32(2);
+          return;
+        case "releaseEnds":
+          w.u32(3);
+          releaseType().encode(w, v.final);
+          return;
+        case "fails":
+          w.u32(4);
+          return;
+        case "attachmentsChanged":
+          w.u32(5);
+          L.BOOL.encode(w, v.visible);
+          L.BOOL.encode(w, v.attached);
+          return;
+        case "rebound":
+          w.u32(6);
+          unboundReasonType().encode(w, v.reason);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.Surface.SurfaceEvent`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "bindingStarts", reason: unboundReasonType().decode(r) });
+        case 1: return ({ kind: "resolved", r: resolutionType().decode(r) });
+        case 2: return ({ kind: "releaseStarts" });
+        case 3: return ({ kind: "releaseEnds", final: releaseType().decode(r) });
+        case 4: return ({ kind: "fails" });
+        case 5: return ({ kind: "attachmentsChanged", visible: L.BOOL.decode(r), attached: L.BOOL.decode(r) });
+        case 6: return ({ kind: "rebound", reason: unboundReasonType().decode(r) });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.Surface.SurfaceEvent`);
+      }
+    },
+  );
+}
+
+/** Describes Swf.Surface.SurfaceStep for polymorphic functions. */
+export function surfaceStepType() {
+  return new L.Type(
+    L.inductiveExpr(13),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.SurfaceStep");
+      w.u32(0);
+      presentationType().encode(w, v.next);
+      L.BOOL.encode(w, v.announce);
+    },
+    (r) => {
+      const c = r.u32();
+      if (c !== 0) throw new L.MalformedError(`constructor index ${c} of Swf.Surface.SurfaceStep`);
+      return ({ next: presentationType().decode(r), announce: L.BOOL.decode(r) });
+    },
+  );
+}
+
+/** Describes Swf.Surface.UnbindGate for polymorphic functions. */
+export function unbindGateType() {
+  return new L.Type(
+    L.inductiveExpr(14),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.UnbindGate");
+      switch (v.kind) {
+        case "release":
+          w.u32(0);
+          return;
+        case "done":
+          w.u32(1);
+          return;
+        case "refuse":
+          w.u32(2);
+          surfaceRefusalType().encode(w, v.why);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.Surface.UnbindGate`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "release" });
+        case 1: return ({ kind: "done" });
+        case 2: return ({ kind: "refuse", why: surfaceRefusalType().decode(r) });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.Surface.UnbindGate`);
+      }
+    },
+  );
+}
+
 /** Describes Swf.ViewMode.ModeMachine for polymorphic functions. */
 export function modeMachineType() {
   return new L.Type(
-    L.inductiveExpr(9),
+    L.inductiveExpr(15),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.ViewMode.ModeMachine");
       w.u32(0);
@@ -299,7 +542,7 @@ export function modeMachineType() {
 /** Describes Swf.ViewMode.ModeEvent for polymorphic functions. */
 export function modeEventType() {
   return new L.Type(
-    L.inductiveExpr(10),
+    L.inductiveExpr(16),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.ViewMode.ModeEvent");
       switch (v.kind) {
@@ -328,7 +571,7 @@ export function modeEventType() {
 /** Describes Swf.ViewMode.ViewSettings for polymorphic functions. */
 export function viewSettingsType() {
   return new L.Type(
-    L.inductiveExpr(11),
+    L.inductiveExpr(17),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.ViewMode.ViewSettings");
       w.u32(0);
@@ -347,7 +590,7 @@ export function viewSettingsType() {
 /** Describes Swf.ViewMode.ModeTransition for polymorphic functions. */
 export function modeTransitionType() {
   return new L.Type(
-    L.inductiveExpr(12),
+    L.inductiveExpr(18),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.ViewMode.ModeTransition");
       switch (v.kind) {
@@ -377,10 +620,107 @@ export function modeTransitionType() {
   );
 }
 
+/** Describes Swf.Surface.UnboundReason for polymorphic functions. */
+export function unboundReasonType() {
+  return new L.Type(
+    L.inductiveExpr(19),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.UnboundReason");
+      switch (v.kind) {
+        case "noBindingKey":
+          w.u32(0);
+          return;
+        case "adapterUnavailable":
+          w.u32(1);
+          return;
+        case "unknownBindingKey":
+          w.u32(2);
+          return;
+        case "released":
+          w.u32(3);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.Surface.UnboundReason`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "noBindingKey" });
+        case 1: return ({ kind: "adapterUnavailable" });
+        case 2: return ({ kind: "unknownBindingKey" });
+        case 3: return ({ kind: "released" });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.Surface.UnboundReason`);
+      }
+    },
+  );
+}
+
+/** Describes Swf.Surface.Resolution for polymorphic functions. */
+export function resolutionType() {
+  return new L.Type(
+    L.inductiveExpr(20),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.Resolution");
+      switch (v.kind) {
+        case "bound":
+          w.u32(0);
+          return;
+        case "unknownKey":
+          w.u32(1);
+          return;
+        case "failed":
+          w.u32(2);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.Surface.Resolution`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "bound" });
+        case 1: return ({ kind: "unknownKey" });
+        case 2: return ({ kind: "failed" });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.Surface.Resolution`);
+      }
+    },
+  );
+}
+
+/** Describes Swf.Surface.Release for polymorphic functions. */
+export function releaseType() {
+  return new L.Type(
+    L.inductiveExpr(21),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.Release");
+      switch (v.kind) {
+        case "unbound":
+          w.u32(0);
+          unboundReasonType().encode(w, v.reason);
+          return;
+        case "detached":
+          w.u32(1);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.Surface.Release`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "unbound", reason: unboundReasonType().decode(r) });
+        case 1: return ({ kind: "detached" });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.Surface.Release`);
+      }
+    },
+  );
+}
+
 /** Describes Swf.ViewMode.ProjectionSetting for polymorphic functions. */
 export function projectionSettingType() {
   return new L.Type(
-    L.inductiveExpr(13),
+    L.inductiveExpr(22),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.ViewMode.ProjectionSetting");
       w.u32(0);
@@ -398,7 +738,7 @@ export function projectionSettingType() {
 /** Describes Swf.ViewMode.Quat for polymorphic functions. */
 export function quatType() {
   return new L.Type(
-    L.inductiveExpr(14),
+    L.inductiveExpr(23),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.ViewMode.Quat");
       w.u32(0);
@@ -418,7 +758,7 @@ export function quatType() {
 /** Describes Swf.Json for polymorphic functions. */
 export function jsonType() {
   return new L.Type(
-    L.inductiveExpr(15),
+    L.inductiveExpr(24),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Json");
       switch (v.kind) {
@@ -1152,6 +1492,380 @@ export const ASSURANCE = L.parseAssurance({
       }
     },
     {
+      "name": "Swf.Surface.announces_changes",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Surface.surfaceStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (p : Swf.Surface.Presentation) (e : Swf.Surface.SurfaceEvent),\n  (Swf.Surface.surfaceStep p e).next ≠ p → (Swf.Surface.surfaceStep p e).announce = true",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "c350c447e5b98cd1e09c4a29cb7a20722a630b7d3eedbc3b6f766f885de7e4c5",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Surface.lean",
+        "start": {
+          "line": 224,
+          "column": 1
+        },
+        "end": {
+          "line": 229,
+          "column": 68
+        }
+      }
+    },
+    {
+      "name": "Swf.Surface.bind_only_from_unbound_or_error",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Surface.bindGate"
+      ],
+      "specifications": [],
+      "statement": "∀ (p : Swf.Surface.Presentation),\n  Swf.Surface.bindGate true p = some Swf.Surface.SurfaceRefusal.disposed ∧\n    (Swf.Surface.bindGate false p = none ↔\n      (∃ r, p = Swf.Surface.Presentation.unbound r) ∨ p = Swf.Surface.Presentation.error)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "f046509d2338deeb869d4443a45b883d4fc2daa1197a044720921f35140b7992",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Surface.lean",
+        "start": {
+          "line": 231,
+          "column": 1
+        },
+        "end": {
+          "line": 237,
+          "column": 30
+        }
+      }
+    },
+    {
+      "name": "Swf.Surface.bindsOnAdapter_iff",
+      "relation": "lungo.decides",
+      "subjects": [
+        "Swf.Surface.bindsOnAdapter"
+      ],
+      "specifications": [],
+      "statement": "∀ (p : Swf.Surface.Presentation),\n  Swf.Surface.bindsOnAdapter p = true ↔\n    p = Swf.Surface.Presentation.unbound Swf.Surface.UnboundReason.adapterUnavailable",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "3f03e83568594661aa3b2de05563a738aa55b33eb2ee51ab328c6ed238c98757",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Surface.lean",
+        "start": {
+          "line": 296,
+          "column": 1
+        },
+        "end": {
+          "line": 299,
+          "column": 24
+        }
+      }
+    },
+    {
+      "name": "Swf.Surface.detaching_only_from_active",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Surface.surfaceStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (p : Swf.Surface.Presentation) (e : Swf.Surface.SurfaceEvent),\n  (Swf.Surface.surfaceStep p e).next = Swf.Surface.Presentation.detaching →\n    p ≠ Swf.Surface.Presentation.detaching → p.active = true",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "ff324681ea928d2a42e6064a2f255885279cf62a916527deaba2f9200af2e630",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Surface.lean",
+        "start": {
+          "line": 217,
+          "column": 1
+        },
+        "end": {
+          "line": 222,
+          "column": 68
+        }
+      }
+    },
+    {
+      "name": "Swf.Surface.error_only_on_failure",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Surface.surfaceStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (p : Swf.Surface.Presentation) (e : Swf.Surface.SurfaceEvent),\n  (Swf.Surface.surfaceStep p e).next = Swf.Surface.Presentation.error →\n    p ≠ Swf.Surface.Presentation.error →\n      p = Swf.Surface.Presentation.binding ∧ e = Swf.Surface.SurfaceEvent.resolved Swf.Surface.Resolution.failed ∨\n        e = Swf.Surface.SurfaceEvent.fails",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "4cfcfb34d40742e6015dda18a563fb83c2159aa106837979b115dc8cf7967baf",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Surface.lean",
+        "start": {
+          "line": 209,
+          "column": 1
+        },
+        "end": {
+          "line": 215,
+          "column": 68
+        }
+      }
+    },
+    {
+      "name": "Swf.Surface.hide_releases_only_if_safe",
+      "relation": "lungo.decides",
+      "subjects": [
+        "Swf.Surface.hideReleases"
+      ],
+      "specifications": [],
+      "statement": "∀ (requested safeDetach : Bool),\n  Swf.Surface.hideReleases requested safeDetach = true ↔ requested = true ∧ safeDetach = true",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "a2566cb0b6c8ee2037f874ac4e12212da1160a2189369d9bea354db5c66e8d81",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Surface.lean",
+        "start": {
+          "line": 254,
+          "column": 1
+        },
+        "end": {
+          "line": 258,
+          "column": 22
+        }
+      }
+    },
+    {
+      "name": "Swf.Surface.holdsBinding_iff",
+      "relation": "lungo.decides",
+      "subjects": [
+        "Swf.Surface.holdsBinding"
+      ],
+      "specifications": [],
+      "statement": "∀ (p : Swf.Surface.Presentation),\n  Swf.Surface.holdsBinding p = true ↔\n    p = Swf.Surface.Presentation.binding ∨\n      p = Swf.Surface.Presentation.ready ∨ p = Swf.Surface.Presentation.presented ∨ p = Swf.Surface.Presentation.hidden",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "f87e81ed94360c16b0befe6c05ff707b186a61d949d8e21c46b445e2372e1dc4",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Surface.lean",
+        "start": {
+          "line": 291,
+          "column": 1
+        },
+        "end": {
+          "line": 294,
+          "column": 55
+        }
+      }
+    },
+    {
+      "name": "Swf.Surface.move_and_hide_need_attachment",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Surface.moveGate",
+        "Swf.Surface.hideGate"
+      ],
+      "specifications": [],
+      "statement": "∀ (disposed attached replacing : Bool),\n  (Swf.Surface.moveGate disposed attached replacing = none ↔ disposed = false ∧ attached = true ∧ replacing = false) ∧\n    (Swf.Surface.hideGate attached replacing = none ↔ attached = true ∧ replacing = false)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "c555df2bc4b267532f8c1ebdb9d8fe151a41373b9e7c7a411e42cf83a2cc7ea7",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Surface.lean",
+        "start": {
+          "line": 283,
+          "column": 1
+        },
+        "end": {
+          "line": 289,
+          "column": 86
+        }
+      }
+    },
+    {
+      "name": "Swf.Surface.present_admits_single_mount",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Surface.presentGate"
+      ],
+      "specifications": [],
+      "statement": "∀ (f : Swf.Surface.PresentFacts),\n  Swf.Surface.presentGate f = none →\n    f.disposed = false ∧\n      f.replacing = false ∧\n        f.phase.bound = true ∧\n          f.existing ≠ some true ∧\n            f.pending = false ∧\n              (f.singleOwner = true → f.existing = none → f.attachedAnywhere = false ∧ f.endpointElsewhere = false)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "27e7e23b68f6552365e4e93fb54e396f6a3397c803886c07d617bb01eea0c464",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Surface.lean",
+        "start": {
+          "line": 239,
+          "column": 1
+        },
+        "end": {
+          "line": 252,
+          "column": 65
+        }
+      }
+    },
+    {
+      "name": "Swf.Surface.presented_needs_binding",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Surface.surfaceStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (p : Swf.Surface.Presentation) (e : Swf.Surface.SurfaceEvent),\n  (Swf.Surface.surfaceStep p e).next = Swf.Surface.Presentation.presented →\n    p ≠ Swf.Surface.Presentation.presented → p.bound = true",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "704a5e756c92adf7714149a6176b82e39942bd86fd34bb915e14dafe16aeec97",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Surface.lean",
+        "start": {
+          "line": 202,
+          "column": 1
+        },
+        "end": {
+          "line": 207,
+          "column": 68
+        }
+      }
+    },
+    {
+      "name": "Swf.Surface.replace_only_when_bound",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Surface.replaceGate"
+      ],
+      "specifications": [],
+      "statement": "∀ (disposed : Bool) (p : Swf.Surface.Presentation) (replacing hasAdapter pending : Bool),\n  Swf.Surface.replaceGate disposed p replacing hasAdapter pending = none →\n    disposed = false ∧ replacing = false ∧ p.bound = true ∧ hasAdapter = true ∧ pending = false",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "49cd08eff6d91c094581ad9cef59db70b6ef7d57f9ad2a009fe72c0e34e3337c",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Surface.lean",
+        "start": {
+          "line": 260,
+          "column": 1
+        },
+        "end": {
+          "line": 269,
+          "column": 11
+        }
+      }
+    },
+    {
+      "name": "Swf.Surface.unbind_cases",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Surface.unbindGate"
+      ],
+      "specifications": [],
+      "statement": "∀ (p : Swf.Surface.Presentation) (replacing : Bool),\n  (replacing = true →\n      Swf.Surface.unbindGate p replacing = Swf.Surface.UnbindGate.refuse Swf.Surface.SurfaceRefusal.replacing) ∧\n    (replacing = false →\n        p = Swf.Surface.Presentation.detaching →\n          Swf.Surface.unbindGate p replacing = Swf.Surface.UnbindGate.refuse Swf.Surface.SurfaceRefusal.detaching) ∧\n      (replacing = false →\n          (∃ r, p = Swf.Surface.Presentation.unbound r) →\n            Swf.Surface.unbindGate p replacing = Swf.Surface.UnbindGate.done) ∧\n        (replacing = false → p.active = true → Swf.Surface.unbindGate p replacing = Swf.Surface.UnbindGate.release)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "8f7e343ecaf0fc6ac7338ead04e9fe0b29c99ffd933e9fa612472a9eb01b0fc9",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Surface.lean",
+        "start": {
+          "line": 271,
+          "column": 1
+        },
+        "end": {
+          "line": 281,
+          "column": 57
+        }
+      }
+    },
+    {
       "name": "Swf.ViewMode.back_restores_entry_view",
       "relation": "lungo.law",
       "subjects": [
@@ -1807,6 +2521,325 @@ export const ASSURANCE = L.parseAssurance({
       }
     },
     {
+      "name": "Swf.Surface.bindGate",
+      "module": "Swf.Surface",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": []
+      },
+      "claims": [
+        "Swf.Surface.bind_only_from_unbound_or_error"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Surface.lean",
+        "start": {
+          "line": 118,
+          "column": 1
+        },
+        "end": {
+          "line": 122,
+          "column": 36
+        }
+      }
+    },
+    {
+      "name": "Swf.Surface.bindsOnAdapter",
+      "module": "Swf.Surface",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_nat_dec_eq"
+        ]
+      },
+      "claims": [
+        "Swf.Surface.bindsOnAdapter_iff"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Surface.lean",
+        "start": {
+          "line": 197,
+          "column": 1
+        },
+        "end": {
+          "line": 198,
+          "column": 81
+        }
+      }
+    },
+    {
+      "name": "Swf.Surface.hideGate",
+      "module": "Swf.Surface",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": []
+      },
+      "claims": [
+        "Swf.Surface.move_and_hide_need_attachment"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Surface.lean",
+        "start": {
+          "line": 183,
+          "column": 1
+        },
+        "end": {
+          "line": 187,
+          "column": 12
+        }
+      }
+    },
+    {
+      "name": "Swf.Surface.hideReleases",
+      "module": "Swf.Surface",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": []
+      },
+      "claims": [
+        "Swf.Surface.hide_releases_only_if_safe"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Surface.lean",
+        "start": {
+          "line": 189,
+          "column": 1
+        },
+        "end": {
+          "line": 191,
+          "column": 81
+        }
+      }
+    },
+    {
+      "name": "Swf.Surface.holdsBinding",
+      "module": "Swf.Surface",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": []
+      },
+      "claims": [
+        "Swf.Surface.holdsBinding_iff"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Surface.lean",
+        "start": {
+          "line": 193,
+          "column": 1
+        },
+        "end": {
+          "line": 195,
+          "column": 55
+        }
+      }
+    },
+    {
+      "name": "Swf.Surface.moveGate",
+      "module": "Swf.Surface",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": []
+      },
+      "claims": [
+        "Swf.Surface.move_and_hide_need_attachment"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Surface.lean",
+        "start": {
+          "line": 175,
+          "column": 1
+        },
+        "end": {
+          "line": 181,
+          "column": 12
+        }
+      }
+    },
+    {
+      "name": "Swf.Surface.presentGate",
+      "module": "Swf.Surface",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": []
+      },
+      "claims": [
+        "Swf.Surface.present_admits_single_mount"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Surface.lean",
+        "start": {
+          "line": 155,
+          "column": 1
+        },
+        "end": {
+          "line": 164,
+          "column": 12
+        }
+      }
+    },
+    {
+      "name": "Swf.Surface.replaceGate",
+      "module": "Swf.Surface",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": []
+      },
+      "claims": [
+        "Swf.Surface.replace_only_when_bound"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Surface.lean",
+        "start": {
+          "line": 166,
+          "column": 1
+        },
+        "end": {
+          "line": 173,
+          "column": 12
+        }
+      }
+    },
+    {
+      "name": "Swf.Surface.surfaceStep",
+      "module": "Swf.Surface",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_nat_dec_eq"
+        ]
+      },
+      "claims": [
+        "Swf.Surface.announces_changes",
+        "Swf.Surface.detaching_only_from_active",
+        "Swf.Surface.error_only_on_failure",
+        "Swf.Surface.presented_needs_binding"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Surface.lean",
+        "start": {
+          "line": 77,
+          "column": 1
+        },
+        "end": {
+          "line": 97,
+          "column": 47
+        }
+      }
+    },
+    {
+      "name": "Swf.Surface.unbindGate",
+      "module": "Swf.Surface",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": []
+      },
+      "claims": [
+        "Swf.Surface.unbind_cases"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Surface.lean",
+        "start": {
+          "line": 130,
+          "column": 1
+        },
+        "end": {
+          "line": 135,
+          "column": 20
+        }
+      }
+    },
+    {
       "name": "Swf.ViewMode.observed",
       "module": "Swf.ViewMode",
       "async": false,
@@ -1892,10 +2925,19 @@ export const leanTypes = Object.freeze({
   "Swf.Kernel.TxGate": Object.freeze({ fingerprint: "5c5785c6e4e9e146c13696dd7cbde448a35f15d669c395f9c81a50e6bf0fb90d", type: txGateType }),
   "Swf.Kernel.IdleStep": Object.freeze({ fingerprint: "86d76c1a0899b0e4705e48b52c236b397fce1702ed61fd67204dc7e88d7a8347", type: idleStepType }),
   "Swf.Kernel.Travel": Object.freeze({ fingerprint: "dd1c26af833a66c6bd4a6f509a862c776e79e39ecdaeeb03ed36de4bff315c13", type: travelType }),
+  "Swf.Surface.Presentation": Object.freeze({ fingerprint: "31141466da17e7fcd35b80cab4521995c74042b7b9304f4890a27caa44ae6e52", type: presentationType }),
+  "Swf.Surface.SurfaceRefusal": Object.freeze({ fingerprint: "c800fe29edb55c96423d80f9c9bd511e5edef8e430024077d1dc7a8aa5a60217", type: surfaceRefusalType }),
+  "Swf.Surface.PresentFacts": Object.freeze({ fingerprint: "0011984aa801e49f75368f681c6d3703f4c9602a0327ae962728ce075de0d75b", type: presentFactsType }),
+  "Swf.Surface.SurfaceEvent": Object.freeze({ fingerprint: "0c6cadd2c7db9df401c57271d8b73849b769a6a1a22f29fd0dc9ac144631d148", type: surfaceEventType }),
+  "Swf.Surface.SurfaceStep": Object.freeze({ fingerprint: "5306c6525e496409de3bb82f52827aebb8d1a3161fa3020205c91acbd2e13006", type: surfaceStepType }),
+  "Swf.Surface.UnbindGate": Object.freeze({ fingerprint: "f327e7ac7a91a1447ebcecd4a0cb00f7bff7083da603fed056bd68a1c277fe5b", type: unbindGateType }),
   "Swf.ViewMode.ModeMachine": Object.freeze({ fingerprint: "8cf62c84c8d3f2b2eca32e61c97c83ba5fd47043d63f74ee19be10654bf83ff0", type: modeMachineType }),
   "Swf.ViewMode.ModeEvent": Object.freeze({ fingerprint: "feb6feb87a7e30d7693c96d0493a238c99e4e00601abc124d6b93b1888d68a96", type: modeEventType }),
   "Swf.ViewMode.ViewSettings": Object.freeze({ fingerprint: "c065e9ffb7dae7f29c43844de021c3579c10a16cd117a755f99ba60a4c5ef8c3", type: viewSettingsType }),
   "Swf.ViewMode.ModeTransition": Object.freeze({ fingerprint: "0c012f74883ff9576dd75b9011f2066f8c9bbf8813984c19dac02abf04d4888c", type: modeTransitionType }),
+  "Swf.Surface.UnboundReason": Object.freeze({ fingerprint: "95fa7fe593058c7d2614587e173ffcc81e640a3b40fdf6ca0ca1edf836cdfd93", type: unboundReasonType }),
+  "Swf.Surface.Resolution": Object.freeze({ fingerprint: "e2697939765fdef91752d7e809bf26ceb8684639c2f384a72e2562e02c6beb41", type: resolutionType }),
+  "Swf.Surface.Release": Object.freeze({ fingerprint: "c86983c9af4e3ad8cd45eb8729699fbcd25fce764f7d43da2b19763c672fafeb", type: releaseType }),
   "Swf.ViewMode.ProjectionSetting": Object.freeze({ fingerprint: "97b34823a98c76e376fd8ca30ade4a7f301eeb0077d62d331825fc32f174adbf", type: projectionSettingType }),
   "Swf.ViewMode.Quat": Object.freeze({ fingerprint: "e8a26ff475b891483592b41e9ed64c444f631505486a1cd3299c5ddcfbf1a7a7", type: quatType }),
   "Swf.Json": Object.freeze({ fingerprint: "44adb8c006802c79becdc00b1fa4e555bcbcd2b22f75fd40160944f233b7f49e", type: jsonType }),
@@ -1945,6 +2987,36 @@ export class SwfModels {
   }
   travel(l, d, stale) {
     return this.#program.invoke("swf_models__call_l_Swf_dKernel_dtravel", [], [[ledgerType(), l], [directionType(), d], [L.BOOL, stale]], L.value(travelType()));
+  }
+  bindGate(disposed, p) {
+    return this.#program.invoke("swf_models__call_l_Swf_dSurface_dbindGate", [], [[L.BOOL, disposed], [presentationType(), p]], L.value(L.option(surfaceRefusalType())));
+  }
+  bindsOnAdapter(p) {
+    return this.#program.invoke("swf_models__call_l_Swf_dSurface_dbindsOnAdapter", [], [[presentationType(), p]], L.value(L.BOOL));
+  }
+  hideGate(attached, replacing) {
+    return this.#program.invoke("swf_models__call_l_Swf_dSurface_dhideGate", [], [[L.BOOL, attached], [L.BOOL, replacing]], L.value(L.option(surfaceRefusalType())));
+  }
+  hideReleases(requested, safeDetach) {
+    return this.#program.invoke("swf_models__call_l_Swf_dSurface_dhideReleases", [], [[L.BOOL, requested], [L.BOOL, safeDetach]], L.value(L.BOOL));
+  }
+  holdsBinding(p) {
+    return this.#program.invoke("swf_models__call_l_Swf_dSurface_dholdsBinding", [], [[presentationType(), p]], L.value(L.BOOL));
+  }
+  moveGate(disposed, attached, replacing) {
+    return this.#program.invoke("swf_models__call_l_Swf_dSurface_dmoveGate", [], [[L.BOOL, disposed], [L.BOOL, attached], [L.BOOL, replacing]], L.value(L.option(surfaceRefusalType())));
+  }
+  presentGate(f) {
+    return this.#program.invoke("swf_models__call_l_Swf_dSurface_dpresentGate", [], [[presentFactsType(), f]], L.value(L.option(surfaceRefusalType())));
+  }
+  replaceGate(disposed, p, replacing, hasAdapter, pending) {
+    return this.#program.invoke("swf_models__call_l_Swf_dSurface_dreplaceGate", [], [[L.BOOL, disposed], [presentationType(), p], [L.BOOL, replacing], [L.BOOL, hasAdapter], [L.BOOL, pending]], L.value(L.option(surfaceRefusalType())));
+  }
+  surfaceStep(p, e) {
+    return this.#program.invoke("swf_models__call_l_Swf_dSurface_dsurfaceStep", [], [[presentationType(), p], [surfaceEventType(), e]], L.value(surfaceStepType()));
+  }
+  unbindGate(p, replacing) {
+    return this.#program.invoke("swf_models__call_l_Swf_dSurface_dunbindGate", [], [[presentationType(), p], [L.BOOL, replacing]], L.value(unbindGateType()));
   }
   observed(m, recorded) {
     return this.#program.invoke("swf_models__call_l_Swf_dViewMode_dobserved", [], [[modeMachineType(), m], [L.STRING, recorded]], L.value(L.option(modeMachineType())));

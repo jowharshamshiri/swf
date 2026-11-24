@@ -11,6 +11,14 @@ import type {
 } from '@swf/core';
 import { makeError, surfaceEffectiveState, SwfFailure } from '@swf/core';
 import type {
+  Presentation,
+  SurfaceEvent,
+  SurfaceRefusal,
+  SurfaceStep,
+  UnboundReason as LeanUnboundReason,
+} from '@swf/models';
+import { models } from '@swf/models';
+import type {
   BindingContext,
   PresentationHint,
   PresentationTarget,
@@ -349,9 +357,8 @@ class Runtime implements SurfaceRuntime {
     if (this.#autoBind) {
       for (const entry of this.#entries.values()) {
         if (
-          entry.state === 'unbound' &&
-          entry.unboundReason === 'adapter-unavailable' &&
-          entry.binding.adapterTypeId === adapter.id
+          entry.binding.adapterTypeId === adapter.id &&
+          models.bindsOnAdapter(presentationOf(entry))
         ) {
           this.#startBinding(entry);
         }
@@ -363,7 +370,10 @@ class Runtime implements SurfaceRuntime {
       }
       this.#adapters.delete(adapter.id);
       for (const entry of this.#entries.values()) {
-        if (entry.binding.adapterTypeId === adapter.id && isActive(entry.state)) {
+        if (
+          entry.binding.adapterTypeId === adapter.id &&
+          models.holdsBinding(presentationOf(entry))
+        ) {
           void this.#release(entry, 'unbound', 'adapter-unavailable');
         }
       }
@@ -378,17 +388,9 @@ class Runtime implements SurfaceRuntime {
     if (entry === undefined) {
       return this.#rejected(this.#unknown(surfaceId));
     }
-    if (this.#disposed !== null) {
-      return this.#rejected(this.#disposedError());
-    }
-    if (entry.state !== 'unbound' && entry.state !== 'error') {
-      return this.#rejected(
-        this.#error(
-          'INVALID_TRANSITION',
-          `surface "${surfaceId}" is ${entry.state}; only an unbound or failed surface can bind`,
-          surfaceId,
-        ),
-      );
+    const refused = models.bindGate(this.#disposed !== null, presentationOf(entry));
+    if (refused !== null) {
+      return this.#rejected(this.#refusal(entry, refused, 'bind'));
     }
     this.#startBinding(entry);
     return entry.settled.then(() => this.#ok(entry));
@@ -399,13 +401,11 @@ class Runtime implements SurfaceRuntime {
     if (entry === undefined) {
       return this.#rejected(this.#unknown(surfaceId));
     }
-    if (entry.state === 'detaching' || entry.replacing !== null) {
-      const what = entry.replacing === null ? 'detaching' : 'replacing its binding';
-      return this.#rejected(
-        this.#error('INVALID_TRANSITION', `surface "${surfaceId}" is ${what}`, surfaceId),
-      );
+    const gate = models.unbindGate(presentationOf(entry), entry.replacing !== null);
+    if (gate.kind === 'refuse') {
+      return this.#rejected(this.#refusal(entry, gate.why, 'unbind'));
     }
-    if (entry.state === 'unbound') {
+    if (gate.kind === 'done') {
       return Promise.resolve(this.#ok(entry));
     }
     return this.#release(entry, 'unbound', 'released').then(() => this.#ok(entry));
@@ -415,14 +415,6 @@ class Runtime implements SurfaceRuntime {
     const entry = this.#entries.get(surfaceId);
     if (entry === undefined) {
       return this.#rejected(this.#unknown(surfaceId));
-    }
-    if (this.#disposed !== null) {
-      return this.#rejected(this.#disposedError());
-    }
-    if (typeof viewportId !== 'string' || viewportId.trim() === '') {
-      return this.#rejected(
-        this.#error('INVALID_INPUT', 'viewportId must be a non-blank string', surfaceId),
-      );
     }
     const blocked = this.#presentBlocker(entry, viewportId);
     if (blocked !== null) {
@@ -499,28 +491,18 @@ class Runtime implements SurfaceRuntime {
     if (entry === undefined) {
       return this.#rejected(this.#unknown(surfaceId));
     }
-    if (this.#disposed !== null) {
-      return this.#rejected(this.#disposedError());
-    }
     const attachment = entry.attachments.get(viewportId);
     const adapter = entry.adapter;
-    if (attachment === undefined || adapter === null || entry.pending.has(viewportId)) {
-      return this.#rejected(
-        this.#error(
-          'INVALID_TRANSITION',
-          `surface "${surfaceId}" is not attached in viewport "${viewportId}"`,
-          surfaceId,
-        ),
-      );
+    const refused = models.moveGate(
+      this.#disposed !== null,
+      attachment !== undefined && adapter !== null && !entry.pending.has(viewportId),
+      entry.replacing !== null,
+    );
+    if (refused !== null) {
+      return this.#rejected(this.#refusal(entry, refused, 'move', { viewportId }));
     }
-    if (entry.replacing !== null) {
-      return this.#rejected(
-        this.#error(
-          'INVALID_TRANSITION',
-          `surface "${surfaceId}" is replacing its binding`,
-          surfaceId,
-        ),
-      );
+    if (attachment === undefined || adapter === null) {
+      throw new Error(`the presentation model moved surface "${surfaceId}", which is not attached`);
     }
     if (attachment.target.container === container) {
       return this.#ok(entry);
@@ -601,27 +583,22 @@ class Runtime implements SurfaceRuntime {
       return this.#rejected(this.#unknown(surfaceId));
     }
     const attachment = entry.attachments.get(viewportId);
-    if (attachment === undefined || entry.adapter === null) {
-      return this.#rejected(
-        this.#error(
-          'INVALID_TRANSITION',
-          `surface "${surfaceId}" is not attached in viewport "${viewportId}"`,
-          surfaceId,
-        ),
-      );
-    }
-    if (entry.replacing !== null) {
-      return this.#rejected(
-        this.#error(
-          'INVALID_TRANSITION',
-          `surface "${surfaceId}" is replacing its binding`,
-          surfaceId,
-        ),
-      );
-    }
     const adapter = entry.adapter;
+    const refused = models.hideGate(
+      attachment !== undefined && adapter !== null,
+      entry.replacing !== null,
+    );
+    if (refused !== null) {
+      return this.#rejected(this.#refusal(entry, refused, 'hide', { viewportId }));
+    }
+    if (attachment === undefined || adapter === null) {
+      throw new Error(`the presentation model hid surface "${surfaceId}", which is not attached`);
+    }
     // Releasing is only safe when the handle says so; otherwise the attachment stays, hidden.
-    const release = options.release === true && entry.capabilities?.safeDetach === true;
+    const release = models.hideReleases(
+      options.release === true,
+      entry.capabilities?.safeDetach === true,
+    );
     if (!attachment.visible && !release) {
       return this.#ok(entry);
     }
@@ -676,20 +653,15 @@ class Runtime implements SurfaceRuntime {
     if (entry === undefined) {
       return this.#rejected(this.#unknown(surfaceId));
     }
-    if (this.#disposed !== null) {
-      return this.#rejected(this.#disposedError());
-    }
-    const bound =
-      entry.state === 'ready' || entry.state === 'presented' || entry.state === 'hidden';
-    if (!bound || entry.replacing !== null || entry.adapter === null || entry.pending.size > 0) {
-      const what = entry.replacing === null ? entry.state : 'already replacing its binding';
-      return this.#rejected(
-        this.#error(
-          'INVALID_TRANSITION',
-          `surface "${surfaceId}" is ${what}; a replacement hands off from a bound surface (use surface.rebind otherwise)`,
-          surfaceId,
-        ),
-      );
+    const refused = models.replaceGate(
+      this.#disposed !== null,
+      presentationOf(entry),
+      entry.replacing !== null,
+      entry.adapter !== null,
+      entry.pending.size > 0,
+    );
+    if (refused !== null) {
+      return this.#rejected(this.#refusal(entry, refused, 'replace'));
     }
     if (typeof binding.bindingKey !== 'string' || binding.bindingKey.trim() === '') {
       return this.#rejected(
@@ -711,6 +683,11 @@ class Runtime implements SurfaceRuntime {
       );
     }
     const oldAdapter = entry.adapter;
+    if (oldAdapter === null) {
+      throw new Error(
+        `the presentation model handed over surface "${surfaceId}", which has no adapter`,
+      );
+    }
     const oldHandle = entry.handle;
     const previous = entry.binding;
     const generation = entry.generation;
@@ -951,7 +928,7 @@ class Runtime implements SurfaceRuntime {
   }
 
   async #rebound(entry: Entry, binding: BindingRef): Promise<void> {
-    if (isActive(entry.state)) {
+    if (models.holdsBinding(presentationOf(entry))) {
       await this.#release(entry, 'unbound', 'released');
     }
     if (entry.removed) {
@@ -959,13 +936,11 @@ class Runtime implements SurfaceRuntime {
     }
     entry.binding = Object.freeze({ ...binding });
     const reason = this.#unboundReasonFor(entry);
-    if (entry.state !== 'unbound' || entry.unboundReason !== reason) {
-      const from = entry.state;
-      entry.state = 'unbound';
+    const step = this.#decide(entry, { kind: 'rebound', reason: leanReason(reason) });
+    if (step.announce) {
       entry.error = null;
-      entry.unboundReason = reason;
-      this.#emitState(entry, from);
     }
+    this.#apply(entry, step);
     if (this.#autoBind && reason === 'released') {
       this.#startBinding(entry);
     }
@@ -992,28 +967,23 @@ class Runtime implements SurfaceRuntime {
 
   #startBinding(entry: Entry): void {
     const reason = this.#unboundReasonFor(entry);
-    const adapter = this.#adapters.get(entry.binding.adapterTypeId);
-    if (reason !== 'released' || adapter === undefined) {
-      const from = entry.state;
-      entry.state = 'unbound';
-      entry.unboundReason = reason;
-      entry.error = null;
-      if (from !== 'unbound' || entry.unboundReason !== reason) {
-        this.#emitState(entry, from);
-      }
+    const step = this.#decide(entry, { kind: 'bindingStarts', reason: leanReason(reason) });
+    entry.error = null;
+    if (step.next.kind !== 'binding') {
+      this.#apply(entry, step);
       entry.settled = Promise.resolve();
       return;
+    }
+    const adapter = this.#adapters.get(entry.binding.adapterTypeId);
+    if (adapter === undefined) {
+      throw new Error(`surface "${entry.surfaceId}" started binding with no adapter registered`);
     }
     entry.generation += 1;
     const generation = entry.generation;
     const attempt = newAttempt();
     entry.attempt = attempt;
-    const from = entry.state;
-    entry.state = 'binding';
-    entry.unboundReason = null;
-    entry.error = null;
     entry.adapter = adapter;
-    this.#emitState(entry, from);
+    this.#apply(entry, step);
     entry.settled = this.#resolve(adapter, entry.binding, entry, attempt).then((resolution) => {
       if (entry.removed || entry.generation !== generation) {
         if (resolution.kind === 'bound') {
@@ -1031,24 +1001,22 @@ class Runtime implements SurfaceRuntime {
         case 'bound':
           entry.handle = resolution.handle;
           entry.capabilities = resolution.capabilities;
-          entry.state = 'ready';
-          break;
+          this.#step(entry, { kind: 'resolved', r: { kind: 'bound' } });
+          return;
         case 'unknown-key':
           entry.attempt = null;
           entry.adapter = null;
-          entry.state = 'unbound';
-          entry.unboundReason = 'unknown-binding-key';
-          break;
+          this.#step(entry, { kind: 'resolved', r: { kind: 'unknownKey' } });
+          return;
         case 'failed':
           entry.attempt = null;
           entry.adapter = null;
-          entry.state = 'error';
           entry.error = resolution.error;
-          break;
+          this.#step(entry, { kind: 'resolved', r: { kind: 'failed' } });
+          return;
         case 'cancelled':
           return;
       }
-      this.#emitState(entry, 'binding');
     });
   }
 
@@ -1239,13 +1207,11 @@ class Runtime implements SurfaceRuntime {
     if (entry.removed) {
       return;
     }
-    const from = entry.state;
-    entry.state = 'error';
     entry.error = error;
     entry.handle = undefined;
     entry.capabilities = null;
     entry.adapter = null;
-    this.#emitState(entry, from);
+    this.#step(entry, { kind: 'fails' });
   }
 
   /**
@@ -1262,21 +1228,22 @@ class Runtime implements SurfaceRuntime {
     entry.attempt?.cancel();
     entry.attempt = null;
     entry.replacing = null;
-    if (isActive(entry.state)) {
-      const from = entry.state;
-      entry.state = 'detaching';
-      this.#emitState(entry, from);
+    // Announced only when it held or was acquiring a binding: then there is something to release.
+    if (this.#step(entry, { kind: 'releaseStarts' }).announce) {
       await this.#releaseAttachments(entry);
     }
-    const from = entry.state;
-    entry.state = final;
-    entry.unboundReason = final === 'unbound' ? reason : null;
     entry.error = null;
     entry.handle = undefined;
     entry.capabilities = null;
     entry.adapter = null;
     entry.settled = Promise.resolve();
-    this.#emitState(entry, from);
+    this.#step(entry, {
+      kind: 'releaseEnds',
+      final:
+        final === 'detached'
+          ? { kind: 'detached' }
+          : { kind: 'unbound', reason: leanReason(reasonOf(entry, reason)) },
+    });
   }
 
   async #releaseAttachments(entry: Entry): Promise<void> {
@@ -1314,36 +1281,36 @@ class Runtime implements SurfaceRuntime {
     }
   }
 
-  #presentBlocker(entry: Entry, viewportId: Id): SwfError | null {
-    const id = entry.surfaceId;
-    if (entry.replacing !== null) {
-      return this.#error('INVALID_TRANSITION', `surface "${id}" is replacing its binding`, id);
-    }
-    if (entry.state !== 'ready' && entry.state !== 'presented' && entry.state !== 'hidden') {
-      return this.#error(
-        'INVALID_TRANSITION',
-        `surface "${id}" is ${entry.state}; only a bound surface can be presented`,
-        id,
-      );
-    }
-    const existing = entry.attachments.get(viewportId);
-    if (existing?.visible === true || entry.pending.has(viewportId)) {
-      return this.#error(
-        'INVALID_TRANSITION',
-        `surface "${id}" is already presented in viewport "${viewportId}"`,
-        id,
-      );
-    }
-    if (existing !== undefined || entry.capabilities?.viewportSharing !== 'single-owner') {
-      return null;
-    }
-    if (entry.attachments.size > 0 || entry.pending.size > 0) {
-      return this.#error(
-        'UNSUPPORTED_CAPABILITY',
-        `surface "${id}" has a single-owner handle already presented in another viewport; show a proxy there`,
-        id,
-      );
-    }
+  /**
+   * Why the surface cannot be presented in the viewport now, or null: the presentation model
+   * decides, from the surface's state and attachments and the single-owner endpoint's.
+   */
+  #presentBlocker(entry: Entry, viewportId: unknown): SwfError | null {
+    const valid = typeof viewportId === 'string' && viewportId.trim() !== '';
+    const existing = valid ? entry.attachments.get(viewportId) : undefined;
+    const singleOwner = entry.capabilities?.viewportSharing === 'single-owner';
+    const other = singleOwner ? this.#endpointPresenter(entry) : undefined;
+    const refused = models.presentGate({
+      disposed: this.#disposed !== null,
+      viewportValid: valid,
+      replacing: entry.replacing !== null,
+      phase: presentationOf(entry),
+      existing: existing === undefined ? null : existing.visible,
+      pending: valid && entry.pending.has(viewportId),
+      singleOwner,
+      attachedAnywhere: entry.attachments.size > 0 || entry.pending.size > 0,
+      endpointElsewhere: other !== undefined,
+    });
+    return refused === null
+      ? null
+      : this.#refusal(entry, refused, 'present', {
+          viewportId: String(viewportId),
+          ...(other === undefined ? {} : { other: other.surfaceId }),
+        });
+  }
+
+  /** Another surface presenting, or attaching, the same endpoint through the same adapter. */
+  #endpointPresenter(entry: Entry): Entry | undefined {
     for (const other of this.#entries.values()) {
       if (
         other !== entry &&
@@ -1351,32 +1318,90 @@ class Runtime implements SurfaceRuntime {
         other.binding.adapterTypeId === entry.binding.adapterTypeId &&
         (other.attachments.size > 0 || other.pending.size > 0)
       ) {
-        return this.#error(
-          'UNSUPPORTED_CAPABILITY',
-          `the single-owner endpoint of surface "${id}" is already presented by surface "${other.surfaceId}"`,
-          id,
-        );
+        return other;
       }
     }
-    return null;
+    return undefined;
+  }
+
+  /** The error a refusal of the presentation model stands for. */
+  #refusal(
+    entry: Entry,
+    why: SurfaceRefusal,
+    request: 'bind' | 'unbind' | 'present' | 'replace' | 'move' | 'hide',
+    at: { readonly viewportId?: string; readonly other?: Id } = {},
+  ): SwfError {
+    const id = entry.surfaceId;
+    const transition = (message: string) => this.#error('INVALID_TRANSITION', message, id);
+    const handOff = 'a replacement hands off from a bound surface (use surface.rebind otherwise)';
+    switch (why.kind) {
+      case 'disposed':
+        return this.#disposedError();
+      case 'invalidViewport':
+        return this.#error('INVALID_INPUT', 'viewportId must be a non-blank string', id);
+      case 'notUnboundOrFailed':
+        return transition(
+          `surface "${id}" is ${entry.state}; only an unbound or failed surface can bind`,
+        );
+      case 'detaching':
+        return transition(`surface "${id}" is detaching`);
+      case 'replacing':
+        return request === 'replace'
+          ? transition(`surface "${id}" is already replacing its binding; ${handOff}`)
+          : transition(`surface "${id}" is replacing its binding`);
+      case 'notBound':
+        return request === 'replace'
+          ? transition(`surface "${id}" is ${entry.state}; ${handOff}`)
+          : transition(`surface "${id}" is ${entry.state}; only a bound surface can be presented`);
+      case 'alreadyPresented':
+        return transition(
+          `surface "${id}" is already presented in viewport "${String(at.viewportId)}"`,
+        );
+      case 'singleOwnerElsewhere':
+        return this.#error(
+          'UNSUPPORTED_CAPABILITY',
+          `surface "${id}" has a single-owner handle already presented in another viewport; show a proxy there`,
+          id,
+        );
+      case 'endpointPresented':
+        return this.#error(
+          'UNSUPPORTED_CAPABILITY',
+          `the single-owner endpoint of surface "${id}" is already presented by surface "${String(at.other)}"`,
+          id,
+        );
+      case 'notAttached':
+        return transition(`surface "${id}" is not attached in viewport "${String(at.viewportId)}"`);
+    }
+  }
+
+  /** The presentation model's step for an event, not yet applied. */
+  #decide(entry: Entry, event: SurfaceEvent): SurfaceStep {
+    return models.surfaceStep(presentationOf(entry), event);
+  }
+
+  /** Puts the surface in the state a step decided, announcing the change when it says so. */
+  #apply(entry: Entry, step: SurfaceStep): SurfaceStep {
+    const from = entry.state;
+    setPresentation(entry, step.next);
+    if (step.announce) {
+      this.#emitState(entry, from);
+    }
+    return step;
+  }
+
+  /** Moves the surface as the presentation model decides on `event`. */
+  #step(entry: Entry, event: SurfaceEvent): SurfaceStep {
+    return this.#apply(entry, this.#decide(entry, event));
   }
 
   /** Sets presented, hidden or ready from the surface's attachments. */
   #settleVisibility(entry: Entry): void {
-    if (entry.state !== 'ready' && entry.state !== 'presented' && entry.state !== 'hidden') {
-      return;
-    }
     const attachments = [...entry.attachments.values()];
-    const next: PresentationState = attachments.some((a) => a.visible)
-      ? 'presented'
-      : attachments.length > 0
-        ? 'hidden'
-        : 'ready';
-    if (next !== entry.state) {
-      const from = entry.state;
-      entry.state = next;
-      this.#emitState(entry, from);
-    }
+    this.#step(entry, {
+      kind: 'attachmentsChanged',
+      visible: attachments.some((a) => a.visible),
+      attached: attachments.length > 0,
+    });
   }
 
   /** After the surface's spatial bounds change, re-sends each viewport's last hint with them. */
@@ -1575,11 +1600,6 @@ function snapshot(entry: Entry): SurfacePresentation {
   });
 }
 
-/** States holding (or acquiring) a binding, which releasing passes through `detaching`. */
-function isActive(state: PresentationState): boolean {
-  return state === 'binding' || state === 'ready' || state === 'presented' || state === 'hidden';
-}
-
 function exceeding(declared: SurfaceCapabilities, actual: SurfaceCapabilities): string | null {
   const exceeded = exceededCapabilities(declared, actual);
   return exceeded.length === 0
@@ -1691,4 +1711,49 @@ function checkOptions(
     diagnosticsCapacity: capacity,
     onDiagnostic: options.onDiagnostic,
   };
+}
+
+/** Each unbound reason as the presentation model names it. */
+const LEAN_REASONS: Readonly<Record<UnboundReason, LeanUnboundReason['kind']>> = Object.freeze({
+  'no-binding-key': 'noBindingKey',
+  'adapter-unavailable': 'adapterUnavailable',
+  'unknown-binding-key': 'unknownBindingKey',
+  released: 'released',
+});
+
+const REASONS: Readonly<Record<LeanUnboundReason['kind'], UnboundReason>> = Object.freeze({
+  noBindingKey: 'no-binding-key',
+  adapterUnavailable: 'adapter-unavailable',
+  unknownBindingKey: 'unknown-binding-key',
+  released: 'released',
+});
+
+function leanReason(reason: UnboundReason): LeanUnboundReason {
+  return { kind: LEAN_REASONS[reason] };
+}
+
+/** An unbound surface always shows why. */
+function reasonOf(entry: Entry, reason: UnboundReason | null): UnboundReason {
+  if (reason === null) {
+    throw new Error(`surface "${entry.surfaceId}" would be unbound with no reason`);
+  }
+  return reason;
+}
+
+/** The surface's state as the presentation model takes it. */
+function presentationOf(entry: Entry): Presentation {
+  return entry.state === 'unbound'
+    ? { kind: 'unbound', reason: leanReason(reasonOf(entry, entry.unboundReason)) }
+    : { kind: entry.state };
+}
+
+/** Puts the surface in a state the presentation model decided. */
+function setPresentation(entry: Entry, next: Presentation): void {
+  if (next.kind === 'unbound') {
+    entry.state = 'unbound';
+    entry.unboundReason = REASONS[next.reason.kind];
+  } else {
+    entry.state = next.kind;
+    entry.unboundReason = null;
+  }
 }

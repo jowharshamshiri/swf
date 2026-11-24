@@ -684,6 +684,380 @@
       }
     },
     {
+      "name": "Swf.Surface.announces_changes",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Surface.surfaceStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (p : Swf.Surface.Presentation) (e : Swf.Surface.SurfaceEvent),\n  (Swf.Surface.surfaceStep p e).next ≠ p → (Swf.Surface.surfaceStep p e).announce = true",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "c350c447e5b98cd1e09c4a29cb7a20722a630b7d3eedbc3b6f766f885de7e4c5",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Surface.lean",
+        "start": {
+          "line": 224,
+          "column": 1
+        },
+        "end": {
+          "line": 229,
+          "column": 68
+        }
+      }
+    },
+    {
+      "name": "Swf.Surface.bind_only_from_unbound_or_error",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Surface.bindGate"
+      ],
+      "specifications": [],
+      "statement": "∀ (p : Swf.Surface.Presentation),\n  Swf.Surface.bindGate true p = some Swf.Surface.SurfaceRefusal.disposed ∧\n    (Swf.Surface.bindGate false p = none ↔\n      (∃ r, p = Swf.Surface.Presentation.unbound r) ∨ p = Swf.Surface.Presentation.error)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "f046509d2338deeb869d4443a45b883d4fc2daa1197a044720921f35140b7992",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Surface.lean",
+        "start": {
+          "line": 231,
+          "column": 1
+        },
+        "end": {
+          "line": 237,
+          "column": 30
+        }
+      }
+    },
+    {
+      "name": "Swf.Surface.bindsOnAdapter_iff",
+      "relation": "lungo.decides",
+      "subjects": [
+        "Swf.Surface.bindsOnAdapter"
+      ],
+      "specifications": [],
+      "statement": "∀ (p : Swf.Surface.Presentation),\n  Swf.Surface.bindsOnAdapter p = true ↔\n    p = Swf.Surface.Presentation.unbound Swf.Surface.UnboundReason.adapterUnavailable",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "3f03e83568594661aa3b2de05563a738aa55b33eb2ee51ab328c6ed238c98757",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Surface.lean",
+        "start": {
+          "line": 296,
+          "column": 1
+        },
+        "end": {
+          "line": 299,
+          "column": 24
+        }
+      }
+    },
+    {
+      "name": "Swf.Surface.detaching_only_from_active",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Surface.surfaceStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (p : Swf.Surface.Presentation) (e : Swf.Surface.SurfaceEvent),\n  (Swf.Surface.surfaceStep p e).next = Swf.Surface.Presentation.detaching →\n    p ≠ Swf.Surface.Presentation.detaching → p.active = true",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "ff324681ea928d2a42e6064a2f255885279cf62a916527deaba2f9200af2e630",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Surface.lean",
+        "start": {
+          "line": 217,
+          "column": 1
+        },
+        "end": {
+          "line": 222,
+          "column": 68
+        }
+      }
+    },
+    {
+      "name": "Swf.Surface.error_only_on_failure",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Surface.surfaceStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (p : Swf.Surface.Presentation) (e : Swf.Surface.SurfaceEvent),\n  (Swf.Surface.surfaceStep p e).next = Swf.Surface.Presentation.error →\n    p ≠ Swf.Surface.Presentation.error →\n      p = Swf.Surface.Presentation.binding ∧ e = Swf.Surface.SurfaceEvent.resolved Swf.Surface.Resolution.failed ∨\n        e = Swf.Surface.SurfaceEvent.fails",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "4cfcfb34d40742e6015dda18a563fb83c2159aa106837979b115dc8cf7967baf",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Surface.lean",
+        "start": {
+          "line": 209,
+          "column": 1
+        },
+        "end": {
+          "line": 215,
+          "column": 68
+        }
+      }
+    },
+    {
+      "name": "Swf.Surface.hide_releases_only_if_safe",
+      "relation": "lungo.decides",
+      "subjects": [
+        "Swf.Surface.hideReleases"
+      ],
+      "specifications": [],
+      "statement": "∀ (requested safeDetach : Bool),\n  Swf.Surface.hideReleases requested safeDetach = true ↔ requested = true ∧ safeDetach = true",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "a2566cb0b6c8ee2037f874ac4e12212da1160a2189369d9bea354db5c66e8d81",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Surface.lean",
+        "start": {
+          "line": 254,
+          "column": 1
+        },
+        "end": {
+          "line": 258,
+          "column": 22
+        }
+      }
+    },
+    {
+      "name": "Swf.Surface.holdsBinding_iff",
+      "relation": "lungo.decides",
+      "subjects": [
+        "Swf.Surface.holdsBinding"
+      ],
+      "specifications": [],
+      "statement": "∀ (p : Swf.Surface.Presentation),\n  Swf.Surface.holdsBinding p = true ↔\n    p = Swf.Surface.Presentation.binding ∨\n      p = Swf.Surface.Presentation.ready ∨ p = Swf.Surface.Presentation.presented ∨ p = Swf.Surface.Presentation.hidden",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "f87e81ed94360c16b0befe6c05ff707b186a61d949d8e21c46b445e2372e1dc4",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Surface.lean",
+        "start": {
+          "line": 291,
+          "column": 1
+        },
+        "end": {
+          "line": 294,
+          "column": 55
+        }
+      }
+    },
+    {
+      "name": "Swf.Surface.move_and_hide_need_attachment",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Surface.moveGate",
+        "Swf.Surface.hideGate"
+      ],
+      "specifications": [],
+      "statement": "∀ (disposed attached replacing : Bool),\n  (Swf.Surface.moveGate disposed attached replacing = none ↔ disposed = false ∧ attached = true ∧ replacing = false) ∧\n    (Swf.Surface.hideGate attached replacing = none ↔ attached = true ∧ replacing = false)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "c555df2bc4b267532f8c1ebdb9d8fe151a41373b9e7c7a411e42cf83a2cc7ea7",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Surface.lean",
+        "start": {
+          "line": 283,
+          "column": 1
+        },
+        "end": {
+          "line": 289,
+          "column": 86
+        }
+      }
+    },
+    {
+      "name": "Swf.Surface.present_admits_single_mount",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Surface.presentGate"
+      ],
+      "specifications": [],
+      "statement": "∀ (f : Swf.Surface.PresentFacts),\n  Swf.Surface.presentGate f = none →\n    f.disposed = false ∧\n      f.replacing = false ∧\n        f.phase.bound = true ∧\n          f.existing ≠ some true ∧\n            f.pending = false ∧\n              (f.singleOwner = true → f.existing = none → f.attachedAnywhere = false ∧ f.endpointElsewhere = false)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "27e7e23b68f6552365e4e93fb54e396f6a3397c803886c07d617bb01eea0c464",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Surface.lean",
+        "start": {
+          "line": 239,
+          "column": 1
+        },
+        "end": {
+          "line": 252,
+          "column": 65
+        }
+      }
+    },
+    {
+      "name": "Swf.Surface.presented_needs_binding",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Surface.surfaceStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (p : Swf.Surface.Presentation) (e : Swf.Surface.SurfaceEvent),\n  (Swf.Surface.surfaceStep p e).next = Swf.Surface.Presentation.presented →\n    p ≠ Swf.Surface.Presentation.presented → p.bound = true",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "704a5e756c92adf7714149a6176b82e39942bd86fd34bb915e14dafe16aeec97",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Surface.lean",
+        "start": {
+          "line": 202,
+          "column": 1
+        },
+        "end": {
+          "line": 207,
+          "column": 68
+        }
+      }
+    },
+    {
+      "name": "Swf.Surface.replace_only_when_bound",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Surface.replaceGate"
+      ],
+      "specifications": [],
+      "statement": "∀ (disposed : Bool) (p : Swf.Surface.Presentation) (replacing hasAdapter pending : Bool),\n  Swf.Surface.replaceGate disposed p replacing hasAdapter pending = none →\n    disposed = false ∧ replacing = false ∧ p.bound = true ∧ hasAdapter = true ∧ pending = false",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "49cd08eff6d91c094581ad9cef59db70b6ef7d57f9ad2a009fe72c0e34e3337c",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Surface.lean",
+        "start": {
+          "line": 260,
+          "column": 1
+        },
+        "end": {
+          "line": 269,
+          "column": 11
+        }
+      }
+    },
+    {
+      "name": "Swf.Surface.unbind_cases",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Surface.unbindGate"
+      ],
+      "specifications": [],
+      "statement": "∀ (p : Swf.Surface.Presentation) (replacing : Bool),\n  (replacing = true →\n      Swf.Surface.unbindGate p replacing = Swf.Surface.UnbindGate.refuse Swf.Surface.SurfaceRefusal.replacing) ∧\n    (replacing = false →\n        p = Swf.Surface.Presentation.detaching →\n          Swf.Surface.unbindGate p replacing = Swf.Surface.UnbindGate.refuse Swf.Surface.SurfaceRefusal.detaching) ∧\n      (replacing = false →\n          (∃ r, p = Swf.Surface.Presentation.unbound r) →\n            Swf.Surface.unbindGate p replacing = Swf.Surface.UnbindGate.done) ∧\n        (replacing = false → p.active = true → Swf.Surface.unbindGate p replacing = Swf.Surface.UnbindGate.release)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "8f7e343ecaf0fc6ac7338ead04e9fe0b29c99ffd933e9fa612472a9eb01b0fc9",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Surface.lean",
+        "start": {
+          "line": 271,
+          "column": 1
+        },
+        "end": {
+          "line": 281,
+          "column": 57
+        }
+      }
+    },
+    {
       "name": "Swf.ViewMode.back_restores_entry_view",
       "relation": "lungo.law",
       "subjects": [
@@ -1335,6 +1709,325 @@
         "end": {
           "line": 160,
           "column": 97
+        }
+      }
+    },
+    {
+      "name": "Swf.Surface.bindGate",
+      "module": "Swf.Surface",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": []
+      },
+      "claims": [
+        "Swf.Surface.bind_only_from_unbound_or_error"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Surface.lean",
+        "start": {
+          "line": 118,
+          "column": 1
+        },
+        "end": {
+          "line": 122,
+          "column": 36
+        }
+      }
+    },
+    {
+      "name": "Swf.Surface.bindsOnAdapter",
+      "module": "Swf.Surface",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_nat_dec_eq"
+        ]
+      },
+      "claims": [
+        "Swf.Surface.bindsOnAdapter_iff"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Surface.lean",
+        "start": {
+          "line": 197,
+          "column": 1
+        },
+        "end": {
+          "line": 198,
+          "column": 81
+        }
+      }
+    },
+    {
+      "name": "Swf.Surface.hideGate",
+      "module": "Swf.Surface",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": []
+      },
+      "claims": [
+        "Swf.Surface.move_and_hide_need_attachment"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Surface.lean",
+        "start": {
+          "line": 183,
+          "column": 1
+        },
+        "end": {
+          "line": 187,
+          "column": 12
+        }
+      }
+    },
+    {
+      "name": "Swf.Surface.hideReleases",
+      "module": "Swf.Surface",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": []
+      },
+      "claims": [
+        "Swf.Surface.hide_releases_only_if_safe"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Surface.lean",
+        "start": {
+          "line": 189,
+          "column": 1
+        },
+        "end": {
+          "line": 191,
+          "column": 81
+        }
+      }
+    },
+    {
+      "name": "Swf.Surface.holdsBinding",
+      "module": "Swf.Surface",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": []
+      },
+      "claims": [
+        "Swf.Surface.holdsBinding_iff"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Surface.lean",
+        "start": {
+          "line": 193,
+          "column": 1
+        },
+        "end": {
+          "line": 195,
+          "column": 55
+        }
+      }
+    },
+    {
+      "name": "Swf.Surface.moveGate",
+      "module": "Swf.Surface",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": []
+      },
+      "claims": [
+        "Swf.Surface.move_and_hide_need_attachment"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Surface.lean",
+        "start": {
+          "line": 175,
+          "column": 1
+        },
+        "end": {
+          "line": 181,
+          "column": 12
+        }
+      }
+    },
+    {
+      "name": "Swf.Surface.presentGate",
+      "module": "Swf.Surface",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": []
+      },
+      "claims": [
+        "Swf.Surface.present_admits_single_mount"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Surface.lean",
+        "start": {
+          "line": 155,
+          "column": 1
+        },
+        "end": {
+          "line": 164,
+          "column": 12
+        }
+      }
+    },
+    {
+      "name": "Swf.Surface.replaceGate",
+      "module": "Swf.Surface",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": []
+      },
+      "claims": [
+        "Swf.Surface.replace_only_when_bound"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Surface.lean",
+        "start": {
+          "line": 166,
+          "column": 1
+        },
+        "end": {
+          "line": 173,
+          "column": 12
+        }
+      }
+    },
+    {
+      "name": "Swf.Surface.surfaceStep",
+      "module": "Swf.Surface",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_nat_dec_eq"
+        ]
+      },
+      "claims": [
+        "Swf.Surface.announces_changes",
+        "Swf.Surface.detaching_only_from_active",
+        "Swf.Surface.error_only_on_failure",
+        "Swf.Surface.presented_needs_binding"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Surface.lean",
+        "start": {
+          "line": 77,
+          "column": 1
+        },
+        "end": {
+          "line": 97,
+          "column": 47
+        }
+      }
+    },
+    {
+      "name": "Swf.Surface.unbindGate",
+      "module": "Swf.Surface",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": []
+      },
+      "claims": [
+        "Swf.Surface.unbind_cases"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Surface.lean",
+        "start": {
+          "line": 130,
+          "column": 1
+        },
+        "end": {
+          "line": 135,
+          "column": 20
         }
       }
     },

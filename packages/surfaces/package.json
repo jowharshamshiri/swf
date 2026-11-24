@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@swf/core": "0.0.0",
-    "@swf/math": "0.0.0"
+    "@swf/math": "0.0.0",
+    "@swf/models": "0.0.0"
   }
 }
