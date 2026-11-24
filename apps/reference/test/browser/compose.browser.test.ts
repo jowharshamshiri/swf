@@ -29,13 +29,19 @@ interface Mounted {
 
 const mounted: { model: ShellModel; shell: ReturnType<typeof mount>; root: HTMLElement }[] = [];
 
-afterEach(async () => {
+/**
+ * Ends every visit mounted: a page holds one application at a time, with its one announcer, so
+ * the next visit starts once the last has ended, as a reload does.
+ */
+async function endVisits(): Promise<void> {
   for (const m of mounted.splice(0)) {
     await m.model.dispose();
     await unmount(m.shell);
     m.root.remove();
   }
-});
+}
+
+afterEach(endVisits);
 
 /** Mounts the shell as the page does, with the developer panel and a store of the test's own. */
 async function start(search: string, appOptions: ShellAppOptions): Promise<Mounted> {
@@ -140,6 +146,7 @@ describe('multi-surface composition in the shell (FR-126, AC-016, §33.2 scenari
     await expect.poll(() => model.workspaces?.save).toBe('clean');
     const saved = layout(model);
     // The next visit restores it, whole.
+    await endVisits();
     const next = await start('', { store, autosaveDelayMs: 0 });
     const restored = layout(next.model);
     expect(restored.nodes.map((n) => [n.id, n.parentId])).toEqual(
@@ -205,6 +212,7 @@ describe('importing a workspace (FR-201, UX-016)', () => {
   it('previews the counts and replaces only once confirmed; a broken file says its line', async () => {
     const seam = await start('?preset=seam', { store: createMemoryStore() });
     const text = (await seam.model.app?.workspaces.exportText()) ?? '';
+    await endVisits();
     const { model, driver, settle, root } = await start('?preset=sparse', {
       store: createMemoryStore(),
     });

@@ -220,6 +220,12 @@
       ? refusal.message
       : undefined;
 
+  /**
+   * A refusal of an exact entry is said by its field, as an alert under the entry it names; it is
+   * not said again over the inspector.
+   */
+  const exactRefused = $derived(EXACT.some((field) => messageOf(field) !== undefined));
+
   /** Places the window as the exact entries say: each changed entry, one change apiece. */
   async function applyExact(id: string): Promise<void> {
     const [x, y, z] = [typed('x'), typed('y'), typed('z')];
@@ -267,7 +273,7 @@
       <ButtonGroup ariaLabel={t('inspector.actions')}>
         <WindowActions {model} id={selected.id} handle="page.inspector.window" inspect={false} />
       </ButtonGroup>
-      {#if refusal !== null}
+      {#if refusal !== null && !exactRefused}
         <Notice tone="danger" title={model.refusalText(refusal)} handle={handleOf`page.inspector.refusal`} />
       {/if}
       <Section title={t('inspector.place')} detail={t('inspector.place.detail')} handle={handleOf`page.inspector.place`}>
@@ -351,7 +357,6 @@
                 id={`reference-exact-${field}`}
                 type="text"
                 value={shown(field)}
-                invalid={messageOf(field) !== undefined}
                 disabled={field === 'turned' ? !canTurn : field === 'width' || field === 'height' ? !canSize : !canMove}
                 oninput={(value) => {
                   drafts = { ...drafts, [field]: value };

@@ -4,13 +4,14 @@
   // the view's commands across its top, and how it is presented in the panel below. A narrow
   // window floats one side at a time over the panorama, so nothing is lost.
   import {
+    announce,
+    Announcer,
     Badge,
     IconButton,
     Segmented,
     Select,
     StatusItem,
     Tabs,
-    VisuallyHidden,
   } from '@wsb/uikit/components';
   import { VIEWPORT_ID } from '../app.js';
   import { handleOf } from '@wsb/uikit/handles';
@@ -20,6 +21,7 @@
   import type { MessageId } from '../messages.js';
   import { PRESETS } from '../presets.js';
   import type { Component } from 'svelte';
+  import { untrack } from 'svelte';
   import InspectorView from './InspectorView.svelte';
   import type { ShellModel } from './model.svelte.js';
   import Palette from './Palette.svelte';
@@ -105,6 +107,17 @@
       void model.run('reference.focus.exit', {});
     }
   }
+
+  // What the application did that is not shown as text is said, each announcement once: it
+  // follows the model's announcement alone, never the announcer's own lines.
+  $effect(() => {
+    const said = model.announcement;
+    if (said !== null) {
+      untrack(() => {
+        announce(said.text);
+      });
+    }
+  });
 
   // A window asked to be inspected: the inspector opens on it, as it does to say why a command
   // run on the selected window was refused.
@@ -429,15 +442,8 @@
   }}
 />
 
-<!--
-  What is said to assistive technology alone: one polite live region holding the kit's visually
-  hidden text, until the kit has an announcer of its own (wsb card PVTI_lAHOAHykxc4Bnwg2zhLhL6A).
--->
-<div role="status" data-wsb="application.announcer">
-  {#key model.announcement?.count}
-    {#if model.announcement !== null}<VisuallyHidden text={model.announcement.text} />{/if}
-  {/key}
-</div>
+<!-- What is said to assistive technology alone: the application's one announcer. -->
+<Announcer />
 
 {#if model.pendingReplace !== null}
   <ReplaceDialog {model} pending={model.pendingReplace} />

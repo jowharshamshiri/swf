@@ -802,9 +802,10 @@ gesture, saving and restoring.
 - **The panorama** is one stop of the page's keyboard order, an application a screen reader
   names "Panorama" and describes by its keys (`aria-description`). With the keyboard there, the
   framework's keymap acts on the selected window (arrows, Page Up/Down, `[` `]`, `+` `-`, N and
-  P, Enter, Space to pick it up), and the panel's hint lists the keys. Tab leaves it, through the
-  windows' own content, which keeps its own keys. The selected window is outlined in the kit's
-  focus colour and the focused one in its warning colour, in both backends and appearances.
+  P, Enter, Space to pick it up), and the panel's hint lists the keys. While it has the keyboard
+  the kit's view draws its focus ring inside its own edge. Tab leaves it, through the windows' own
+  content, which keeps its own keys. The selected window is outlined in the kit's focus colour and
+  the focused one in its warning colour, in both backends and appearances.
 - **Anywhere but a field or a window's content**: Ctrl+Z undoes, Ctrl+Shift+Z or Ctrl+Y redoes,
   Ctrl+S saves the workspace now (Cmd on a Mac), Escape cancels the gesture running (a drag, or a
   window held from the keyboard) or else closes focus, and Ctrl+Shift+P or F1 opens the command
@@ -820,9 +821,11 @@ gesture, saving and restoring.
   name, with where it is (degrees right or left, up or down, and units away), selected, focused,
   revealed or inspected from its row.
 - **What happens is said.** What a key or a control did (a window selected, moved, turned,
-  resized, picked up, put down, cancelled, locked, the workspace saved) is spoken by one polite
-  live region that takes no room; what was refused, and why, is shown as an alert where it was
-  asked for (over the panorama for its keys, in the inspector for its controls).
+  resized, picked up, put down, cancelled, locked, the workspace saved) is spoken politely
+  through the kit's one announcer, which takes no room; what was refused, and why, is shown as an
+  alert where it was asked for, once: over the panorama for its keys, under the entry it names for
+  the inspector's exact entries (read with the entry, which is marked not valid), and over the
+  inspector for its other controls.
 - The kit draws every control at 24 CSS pixels at least, with its focus ring, its contrast in
   both appearances, and no motion when the reader asks for reduced motion; the application moves
   nothing of its own (the camera jumps). Windows' content is the host's and outside the

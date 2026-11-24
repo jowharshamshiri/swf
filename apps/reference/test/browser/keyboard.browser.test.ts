@@ -94,8 +94,10 @@ describe('the keyboard alone (§33.2 scenario 10, AC-014, UX-012, FR-109)', () =
       return found;
     };
     const history = () => app.workspace.history().length;
+    /** The last thing the application's announcer said. */
     const said = () =>
-      root.querySelector('[role="status"][data-wsb="application.announcer"]')?.textContent ?? '';
+      root.querySelector('[data-wsb="application.announcer.polite"]')?.lastElementChild
+        ?.textContent ?? '';
     const keys = async (text: string) => {
       await userEvent.keyboard(text);
       await settle();
@@ -229,6 +231,13 @@ describe('the keyboard alone (§33.2 scenario 10, AC-014, UX-012, FR-109)', () =
     expect(said()).toContain('Workspace saved');
     const saved = worldMatrix(app.workspace.getState().nodes, first.id);
     const savedGroup = app.workspace.getState().nodes.get(first.id)?.parentId;
+    // The visit ends; the next one, in a page of its own, restores it.
+    const ended = mounted.splice(0);
+    for (const visit of ended) {
+      await visit.model.dispose();
+      await unmount(visit.shell);
+      visit.root.remove();
+    }
     const again = await start('', store);
     const restored = again.model.app?.workspace.getState();
     expect(restored?.nodes.get(first.id)?.parentId).toBe(savedGroup);

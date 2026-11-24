@@ -143,16 +143,6 @@ describe('the reference controls (QA-009, UX-013, NFR-024)', () => {
           },
         },
       );
-      // The kit's virtual list wraps each ListItem's <li> in a row of role listitem; until its fix
-      // lands (wsb card PVTI_lAHOAHykxc4Bnwg2zhLharQ), that one rule is left out on that one list.
-      const kitList = (target: string) =>
-        target.includes('aria-posinset') || target.includes('li[data-selected');
-      for (const violation of result.violations) {
-        if (violation.id === 'listitem') {
-          violation.nodes = violation.nodes.filter((n) => !kitList(n.target.join(' ')));
-        }
-      }
-      result.violations = result.violations.filter((v) => v.nodes.length > 0);
       expect(
         result.violations.map(
           (v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(' | ')}`,
@@ -200,13 +190,18 @@ describe('the reference controls (QA-009, UX-013, NFR-024)', () => {
   });
 
   it('shows where the keyboard is on every control it stops at (WCAG 2.4.7)', async () => {
-    const { model, root, settle } = await start('?preset=sparse');
+    const { model, app, root, settle } = await start('?preset=sparse');
     await model.select(FIRST.id);
     await settle();
+    /** The panorama's frame: its view draws the ring there while the panorama has the keyboard. */
+    const frame = root.querySelector('[data-wsb="page.panorama.viewport"]')?.parentElement ?? null;
     /** What shows an element has the keyboard: its ring, its edge, its ground. */
     const look = (element: HTMLElement) => {
       const style = getComputedStyle(element);
+      const ring =
+        element === app.root && frame !== null ? getComputedStyle(frame, '::after') : null;
       return [
+        ring === null ? '' : `${ring.content} ${ring.borderTopStyle} ${ring.borderTopColor}`,
         style.outlineStyle === 'none'
           ? 'none'
           : `${style.outlineStyle} ${style.outlineWidth} ${style.outlineColor}`,
@@ -243,6 +238,44 @@ describe('the reference controls (QA-009, UX-013, NFR-024)', () => {
     }
     expect(stops).toBeGreaterThan(30);
     expect(unringed).toEqual([]);
+  });
+
+  it('rings the panorama inside its own edge while it has the keyboard, where nothing clips it (WCAG 2.4.7, 1.4.11)', async () => {
+    for (const appearance of ['light', 'dark'] as const) {
+      const { app, root } = await start('?preset=sparse', { appearance });
+      await commands.emulate({ colorScheme: appearance });
+      const frame = root.querySelector('[data-wsb="page.panorama.viewport"]')?.parentElement;
+      if (frame === null || frame === undefined) {
+        throw new Error('no panorama frame');
+      }
+      for (let stop = 0; stop < 200 && document.activeElement !== app.root; stop += 1) {
+        await userEvent.tab();
+      }
+      expect(document.activeElement).toBe(app.root);
+      const ring = getComputedStyle(frame, '::after');
+      expect(ring.content).not.toBe('none');
+      expect(ring.borderTopStyle).toBe('solid');
+      expect(parseFloat(ring.borderTopWidth)).toBeGreaterThanOrEqual(2);
+      // Drawn within the frame's own box, so the viewport's edge cannot cut it off.
+      expect([ring.top, ring.right, ring.bottom, ring.left]).toEqual(['0px', '0px', '0px', '0px']);
+      const box = frame.getBoundingClientRect();
+      const page = root.getBoundingClientRect();
+      expect(box.left).toBeGreaterThanOrEqual(page.left);
+      expect(box.right).toBeLessThanOrEqual(page.right);
+      // In the focus colour, standing out from what is around the view.
+      expect(
+        contrast(ring.borderTopColor, groundOf(frame.parentElement ?? frame)),
+      ).toBeGreaterThanOrEqual(3);
+      // Gone when the keyboard leaves.
+      await userEvent.tab({ shift: true });
+      expect(getComputedStyle(frame, '::after').content).toBe('none');
+      await current?.model.dispose();
+      if (current !== null) {
+        await unmount(current.shell);
+        current.root.remove();
+        current = null;
+      }
+    }
   });
 
   it('keeps every control at least 24 by 24 CSS pixels (WCAG 2.5.8, UX-013)', async () => {
@@ -356,27 +389,50 @@ describe('the reference controls (QA-009, UX-013, NFR-024)', () => {
 
   it('says what it did to assistive technology, and alerts what it refused (WCAG 4.1.3, 3.3.1)', async () => {
     const { model, root, driver, settle } = await start('?preset=sparse');
-    const announcer = root.querySelector<HTMLElement>('[data-wsb="application.announcer"]');
-    expect(announcer?.getAttribute('role')).toBe('status');
+    // The application's one announcer, the kit's: said politely, as a new line each time.
+    const polite = root.querySelector<HTMLElement>('[data-wsb="application.announcer.polite"]');
+    expect(polite?.getAttribute('aria-live')).toBe('polite');
+    expect(root.querySelectorAll('[data-wsb="application.announcer"]')).toHaveLength(1);
     await model.select(FIRST.id);
     await settle();
     driver.act('page.inspector.step#right', 'press');
     await settle();
-    expect(announcer?.textContent).toContain(`${FIRST.label} moved`);
+    expect(polite?.lastElementChild?.textContent).toContain(`${FIRST.label} moved`);
+    driver.act('page.inspector.step#left', 'press');
+    await settle();
+    // Said again, as another line: a repeat is heard too.
+    expect(polite?.children.length).toBe(2);
     // Heard, not seen: it takes no room on the page.
-    const said = announcer?.firstElementChild?.getBoundingClientRect();
+    const announcer = root.querySelector<HTMLElement>('[data-wsb="application.announcer"]');
+    const said = announcer?.getBoundingClientRect();
     expect((said?.width ?? 0) * (said?.height ?? 0)).toBeLessThanOrEqual(1);
-    // An entry that is not a number is refused out loud, naming the field, and marked.
+    expect(announcer === null ? '' : getComputedStyle(announcer).overflow).toBe('hidden');
+    // An entry that is not a number is refused at once, under the entry, read with it and marked,
+    // and said once: not again over the inspector.
     driver.act('page.inspector.exact#x', 'type', 'far');
     await settle();
     driver.act('page.inspector.exact.apply', 'press');
     await settle();
+    const entry = root.querySelector<HTMLElement>('[data-wsb="page.inspector.exact#x"]');
+    expect(entry?.getAttribute('aria-invalid')).toBe('true');
+    const described = (entry?.getAttribute('aria-describedby') ?? '')
+      .split(/\s+/)
+      .map((id) => document.getElementById(id))
+      .filter((element) => element !== null);
+    const message = described.find((element) =>
+      element.textContent.includes('x must be a finite number'),
+    );
+    expect(message?.getAttribute('role')).toBe('alert');
+    expect(root.querySelector('[data-wsb="page.inspector.refusal"]')).toBeNull();
+    expect(root.querySelectorAll('[role="alert"]')).toHaveLength(1);
+    // A refusal that names no entry is said over the inspector, once.
+    const asked: unknown = 'yes';
+    await model.run('reference.window.lock', { id: FIRST.id, locked: asked as boolean });
+    await settle();
     const refusal = root.querySelector('[data-wsb="page.inspector.refusal"]');
     expect(refusal?.getAttribute('role')).toBe('alert');
-    expect(refusal?.textContent).toMatch(/x must be a finite number/);
-    expect(
-      root.querySelector('[data-wsb="page.inspector.exact#x"]')?.getAttribute('aria-invalid'),
-    ).toBe('true');
+    expect(refusal?.textContent).toMatch(/locked must be true or false/);
+    expect(root.querySelectorAll('[role="alert"]')).toHaveLength(1);
   });
 });
 
