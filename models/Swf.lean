@@ -7,3 +7,4 @@ import Swf.Save
 import Swf.Migration
 import Swf.Fallback
 import Swf.Handoff
+import Swf.Gesture

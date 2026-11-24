@@ -53,6 +53,99 @@ export type Mode =
 ;
 export function modeType(): L.Type<Mode>;
 
+/** Lean's Swf.Gesture.GesturePhase. */
+export type GesturePhase =
+  | { readonly kind: "idle" }
+  | { readonly kind: "pending" }
+  | { readonly kind: "dragging" }
+  | { readonly kind: "committed" }
+  | { readonly kind: "cancelled" }
+;
+export function gesturePhaseType(): L.Type<GesturePhase>;
+
+/** Lean's Swf.Gesture.GestureEvent. */
+export type GestureEvent =
+  | { readonly kind: "claimed" }
+  | { readonly kind: "held" }
+  | { readonly kind: "movedBeyond"; readonly winner: boolean }
+  | { readonly kind: "releasedPending"; readonly winner: boolean }
+  | { readonly kind: "finished"; readonly f: Finish }
+  | { readonly kind: "cancel" }
+  | { readonly kind: "ended" }
+;
+export function gestureEventType(): L.Type<GestureEvent>;
+
+/** Lean's Swf.Gesture.HoldGate. */
+export type HoldGate =
+  | { readonly kind: "alreadyHolding" }
+  | { readonly kind: "unknownViewport" }
+  | { readonly kind: "unknownNode" }
+  | { readonly kind: "busy" }
+  | { readonly kind: "hold" }
+;
+export function holdGateType(): L.Type<HoldGate>;
+
+/** Lean's Swf.Gesture.KeyFacts. */
+export interface KeyFacts {
+  readonly phase: KeyPhase;
+  readonly key: string;
+  readonly inContent: boolean;
+  readonly gestures: boolean;
+  readonly holding: boolean;
+  readonly modified: boolean;
+}
+export function keyFactsType(): L.Type<KeyFacts>;
+
+/** Lean's Swf.Gesture.KeyRoute. */
+export type KeyRoute =
+  | { readonly kind: "cancelAll" }
+  | { readonly kind: "native" }
+  | { readonly kind: "ignoreRelease" }
+  | { readonly kind: "putDown" }
+  | { readonly kind: "keymap" }
+;
+export function keyRouteType(): L.Type<KeyRoute>;
+
+/** Lean's Swf.Gesture.PointerPhase. */
+export type PointerPhase =
+  | { readonly kind: "down" }
+  | { readonly kind: "move" }
+  | { readonly kind: "up" }
+  | { readonly kind: "cancel" }
+;
+export function pointerPhaseType(): L.Type<PointerPhase>;
+
+/** Lean's Swf.Gesture.PointerRoute. */
+export type PointerRoute =
+  | { readonly kind: "press" }
+  | { readonly kind: "pressAfterLost" }
+  | { readonly kind: "move" }
+  | { readonly kind: "release" }
+  | { readonly kind: "lost" }
+  | { readonly kind: "ignore" }
+;
+export function pointerRouteType(): L.Type<PointerRoute>;
+
+/** Lean's Swf.Gesture.PressFacts. */
+export interface PressFacts {
+  readonly pick: PressPick;
+  readonly region: Region;
+  readonly takeover: boolean;
+  readonly proxy: boolean;
+  readonly busy: boolean;
+}
+export function pressFactsType(): L.Type<PressFacts>;
+
+/** Lean's Swf.Gesture.PressRoute. */
+export type PressRoute =
+  | { readonly kind: "ignore" }
+  | { readonly kind: "blocked" }
+  | { readonly kind: "native" }
+  | { readonly kind: "busy" }
+  | { readonly kind: "claim" }
+;
+export function pressRouteType(): L.Type<PressRoute>;
+
 /** Lean's Swf.Handoff.ViewportState. */
 export type ViewportState =
   | { readonly kind: "preparing" }
@@ -376,6 +469,39 @@ export type LayerCategory =
 ;
 export function layerCategoryType(): L.Type<LayerCategory>;
 
+/** Lean's Swf.Gesture.Finish. */
+export type Finish =
+  | { readonly kind: "committed" }
+  | { readonly kind: "unchanged" }
+  | { readonly kind: "rejected" }
+;
+export function finishType(): L.Type<Finish>;
+
+/** Lean's Swf.Gesture.KeyPhase. */
+export type KeyPhase =
+  | { readonly kind: "down" }
+  | { readonly kind: "up" }
+;
+export function keyPhaseType(): L.Type<KeyPhase>;
+
+/** Lean's Swf.Gesture.PressPick. */
+export type PressPick =
+  | { readonly kind: "hit" }
+  | { readonly kind: "background" }
+  | { readonly kind: "none" }
+;
+export function pressPickType(): L.Type<PressPick>;
+
+/** Lean's Swf.Gesture.Region. */
+export type Region =
+  | { readonly kind: "content" }
+  | { readonly kind: "chrome" }
+  | { readonly kind: "resizeHandle" }
+  | { readonly kind: "background" }
+  | { readonly kind: "modalOverlay" }
+;
+export function regionType(): L.Type<Region>;
+
 /** Lean's Swf.Save.SaveState. */
 export type SaveState =
   | { readonly kind: "clean" }
@@ -495,6 +621,18 @@ export class SwfModels {
   policyIssue(order: Array<string>): L.Option<PolicyIssue>;
   /** Lean's Swf.Fallback.representedModes : Bool → List Swf.Fallback.Mode → List Swf.Fallback.Mode */
   representedModes(represented: boolean, order: Array<Mode>): Array<Mode>;
+  /** Lean's Swf.Gesture.beyondSlop : Float → Float → Bool */
+  beyondSlop(distance: number, slop: number): boolean;
+  /** Lean's Swf.Gesture.gestureStep : Swf.Gesture.GesturePhase → Swf.Gesture.GestureEvent → Option Swf.Gesture.GesturePhase */
+  gestureStep(p: GesturePhase, e: GestureEvent): L.Option<GesturePhase>;
+  /** Lean's Swf.Gesture.holdGate : Bool → Bool → Bool → Bool → Swf.Gesture.HoldGate */
+  holdGate(holding: boolean, viewportKnown: boolean, nodeActive: boolean, inGesture: boolean): HoldGate;
+  /** Lean's Swf.Gesture.keyRoute : Swf.Gesture.KeyFacts → Swf.Gesture.KeyRoute */
+  keyRoute(k: KeyFacts): KeyRoute;
+  /** Lean's Swf.Gesture.pointerRoute : Swf.Gesture.PointerPhase → Bool → Swf.Gesture.PointerRoute */
+  pointerRoute(phase: PointerPhase, captured: boolean): PointerRoute;
+  /** Lean's Swf.Gesture.pressRoute : Swf.Gesture.PressFacts → Swf.Gesture.PressRoute */
+  pressRoute(f: PressFacts): PressRoute;
   /** Lean's Swf.Handoff.handoffStep : Swf.Handoff.ViewportState → Swf.Handoff.HandoffEvent → Option Swf.Handoff.ViewportState */
   handoffStep(s: ViewportState, e: HandoffEvent): L.Option<ViewportState>;
   /** Lean's Swf.Handoff.settle : Bool → Bool → Swf.Handoff.Settlement */

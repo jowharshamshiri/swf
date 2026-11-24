@@ -10,9 +10,20 @@
   },
   "include": ["src"],
   "references": [
-    { "path": "../math/tsconfig.build.json" },
-    { "path": "../core/tsconfig.build.json" },
-    { "path": "../presentation/tsconfig.build.json" },
-    { "path": "../projections/tsconfig.build.json" }
+    {
+      "path": "../math/tsconfig.build.json"
+    },
+    {
+      "path": "../core/tsconfig.build.json"
+    },
+    {
+      "path": "../presentation/tsconfig.build.json"
+    },
+    {
+      "path": "../projections/tsconfig.build.json"
+    },
+    {
+      "path": "../models/tsconfig.build.json"
+    }
   ]
 }

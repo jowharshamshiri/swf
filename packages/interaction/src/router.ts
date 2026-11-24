@@ -17,6 +17,8 @@ import type { ViewGeometry } from '@swf/presentation';
 import { viewGeometryOf } from '@swf/presentation';
 import type { Continuity, Projection, ProjectionModule, RayResult } from '@swf/projections';
 import { projectionFor } from '@swf/projections';
+import type { GestureEvent, GesturePhase, Region } from '@swf/models';
+import { models } from '@swf/models';
 import type { CommandContext, CommandOutcome, InteractionCommand, NodeChange } from './commands.js';
 import { BUILT_IN_COMMANDS, commandIssue, heldChange } from './commands.js';
 import type {
@@ -191,6 +193,8 @@ interface Arena {
   readonly pointers: Map<string, Pressed>;
   claims: { readonly policy: InteractionPolicy; readonly claim: GestureClaim }[];
   running: Running | null;
+  /** Where its gesture is, as the gesture model (`Swf.Gesture`) decides. */
+  phase: GesturePhase;
   /** Set once the arena is being torn down, so a re-entrant end is ignored. */
   ending: boolean;
 }
@@ -209,7 +213,6 @@ interface Hold {
 const nodeArenaKey = (viewportId: Id, nodeId: Id) => `${viewportId}\u0000node:${nodeId}`;
 
 /** Keys that put a held node down. */
-const PUT_DOWN_KEYS: readonly string[] = ['Enter', ' '];
 
 const NOT_HANDLED = (reason: string, extra: Partial<Routed> = {}): Routed => ({
   consumed: false,
@@ -561,26 +564,29 @@ export class InteractionRouter {
   #pointer(intent: PointerIntent): Routed {
     const key = pointerKey(intent);
     const arena = this.#pressed.get(key);
-    switch (intent.phase) {
-      case 'down':
-        if (arena !== undefined) {
-          // A second press of a pointer still held means its release was lost.
-          this.#cancelArena(arena, 'capture-lost');
-        }
+    const route = models.pointerRoute({ kind: intent.phase }, arena !== undefined);
+    if (route.kind === 'press') {
+      return this.#press(intent, key);
+    }
+    if (route.kind === 'ignore') {
+      // A sample of a pointer no gesture holds (one already ended or cancelled) is ignored.
+      return NOT_HANDLED('the pointer is not captured');
+    }
+    if (arena === undefined) {
+      throw new Error(
+        `the gesture model routed a sample of an uncaptured pointer to ${route.kind}`,
+      );
+    }
+    switch (route.kind) {
+      case 'pressAfterLost':
+        // A second press of a pointer still held means its release was lost.
+        this.#cancelArena(arena, 'capture-lost');
         return this.#press(intent, key);
       case 'move':
-        return arena === undefined
-          ? NOT_HANDLED('the pointer is not captured')
-          : this.#move(arena, key, intent);
-      case 'up':
-        // A release from a pointer no gesture holds (one already ended or cancelled) is ignored.
-        return arena === undefined
-          ? NOT_HANDLED('the pointer is not captured')
-          : this.#release(arena, key, intent);
-      case 'cancel':
-        if (arena === undefined) {
-          return NOT_HANDLED('the pointer is not captured');
-        }
+        return this.#move(arena, key, intent);
+      case 'release':
+        return this.#release(arena, key, intent);
+      case 'lost':
         this.#cancelArena(arena, 'capture-lost');
         return { ...this.#handled(arena), reason: 'capture lost' };
     }
@@ -590,39 +596,54 @@ export class InteractionRouter {
     const scene = this.#workspace.getState();
     const view = viewGeometryOf(scene, intent.viewportId);
     const result = this.#pickIn(scene, view, intent.x, intent.y);
-    if (result.kind === 'outside' || result.kind === 'unpickable') {
-      return NOT_HANDLED(result.reason);
-    }
-    const target = result.kind === 'hit' ? result.target : null;
-    const base = { region: result.region, target };
-    if (result.region === 'modal-overlay') {
-      return { ...NOT_HANDLED('a modal is active'), ...base, consumed: true, route: 'blocked' };
-    }
+    const picked = result.kind === 'hit' || result.kind === 'background' ? result : null;
+    const target = picked?.kind === 'hit' ? picked.target : null;
     const takeover = this.#takeover || intent.modifiers[this.#settings.takeoverModifier];
-    if (result.region === 'content' && !takeover && target?.proxy !== true) {
-      return { ...NOT_HANDLED('content input stays native'), ...base, route: 'native' };
-    }
     const arenaKey =
       target === null
         ? `${intent.viewportId}\u0000background`
         : nodeArenaKey(intent.viewportId, target.nodeId);
     const existing = this.#arenas.get(arenaKey);
-    if (existing?.running != null) {
-      // One gesture per target: a further pointer neither joins it nor reaches anything else.
-      return {
-        ...NOT_HANDLED('the target is already in a gesture'),
-        ...base,
-        consumed: true,
-      };
+    const route = models.pressRoute({
+      pick: { kind: picked === null ? 'none' : picked.kind },
+      region: { kind: REGIONS[picked?.region ?? 'background'] },
+      takeover,
+      proxy: target?.proxy === true,
+      busy: existing?.running != null,
+    });
+    if (picked === null) {
+      if (route.kind !== 'ignore' || result.kind === 'hit' || result.kind === 'background') {
+        throw new Error(`the gesture model routed a press on nothing to ${route.kind}`);
+      }
+      return NOT_HANDLED(result.reason);
+    }
+    const base = { region: picked.region, target };
+    switch (route.kind) {
+      case 'ignore':
+        throw new Error('the gesture model ignored a press on something picked');
+      case 'blocked':
+        return { ...NOT_HANDLED('a modal is active'), ...base, consumed: true, route: 'blocked' };
+      case 'native':
+        return { ...NOT_HANDLED('content input stays native'), ...base, route: 'native' };
+      case 'busy':
+        // One gesture per target: a further pointer neither joins it nor reaches anything else.
+        return {
+          ...NOT_HANDLED('the target is already in a gesture'),
+          ...base,
+          consumed: true,
+        };
+      case 'claim':
+        break;
     }
     const arena: Arena = existing ?? {
       key: arenaKey,
       viewportId: intent.viewportId,
-      pick: result,
-      region: result.region,
+      pick: picked,
+      region: picked.region,
       pointers: new Map(),
       claims: [],
       running: null,
+      phase: IDLE,
       ending: false,
     };
     arena.pointers.set(key, { down: intent, last: intent, continuity: undefined });
@@ -632,6 +653,9 @@ export class InteractionRouter {
       return { ...NOT_HANDLED('no policy takes this press'), ...base };
     }
     arena.claims = claims;
+    if (existing === undefined) {
+      this.#step(arena, { kind: 'claimed' });
+    }
     this.#arenas.set(arenaKey, arena);
     this.#pressed.set(key, arena);
     return { ...this.#handled(arena), ...base };
@@ -683,13 +707,15 @@ export class InteractionRouter {
       });
       return this.#handled(arena);
     }
-    const slop = this.#settings.slopPx;
     const moved = Math.hypot(intent.x - pressed.down.x, intent.y - pressed.down.y);
-    if (moved <= slop) {
+    if (!models.beyondSlop(moved, this.#settings.slopPx)) {
       return this.#handled(arena);
     }
     const winner = best(arena.claims, 'drag', arena.pointers.size);
-    if (winner === null) {
+    if (
+      this.#step(arena, { kind: 'movedBeyond', winner: winner !== null }) === 'idle' ||
+      winner === null
+    ) {
       this.#forget(arena);
       return { ...this.#handled(arena), gestureId: null, reason: 'no gesture drags this press' };
     }
@@ -707,7 +733,10 @@ export class InteractionRouter {
     }
     if (arena.running === null) {
       const winner = best(arena.claims, 'tap', arena.pointers.size);
-      if (winner === null) {
+      if (
+        this.#step(arena, { kind: 'releasedPending', winner: winner !== null }) === 'idle' ||
+        winner === null
+      ) {
         this.#forget(arena);
         return { ...this.#handled(arena), reason: 'no gesture takes a tap here' };
       }
@@ -718,6 +747,7 @@ export class InteractionRouter {
       throw new Error('a gesture that began is not running');
     }
     const finish = this.#guard(arena, () => running.handler.finish());
+    this.#finished(arena, finish);
     const result: Routed = {
       ...this.#handled(arena),
       operation: { name: running.operation, outcome: finish },
@@ -795,12 +825,35 @@ export class InteractionRouter {
     });
   }
 
+  /** Moves the arena's gesture as the gesture model decides; an event out of order is a defect. */
+  #step(arena: Arena, event: GestureEvent): GesturePhase['kind'] {
+    const next = models.gestureStep(arena.phase, event);
+    if (next === null) {
+      throw new Error(`a gesture cannot take ${event.kind} while ${arena.phase.kind}`);
+    }
+    arena.phase = next;
+    return next.kind;
+  }
+
+  /** Records how the arena's gesture finished: committed, with nothing to commit, or not. */
+  #finished(arena: Arena, finish: GestureFinish): void {
+    if (arena.ending) {
+      // Cancelled while finishing (its refused commit cancelled its preview): already ended.
+      return;
+    }
+    this.#step(arena, {
+      kind: 'finished',
+      f: { kind: finish.outcome === 'cancelled' ? 'rejected' : finish.outcome },
+    });
+  }
+
   /** Ends an arena: discards a leftover preview, releases its pointers, reports the outcome. */
   #end(arena: Arena, finish: GestureFinish): void {
     if (arena.ending) {
       return;
     }
     arena.ending = true;
+    this.#step(arena, { kind: 'ended' });
     const running = arena.running;
     if (running !== null && this.#workspace.getPreview(running.previewId) !== undefined) {
       this.#workspace.cancelPreview(
@@ -846,7 +899,9 @@ export class InteractionRouter {
       return;
     }
     const running = arena.running;
-    if (running === null) {
+    const next = this.#step(arena, { kind: 'cancel' });
+    if (next === 'idle' || running === null) {
+      // A pending press is forgotten.
       this.#forget(arena);
       return;
     }
@@ -949,19 +1004,28 @@ export class InteractionRouter {
   }
 
   #key(intent: KeyIntent): Routed {
-    if (intent.phase === 'down' && intent.key === 'Escape' && this.#arenas.size > 0) {
-      const count = this.#cancelWhere(() => true, 'escape');
-      return commandResult('gesture.cancel', { status: 'cancelled', count });
-    }
-    if (intent.focus === 'content') {
-      return { ...NOT_HANDLED('keyboard focus is in content'), route: 'native' };
-    }
-    if (intent.phase !== 'down') {
-      return NOT_HANDLED('key releases run nothing');
-    }
     const held = (['shift', 'ctrl', 'alt', 'meta'] as const).filter((m) => intent.modifiers[m]);
-    if (this.#hold !== null && held.length === 0 && PUT_DOWN_KEYS.includes(intent.key)) {
-      return commandResult('gesture.drop', this.#putDown());
+    const route = models.keyRoute({
+      phase: { kind: intent.phase },
+      key: intent.key,
+      inContent: intent.focus === 'content',
+      gestures: this.#arenas.size > 0,
+      holding: this.#hold !== null,
+      modified: held.length > 0,
+    });
+    switch (route.kind) {
+      case 'cancelAll': {
+        const count = this.#cancelWhere(() => true, 'escape');
+        return commandResult('gesture.cancel', { status: 'cancelled', count });
+      }
+      case 'native':
+        return { ...NOT_HANDLED('keyboard focus is in content'), route: 'native' };
+      case 'ignoreRelease':
+        return NOT_HANDLED('key releases run nothing');
+      case 'putDown':
+        return commandResult('gesture.drop', this.#putDown());
+      case 'keymap':
+        break;
     }
     const binding = this.#settings.keymap.find((b) => {
       if (keyName(b.key) !== keyName(intent.key)) {
@@ -1021,19 +1085,34 @@ export class InteractionRouter {
   // --- holding a node from the keyboard ---------------------------------------------------
 
   #holdNode(viewportId: Id, nodeId: Id): CommandOutcome {
-    if (this.#hold !== null) {
-      return { status: 'unchanged', reason: `window "${this.#hold.nodeId}" is already held` };
-    }
     const scene = this.#workspace.getState();
-    // Names an unknown viewport or node as such.
-    viewGeometryOf(scene, viewportId);
     const node = scene.nodes.get(nodeId);
-    if (node?.status !== 'active') {
-      throw failure('UNKNOWN_ENTITY', `no node "${nodeId}" to hold`);
-    }
     const key = nodeArenaKey(viewportId, nodeId);
-    if (this.#arenas.has(key)) {
-      return { status: 'unchanged', reason: `window "${nodeId}" is already in a gesture` };
+    const gate = models.holdGate(
+      this.#hold !== null,
+      scene.viewports.has(viewportId),
+      node?.status === 'active',
+      this.#arenas.has(key),
+    );
+    switch (gate.kind) {
+      case 'alreadyHolding':
+        return {
+          status: 'unchanged',
+          reason: `window "${String(this.#hold?.nodeId)}" is already held`,
+        };
+      case 'unknownViewport':
+        // Names the unknown viewport as such.
+        viewGeometryOf(scene, viewportId);
+        throw failure('UNKNOWN_ENTITY', `no viewport "${viewportId}"`);
+      case 'unknownNode':
+        throw failure('UNKNOWN_ENTITY', `no node "${nodeId}" to hold`);
+      case 'busy':
+        return { status: 'unchanged', reason: `window "${nodeId}" is already in a gesture` };
+      case 'hold':
+        break;
+    }
+    if (node === undefined) {
+      throw new Error(`the gesture model let a missing node "${nodeId}" be held`);
     }
     const id = `gesture-${String(this.#nextGesture++)}`;
     const previewId = `interaction:${id}`;
@@ -1045,6 +1124,7 @@ export class InteractionRouter {
       pointers: new Map(),
       claims: [],
       running: null,
+      phase: IDLE,
       ending: false,
     };
     const session = this.#session(arena, id, previewId);
@@ -1079,6 +1159,7 @@ export class InteractionRouter {
         // Everything the hold changed is in its preview.
       },
     };
+    this.#step(arena, { kind: 'held' });
     arena.running = {
       id,
       policyId: KEYBOARD_HOLD_ID,
@@ -1118,6 +1199,7 @@ export class InteractionRouter {
       return { status: 'unchanged', reason: 'no window is held' };
     }
     const finish = this.#guard(hold.arena, () => running.handler.finish());
+    this.#finished(hold.arena, finish);
     this.#end(hold.arena, finish);
     if (finish.outcome === 'unchanged') {
       return { status: 'unchanged', reason: 'the window was put down where it was' };
@@ -1305,3 +1387,14 @@ function failure(code: SwfErrorCode, message: string): SwfFailure {
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
+
+const IDLE: GesturePhase = Object.freeze({ kind: 'idle' });
+
+/** Each input region as the gesture model names it. */
+const REGIONS: Readonly<Record<InputRegion, Region['kind']>> = Object.freeze({
+  content: 'content',
+  chrome: 'chrome',
+  'resize-handle': 'resizeHandle',
+  background: 'background',
+  'modal-overlay': 'modalOverlay',
+});

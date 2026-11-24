@@ -46,6 +46,12 @@ exports = [
   "Swf.Handoff.viewportPresents",
   "Swf.Handoff.viewportAdmits",
   "Swf.Handoff.viewportDegraded",
+  "Swf.Gesture.pointerRoute",
+  "Swf.Gesture.pressRoute",
+  "Swf.Gesture.beyondSlop",
+  "Swf.Gesture.gestureStep",
+  "Swf.Gesture.keyRoute",
+  "Swf.Gesture.holdGate",
   "Swf.ViewMode.transition",
   "Swf.ViewMode.observed",
 ]

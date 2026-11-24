@@ -271,6 +271,320 @@
       }
     },
     {
+      "name": "Swf.Gesture.beyond_slop_iff",
+      "relation": "lungo.decides",
+      "subjects": [
+        "Swf.Gesture.beyondSlop"
+      ],
+      "specifications": [],
+      "statement": "∀ (distance slop : Float), Swf.Gesture.beyondSlop distance slop = true ↔ distance > slop",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "cb7ab91e106633d838d33be9fe7bb9de1c378d3d00626d0545c905f031b32214",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Gesture.lean",
+        "start": {
+          "line": 254,
+          "column": 1
+        },
+        "end": {
+          "line": 258,
+          "column": 20
+        }
+      }
+    },
+    {
+      "name": "Swf.Gesture.commit_at_most_once",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Gesture.gestureStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (e : Swf.Gesture.GestureEvent),\n  (Swf.Gesture.gestureStep Swf.Gesture.GesturePhase.committed e).isSome = true ↔ e = Swf.Gesture.GestureEvent.ended",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "0a198e302106bdc475ddceae501826e6c5fd3ab7ba88572e0059a3bca804cde6",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Gesture.lean",
+        "start": {
+          "line": 229,
+          "column": 1
+        },
+        "end": {
+          "line": 234,
+          "column": 83
+        }
+      }
+    },
+    {
+      "name": "Swf.Gesture.commit_only_by_finish",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Gesture.gestureStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (p : Swf.Gesture.GesturePhase) (e : Swf.Gesture.GestureEvent),\n  Swf.Gesture.gestureStep p e = some Swf.Gesture.GesturePhase.committed →\n    p = Swf.Gesture.GesturePhase.dragging ∧ e = Swf.Gesture.GestureEvent.finished Swf.Gesture.Finish.committed",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "cdb93a9572d9c10243f66c779cbe060baeb681cd132993750368aa1dc8008b09",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Gesture.lean",
+        "start": {
+          "line": 236,
+          "column": 1
+        },
+        "end": {
+          "line": 240,
+          "column": 89
+        }
+      }
+    },
+    {
+      "name": "Swf.Gesture.every_end_returns_idle",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Gesture.gestureStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (p : Swf.Gesture.GesturePhase) (e : Swf.Gesture.GestureEvent),\n  (Swf.Gesture.gestureStep p e = some Swf.Gesture.GesturePhase.cancelled → p = Swf.Gesture.GesturePhase.dragging) ∧\n    Swf.Gesture.gestureStep Swf.Gesture.GesturePhase.committed Swf.Gesture.GestureEvent.ended =\n        some Swf.Gesture.GesturePhase.idle ∧\n      Swf.Gesture.gestureStep Swf.Gesture.GesturePhase.cancelled Swf.Gesture.GestureEvent.ended =\n        some Swf.Gesture.GesturePhase.idle",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "45bc2edf4efebc652c423883f2587e077db4ad2714f9ea726de7aa65c3e72204",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Gesture.lean",
+        "start": {
+          "line": 245,
+          "column": 1
+        },
+        "end": {
+          "line": 252,
+          "column": 89
+        }
+      }
+    },
+    {
+      "name": "Swf.Gesture.failed_commit_cancels",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Gesture.gestureStep"
+      ],
+      "specifications": [],
+      "statement": "Swf.Gesture.gestureStep Swf.Gesture.GesturePhase.dragging\n    (Swf.Gesture.GestureEvent.finished Swf.Gesture.Finish.rejected) =\n  some Swf.Gesture.GesturePhase.cancelled",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "8910cfee3dcba7585e5aaee82ea161baacf42c20a2db453e13ba46850fe9eed7",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Gesture.lean",
+        "start": {
+          "line": 242,
+          "column": 1
+        },
+        "end": {
+          "line": 243,
+          "column": 101
+        }
+      }
+    },
+    {
+      "name": "Swf.Gesture.key_routes",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Gesture.keyRoute"
+      ],
+      "specifications": [],
+      "statement": "∀ (k : Swf.Gesture.KeyFacts),\n  (k.phase = Swf.Gesture.KeyPhase.down →\n      k.key = \"Escape\" → k.gestures = true → Swf.Gesture.keyRoute k = Swf.Gesture.KeyRoute.cancelAll) ∧\n    (Swf.Gesture.keyRoute k = Swf.Gesture.KeyRoute.putDown →\n      k.holding = true ∧ k.modified = false ∧ (k.key = \"Enter\" ∨ k.key = \" \") ∧ k.inContent = false)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "53fdd5afad86b38bef57f616e6b50b27acae6b9aada227cb3d1cde31fda67724",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Gesture.lean",
+        "start": {
+          "line": 260,
+          "column": 1
+        },
+        "end": {
+          "line": 273,
+          "column": 52
+        }
+      }
+    },
+    {
+      "name": "Swf.Gesture.late_pointer_ignored",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Gesture.pointerRoute"
+      ],
+      "specifications": [],
+      "statement": "∀ (phase : Swf.Gesture.PointerPhase),\n  Swf.Gesture.pointerRoute phase false = Swf.Gesture.PointerRoute.ignore ↔ phase ≠ Swf.Gesture.PointerPhase.down",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "dc550485dab2fc74d957ded82a014fbc68d859e25d1eaa5ff48937b9d3b9c667",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Gesture.lean",
+        "start": {
+          "line": 206,
+          "column": 1
+        },
+        "end": {
+          "line": 211,
+          "column": 38
+        }
+      }
+    },
+    {
+      "name": "Swf.Gesture.one_hold_at_a_time",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Gesture.holdGate"
+      ],
+      "specifications": [],
+      "statement": "∀ (holding viewportKnown nodeActive inGesture : Bool),\n  (holding = true →\n      Swf.Gesture.holdGate holding viewportKnown nodeActive inGesture = Swf.Gesture.HoldGate.alreadyHolding) ∧\n    (Swf.Gesture.holdGate holding viewportKnown nodeActive inGesture = Swf.Gesture.HoldGate.hold ↔\n      holding = false ∧ viewportKnown = true ∧ nodeActive = true ∧ inGesture = false)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "dcfa69a9c07c917f383e120117030e3969e153e5736bc7b6bcc4731ead74c01c",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Gesture.lean",
+        "start": {
+          "line": 275,
+          "column": 1
+        },
+        "end": {
+          "line": 281,
+          "column": 101
+        }
+      }
+    },
+    {
+      "name": "Swf.Gesture.press_claims_only_free_targets",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Gesture.pressRoute"
+      ],
+      "specifications": [],
+      "statement": "∀ (f : Swf.Gesture.PressFacts),\n  Swf.Gesture.pressRoute f = Swf.Gesture.PressRoute.claim →\n    f.busy = false ∧\n      (f.pick = Swf.Gesture.PressPick.hit ∨ f.pick = Swf.Gesture.PressPick.background) ∧\n        (f.region = Swf.Gesture.Region.content → f.takeover = true ∨ f.proxy = true)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "f5c5ca115884983bdb2b04a37036e2eaf913957d4fa1bb5111a57f5902a0d21d",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Gesture.lean",
+        "start": {
+          "line": 219,
+          "column": 1
+        },
+        "end": {
+          "line": 227,
+          "column": 26
+        }
+      }
+    },
+    {
+      "name": "Swf.Gesture.repress_cancels_lost",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Gesture.pointerRoute"
+      ],
+      "specifications": [],
+      "statement": "∀ (phase : Swf.Gesture.PointerPhase),\n  Swf.Gesture.pointerRoute phase true = Swf.Gesture.PointerRoute.pressAfterLost ↔ phase = Swf.Gesture.PointerPhase.down",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "126a9ac3f19d47fd384f02b35f5627ba9ea460a3ba62cc18e9cfc3ef918c75f4",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Gesture.lean",
+        "start": {
+          "line": 213,
+          "column": 1
+        },
+        "end": {
+          "line": 217,
+          "column": 38
+        }
+      }
+    },
+    {
       "name": "Swf.Handoff.admits_until_disposed",
       "relation": "lungo.decides",
       "subjects": [
@@ -2307,6 +2621,202 @@
         "end": {
           "line": 262,
           "column": 88
+        }
+      }
+    },
+    {
+      "name": "Swf.Gesture.beyondSlop",
+      "module": "Swf.Gesture",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_float_decLt"
+        ]
+      },
+      "claims": [
+        "Swf.Gesture.beyond_slop_iff"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Gesture.lean",
+        "start": {
+          "line": 86,
+          "column": 1
+        },
+        "end": {
+          "line": 88,
+          "column": 65
+        }
+      }
+    },
+    {
+      "name": "Swf.Gesture.gestureStep",
+      "module": "Swf.Gesture",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": []
+      },
+      "claims": [
+        "Swf.Gesture.commit_at_most_once",
+        "Swf.Gesture.commit_only_by_finish",
+        "Swf.Gesture.every_end_returns_idle",
+        "Swf.Gesture.failed_commit_cancels"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Gesture.lean",
+        "start": {
+          "line": 122,
+          "column": 1
+        },
+        "end": {
+          "line": 141,
+          "column": 17
+        }
+      }
+    },
+    {
+      "name": "Swf.Gesture.holdGate",
+      "module": "Swf.Gesture",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": []
+      },
+      "claims": [
+        "Swf.Gesture.one_hold_at_a_time"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Gesture.lean",
+        "start": {
+          "line": 197,
+          "column": 1
+        },
+        "end": {
+          "line": 202,
+          "column": 13
+        }
+      }
+    },
+    {
+      "name": "Swf.Gesture.keyRoute",
+      "module": "Swf.Gesture",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_string_dec_eq"
+        ]
+      },
+      "claims": [
+        "Swf.Gesture.key_routes"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Gesture.lean",
+        "start": {
+          "line": 175,
+          "column": 1
+        },
+        "end": {
+          "line": 182,
+          "column": 59
+        }
+      }
+    },
+    {
+      "name": "Swf.Gesture.pointerRoute",
+      "module": "Swf.Gesture",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": []
+      },
+      "claims": [
+        "Swf.Gesture.late_pointer_ignored",
+        "Swf.Gesture.repress_cancels_lost"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Gesture.lean",
+        "start": {
+          "line": 32,
+          "column": 1
+        },
+        "end": {
+          "line": 39,
+          "column": 24
+        }
+      }
+    },
+    {
+      "name": "Swf.Gesture.pressRoute",
+      "module": "Swf.Gesture",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": []
+      },
+      "claims": [
+        "Swf.Gesture.press_claims_only_free_targets"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Gesture.lean",
+        "start": {
+          "line": 79,
+          "column": 1
+        },
+        "end": {
+          "line": 84,
+          "column": 45
         }
       }
     },

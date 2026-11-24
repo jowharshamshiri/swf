@@ -156,10 +156,344 @@ export function modeType() {
   );
 }
 
+/** Describes Swf.Gesture.GesturePhase for polymorphic functions. */
+export function gesturePhaseType() {
+  return new L.Type(
+    L.inductiveExpr(5),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Gesture.GesturePhase");
+      switch (v.kind) {
+        case "idle":
+          w.u32(0);
+          return;
+        case "pending":
+          w.u32(1);
+          return;
+        case "dragging":
+          w.u32(2);
+          return;
+        case "committed":
+          w.u32(3);
+          return;
+        case "cancelled":
+          w.u32(4);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.Gesture.GesturePhase`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "idle" });
+        case 1: return ({ kind: "pending" });
+        case 2: return ({ kind: "dragging" });
+        case 3: return ({ kind: "committed" });
+        case 4: return ({ kind: "cancelled" });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.Gesture.GesturePhase`);
+      }
+    },
+  );
+}
+
+/** Describes Swf.Gesture.GestureEvent for polymorphic functions. */
+export function gestureEventType() {
+  return new L.Type(
+    L.inductiveExpr(6),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Gesture.GestureEvent");
+      switch (v.kind) {
+        case "claimed":
+          w.u32(0);
+          return;
+        case "held":
+          w.u32(1);
+          return;
+        case "movedBeyond":
+          w.u32(2);
+          L.BOOL.encode(w, v.winner);
+          return;
+        case "releasedPending":
+          w.u32(3);
+          L.BOOL.encode(w, v.winner);
+          return;
+        case "finished":
+          w.u32(4);
+          finishType().encode(w, v.f);
+          return;
+        case "cancel":
+          w.u32(5);
+          return;
+        case "ended":
+          w.u32(6);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.Gesture.GestureEvent`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "claimed" });
+        case 1: return ({ kind: "held" });
+        case 2: return ({ kind: "movedBeyond", winner: L.BOOL.decode(r) });
+        case 3: return ({ kind: "releasedPending", winner: L.BOOL.decode(r) });
+        case 4: return ({ kind: "finished", f: finishType().decode(r) });
+        case 5: return ({ kind: "cancel" });
+        case 6: return ({ kind: "ended" });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.Gesture.GestureEvent`);
+      }
+    },
+  );
+}
+
+/** Describes Swf.Gesture.HoldGate for polymorphic functions. */
+export function holdGateType() {
+  return new L.Type(
+    L.inductiveExpr(7),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Gesture.HoldGate");
+      switch (v.kind) {
+        case "alreadyHolding":
+          w.u32(0);
+          return;
+        case "unknownViewport":
+          w.u32(1);
+          return;
+        case "unknownNode":
+          w.u32(2);
+          return;
+        case "busy":
+          w.u32(3);
+          return;
+        case "hold":
+          w.u32(4);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.Gesture.HoldGate`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "alreadyHolding" });
+        case 1: return ({ kind: "unknownViewport" });
+        case 2: return ({ kind: "unknownNode" });
+        case 3: return ({ kind: "busy" });
+        case 4: return ({ kind: "hold" });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.Gesture.HoldGate`);
+      }
+    },
+  );
+}
+
+/** Describes Swf.Gesture.KeyFacts for polymorphic functions. */
+export function keyFactsType() {
+  return new L.Type(
+    L.inductiveExpr(8),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Gesture.KeyFacts");
+      w.u32(0);
+      keyPhaseType().encode(w, v.phase);
+      L.STRING.encode(w, v.key);
+      L.BOOL.encode(w, v.inContent);
+      L.BOOL.encode(w, v.gestures);
+      L.BOOL.encode(w, v.holding);
+      L.BOOL.encode(w, v.modified);
+    },
+    (r) => {
+      const c = r.u32();
+      if (c !== 0) throw new L.MalformedError(`constructor index ${c} of Swf.Gesture.KeyFacts`);
+      return ({ phase: keyPhaseType().decode(r), key: L.STRING.decode(r), inContent: L.BOOL.decode(r), gestures: L.BOOL.decode(r), holding: L.BOOL.decode(r), modified: L.BOOL.decode(r) });
+    },
+  );
+}
+
+/** Describes Swf.Gesture.KeyRoute for polymorphic functions. */
+export function keyRouteType() {
+  return new L.Type(
+    L.inductiveExpr(9),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Gesture.KeyRoute");
+      switch (v.kind) {
+        case "cancelAll":
+          w.u32(0);
+          return;
+        case "native":
+          w.u32(1);
+          return;
+        case "ignoreRelease":
+          w.u32(2);
+          return;
+        case "putDown":
+          w.u32(3);
+          return;
+        case "keymap":
+          w.u32(4);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.Gesture.KeyRoute`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "cancelAll" });
+        case 1: return ({ kind: "native" });
+        case 2: return ({ kind: "ignoreRelease" });
+        case 3: return ({ kind: "putDown" });
+        case 4: return ({ kind: "keymap" });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.Gesture.KeyRoute`);
+      }
+    },
+  );
+}
+
+/** Describes Swf.Gesture.PointerPhase for polymorphic functions. */
+export function pointerPhaseType() {
+  return new L.Type(
+    L.inductiveExpr(10),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Gesture.PointerPhase");
+      switch (v.kind) {
+        case "down":
+          w.u32(0);
+          return;
+        case "move":
+          w.u32(1);
+          return;
+        case "up":
+          w.u32(2);
+          return;
+        case "cancel":
+          w.u32(3);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.Gesture.PointerPhase`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "down" });
+        case 1: return ({ kind: "move" });
+        case 2: return ({ kind: "up" });
+        case 3: return ({ kind: "cancel" });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.Gesture.PointerPhase`);
+      }
+    },
+  );
+}
+
+/** Describes Swf.Gesture.PointerRoute for polymorphic functions. */
+export function pointerRouteType() {
+  return new L.Type(
+    L.inductiveExpr(11),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Gesture.PointerRoute");
+      switch (v.kind) {
+        case "press":
+          w.u32(0);
+          return;
+        case "pressAfterLost":
+          w.u32(1);
+          return;
+        case "move":
+          w.u32(2);
+          return;
+        case "release":
+          w.u32(3);
+          return;
+        case "lost":
+          w.u32(4);
+          return;
+        case "ignore":
+          w.u32(5);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.Gesture.PointerRoute`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "press" });
+        case 1: return ({ kind: "pressAfterLost" });
+        case 2: return ({ kind: "move" });
+        case 3: return ({ kind: "release" });
+        case 4: return ({ kind: "lost" });
+        case 5: return ({ kind: "ignore" });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.Gesture.PointerRoute`);
+      }
+    },
+  );
+}
+
+/** Describes Swf.Gesture.PressFacts for polymorphic functions. */
+export function pressFactsType() {
+  return new L.Type(
+    L.inductiveExpr(12),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Gesture.PressFacts");
+      w.u32(0);
+      pressPickType().encode(w, v.pick);
+      regionType().encode(w, v.region);
+      L.BOOL.encode(w, v.takeover);
+      L.BOOL.encode(w, v.proxy);
+      L.BOOL.encode(w, v.busy);
+    },
+    (r) => {
+      const c = r.u32();
+      if (c !== 0) throw new L.MalformedError(`constructor index ${c} of Swf.Gesture.PressFacts`);
+      return ({ pick: pressPickType().decode(r), region: regionType().decode(r), takeover: L.BOOL.decode(r), proxy: L.BOOL.decode(r), busy: L.BOOL.decode(r) });
+    },
+  );
+}
+
+/** Describes Swf.Gesture.PressRoute for polymorphic functions. */
+export function pressRouteType() {
+  return new L.Type(
+    L.inductiveExpr(13),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Gesture.PressRoute");
+      switch (v.kind) {
+        case "ignore":
+          w.u32(0);
+          return;
+        case "blocked":
+          w.u32(1);
+          return;
+        case "native":
+          w.u32(2);
+          return;
+        case "busy":
+          w.u32(3);
+          return;
+        case "claim":
+          w.u32(4);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.Gesture.PressRoute`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "ignore" });
+        case 1: return ({ kind: "blocked" });
+        case 2: return ({ kind: "native" });
+        case 3: return ({ kind: "busy" });
+        case 4: return ({ kind: "claim" });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.Gesture.PressRoute`);
+      }
+    },
+  );
+}
+
 /** Describes Swf.Handoff.ViewportState for polymorphic functions. */
 export function viewportStateType() {
   return new L.Type(
-    L.inductiveExpr(5),
+    L.inductiveExpr(14),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Handoff.ViewportState");
       switch (v.kind) {
@@ -203,7 +537,7 @@ export function viewportStateType() {
 /** Describes Swf.Handoff.HandoffEvent for polymorphic functions. */
 export function handoffEventType() {
   return new L.Type(
-    L.inductiveExpr(6),
+    L.inductiveExpr(15),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Handoff.HandoffEvent");
       switch (v.kind) {
@@ -243,7 +577,7 @@ export function handoffEventType() {
 /** Describes Swf.Handoff.Settlement for polymorphic functions. */
 export function settlementType() {
   return new L.Type(
-    L.inductiveExpr(7),
+    L.inductiveExpr(16),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Handoff.Settlement");
       switch (v.kind) {
@@ -275,7 +609,7 @@ export function settlementType() {
 /** Describes Swf.Handoff.SwapAction for polymorphic functions. */
 export function swapActionType() {
   return new L.Type(
-    L.inductiveExpr(8),
+    L.inductiveExpr(17),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Handoff.SwapAction");
       switch (v.kind) {
@@ -307,7 +641,7 @@ export function swapActionType() {
 /** Describes Swf.Handoff.Validation for polymorphic functions. */
 export function validationType() {
   return new L.Type(
-    L.inductiveExpr(9),
+    L.inductiveExpr(18),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Handoff.Validation");
       switch (v.kind) {
@@ -339,7 +673,7 @@ export function validationType() {
 /** Describes Swf.Kernel.Lifecycle for polymorphic functions. */
 export function lifecycleType() {
   return new L.Type(
-    L.inductiveExpr(10),
+    L.inductiveExpr(19),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.Lifecycle");
       switch (v.kind) {
@@ -372,7 +706,7 @@ export function lifecycleType() {
 /** Describes Swf.Kernel.Ledger for polymorphic functions. */
 export function ledgerType() {
   return new L.Type(
-    L.inductiveExpr(11),
+    L.inductiveExpr(20),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.Ledger");
       w.u32(0);
@@ -395,7 +729,7 @@ export function ledgerType() {
 /** Describes Swf.Kernel.Direction for polymorphic functions. */
 export function directionType() {
   return new L.Type(
-    L.inductiveExpr(12),
+    L.inductiveExpr(21),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.Direction");
       switch (v.kind) {
@@ -423,7 +757,7 @@ export function directionType() {
 /** Describes Swf.Kernel.Change for polymorphic functions. */
 export function changeType() {
   return new L.Type(
-    L.inductiveExpr(13),
+    L.inductiveExpr(22),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.Change");
       switch (v.kind) {
@@ -455,7 +789,7 @@ export function changeType() {
 /** Describes Swf.Kernel.Commit for polymorphic functions. */
 export function commitType() {
   return new L.Type(
-    L.inductiveExpr(14),
+    L.inductiveExpr(23),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.Commit");
       w.u32(0);
@@ -476,7 +810,7 @@ export function commitType() {
 /** Describes Swf.Kernel.TxRequest for polymorphic functions. */
 export function txRequestType() {
   return new L.Type(
-    L.inductiveExpr(15),
+    L.inductiveExpr(24),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.TxRequest");
       w.u32(0);
@@ -494,7 +828,7 @@ export function txRequestType() {
 /** Describes Swf.Kernel.TxGate for polymorphic functions. */
 export function txGateType() {
   return new L.Type(
-    L.inductiveExpr(16),
+    L.inductiveExpr(25),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.TxGate");
       switch (v.kind) {
@@ -534,7 +868,7 @@ export function txGateType() {
 /** Describes Swf.Kernel.IdleStep for polymorphic functions. */
 export function idleStepType() {
   return new L.Type(
-    L.inductiveExpr(17),
+    L.inductiveExpr(26),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.IdleStep");
       switch (v.kind) {
@@ -568,7 +902,7 @@ export function idleStepType() {
 /** Describes Swf.Kernel.Travel for polymorphic functions. */
 export function travelType() {
   return new L.Type(
-    L.inductiveExpr(18),
+    L.inductiveExpr(27),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.Travel");
       switch (v.kind) {
@@ -605,7 +939,7 @@ export function travelType() {
 /** Describes Swf.Migration.MigrationPlan for polymorphic functions. */
 export function migrationPlanType() {
   return new L.Type(
-    L.inductiveExpr(19),
+    L.inductiveExpr(28),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Migration.MigrationPlan");
       w.u32(0);
@@ -623,7 +957,7 @@ export function migrationPlanType() {
 /** Describes Swf.Save.SaveMachine for polymorphic functions. */
 export function saveMachineType() {
   return new L.Type(
-    L.inductiveExpr(20),
+    L.inductiveExpr(29),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Save.SaveMachine");
       w.u32(0);
@@ -643,7 +977,7 @@ export function saveMachineType() {
 /** Describes Swf.Save.SaveAnswer for polymorphic functions. */
 export function saveAnswerType() {
   return new L.Type(
-    L.inductiveExpr(21),
+    L.inductiveExpr(30),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Save.SaveAnswer");
       switch (v.kind) {
@@ -673,7 +1007,7 @@ export function saveAnswerType() {
 /** Describes Swf.Save.SaveEnd for polymorphic functions. */
 export function saveEndType() {
   return new L.Type(
-    L.inductiveExpr(22),
+    L.inductiveExpr(31),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Save.SaveEnd");
       w.u32(0);
@@ -691,7 +1025,7 @@ export function saveEndType() {
 /** Describes Swf.Surface.Presentation for polymorphic functions. */
 export function presentationType() {
   return new L.Type(
-    L.inductiveExpr(23),
+    L.inductiveExpr(32),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.Presentation");
       switch (v.kind) {
@@ -744,7 +1078,7 @@ export function presentationType() {
 /** Describes Swf.Surface.SurfaceRefusal for polymorphic functions. */
 export function surfaceRefusalType() {
   return new L.Type(
-    L.inductiveExpr(24),
+    L.inductiveExpr(33),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.SurfaceRefusal");
       switch (v.kind) {
@@ -804,7 +1138,7 @@ export function surfaceRefusalType() {
 /** Describes Swf.Surface.PresentFacts for polymorphic functions. */
 export function presentFactsType() {
   return new L.Type(
-    L.inductiveExpr(25),
+    L.inductiveExpr(34),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.PresentFacts");
       w.u32(0);
@@ -829,7 +1163,7 @@ export function presentFactsType() {
 /** Describes Swf.Surface.SurfaceEvent for polymorphic functions. */
 export function surfaceEventType() {
   return new L.Type(
-    L.inductiveExpr(26),
+    L.inductiveExpr(35),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.SurfaceEvent");
       switch (v.kind) {
@@ -883,7 +1217,7 @@ export function surfaceEventType() {
 /** Describes Swf.Surface.SurfaceStep for polymorphic functions. */
 export function surfaceStepType() {
   return new L.Type(
-    L.inductiveExpr(27),
+    L.inductiveExpr(36),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.SurfaceStep");
       w.u32(0);
@@ -901,7 +1235,7 @@ export function surfaceStepType() {
 /** Describes Swf.Surface.UnbindGate for polymorphic functions. */
 export function unbindGateType() {
   return new L.Type(
-    L.inductiveExpr(28),
+    L.inductiveExpr(37),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.UnbindGate");
       switch (v.kind) {
@@ -934,7 +1268,7 @@ export function unbindGateType() {
 /** Describes Swf.ViewMode.ModeMachine for polymorphic functions. */
 export function modeMachineType() {
   return new L.Type(
-    L.inductiveExpr(29),
+    L.inductiveExpr(38),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.ViewMode.ModeMachine");
       w.u32(0);
@@ -952,7 +1286,7 @@ export function modeMachineType() {
 /** Describes Swf.ViewMode.ModeEvent for polymorphic functions. */
 export function modeEventType() {
   return new L.Type(
-    L.inductiveExpr(30),
+    L.inductiveExpr(39),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.ViewMode.ModeEvent");
       switch (v.kind) {
@@ -981,7 +1315,7 @@ export function modeEventType() {
 /** Describes Swf.ViewMode.ViewSettings for polymorphic functions. */
 export function viewSettingsType() {
   return new L.Type(
-    L.inductiveExpr(31),
+    L.inductiveExpr(40),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.ViewMode.ViewSettings");
       w.u32(0);
@@ -1000,7 +1334,7 @@ export function viewSettingsType() {
 /** Describes Swf.ViewMode.ModeTransition for polymorphic functions. */
 export function modeTransitionType() {
   return new L.Type(
-    L.inductiveExpr(32),
+    L.inductiveExpr(41),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.ViewMode.ModeTransition");
       switch (v.kind) {
@@ -1033,7 +1367,7 @@ export function modeTransitionType() {
 /** Describes Swf.Fallback.RendererCapabilities for polymorphic functions. */
 export function rendererCapabilitiesType() {
   return new L.Type(
-    L.inductiveExpr(33),
+    L.inductiveExpr(42),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.RendererCapabilities");
       w.u32(0);
@@ -1052,7 +1386,7 @@ export function rendererCapabilitiesType() {
 /** Describes Swf.Fallback.CompositorCapabilities for polymorphic functions. */
 export function compositorCapabilitiesType() {
   return new L.Type(
-    L.inductiveExpr(34),
+    L.inductiveExpr(43),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.CompositorCapabilities");
       w.u32(0);
@@ -1072,7 +1406,7 @@ export function compositorCapabilitiesType() {
 /** Describes Swf.Fallback.HandleCapabilities for polymorphic functions. */
 export function handleCapabilitiesType() {
   return new L.Type(
-    L.inductiveExpr(35),
+    L.inductiveExpr(44),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.HandleCapabilities");
       w.u32(0);
@@ -1093,7 +1427,7 @@ export function handleCapabilitiesType() {
 /** Describes Swf.Fallback.Gap for polymorphic functions. */
 export function gapType() {
   return new L.Type(
-    L.inductiveExpr(36),
+    L.inductiveExpr(45),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.Gap");
       w.u32(0);
@@ -1112,7 +1446,7 @@ export function gapType() {
 /** Describes Swf.Fallback.ShapeFidelity for polymorphic functions. */
 export function shapeFidelityType() {
   return new L.Type(
-    L.inductiveExpr(37),
+    L.inductiveExpr(46),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.ShapeFidelity");
       switch (v.kind) {
@@ -1144,7 +1478,7 @@ export function shapeFidelityType() {
 /** Describes Swf.Fallback.Fidelity for polymorphic functions. */
 export function fidelityType() {
   return new L.Type(
-    L.inductiveExpr(38),
+    L.inductiveExpr(47),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.Fidelity");
       switch (v.kind) {
@@ -1184,7 +1518,7 @@ export function fidelityType() {
 /** Describes Swf.Fallback.Interaction for polymorphic functions. */
 export function interactionType() {
   return new L.Type(
-    L.inductiveExpr(39),
+    L.inductiveExpr(48),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.Interaction");
       switch (v.kind) {
@@ -1216,7 +1550,7 @@ export function interactionType() {
 /** Describes Swf.Fallback.LayerCategory for polymorphic functions. */
 export function layerCategoryType() {
   return new L.Type(
-    L.inductiveExpr(40),
+    L.inductiveExpr(49),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.LayerCategory");
       switch (v.kind) {
@@ -1257,10 +1591,142 @@ export function layerCategoryType() {
   );
 }
 
+/** Describes Swf.Gesture.Finish for polymorphic functions. */
+export function finishType() {
+  return new L.Type(
+    L.inductiveExpr(50),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Gesture.Finish");
+      switch (v.kind) {
+        case "committed":
+          w.u32(0);
+          return;
+        case "unchanged":
+          w.u32(1);
+          return;
+        case "rejected":
+          w.u32(2);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.Gesture.Finish`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "committed" });
+        case 1: return ({ kind: "unchanged" });
+        case 2: return ({ kind: "rejected" });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.Gesture.Finish`);
+      }
+    },
+  );
+}
+
+/** Describes Swf.Gesture.KeyPhase for polymorphic functions. */
+export function keyPhaseType() {
+  return new L.Type(
+    L.inductiveExpr(51),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Gesture.KeyPhase");
+      switch (v.kind) {
+        case "down":
+          w.u32(0);
+          return;
+        case "up":
+          w.u32(1);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.Gesture.KeyPhase`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "down" });
+        case 1: return ({ kind: "up" });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.Gesture.KeyPhase`);
+      }
+    },
+  );
+}
+
+/** Describes Swf.Gesture.PressPick for polymorphic functions. */
+export function pressPickType() {
+  return new L.Type(
+    L.inductiveExpr(52),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Gesture.PressPick");
+      switch (v.kind) {
+        case "hit":
+          w.u32(0);
+          return;
+        case "background":
+          w.u32(1);
+          return;
+        case "none":
+          w.u32(2);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.Gesture.PressPick`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "hit" });
+        case 1: return ({ kind: "background" });
+        case 2: return ({ kind: "none" });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.Gesture.PressPick`);
+      }
+    },
+  );
+}
+
+/** Describes Swf.Gesture.Region for polymorphic functions. */
+export function regionType() {
+  return new L.Type(
+    L.inductiveExpr(53),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Gesture.Region");
+      switch (v.kind) {
+        case "content":
+          w.u32(0);
+          return;
+        case "chrome":
+          w.u32(1);
+          return;
+        case "resizeHandle":
+          w.u32(2);
+          return;
+        case "background":
+          w.u32(3);
+          return;
+        case "modalOverlay":
+          w.u32(4);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.Gesture.Region`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "content" });
+        case 1: return ({ kind: "chrome" });
+        case 2: return ({ kind: "resizeHandle" });
+        case 3: return ({ kind: "background" });
+        case 4: return ({ kind: "modalOverlay" });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.Gesture.Region`);
+      }
+    },
+  );
+}
+
 /** Describes Swf.Save.SaveState for polymorphic functions. */
 export function saveStateType() {
   return new L.Type(
-    L.inductiveExpr(41),
+    L.inductiveExpr(54),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Save.SaveState");
       switch (v.kind) {
@@ -1296,7 +1762,7 @@ export function saveStateType() {
 /** Describes Swf.Save.AckRefusal for polymorphic functions. */
 export function ackRefusalType() {
   return new L.Type(
-    L.inductiveExpr(42),
+    L.inductiveExpr(55),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Save.AckRefusal");
       switch (v.kind) {
@@ -1324,7 +1790,7 @@ export function ackRefusalType() {
 /** Describes Swf.Surface.UnboundReason for polymorphic functions. */
 export function unboundReasonType() {
   return new L.Type(
-    L.inductiveExpr(43),
+    L.inductiveExpr(56),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.UnboundReason");
       switch (v.kind) {
@@ -1360,7 +1826,7 @@ export function unboundReasonType() {
 /** Describes Swf.Surface.Resolution for polymorphic functions. */
 export function resolutionType() {
   return new L.Type(
-    L.inductiveExpr(44),
+    L.inductiveExpr(57),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.Resolution");
       switch (v.kind) {
@@ -1392,7 +1858,7 @@ export function resolutionType() {
 /** Describes Swf.Surface.Release for polymorphic functions. */
 export function releaseType() {
   return new L.Type(
-    L.inductiveExpr(45),
+    L.inductiveExpr(58),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.Release");
       switch (v.kind) {
@@ -1421,7 +1887,7 @@ export function releaseType() {
 /** Describes Swf.ViewMode.ProjectionSetting for polymorphic functions. */
 export function projectionSettingType() {
   return new L.Type(
-    L.inductiveExpr(46),
+    L.inductiveExpr(59),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.ViewMode.ProjectionSetting");
       w.u32(0);
@@ -1439,7 +1905,7 @@ export function projectionSettingType() {
 /** Describes Swf.ViewMode.Quat for polymorphic functions. */
 export function quatType() {
   return new L.Type(
-    L.inductiveExpr(47),
+    L.inductiveExpr(60),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.ViewMode.Quat");
       w.u32(0);
@@ -1459,7 +1925,7 @@ export function quatType() {
 /** Describes Swf.Fallback.Strategy for polymorphic functions. */
 export function strategyType() {
   return new L.Type(
-    L.inductiveExpr(48),
+    L.inductiveExpr(61),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.Strategy");
       switch (v.kind) {
@@ -1491,7 +1957,7 @@ export function strategyType() {
 /** Describes Swf.Fallback.TransformMode for polymorphic functions. */
 export function transformModeType() {
   return new L.Type(
-    L.inductiveExpr(49),
+    L.inductiveExpr(62),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.TransformMode");
       switch (v.kind) {
@@ -1527,7 +1993,7 @@ export function transformModeType() {
 /** Describes Swf.Fallback.Clip for polymorphic functions. */
 export function clipType() {
   return new L.Type(
-    L.inductiveExpr(50),
+    L.inductiveExpr(63),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.Clip");
       switch (v.kind) {
@@ -1559,7 +2025,7 @@ export function clipType() {
 /** Describes Swf.Fallback.Requirement for polymorphic functions. */
 export function requirementType() {
   return new L.Type(
-    L.inductiveExpr(51),
+    L.inductiveExpr(64),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.Requirement");
       switch (v.kind) {
@@ -1603,7 +2069,7 @@ export function requirementType() {
 /** Describes Swf.Json for polymorphic functions. */
 export function jsonType() {
   return new L.Type(
-    L.inductiveExpr(52),
+    L.inductiveExpr(65),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Json");
       switch (v.kind) {
@@ -1920,6 +2386,320 @@ export const ASSURANCE = L.parseAssurance({
         "end": {
           "line": 475,
           "column": 23
+        }
+      }
+    },
+    {
+      "name": "Swf.Gesture.beyond_slop_iff",
+      "relation": "lungo.decides",
+      "subjects": [
+        "Swf.Gesture.beyondSlop"
+      ],
+      "specifications": [],
+      "statement": "∀ (distance slop : Float), Swf.Gesture.beyondSlop distance slop = true ↔ distance > slop",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "cb7ab91e106633d838d33be9fe7bb9de1c378d3d00626d0545c905f031b32214",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Gesture.lean",
+        "start": {
+          "line": 254,
+          "column": 1
+        },
+        "end": {
+          "line": 258,
+          "column": 20
+        }
+      }
+    },
+    {
+      "name": "Swf.Gesture.commit_at_most_once",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Gesture.gestureStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (e : Swf.Gesture.GestureEvent),\n  (Swf.Gesture.gestureStep Swf.Gesture.GesturePhase.committed e).isSome = true ↔ e = Swf.Gesture.GestureEvent.ended",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "0a198e302106bdc475ddceae501826e6c5fd3ab7ba88572e0059a3bca804cde6",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Gesture.lean",
+        "start": {
+          "line": 229,
+          "column": 1
+        },
+        "end": {
+          "line": 234,
+          "column": 83
+        }
+      }
+    },
+    {
+      "name": "Swf.Gesture.commit_only_by_finish",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Gesture.gestureStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (p : Swf.Gesture.GesturePhase) (e : Swf.Gesture.GestureEvent),\n  Swf.Gesture.gestureStep p e = some Swf.Gesture.GesturePhase.committed →\n    p = Swf.Gesture.GesturePhase.dragging ∧ e = Swf.Gesture.GestureEvent.finished Swf.Gesture.Finish.committed",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "cdb93a9572d9c10243f66c779cbe060baeb681cd132993750368aa1dc8008b09",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Gesture.lean",
+        "start": {
+          "line": 236,
+          "column": 1
+        },
+        "end": {
+          "line": 240,
+          "column": 89
+        }
+      }
+    },
+    {
+      "name": "Swf.Gesture.every_end_returns_idle",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Gesture.gestureStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (p : Swf.Gesture.GesturePhase) (e : Swf.Gesture.GestureEvent),\n  (Swf.Gesture.gestureStep p e = some Swf.Gesture.GesturePhase.cancelled → p = Swf.Gesture.GesturePhase.dragging) ∧\n    Swf.Gesture.gestureStep Swf.Gesture.GesturePhase.committed Swf.Gesture.GestureEvent.ended =\n        some Swf.Gesture.GesturePhase.idle ∧\n      Swf.Gesture.gestureStep Swf.Gesture.GesturePhase.cancelled Swf.Gesture.GestureEvent.ended =\n        some Swf.Gesture.GesturePhase.idle",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "45bc2edf4efebc652c423883f2587e077db4ad2714f9ea726de7aa65c3e72204",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Gesture.lean",
+        "start": {
+          "line": 245,
+          "column": 1
+        },
+        "end": {
+          "line": 252,
+          "column": 89
+        }
+      }
+    },
+    {
+      "name": "Swf.Gesture.failed_commit_cancels",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Gesture.gestureStep"
+      ],
+      "specifications": [],
+      "statement": "Swf.Gesture.gestureStep Swf.Gesture.GesturePhase.dragging\n    (Swf.Gesture.GestureEvent.finished Swf.Gesture.Finish.rejected) =\n  some Swf.Gesture.GesturePhase.cancelled",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "8910cfee3dcba7585e5aaee82ea161baacf42c20a2db453e13ba46850fe9eed7",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Gesture.lean",
+        "start": {
+          "line": 242,
+          "column": 1
+        },
+        "end": {
+          "line": 243,
+          "column": 101
+        }
+      }
+    },
+    {
+      "name": "Swf.Gesture.key_routes",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Gesture.keyRoute"
+      ],
+      "specifications": [],
+      "statement": "∀ (k : Swf.Gesture.KeyFacts),\n  (k.phase = Swf.Gesture.KeyPhase.down →\n      k.key = \"Escape\" → k.gestures = true → Swf.Gesture.keyRoute k = Swf.Gesture.KeyRoute.cancelAll) ∧\n    (Swf.Gesture.keyRoute k = Swf.Gesture.KeyRoute.putDown →\n      k.holding = true ∧ k.modified = false ∧ (k.key = \"Enter\" ∨ k.key = \" \") ∧ k.inContent = false)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "53fdd5afad86b38bef57f616e6b50b27acae6b9aada227cb3d1cde31fda67724",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Gesture.lean",
+        "start": {
+          "line": 260,
+          "column": 1
+        },
+        "end": {
+          "line": 273,
+          "column": 52
+        }
+      }
+    },
+    {
+      "name": "Swf.Gesture.late_pointer_ignored",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Gesture.pointerRoute"
+      ],
+      "specifications": [],
+      "statement": "∀ (phase : Swf.Gesture.PointerPhase),\n  Swf.Gesture.pointerRoute phase false = Swf.Gesture.PointerRoute.ignore ↔ phase ≠ Swf.Gesture.PointerPhase.down",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "dc550485dab2fc74d957ded82a014fbc68d859e25d1eaa5ff48937b9d3b9c667",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Gesture.lean",
+        "start": {
+          "line": 206,
+          "column": 1
+        },
+        "end": {
+          "line": 211,
+          "column": 38
+        }
+      }
+    },
+    {
+      "name": "Swf.Gesture.one_hold_at_a_time",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Gesture.holdGate"
+      ],
+      "specifications": [],
+      "statement": "∀ (holding viewportKnown nodeActive inGesture : Bool),\n  (holding = true →\n      Swf.Gesture.holdGate holding viewportKnown nodeActive inGesture = Swf.Gesture.HoldGate.alreadyHolding) ∧\n    (Swf.Gesture.holdGate holding viewportKnown nodeActive inGesture = Swf.Gesture.HoldGate.hold ↔\n      holding = false ∧ viewportKnown = true ∧ nodeActive = true ∧ inGesture = false)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "dcfa69a9c07c917f383e120117030e3969e153e5736bc7b6bcc4731ead74c01c",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Gesture.lean",
+        "start": {
+          "line": 275,
+          "column": 1
+        },
+        "end": {
+          "line": 281,
+          "column": 101
+        }
+      }
+    },
+    {
+      "name": "Swf.Gesture.press_claims_only_free_targets",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Gesture.pressRoute"
+      ],
+      "specifications": [],
+      "statement": "∀ (f : Swf.Gesture.PressFacts),\n  Swf.Gesture.pressRoute f = Swf.Gesture.PressRoute.claim →\n    f.busy = false ∧\n      (f.pick = Swf.Gesture.PressPick.hit ∨ f.pick = Swf.Gesture.PressPick.background) ∧\n        (f.region = Swf.Gesture.Region.content → f.takeover = true ∨ f.proxy = true)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "f5c5ca115884983bdb2b04a37036e2eaf913957d4fa1bb5111a57f5902a0d21d",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Gesture.lean",
+        "start": {
+          "line": 219,
+          "column": 1
+        },
+        "end": {
+          "line": 227,
+          "column": 26
+        }
+      }
+    },
+    {
+      "name": "Swf.Gesture.repress_cancels_lost",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Gesture.pointerRoute"
+      ],
+      "specifications": [],
+      "statement": "∀ (phase : Swf.Gesture.PointerPhase),\n  Swf.Gesture.pointerRoute phase true = Swf.Gesture.PointerRoute.pressAfterLost ↔ phase = Swf.Gesture.PointerPhase.down",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "126a9ac3f19d47fd384f02b35f5627ba9ea460a3ba62cc18e9cfc3ef918c75f4",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Gesture.lean",
+        "start": {
+          "line": 213,
+          "column": 1
+        },
+        "end": {
+          "line": 217,
+          "column": 38
         }
       }
     },
@@ -3964,6 +4744,202 @@ export const ASSURANCE = L.parseAssurance({
       }
     },
     {
+      "name": "Swf.Gesture.beyondSlop",
+      "module": "Swf.Gesture",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_float_decLt"
+        ]
+      },
+      "claims": [
+        "Swf.Gesture.beyond_slop_iff"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Gesture.lean",
+        "start": {
+          "line": 86,
+          "column": 1
+        },
+        "end": {
+          "line": 88,
+          "column": 65
+        }
+      }
+    },
+    {
+      "name": "Swf.Gesture.gestureStep",
+      "module": "Swf.Gesture",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": []
+      },
+      "claims": [
+        "Swf.Gesture.commit_at_most_once",
+        "Swf.Gesture.commit_only_by_finish",
+        "Swf.Gesture.every_end_returns_idle",
+        "Swf.Gesture.failed_commit_cancels"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Gesture.lean",
+        "start": {
+          "line": 122,
+          "column": 1
+        },
+        "end": {
+          "line": 141,
+          "column": 17
+        }
+      }
+    },
+    {
+      "name": "Swf.Gesture.holdGate",
+      "module": "Swf.Gesture",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": []
+      },
+      "claims": [
+        "Swf.Gesture.one_hold_at_a_time"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Gesture.lean",
+        "start": {
+          "line": 197,
+          "column": 1
+        },
+        "end": {
+          "line": 202,
+          "column": 13
+        }
+      }
+    },
+    {
+      "name": "Swf.Gesture.keyRoute",
+      "module": "Swf.Gesture",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_string_dec_eq"
+        ]
+      },
+      "claims": [
+        "Swf.Gesture.key_routes"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Gesture.lean",
+        "start": {
+          "line": 175,
+          "column": 1
+        },
+        "end": {
+          "line": 182,
+          "column": 59
+        }
+      }
+    },
+    {
+      "name": "Swf.Gesture.pointerRoute",
+      "module": "Swf.Gesture",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": []
+      },
+      "claims": [
+        "Swf.Gesture.late_pointer_ignored",
+        "Swf.Gesture.repress_cancels_lost"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Gesture.lean",
+        "start": {
+          "line": 32,
+          "column": 1
+        },
+        "end": {
+          "line": 39,
+          "column": 24
+        }
+      }
+    },
+    {
+      "name": "Swf.Gesture.pressRoute",
+      "module": "Swf.Gesture",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": []
+      },
+      "claims": [
+        "Swf.Gesture.press_claims_only_free_targets"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Gesture.lean",
+        "start": {
+          "line": 79,
+          "column": 1
+        },
+        "end": {
+          "line": 84,
+          "column": 45
+        }
+      }
+    },
+    {
       "name": "Swf.Handoff.handoffStep",
       "module": "Swf.Handoff",
       "async": false,
@@ -5221,6 +6197,15 @@ export const leanTypes = Object.freeze({
   "Swf.Fallback.Negotiated": Object.freeze({ fingerprint: "d83fa9d7293315e8dda49ffe7c35e6da48716e56ea775fc4d330682179de4536", type: negotiatedType }),
   "Swf.Fallback.PolicyIssue": Object.freeze({ fingerprint: "1b5b86f52827b06ab586bd0c124d7c22e2d81b0d0b42d399c6f49f9493559ed0", type: policyIssueType }),
   "Swf.Fallback.Mode": Object.freeze({ fingerprint: "3be8ac963f5c7df0fb9bd9af8ec14f2a179da4cf9a3640ed1c841fc4575f0dd4", type: modeType }),
+  "Swf.Gesture.GesturePhase": Object.freeze({ fingerprint: "ad5567b9006b8f20dd9e098f913bb4a505e973a73a270514fc2b943c3c3e0425", type: gesturePhaseType }),
+  "Swf.Gesture.GestureEvent": Object.freeze({ fingerprint: "cc5492e8404f8929f6763ca9a42ca859c5ae98a27dab6ae82d15c42064881c69", type: gestureEventType }),
+  "Swf.Gesture.HoldGate": Object.freeze({ fingerprint: "106e2878c9a0e9bcc286c85311a364982c84b92362b93dc805563ecab5c1b74d", type: holdGateType }),
+  "Swf.Gesture.KeyFacts": Object.freeze({ fingerprint: "7d93938d1bdec39534990a1db56c456a245ca3ddf4dbc91baaff8240512e33d0", type: keyFactsType }),
+  "Swf.Gesture.KeyRoute": Object.freeze({ fingerprint: "6c54b50780a6d623eba88b1326e6b5671355d21b735fb8df2a6de7d247272dfa", type: keyRouteType }),
+  "Swf.Gesture.PointerPhase": Object.freeze({ fingerprint: "5200f0a62d2c47aaedbab825ebf4bead91afefa50763b28873d1a153b9cfd091", type: pointerPhaseType }),
+  "Swf.Gesture.PointerRoute": Object.freeze({ fingerprint: "e394db296e11ede6391013732915921d77af4bb79657b13c587371b5cf0b1252", type: pointerRouteType }),
+  "Swf.Gesture.PressFacts": Object.freeze({ fingerprint: "87da0836af15447b4bf0d6813c39b7ab487d201ea55c5961a9c6d3a8397decfe", type: pressFactsType }),
+  "Swf.Gesture.PressRoute": Object.freeze({ fingerprint: "601b56817c509f3faa4fee1acdca2048593e347b08b499b2639cc71e5e1fe7dc", type: pressRouteType }),
   "Swf.Handoff.ViewportState": Object.freeze({ fingerprint: "d48034198877ad49b1509eb60cee794fd46e222a1b8d66a43bc44948b1d0d7ba", type: viewportStateType }),
   "Swf.Handoff.HandoffEvent": Object.freeze({ fingerprint: "f78447ab58433ef66d970681edb52c20e7f8a7c3d665dd1e2ef1ef9773410343", type: handoffEventType }),
   "Swf.Handoff.Settlement": Object.freeze({ fingerprint: "145c50ce2259406af25d09207982a76e783f0b9903ae3b45851b3d64bc6dd396", type: settlementType }),
@@ -5257,6 +6242,10 @@ export const leanTypes = Object.freeze({
   "Swf.Fallback.Fidelity": Object.freeze({ fingerprint: "9caab1dda5db69f610048926711284e8fe14ba009169cdf8aa2bc645ebda4e56", type: fidelityType }),
   "Swf.Fallback.Interaction": Object.freeze({ fingerprint: "a153a156432eadae9cbe7da2def154a0f9304402e948c844299ca460d9fa976f", type: interactionType }),
   "Swf.Fallback.LayerCategory": Object.freeze({ fingerprint: "788c488edf4c7b129570b4f461f7b3e151071a333afe6482e10564ac989bb2b4", type: layerCategoryType }),
+  "Swf.Gesture.Finish": Object.freeze({ fingerprint: "ca32538ae33ef449507e1483c6568068c91257672af1492e656c50ab2ef98f47", type: finishType }),
+  "Swf.Gesture.KeyPhase": Object.freeze({ fingerprint: "1a330dc160307ae344d0f729d5712d142db8b6edc53762193a86007f8171c1fd", type: keyPhaseType }),
+  "Swf.Gesture.PressPick": Object.freeze({ fingerprint: "17188783e5dd9891066cbbb5c8edff56d6335019893e989fd2a85ad5126a8254", type: pressPickType }),
+  "Swf.Gesture.Region": Object.freeze({ fingerprint: "f3a8c21efb288294d9c880dbb729d429a08a39e90a5e8623092610f0bf901733", type: regionType }),
   "Swf.Save.SaveState": Object.freeze({ fingerprint: "ae6ddcd17f2d87663d31fb876b46dd9ea0372d089378bd4509e4e6fae3d9770d", type: saveStateType }),
   "Swf.Save.AckRefusal": Object.freeze({ fingerprint: "2f6eef547b4857866a273a8b018782b993df476b5a619fa70564b0a935bb0549", type: ackRefusalType }),
   "Swf.Surface.UnboundReason": Object.freeze({ fingerprint: "95fa7fe593058c7d2614587e173ffcc81e640a3b40fdf6ca0ca1edf836cdfd93", type: unboundReasonType }),
@@ -5288,6 +6277,24 @@ export class SwfModels {
   }
   representedModes(represented, order) {
     return this.#program.invoke("swf_models__call_l_Swf_dFallback_drepresentedModes", [], [[L.BOOL, represented], [L.list(modeType()), order]], L.value(L.list(modeType())));
+  }
+  beyondSlop(distance, slop) {
+    return this.#program.invoke("swf_models__call_l_Swf_dGesture_dbeyondSlop", [], [[L.FLOAT, distance], [L.FLOAT, slop]], L.value(L.BOOL));
+  }
+  gestureStep(p, e) {
+    return this.#program.invoke("swf_models__call_l_Swf_dGesture_dgestureStep", [], [[gesturePhaseType(), p], [gestureEventType(), e]], L.value(L.option(gesturePhaseType())));
+  }
+  holdGate(holding, viewportKnown, nodeActive, inGesture) {
+    return this.#program.invoke("swf_models__call_l_Swf_dGesture_dholdGate", [], [[L.BOOL, holding], [L.BOOL, viewportKnown], [L.BOOL, nodeActive], [L.BOOL, inGesture]], L.value(holdGateType()));
+  }
+  keyRoute(k) {
+    return this.#program.invoke("swf_models__call_l_Swf_dGesture_dkeyRoute", [], [[keyFactsType(), k]], L.value(keyRouteType()));
+  }
+  pointerRoute(phase, captured) {
+    return this.#program.invoke("swf_models__call_l_Swf_dGesture_dpointerRoute", [], [[pointerPhaseType(), phase], [L.BOOL, captured]], L.value(pointerRouteType()));
+  }
+  pressRoute(f) {
+    return this.#program.invoke("swf_models__call_l_Swf_dGesture_dpressRoute", [], [[pressFactsType(), f]], L.value(pressRouteType()));
   }
   handoffStep(s, e) {
     return this.#program.invoke("swf_models__call_l_Swf_dHandoff_dhandoffStep", [], [[viewportStateType(), s], [handoffEventType(), e]], L.value(L.option(viewportStateType())));
