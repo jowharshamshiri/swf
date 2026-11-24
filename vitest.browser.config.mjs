@@ -48,7 +48,7 @@ async function mouse(ctx, action, x, y, modifiers = []) {
 export default defineConfig({
   resolve: nodeConfig.resolve,
   test: {
-    include: ['packages/*/test/**/*.browser.test.ts'],
+    include: ['packages/*/test/**/*.browser.test.ts', 'apps/*/test/**/*.browser.test.ts'],
     browser: {
       enabled: true,
       headless: true,

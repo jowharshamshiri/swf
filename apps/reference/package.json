@@ -1,0 +1,28 @@
+{
+  "name": "@swf/reference",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The Spatial Workspace Framework's reference application: a 360° panorama of seeded demo scenes, built only on the framework's public packages.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "build:staging": "vite build --mode staging",
+    "preview": "vite preview",
+    "typecheck": "tsc -p tsconfig.json && tsc -p test/build/tsconfig.json"
+  },
+  "dependencies": {
+    "@swf/backend-dom": "0.0.0",
+    "@swf/backend-geometry": "0.0.0",
+    "@swf/core": "0.0.0",
+    "@swf/interaction": "0.0.0",
+    "@swf/math": "0.0.0",
+    "@swf/presentation": "0.0.0",
+    "@swf/projections": "0.0.0",
+    "@swf/surfaces": "0.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "vite": "8.3.8"
+  }
+}

@@ -602,6 +602,42 @@ saved key and revision makes it `clean`, and only when nothing changed meanwhile
 store holding what it held before. A retry captures afresh, so it never stores an older revision,
 and a store that holds a newer one, saved elsewhere, refuses it with `CONFLICT`.
 
+## The reference application
+
+`apps/reference` is a host of the framework like any other: it imports only the packages' public
+entry points and registers everything it shows through them (the demo content's adapters, the
+DOM, layered and geometry backends, the projection, input and the view modes). It shows the
+scene as a 360° panorama around the camera.
+
+```sh
+npm run dev                          # the development server, reloading in place on every edit
+npm run build -w @swf/reference      # apps/reference/dist/index.html: one self-contained page
+```
+
+The built page holds its script and styles inline, so it runs from any static host or opened
+straight from the file, offline, with no server, account or network access.
+
+The address picks the scene: `?preset=seam&seed=7&backend=geometry`.
+
+- `preset`: `sparse` (six windows all the way round, the default), `dense` (250 windows in five
+  rings, the benchmark's count), `seam` (windows across the seam behind the camera, behind it on
+  both sides and near the pole above it) or `empty`.
+- `seed`: an integer from 0 to 4294967295; each preset has its own default.
+- `backend`: `dom` (the default) or `geometry`; each is the other's fallback.
+
+An unknown or invalid setting is an error naming it. A preset plans the same windows from the
+same seed on every run, browser and release; the plans of the default seeds are a committed
+fixture (`apps/reference/test/fixtures/preset-plans.json`), so a change to them is deliberate.
+Loading a preset, resetting it and reseeding it each replace every window in one undoable step and
+turn the camera straight ahead. Notes are native page elements, live and editable; tiles are drawn
+on canvases, warped into the panorama by the geometry backend and shown as labelled proxies by the
+DOM one.
+
+Every string the application shows is a message with a stable ID, in English unless a translation
+pack is given, and each action is a command with a stable ID (`reference.preset.load`,
+`reference.scene.reset`, `reference.scene.reseed`, `reference.mode.switch`,
+`reference.backend.switch`).
+
 ## Development
 
 The workspace needs Node.js 24 or later and npm.
@@ -610,12 +646,14 @@ The workspace needs Node.js 24 or later and npm.
 npm install     # install the locked development tools
 npm run check   # formatting, type checks, lint, tests and build, in that order
 npm test        # the test suites only
-npm run build   # compile every package to dist/ (ES modules, declarations, source maps)
+npm run build   # compile every package to dist/ (ES modules, declarations, source maps),
+                # then build the reference application
 ```
 
 Tests run against each package's TypeScript source, so they need no build first.
 
-The DOM backend's tests also run in real browsers, through Playwright:
+The backends', the stores' and the reference application's browser tests run in real browsers,
+through Playwright:
 
 ```sh
 npx playwright install --with-deps chromium firefox webkit && npm run test:browser
@@ -625,3 +663,9 @@ npx playwright install --with-deps chromium firefox webkit && npm run test:brows
 `SWF_CHROMIUM_CHANNEL` runs Chromium as an installed browser instead of Playwright's own, for
 example `SWF_BROWSERS=chromium SWF_CHROMIUM_CHANNEL=chrome npm run test:browser` with Google
 Chrome installed.
+
+The reference application's build and development server are tested in Chromium:
+
+```sh
+npx playwright install chromium && npm run test:build
+```
