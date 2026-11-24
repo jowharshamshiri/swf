@@ -84,6 +84,79 @@ export async function emulate(ctx, media) {
 }
 
 /**
+ * Turns the real mouse wheel by (deltaX, deltaY) pixels over a point of the test frame, with
+ * modifier keys held, so the browser produces a genuine wheel event.
+ */
+export async function wheel(ctx, x, y, deltaX, deltaY, modifiers = []) {
+  const box = await frameBox(ctx);
+  await ctx.page.mouse.move(box.x + x, box.y + y);
+  for (const key of modifiers) {
+    await ctx.page.keyboard.down(key);
+  }
+  await ctx.page.mouse.wheel(deltaX, deltaY);
+  for (const key of modifiers) {
+    await ctx.page.keyboard.up(key);
+  }
+}
+
+/**
+ * The page's DevTools session, for input only Chromium can make (touch and pen): one for each
+ * page, kept, since Chromium follows a touch from its start through the session that began it.
+ */
+const sessions = new WeakMap();
+async function devtools(ctx, what) {
+  if (ctx.context.browser()?.browserType().name() !== 'chromium') {
+    throw new Error(`${what} input can be made only in Chromium, over the DevTools protocol`);
+  }
+  let session = sessions.get(ctx.page);
+  if (session === undefined) {
+    session = await ctx.context.newCDPSession(ctx.page);
+    sessions.set(ctx.page, session);
+  }
+  return session;
+}
+
+/**
+ * Touches the screen as a finger does, at points of the test frame: `start`, `move` or `end`,
+ * with every finger then on the screen (ids keep fingers apart). Chromium only.
+ */
+export async function touch(ctx, phase, points) {
+  const types = { start: 'touchStart', move: 'touchMove', end: 'touchEnd' };
+  if (!(phase in types)) {
+    throw new Error(`touch: phase must be start, move or end (got ${String(phase)})`);
+  }
+  const box = await frameBox(ctx);
+  const session = await devtools(ctx, 'touch');
+  await session.send('Input.dispatchTouchEvent', {
+    type: types[phase],
+    touchPoints: points.map((p) => ({ x: box.x + p.x, y: box.y + p.y, id: p.id, force: 1 })),
+  });
+}
+
+/**
+ * Moves, presses or releases a pen at a point of the test frame, with a pressure: a move with
+ * pressure is a move with the pen down. Chromium only.
+ */
+export async function pen(ctx, action, x, y, pressure = 0.5) {
+  const types = { move: 'mouseMoved', down: 'mousePressed', up: 'mouseReleased' };
+  if (!(action in types)) {
+    throw new Error(`pen: action must be move, down or up (got ${String(action)})`);
+  }
+  const box = await frameBox(ctx);
+  const session = await devtools(ctx, 'pen');
+  await session.send('Input.dispatchMouseEvent', {
+    type: types[action],
+    x: box.x + x,
+    y: box.y + y,
+    button: action === 'move' ? 'none' : 'left',
+    buttons: action === 'down' || (action === 'move' && pressure > 0) ? 1 : 0,
+    clickCount: action === 'move' ? 0 : 1,
+    pointerType: 'pen',
+    force: action === 'up' ? 0 : pressure,
+  });
+}
+
+/**
  * Presses the real mouse at a point of the test frame and moves it every `stepMs` along a sine of
  * `amplitude` pixels and `periodMs` across (or down, with `axis: 'y'`), for whole periods lasting
  * `durationMs` at least, then releases it where it pressed: a drag as long and as steady as a
