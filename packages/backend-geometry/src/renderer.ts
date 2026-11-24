@@ -296,6 +296,15 @@ export class GeometryRendererSession implements RendererSession {
         break;
       }
       case 'proxy':
+        if (planned.representation === 'label') {
+          // The label alone stands for the window, in the middle of where it is.
+          signature = JSON.stringify(['label', fragment.bounds, label]);
+          draw = (ctx) => {
+            clipTo(ctx, fragment.bounds);
+            centredText(ctx, label, fragment.bounds, 'rgb(30, 30, 30)');
+          };
+          break;
+        }
         signature = JSON.stringify(['proxy', fragment.bounds, fragment.corners, label]);
         draw = (ctx) => {
           clipTo(ctx, fragment.bounds);
@@ -411,11 +420,17 @@ export class GeometryRendererSession implements RendererSession {
     const scene = frame.scene;
     const node = scene.nodes.get(nodeId);
     const geometry = nodeFrameGeometry(scene, nodeId);
-    const owner = frame.planned.find(
-      (p) =>
-        scene.surfaces.get(p.fragment.surfaceId)?.ownerNodeId === nodeId && p.fragment.nativeOwner,
+    const own = frame.planned.filter(
+      (p) => scene.surfaces.get(p.fragment.surfaceId)?.ownerNodeId === nodeId,
     );
-    if (node === undefined || geometry === undefined || owner === undefined) {
+    const owner = own.find((p) => p.fragment.nativeOwner);
+    // A window whose every surface is represented by its label alone has no chrome.
+    if (
+      node === undefined ||
+      geometry === undefined ||
+      owner === undefined ||
+      own.every((p) => p.representation === 'label')
+    ) {
       return null;
     }
     const [w, h] = node.bounds;
@@ -617,6 +632,21 @@ function clipTo(ctx: CanvasRenderingContext2D, [x, y, w, h]: ScreenRect): void {
 }
 
 /** A label at the top-left of the bounds, as text only. */
+/** A label in the middle of a box, as large as the box lets it be read. */
+function centredText(
+  ctx: CanvasRenderingContext2D,
+  label: string,
+  [x, y, w, h]: ScreenRect,
+  colour: string,
+): void {
+  ctx.fillStyle = colour;
+  ctx.font = '12px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label, x + w / 2, y + h / 2, Math.max(0, w - 8));
+  ctx.textAlign = 'start';
+}
+
 function text(
   ctx: CanvasRenderingContext2D,
   label: string,

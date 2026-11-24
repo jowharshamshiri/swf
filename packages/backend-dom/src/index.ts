@@ -7,6 +7,8 @@
  */
 export type { DomCompositorSession } from './compositor.js';
 export { DOM_COMPOSITOR_CAPABILITIES, DOM_COMPOSITOR_ID, DomCompositor } from './compositor.js';
+export type { VirtualCursor } from './cursor.js';
+export { createVirtualCursor, VIRTUAL_CURSOR_LAYER } from './cursor.js';
 export { animationFrames, showDegraded } from './host.js';
 export type { DomInputOptions } from './input.js';
 export { createDomInput } from './input.js';

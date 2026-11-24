@@ -20,8 +20,9 @@ interaction; the host owns whatever is presented.
   and releasing a surface never stops the endpoint's producer.
 - `@swf/presentation`: the contracts between the scene and whatever draws it. What renderers,
   compositors and projections advertise; how each surface's presentation is negotiated from
-  their capabilities; the fragments a view is made of; the stages from a committed scene to a
-  presented frame; and the presenter, which runs those stages frame by frame within a budget,
+  their capabilities; how a viewport's representation policy shows a surface in full, as a compact
+  preview or by its label alone; the fragments a view is made of; the stages from a committed scene
+  to a presented frame; and the presenter, which runs those stages frame by frame within a budget,
   delivers advisory hints, and hands viewports between backends transactionally. It depends on no
   concrete renderer or compositor.
 - `@swf/projections`: the projection contract (forward and inverse mapping, placing surfaces as
@@ -34,7 +35,8 @@ interaction; the host owns whatever is presented.
 - `@swf/backend-dom`: a browser-native presentation backend. Live DOM content stays
   browser-owned and natively interactive: it is placed by its projected corners with its fidelity
   declared, clipped, stacked explicitly and never mounted twice; window chrome sits in layers of
-  its own and labels are text.
+  its own and labels are text. It also draws a virtual cursor for input policies that move where
+  input acts without moving the platform's pointer.
 - `@swf/backend-geometry`: a drawing presentation backend, written independently of the DOM one.
   It draws adapter-supplied drawables, proxies, placeholders, window chrome and indicators for
   windows out of view on canvases, pairs with a native renderer through `LayeredRenderer`, and
@@ -375,6 +377,19 @@ then the selection, then the largest on screen); the rest are shown as proxies. 
 a surface that stops being live releases its attachment, but only when its endpoint declares safe
 detachment; otherwise it stays attached, hidden.
 
+`view.setRepresentation(policy)` gives a viewport a representation policy: for each surface in
+each frame, `representationOf({ scene, view, surfaceId, nodeId })` answers `full`, `compact` or
+`label` (semantic depth answers by distance from the camera, say). A `full` surface is negotiated
+as usual; a `compact` or `label` one only among the modes that stand for it without its content (a
+proxy, or a placeholder where no proxy is possible), so its content is not mounted there. That is
+a choice of presentation only: the endpoint stays bound and attached (hidden), nothing is released,
+paused or reconfigured, and a fallback is reported only when capabilities rule a mode out, never for
+the representation chosen. Each planned fragment carries its `representation`; renderers draw a
+`label` proxy as the label alone, with no window chrome, and a `compact` one as a framed proxy, and
+hints say `compact` (or `proxy`, for a label) as the tier. `view.setRepresentation(null)` shows
+every surface in full again. The policy must answer from what it is given alone, and anything that
+is not a representation is an error naming the policy and the surface.
+
 `view.switchBackend` hands a viewport to another renderer and compositor: the new pair is
 prepared (`preparing`), the scene is planned with its capabilities (`validating`), the view is
 rebuilt in it and live content is moved over (`swapping`), and only then does it become active and
@@ -406,6 +421,12 @@ wheel and key event over the view to the interaction router. What the router con
 (and a pressed pointer is captured until its gesture ends); what it does not consume reaches the
 content as the browser's own event. Nothing is synthesized, and content in a cross-origin frame
 gets its input from the browser alone. Labels and host metadata are always inserted as text.
+
+`createVirtualCursor({ container })` draws a cursor in a view's container for an input policy
+that changes where input acts (a cursor wrapped across a panorama's seam, say): a page cannot move
+the platform's pointer, so the policy shows where its pointer is with `show(x, y)` and `hide()`. It
+takes no input, is hidden from assistive technology and shifts nothing the container lays out;
+whoever shows it says in words what it means.
 
 ## Drawing and layering
 

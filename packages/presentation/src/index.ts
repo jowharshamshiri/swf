@@ -87,5 +87,16 @@ export type {
   RegistryDiagnostic,
 } from './registry.js';
 export { createPresentationRegistry } from './registry.js';
+export type {
+  Representation,
+  RepresentationContext,
+  RepresentationPolicy,
+} from './representation.js';
+export {
+  representationFor,
+  representationPolicyIssue,
+  representedOrder,
+  REPRESENTATIONS,
+} from './representation.js';
 export type { FrameInput, ViewProjector } from './stages.js';
 export { groupFallbacks, planFrame, PRESENTATION_STAGES } from './stages.js';

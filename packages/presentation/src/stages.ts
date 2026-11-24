@@ -11,6 +11,8 @@ import type { ProjectedFragment, ViewGeometry, ViewOutput } from './fragments.js
 import { viewGeometryIssue } from './fragments.js';
 import type { FallbackDiagnostic, FallbackPolicy } from './negotiation.js';
 import { DEFAULT_FALLBACK_POLICY, negotiate } from './negotiation.js';
+import type { Representation, RepresentationPolicy } from './representation.js';
+import { representationFor, representedOrder } from './representation.js';
 
 /**
  * The stages that turn a scene change into a presented frame, in order, and the contract that
@@ -61,6 +63,8 @@ export interface FrameInput {
   readonly compositor: { readonly id: string; readonly capabilities: CompositorCapabilities };
   readonly projection: ProjectionProfile;
   readonly policy?: FallbackPolicy;
+  /** How each surface is represented here; with none, every surface is `full`. */
+  readonly representation?: RepresentationPolicy;
   /** The bound handle's capabilities for a surface, or null when it has none. */
   readonly surfaceCapabilities: (surfaceId: Id) => SurfaceCapabilities | null;
   /**
@@ -101,6 +105,23 @@ export function planFrame(input: FrameInput): RenderFrame {
   if (view.projectionId !== input.projection.id) {
     fail(`the view uses projection "${view.projectionId}", not "${input.projection.id}"`);
   }
+  // Every fragment of a surface is represented alike: the policy is asked once per surface.
+  const representations = new Map<Id, Representation>();
+  const representationOf = (surfaceId: Id): Representation => {
+    const known = representations.get(surfaceId);
+    if (known !== undefined) {
+      return known;
+    }
+    const policy = input.representation;
+    const nodeId = scene.surfaces.get(surfaceId)?.ownerNodeId;
+    if (nodeId === undefined) {
+      return fail(`surface "${surfaceId}" is not in the scene`);
+    }
+    const chosen =
+      policy === undefined ? 'full' : representationFor(policy, { scene, view, surfaceId, nodeId });
+    representations.set(surfaceId, chosen);
+    return chosen;
+  };
   const planned: PlannedFragment[] = output.fragments.map((fragment) => {
     const surface = input.surfaceCapabilities(fragment.surfaceId);
     const geometry = input.geometry(fragment.surfaceId);
@@ -111,6 +132,7 @@ export function planFrame(input: FrameInput): RenderFrame {
       surface?.attachStrategy === 'drawable' && surface.viewportSharing === 'shared';
     const owner =
       input.viewportOwns(fragment.surfaceId) && (fragment.nativeOwner || drawnEverywhere);
+    const representation = representationOf(fragment.surfaceId);
     const negotiation = negotiate(
       {
         surfaceId: fragment.surfaceId,
@@ -127,9 +149,9 @@ export function planFrame(input: FrameInput): RenderFrame {
         anchor: fragment.geometricFidelity,
         owner,
       },
-      input.policy ?? DEFAULT_FALLBACK_POLICY,
+      representedOrder(input.policy ?? DEFAULT_FALLBACK_POLICY, representation),
     );
-    return Object.freeze({ fragment, negotiation });
+    return Object.freeze({ fragment, negotiation, representation });
   });
   return Object.freeze({
     viewportId: view.viewportId,

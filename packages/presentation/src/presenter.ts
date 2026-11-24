@@ -15,6 +15,8 @@ import type { ProjectedFragment, ScreenRect, ViewGeometry, ViewOutput } from './
 import { createViewOutput, viewGeometryOf } from './fragments.js';
 import type { FallbackDiagnostic, FallbackPolicy } from './negotiation.js';
 import type { PresentationRegistry, Registered, RegistryChange } from './registry.js';
+import type { RepresentationPolicy } from './representation.js';
+import { representationPolicyIssue } from './representation.js';
 import { planFrame } from './stages.js';
 
 /** Calls work at the host's frame boundaries: an animation frame, in a browser. */
@@ -52,7 +54,9 @@ export type DirtyFlag =
   /** The viewport changed backend. */
   | 'backend'
   /** The host asked for a frame. */
-  | 'requested';
+  | 'requested'
+  /** The viewport's representation policy was set, replaced or removed. */
+  | 'representation';
 
 export interface ViewportOptions {
   readonly viewportId: Id;
@@ -210,6 +214,15 @@ export interface PresentedViewport {
   update(): Promise<ViewportUpdate>;
   /** Whether a surface's live content is here (as of the last frame) or shown as a proxy. */
   presentation(surfaceId: Id): 'live' | 'proxy';
+  /**
+   * Sets how the viewport represents each surface (full, compact or label only), or with null
+   * shows every surface in full again; the next frame follows it. A representation never touches
+   * a surface's binding or its endpoint. Throws {@link SwfFailure} (`INVALID_INPUT`) for something
+   * that is not a representation policy, leaving the current one in place.
+   */
+  setRepresentation(policy: RepresentationPolicy | null): void;
+  /** The representation policy the viewport follows, or null when every surface is shown in full. */
+  representation(): RepresentationPolicy | null;
   /**
    * Hands the viewport over to `backend`: prepares it, negotiates the scene with its
    * capabilities, rebuilds the view and moves the live content into it, then activates it at
@@ -588,6 +601,7 @@ class ViewportImpl implements PresentedViewport {
   readonly #lost = new Set<string>();
   readonly #flags = new Set<DirtyFlag>();
   #seen: Seen | null = null;
+  #representation: RepresentationPolicy | null = null;
   #live: ReadonlySet<Id> = new Set();
   #last: ViewportFrame | null = null;
   #queue: Promise<unknown> = Promise.resolve();
@@ -669,6 +683,24 @@ class ViewportImpl implements PresentedViewport {
 
   presentation(surfaceId: Id): 'live' | 'proxy' {
     return this.#live.has(surfaceId) ? 'live' : 'proxy';
+  }
+
+  setRepresentation(policy: RepresentationPolicy | null): void {
+    if (policy !== null) {
+      const issue = representationPolicyIssue(policy);
+      if (issue !== null) {
+        throw invalid(`viewport "${this.viewportId}": ${issue}`);
+      }
+    }
+    if (policy === this.#representation) {
+      return;
+    }
+    this.#representation = policy;
+    this.mark('representation');
+  }
+
+  representation(): RepresentationPolicy | null {
+    return this.#representation;
   }
 
   switchBackend(backend: BackendChoice): Promise<SwitchOutcome> {
@@ -929,6 +961,7 @@ class ViewportImpl implements PresentedViewport {
       compositor: { id: backend.choice.compositor, capabilities: backend.compositor.capabilities },
       projection: projector.capabilities,
       ...(policy === undefined ? {} : { policy }),
+      ...(this.#representation === null ? {} : { representation: this.#representation }),
       surfaceCapabilities: capabilities,
       // A single-owner handle presented in another viewport stays there; this one shows a proxy.
       viewportOwns: (id) => {
@@ -1487,9 +1520,9 @@ function hintFor(
   const order = frame.output.fragments;
   const own = order.filter((f) => f.surfaceId === surfaceId);
   const visible = own.length > 0;
-  const layers = frame.planned
-    .filter((p) => p.fragment.surfaceId === surfaceId)
-    .map((p) => p.negotiation.layer);
+  const mine = frame.planned.filter((p) => p.fragment.surfaceId === surfaceId);
+  const layers = mine.map((p) => p.negotiation.layer);
+  const representation = mine[0]?.representation ?? 'full';
   const shown = own.reduce((sum, f) => sum + area(f.bounds), 0);
   const whole = own.find((f) => f.corners !== null)?.corners ?? null;
   const intersectionRatio = !visible
@@ -1531,7 +1564,9 @@ function hintFor(
       ? 'hidden'
       : layers.some((l) => l === 'content-native' || l === 'content-raster')
         ? 'full'
-        : 'proxy',
+        : representation === 'compact'
+          ? 'compact'
+          : 'proxy',
     attention: focused ? 'active' : visible ? 'context' : 'background',
     spatialBounds: surface.bounds,
     requestedIntrinsicSize: null,

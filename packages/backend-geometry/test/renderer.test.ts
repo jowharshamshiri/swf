@@ -1,5 +1,5 @@
 import { SwfFailure } from '@swf/core';
-import type { RenderedFrame } from '@swf/presentation';
+import type { CompositionLayer, RenderedFrame, RepresentationPolicy } from '@swf/presentation';
 import { negotiate } from '@swf/presentation';
 import { describe, expect, it } from 'vitest';
 import {
@@ -23,6 +23,7 @@ async function render(
   options: ConstructorParameters<typeof GeometryRenderer>[0] = {},
   horizontal = 360,
   withProjections = true,
+  representation?: RepresentationPolicy,
 ): Promise<{ frame: ReturnType<typeof plan>; rendered: RenderedFrame }> {
   const { ws, projections, kinds } = scene(placed, horizontal);
   const renderer = new GeometryRenderer({
@@ -36,6 +37,8 @@ async function render(
     kinds,
     { id: renderer.id, capabilities: renderer.capabilities() },
     { id: LAYER_COMPOSITOR_ID, capabilities: LAYER_COMPOSITOR_CAPABILITIES },
+    false,
+    representation,
   );
   const session = await renderer.prepare(frame.scene, frame.view);
   return { frame, rendered: session.render(frame) };
@@ -123,6 +126,32 @@ describe('geometry renderer', () => {
     // The window behind the camera is out of a 120° view: an indicator points the way.
     expect(ids.at(-1)).toBe('overlay:indicators');
     expect(frame.planned.some((p) => p.fragment.surfaceId === 'away-s')).toBe(false);
+  });
+
+  it('draws a compact window as its proxy, and a label-only one as its label alone, without chrome (FR-122)', async () => {
+    const chosen: Record<string, 'compact' | 'label'> = { near: 'compact', far: 'label' };
+    const { rendered } = await render(
+      [
+        { id: 'near', kind: 'drawn', heading: 0, distance: 4, label: 'Near' },
+        { id: 'far', kind: 'drawn', heading: 0.8, distance: 7, label: 'Far' },
+      ],
+      {},
+      360,
+      true,
+      { id: 'test.depth/1', representationOf: ({ nodeId }) => chosen[nodeId] ?? 'full' },
+    );
+    const of = (surfaceId: string) => rendered.layers.find((l) => l.surfaceId === surfaceId);
+    // Drawable content that could be drawn exactly is represented instead.
+    expect(of('near-s')?.category).toBe('proxy');
+    expect(of('far-s')?.category).toBe('proxy');
+    const near = drawn(of('near-s'));
+    expect(near).toContain('fill');
+    expect(near).toContain('fillText:Near');
+    // The label alone: its text, no box.
+    expect(drawn(of('far-s'))).toEqual(['fillText:Far']);
+    const ids = rendered.layers.map((l) => l.id);
+    expect(ids).toContain('chrome:near');
+    expect(ids).not.toContain('chrome:far');
   });
 
   it('draws content and representations only without projection modules, no chrome', async () => {
@@ -303,3 +332,29 @@ describe('drawing math', () => {
     expect(drawableIssue({ source: {}, width: Infinity, height: 1 })).toMatch(/width/);
   });
 });
+
+/** The drawing calls a layer makes (fills, strokes and the text it writes), in order. */
+function drawn(layer: CompositionLayer | undefined): string[] {
+  const content = layer?.content;
+  if (!isGeometryLayer(content)) {
+    throw new Error('not a drawn layer');
+  }
+  const calls: string[] = [];
+  const ctx = new Proxy(
+    {},
+    {
+      get(_target, name) {
+        if (name === 'fill' || name === 'stroke') {
+          return () => calls.push(name);
+        }
+        if (name === 'fillText') {
+          return (text: string) => calls.push(`fillText:${text}`);
+        }
+        return () => undefined;
+      },
+      set: () => true,
+    },
+  ) as CanvasRenderingContext2D;
+  content.draw(ctx);
+  return calls;
+}

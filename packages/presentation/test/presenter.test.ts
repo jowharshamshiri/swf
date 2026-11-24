@@ -18,6 +18,7 @@ import type {
   PresenterEvent,
   ProjectedFragment,
   ProjectionProfile,
+  RepresentationPolicy,
   ViewportOptions,
   ViewProjector,
 } from '../src/index.js';
@@ -409,6 +410,97 @@ describe('advisory hints (FR-045, FR-046, FR-141, FR-149, AC-006)', () => {
     v.invalidate();
     await h.frames.flush();
     expect(frames(h.events).at(-1)?.metrics.hints).toBe(0);
+  });
+});
+
+describe('representation policies (FR-122, ARCH-025)', () => {
+  /** Full nearer than 4 units, compact to 6, the label beyond: by each window's depth. */
+  const byDepth: RepresentationPolicy = {
+    id: 'test.depth/1',
+    representationOf({ scene, nodeId }) {
+      const depth = -(scene.nodes.get(nodeId)?.transform.position[2] ?? 0);
+      return depth < 4 ? 'full' : depth < 6 ? 'compact' : 'label';
+    },
+  };
+
+  it('represents each surface as the policy chooses, following the scene, never touching producers', async () => {
+    const h = await harness();
+    const v = await h.open();
+    await h.frames.flush();
+    const lifecycle = () =>
+      h.adapter.methods().filter((m) => m !== 'update' && m !== 'capabilities');
+    const before = lifecycle();
+    expect(['a-s', 'b-s', 'c-s'].map((s) => v.presentation(s))).toEqual(['live', 'live', 'live']);
+    v.setRepresentation(byDepth);
+    expect(v.representation()).toBe(byDepth);
+    // Nothing changed in the scene: setting the policy alone makes a frame due.
+    h.ws.dispatch(move('b', 0, 0, -5));
+    h.ws.dispatch(move('c', 2, 0, -8));
+    await h.frames.flush();
+    expect(frames(h.events).at(-1)?.metrics.dirty).toEqual(
+      expect.arrayContaining(['representation']),
+    );
+    expect(['a-s', 'b-s', 'c-s'].map((s) => v.presentation(s))).toEqual(['live', 'proxy', 'proxy']);
+    const planned = v.lastFrame()?.frame.planned ?? [];
+    expect(
+      planned.map((p) => [p.fragment.surfaceId, p.representation, p.negotiation.layer]),
+    ).toEqual(
+      expect.arrayContaining([
+        ['a-s', 'full', 'content-native'],
+        ['b-s', 'compact', 'proxy'],
+        ['c-s', 'label', 'proxy'],
+      ]),
+    );
+    // The represented surfaces are no fallbacks: only a's live element falls short of exact.
+    expect(v.lastFrame()?.frame.fallbacks.map((f) => f.surfaceId)).toEqual(['a-s']);
+    expect(hintsTo(h.adapter, 'b-s').at(-1)).toMatchObject({
+      visible: true,
+      mounted: false,
+      tier: 'compact',
+    });
+    expect(hintsTo(h.adapter, 'c-s').at(-1)).toMatchObject({
+      visible: true,
+      mounted: false,
+      tier: 'proxy',
+    });
+    // Represented, the endpoints stay bound and attached here, only hidden.
+    expect(h.runtime.get('b-s')?.state).toBe('hidden');
+    expect(h.runtime.get('c-s')?.viewports).toEqual([{ viewportId: 'v', visible: false }]);
+    // Brought nearer, a window is shown in full again.
+    h.ws.dispatch(move('b', 0, 0, -3));
+    await h.frames.flush();
+    expect(v.presentation('b-s')).toBe('live');
+    // Without the policy, every surface is shown in full.
+    v.setRepresentation(null);
+    await h.frames.flush();
+    expect(['a-s', 'b-s', 'c-s'].map((s) => v.presentation(s))).toEqual(['live', 'live', 'live']);
+    // Only presentation and hints reached the adapter: never a release, never the producer.
+    expect(
+      lifecycle()
+        .slice(before.length)
+        .every((m) => m === 'attach' || m === 'hide'),
+    ).toBe(true);
+    expect(h.adapter.methods()).not.toContain('release');
+    expect(h.adapter.producerTouched).toBe(0);
+  });
+
+  it('refuses something that is no representation policy, keeping the one it follows', async () => {
+    const h = await harness();
+    const v = await h.open();
+    v.setRepresentation(byDepth);
+    for (const bad of [
+      { id: 'no version', representationOf: () => 'full' },
+      { id: 'test.depth/2' },
+      null as unknown,
+    ]) {
+      if (bad === null) {
+        continue;
+      }
+      expect(() => {
+        v.setRepresentation(bad as RepresentationPolicy);
+      }).toThrow(SwfFailure);
+    }
+    expect(v.representation()).toBe(byDepth);
   });
 });
 

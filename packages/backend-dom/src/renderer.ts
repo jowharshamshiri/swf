@@ -71,6 +71,7 @@ export const DOM_ATTRIBUTES = Object.freeze({
   focused: 'data-swf-focused',
   label: 'data-swf-label',
   degraded: 'data-swf-degraded',
+  representation: 'data-swf-representation',
 });
 
 /** Each resize handle and the frame sides it lies on. */
@@ -319,7 +320,20 @@ export class DomRendererSession implements RendererSession {
         }
         this.#write.attribute(element, DOM_ATTRIBUTES.mode, negotiation.mode);
         this.#write.attribute(element, DOM_ATTRIBUTES.shape, negotiation.shapeFidelity);
-        this.#write.style(element, boxOf(fragment.bounds));
+        this.#write.attribute(element, DOM_ATTRIBUTES.representation, planned.representation);
+        // A label alone stands, whole and on one line, in the middle of where the window is,
+        // however small that is; a proxy reads from its top, clipped to the window.
+        const alone = planned.representation === 'label';
+        this.#write.style(element, {
+          ...boxOf(fragment.bounds),
+          display: alone ? 'flex' : 'block',
+          'align-items': alone ? 'center' : 'normal',
+          'justify-content': alone ? 'center' : 'normal',
+          'text-align': alone ? 'center' : 'start',
+          overflow: alone ? 'visible' : 'hidden',
+          'white-space': alone ? 'nowrap' : 'normal',
+          'font-size': alone ? '11px' : '',
+        });
         return Object.freeze({ ...base, content: element });
       }
       case 'content-raster':
@@ -485,10 +499,12 @@ export class DomRendererSession implements RendererSession {
       );
     }
     const projection = projectionFor(module, frame.view);
+    // A window whose every surface is represented by its label alone has no chrome: the label
+    // stands for the whole window.
     const nodes = new Set(
       frame.planned.flatMap((p) => {
         const owner = frame.scene.surfaces.get(p.fragment.surfaceId)?.ownerNodeId;
-        return owner === undefined ? [] : [owner];
+        return owner === undefined || p.representation === 'label' ? [] : [owner];
       }),
     );
     for (const nodeId of nodes) {

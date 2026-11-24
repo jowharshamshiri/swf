@@ -7,6 +7,7 @@ import type {
 } from './capabilities.js';
 import type { ProjectedFragment, ViewGeometry, ViewOutput } from './fragments.js';
 import type { FallbackDiagnostic, Negotiation } from './negotiation.js';
+import type { Representation } from './representation.js';
 
 /** The version of the renderer and compositor contracts this package defines. */
 export const PRESENTATION_API_VERSION = 1;
@@ -15,6 +16,13 @@ export const PRESENTATION_API_VERSION = 1;
 export interface PlannedFragment {
   readonly fragment: ProjectedFragment;
   readonly negotiation: Negotiation;
+  /**
+   * How the viewport's representation policy chose to represent the surface: `full` unless one
+   * chose less. A `compact` or `label` fragment is negotiated among the modes that stand for the
+   * surface (a proxy, or a placeholder when no proxy is possible); a renderer draws a `label`
+   * proxy as the surface's label alone, and leaves out its window's chrome.
+   */
+  readonly representation: Representation;
 }
 
 /** One frame for one viewport: what to realize, in presentation order (back to front). */

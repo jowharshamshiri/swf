@@ -1,7 +1,12 @@
 import type { Id, SceneCommand, Workspace } from '@swf/core';
 import { createWorkspace } from '@swf/core';
 import { quatFromAxisAngle } from '@swf/math';
-import type { CompositorCapabilities, RenderFrame, RendererCapabilities } from '@swf/presentation';
+import type {
+  CompositorCapabilities,
+  RenderFrame,
+  RendererCapabilities,
+  RepresentationPolicy,
+} from '@swf/presentation';
 import {
   createPresentationRegistry,
   createViewOutput,
@@ -147,6 +152,7 @@ export function plan(
   renderer: { readonly id: string; readonly capabilities: RendererCapabilities },
   compositor: { readonly id: string; readonly capabilities: CompositorCapabilities },
   reverse = false,
+  representation?: RepresentationPolicy,
 ): RenderFrame {
   const state = ws.getState();
   const view = viewGeometryOf(state, 'v');
@@ -166,6 +172,7 @@ export function plan(
     renderer,
     compositor,
     projection: module.profile,
+    ...(representation === undefined ? {} : { representation }),
     surfaceCapabilities: (id) => capabilitiesOf(kinds.get(id) ?? 'unbound'),
     viewportOwns: () => true,
     geometry,

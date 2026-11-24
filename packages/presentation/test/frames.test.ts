@@ -7,7 +7,12 @@ import type { SceneCommand, Workspace } from '@swf/core';
 import { createWorkspace, SwfFailure } from '@swf/core';
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
-import type { ProjectedFragment, ProjectionProfile, ViewGeometry } from '../src/index.js';
+import type {
+  ProjectedFragment,
+  ProjectionProfile,
+  RepresentationPolicy,
+  ViewGeometry,
+} from '../src/index.js';
 import { createViewOutput, fragmentId, groupFallbacks, planFrame } from '../src/index.js';
 
 const PANORAMA: ProjectionProfile = {
@@ -181,7 +186,12 @@ describe('view output', () => {
 });
 
 describe('frame planning', () => {
-  const plan = (profile: ProjectionProfile, owns: (id: string) => boolean = () => true) => {
+  const plan = (
+    profile: ProjectionProfile,
+    owns: (id: string) => boolean = () => true,
+    representation?: RepresentationPolicy,
+    compositor = MOCK_COMPOSITOR_CAPABILITIES,
+  ) => {
     const ws = workspace();
     const state = ws.getState();
     return planFrame({
@@ -194,8 +204,9 @@ describe('frame planning', () => {
         fragment('c', 0),
       ]),
       renderer: { id: 'r/1', capabilities: MOCK_RENDERER_CAPABILITIES },
-      compositor: { id: 'c/1', capabilities: MOCK_COMPOSITOR_CAPABILITIES },
+      compositor: { id: 'c/1', capabilities: compositor },
       projection: profile,
+      ...(representation === undefined ? {} : { representation }),
       surfaceCapabilities: (id) =>
         id === 'b'
           ? mockCapabilities({
@@ -231,6 +242,66 @@ describe('frame planning', () => {
   it('approximates the live element in a panorama and proxies it where another viewport owns it', () => {
     expect(modes(plan(PANORAMA))[fragmentId('v', 'a', 0)]).toBe('approximated');
     expect(modes(plan(PERSPECTIVE, (id) => id !== 'a'))[fragmentId('v', 'a', 0)]).toBe('proxy');
+  });
+
+  it('represents surfaces as the representation policy chooses, never as a fallback (FR-122, ARCH-025)', () => {
+    const asked: string[] = [];
+    const policy: RepresentationPolicy = {
+      id: 'test.depth/1',
+      representationOf({ surfaceId, nodeId }) {
+        asked.push(`${surfaceId}@${nodeId}`);
+        return surfaceId === 'a' ? 'compact' : surfaceId === 'b' ? 'label' : 'full';
+      },
+    };
+    const frame = plan(PERSPECTIVE, () => true, policy);
+    const of = (id: string) => frame.planned.find((p) => p.fragment.id === id);
+    // Both fragments of a stand for it compactly: a proxy, the live element left unmounted.
+    for (const id of [fragmentId('v', 'a', 0), fragmentId('v', 'a', 1)]) {
+      expect(of(id)?.representation).toBe('compact');
+      expect(of(id)?.negotiation.mode).toBe('proxy');
+    }
+    // b could be drawn exactly; its label stands for it instead.
+    expect(of(fragmentId('v', 'b', 0))).toMatchObject({
+      representation: 'label',
+      negotiation: { mode: 'proxy', layer: 'proxy' },
+    });
+    expect(of(fragmentId('v', 'c', 0))?.representation).toBe('full');
+    // A representation chosen is not a fallback: only c, which has no handle, falls back.
+    expect(frame.fallbacks.map((f) => f.surfaceId)).toEqual(['c']);
+    // The policy is asked once per surface, with the node that owns it.
+    expect(asked).toEqual(['a@back', 'b@back', 'c@front']);
+    // Without a policy every surface is shown in full.
+    expect(plan(PERSPECTIVE).planned.every((p) => p.representation === 'full')).toBe(true);
+  });
+
+  it('falls back to a placeholder for a represented surface only when no proxy is possible', () => {
+    const noProxy = {
+      ...MOCK_COMPOSITOR_CAPABILITIES,
+      layerCategories: MOCK_COMPOSITOR_CAPABILITIES.layerCategories.filter((c) => c !== 'proxy'),
+    };
+    const frame = plan(
+      PERSPECTIVE,
+      () => true,
+      { id: 'test.depth/1', representationOf: () => 'compact' },
+      noProxy,
+    );
+    const b = frame.planned.find((p) => p.fragment.surfaceId === 'b');
+    expect(b?.negotiation.mode).toBe('placeholder');
+    expect(b?.negotiation.fallback).toMatchObject({
+      preferred: 'proxy',
+      chosen: 'placeholder',
+      gaps: [{ mode: 'proxy', requirement: 'compositor' }],
+    });
+  });
+
+  it('refuses a representation policy that answers something that is no representation', () => {
+    const bad = {
+      id: 'test.depth/1',
+      representationOf: () => 'tiny',
+    } as unknown as RepresentationPolicy;
+    expect(() => plan(PERSPECTIVE, () => true, bad)).toThrow(
+      /representation policy "test.depth\/1" answered "tiny" for surface "a"/,
+    );
   });
 
   it('groups identical fallbacks with a count', () => {
