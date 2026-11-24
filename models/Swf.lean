@@ -5,3 +5,4 @@ import Swf.Hierarchy
 import Swf.Surface
 import Swf.Save
 import Swf.Migration
+import Swf.Fallback

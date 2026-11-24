@@ -34,6 +34,10 @@ exports = [
   "Swf.Save.saveBegin",
   "Swf.Save.saveEnd",
   "Swf.Migration.migrationPlan",
+  "Swf.Fallback.negotiateOne",
+  "Swf.Fallback.negotiateFrame",
+  "Swf.Fallback.policyIssue",
+  "Swf.Fallback.representedModes",
   "Swf.ViewMode.transition",
   "Swf.ViewMode.observed",
 ]

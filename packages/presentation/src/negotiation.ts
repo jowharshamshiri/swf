@@ -1,13 +1,28 @@
 import type { Id } from '@swf/core';
 import { makeError, SwfFailure } from '@swf/core';
-import type { Fidelity, InteractionSupport, SurfaceCapabilities } from '@swf/surfaces';
+import type {
+  Fidelity as LeanFidelity,
+  Interaction as LeanInteraction,
+  LayerCategory as LeanLayerCategory,
+  Mode as LeanMode,
+  Negotiated,
+  Strategy,
+  TransformMode as LeanTransformMode,
+} from '@swf/models';
+import { models } from '@swf/models';
+import type {
+  AttachStrategy,
+  Fidelity,
+  InteractionSupport,
+  SurfaceCapabilities,
+} from '@swf/surfaces';
 import type {
   CompositorCapabilities,
   LayerCategory,
   ProjectionProfile,
   RendererCapabilities,
+  TransformMode,
 } from './capabilities.js';
-import { clipRank, fidelityRank, transformRank } from './capabilities.js';
 
 /**
  * How a surface is presented in one viewport, best first:
@@ -47,25 +62,35 @@ export function fallbackPolicy(order: readonly PresentationMode[]): FallbackPoli
       makeError('INVALID_INPUT', `fallback policy ${message}`, { path: 'order' }),
     );
   };
-  if (!Array.isArray(order) || order.length === 0) {
-    fail('must list at least one mode');
+  const given: unknown = order;
+  if (!Array.isArray(given)) {
+    return fail('must list at least one mode');
   }
-  const seen = new Set<string>();
-  for (const mode of order) {
-    if (!(PRESENTATION_MODES as readonly string[]).includes(mode)) {
-      fail(
-        `names ${JSON.stringify(mode)}, not a presentation mode (${PRESENTATION_MODES.join(', ')})`,
-      );
+  const names = given as readonly unknown[];
+  const modes = names.filter((mode): mode is string => typeof mode === 'string');
+  const stranger = names.find((mode) => typeof mode !== 'string');
+  if (modes.length !== names.length) {
+    fail(
+      `names ${JSON.stringify(stranger)}, not a presentation mode (${PRESENTATION_MODES.join(', ')})`,
+    );
+  }
+  const issue = models.policyIssue(modes);
+  if (issue !== null) {
+    switch (issue.kind) {
+      case 'empty':
+        return fail('must list at least one mode');
+      case 'unknown':
+        return fail(
+          `names ${JSON.stringify(issue.name)}, not a presentation mode (${PRESENTATION_MODES.join(', ')})`,
+        );
+      case 'repeats':
+        return fail(`repeats ${issue.m.kind}`);
+      case 'notEndingWithPlaceholder':
+        return fail('must end with placeholder, the mode that is always possible');
     }
-    if (seen.has(mode)) {
-      fail(`repeats ${mode}`);
-    }
-    seen.add(mode);
   }
-  if (order.at(-1) !== 'placeholder') {
-    fail('must end with placeholder, the mode that is always possible');
-  }
-  return Object.freeze({ order: Object.freeze([...order]) });
+  // The model found every entry a mode.
+  return Object.freeze({ order: Object.freeze(modes as PresentationMode[]) });
 }
 
 /** What negotiation weighs for one surface in one viewport. */
@@ -144,32 +169,118 @@ export interface Negotiation {
 /**
  * Chooses how to present a surface in a viewport: the first mode of the policy that the surface,
  * renderer, compositor, projection, geometry and ownership all allow. Every better mode that was
- * ruled out is reported with the requirement that ruled it out.
+ * ruled out is reported with the requirement that ruled it out. The fallback model
+ * (`Swf.Fallback`) decides.
  */
 export function negotiate(
   input: NegotiationInput,
   policy: FallbackPolicy = DEFAULT_FALLBACK_POLICY,
 ): Negotiation {
-  const gaps: CapabilityGap[] = [];
-  for (const mode of policy.order) {
-    const ruledOut = gapsFor(mode, input);
-    if (ruledOut.length === 0) {
-      return result(mode, input, policy, gaps);
-    }
-    gaps.push(...ruledOut);
+  const [only] = negotiateFragments(
+    input,
+    [{ ...input, nativeOwner: true, represented: false }],
+    policy,
+  );
+  if (only === undefined) {
+    throw new Error('the fallback model answered no fragment');
   }
-  // Unreachable with a validated policy: placeholder is last and never ruled out.
-  throw new Error('fallback policy did not end with placeholder');
+  return only;
+}
+
+/** What a frame's fragments share: the viewport and its backends. */
+export interface FrameBackends {
+  readonly viewportId: Id;
+  readonly renderer: NegotiationInput['renderer'];
+  readonly compositor: NegotiationInput['compositor'];
+  readonly projection: ProjectionProfile;
+}
+
+/**
+ * One fragment to negotiate: `owner` says whether its viewport may hold the live handle,
+ * `nativeOwner` whether it is the surface's native-owner fragment there, and `represented` whether
+ * the viewport represents the surface instead of showing it.
+ */
+export type FragmentInput = Omit<NegotiationInput, keyof FrameBackends> & {
+  readonly nativeOwner: boolean;
+  readonly represented: boolean;
+};
+
+/** Negotiates every fragment of a frame at once, in order: one decision of the fallback model. */
+export function negotiateFragments(
+  backends: FrameBackends,
+  fragments: readonly FragmentInput[],
+  policy: FallbackPolicy = DEFAULT_FALLBACK_POLICY,
+): Negotiation[] {
+  if (fragments.length === 0) {
+    return [];
+  }
+  const order = policy.order.map((mode): LeanMode => ({ kind: mode }));
+  const answers = models.negotiateFrame(
+    {
+      renderer: {
+        handleKinds: Object.entries(backends.renderer.capabilities.handleKinds).map(
+          ([strategy, fidelity]): [Strategy, LeanFidelity] => [
+            leanStrategy(strategy as AttachStrategy),
+            { kind: fidelity },
+          ],
+        ),
+        transformMode: { kind: TRANSFORM_MODES[backends.renderer.capabilities.transformMode] },
+        clipping: { kind: backends.renderer.capabilities.clipping },
+      },
+      compositor: {
+        layerCategories: backends.compositor.capabilities.layerCategories.map(
+          (category): LeanLayerCategory => ({ kind: LEAN_LAYERS[category] }),
+        ),
+        directNative: backends.compositor.capabilities.directNative,
+        clipping: { kind: backends.compositor.capabilities.clipping },
+        transparency: backends.compositor.capabilities.transparency,
+      },
+      nonlinear: backends.projection.mapping === 'nonlinear',
+    },
+    fragments.map((fragment) => ({
+      handle:
+        fragment.surface === null
+          ? null
+          : {
+              strategy: leanStrategy(fragment.surface.attachStrategy),
+              nativeInteraction: { kind: LEAN_INTERACTIONS[fragment.surface.nativeInteraction] },
+              transformFidelity: { kind: fragment.surface.transformFidelity },
+              transparency: fragment.surface.transparency,
+              shared: fragment.surface.viewportSharing === 'shared',
+            },
+      geometryKind: fragment.geometry.kind,
+      geometrySupported: fragment.geometry.supported,
+      geometryExact: fragment.geometry.fidelity === 'exact',
+      anchorExact: fragment.anchor === 'exact',
+      viewportOwns: fragment.owner,
+      nativeOwner: fragment.nativeOwner,
+      order,
+      represented: fragment.represented,
+    })),
+  );
+  return fragments.map((fragment, i) => {
+    const answer = answers[i];
+    if (answer === undefined || answer === null) {
+      throw new Error(
+        `the fallback policy left surface "${fragment.surfaceId}" with no mode: it must end with placeholder`,
+      );
+    }
+    return result({ ...fragment, ...backends }, answer, fragment.represented, policy);
+  });
 }
 
 function result(
-  mode: PresentationMode,
   input: NegotiationInput,
+  answer: Negotiated,
+  represented: boolean,
   policy: FallbackPolicy,
-  gaps: readonly CapabilityGap[],
 ): Negotiation {
-  const surface = input.surface;
-  const preferred = policy.order[0] ?? mode;
+  const mode = answer.mode.kind;
+  const gaps: CapabilityGap[] = answer.gaps.map((gap) =>
+    Object.freeze({ mode: gap.mode.kind, requirement: gap.requirement.kind, detail: gap.detail }),
+  );
+  const tried = standInModes(represented, policy);
+  const preferred = tried[0] ?? mode;
   const fallback =
     mode === preferred
       ? null
@@ -182,12 +293,12 @@ function result(
           projectionId: input.projection.id,
           preferred,
           chosen: mode,
-          gaps: Object.freeze(gaps.map((g) => Object.freeze(g))),
+          gaps: Object.freeze(gaps),
           groupKey: [
             input.renderer.id,
             input.compositor.id,
             input.projection.id,
-            surface?.attachStrategy ?? 'unbound',
+            input.surface?.attachStrategy ?? 'unbound',
             mode,
             ...gaps.map((g) => `${g.mode}:${g.requirement}:${g.detail}`),
           ].join('|'),
@@ -195,156 +306,77 @@ function result(
             .map((g) => `${g.mode} needs ${g.requirement} (${g.detail})`)
             .join('; ')}`,
         });
-  const base = {
+  return Object.freeze({
     surfaceId: input.surfaceId,
     viewportId: input.viewportId,
     mode,
     anchorFidelity: input.anchor,
+    shapeFidelity: answer.shape.kind,
+    contentFidelity: answer.content.kind,
+    interaction: INTERACTIONS[answer.interaction.kind],
+    layer: LAYERS[answer.layer.kind],
     fallback,
-  };
-  const native = surface?.attachStrategy === 'native-dom';
-  switch (mode) {
-    case 'exact':
-      return Object.freeze({
-        ...base,
-        shapeFidelity: 'exact',
-        contentFidelity: 'exact',
-        interaction: 'none',
-        layer: 'content-raster',
-      });
-    case 'native':
-      return Object.freeze({
-        ...base,
-        shapeFidelity: 'exact',
-        contentFidelity: 'native',
-        interaction: surface?.nativeInteraction ?? 'none',
-        layer: 'content-native',
-      });
-    case 'approximated':
-      return Object.freeze({
-        ...base,
-        shapeFidelity: 'approximate',
-        // A live element's pixels are its own; drawn content is redrawn approximately.
-        contentFidelity: native ? 'native' : 'approximate',
-        interaction: native ? surface.nativeInteraction : 'none',
-        layer: native ? 'content-native' : 'content-raster',
-      });
-    case 'proxy':
-      return Object.freeze({
-        ...base,
-        shapeFidelity: 'approximate',
-        contentFidelity: 'proxy',
-        interaction: 'none',
-        layer: 'proxy',
-      });
-    case 'placeholder':
-      return Object.freeze({
-        ...base,
-        shapeFidelity: 'none',
-        contentFidelity: 'unsupported',
-        interaction: 'none',
-        layer: 'placeholder',
-      });
-  }
+  });
 }
 
-/** Every requirement that rules `mode` out for this input; empty when the mode is possible. */
-function gapsFor(mode: PresentationMode, input: NegotiationInput): CapabilityGap[] {
-  const gaps: CapabilityGap[] = [];
-  const gap = (requirement: Requirement, detail: string) => {
-    gaps.push({ mode, requirement, detail });
-  };
-  const { surface, projection, geometry } = input;
-  const renderer = input.renderer.capabilities;
-  const compositor = input.compositor.capabilities;
-  if (mode === 'placeholder') {
-    return gaps;
-  }
-  if (surface === null) {
-    gap('surface', 'no bound handle');
-    return gaps;
-  }
-  if (mode === 'proxy') {
-    if (!compositor.layerCategories.includes('proxy')) {
-      gap('compositor', 'no proxy layer');
-    }
-    return gaps;
-  }
-  // The live modes: exact, native, approximated.
-  if (!input.owner) {
-    gap('ownership', 'another fragment or viewport holds the live handle');
-  }
-  const strategy = surface.attachStrategy;
-  if (strategy === 'proxy-only') {
-    gap('surface', 'the endpoint can only be shown as a proxy');
-    return gaps;
-  }
-  const kind = renderer.handleKinds[strategy];
-  if (kind === undefined || fidelityRank(kind) < fidelityRank('approximate')) {
-    gap('renderer', `cannot present ${strategy} handles`);
-  }
-  if (strategy === 'native-dom' && !compositor.directNative) {
-    gap('compositor', 'cannot present native layers');
-  }
-  if (strategy === 'drawable' && !compositor.layerCategories.includes('content-raster')) {
-    gap('compositor', 'no content-raster layer');
-  }
-  if (mode === 'approximated') {
-    return gaps;
-  }
-  // exact and native follow the projection exactly.
-  if (mode === 'exact') {
-    if (strategy !== 'drawable') {
-      gap(
-        'surface',
-        'only drawable content can be warped exactly; live elements are never claimed exact',
-      );
-    } else {
-      if (fidelityRank(surface.transformFidelity) < fidelityRank('exact')) {
-        gap('surface', `the endpoint's transform fidelity is ${surface.transformFidelity}`);
-      }
-      if (kind !== undefined && fidelityRank(kind) < fidelityRank('exact')) {
-        gap('renderer', `draws ${strategy} content at ${kind} fidelity`);
-      }
-    }
-  }
-  if (mode === 'native' && strategy !== 'native-dom') {
-    gap('surface', 'native presentation needs a native-dom endpoint');
-  }
-  if (projection.mapping === 'nonlinear') {
-    if (mode === 'native') {
-      gap(
-        'projection',
-        'a nonlinear projection bends a planar element, which can only approximate it',
-      );
-    } else if (renderer.transformMode !== 'mesh') {
-      gap('renderer', 'a nonlinear projection needs mesh warping');
-    }
-  } else if (transformRank(renderer.transformMode) < transformRank('perspective-3d')) {
-    gap(
-      'renderer',
-      `its ${renderer.transformMode} transforms cannot follow a perspective projection`,
-    );
-  }
-  if (input.anchor === 'approximate') {
-    gap('projection', 'the projected placement is approximate');
-  }
-  if (!geometry.supported) {
-    gap('geometry', `geometry kind "${geometry.kind}" has no provider`);
-  } else if (geometry.fidelity === 'approximate') {
-    gap('geometry', `geometry kind "${geometry.kind}" is approximate`);
-  }
-  if (geometry.kind === 'polygon') {
-    const clip = Math.min(clipRank(renderer.clipping), clipRank(compositor.clipping));
-    if (clip < clipRank('path')) {
-      gap(
-        clipRank(renderer.clipping) < clipRank('path') ? 'renderer' : 'compositor',
-        'a polygon needs path clipping',
-      );
-    }
-  }
-  if (surface.transparency && !compositor.transparency) {
-    gap('compositor', 'the endpoint is transparent but the compositor is not');
-  }
-  return gaps;
+/**
+ * The modes negotiation tries, in the policy's order: for a surface the viewport represents (a
+ * compact preview or its label), only the stand-ins, proxy and placeholder.
+ */
+export function standInModes(
+  represented: boolean,
+  policy: FallbackPolicy,
+): readonly PresentationMode[] {
+  return Object.freeze(
+    models
+      .representedModes(
+        represented,
+        policy.order.map((mode): LeanMode => ({ kind: mode })),
+      )
+      .map((mode) => mode.kind),
+  );
 }
+
+const STRATEGIES: Readonly<Record<AttachStrategy, Strategy['kind']>> = Object.freeze({
+  'native-dom': 'nativeDom',
+  drawable: 'drawable',
+  'proxy-only': 'proxyOnly',
+});
+
+function leanStrategy(strategy: AttachStrategy): Strategy {
+  return { kind: STRATEGIES[strategy] };
+}
+
+const TRANSFORM_MODES: Readonly<Record<TransformMode, LeanTransformMode['kind']>> = Object.freeze({
+  translate: 'translate',
+  'affine-2d': 'affine2d',
+  'perspective-3d': 'perspective3d',
+  mesh: 'mesh',
+});
+
+const LEAN_INTERACTIONS: Readonly<Record<InteractionSupport, LeanInteraction['kind']>> =
+  Object.freeze({ full: 'full', partial: 'partly', none: 'none' });
+
+const INTERACTIONS: Readonly<Record<LeanInteraction['kind'], InteractionSupport>> = Object.freeze({
+  full: 'full',
+  partly: 'partial',
+  none: 'none',
+});
+
+const LEAN_LAYERS: Readonly<Record<LayerCategory, LeanLayerCategory['kind']>> = Object.freeze({
+  'content-native': 'contentNative',
+  'content-raster': 'contentRaster',
+  proxy: 'proxy',
+  placeholder: 'placeholder',
+  chrome: 'chrome',
+  overlay: 'overlay',
+});
+
+const LAYERS: Readonly<Record<LeanLayerCategory['kind'], LayerCategory>> = Object.freeze({
+  contentNative: 'content-native',
+  contentRaster: 'content-raster',
+  proxy: 'proxy',
+  placeholder: 'placeholder',
+  chrome: 'chrome',
+  overlay: 'overlay',
+});

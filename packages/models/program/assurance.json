@@ -17,6 +17,260 @@
   "assumptions": [],
   "claims": [
     {
+      "name": "Swf.Fallback.exact_only_drawable",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Fallback.negotiateOne"
+      ],
+      "specifications": [],
+      "statement": "∀ (c : Swf.Fallback.NegotiationContext) (f : Swf.Fallback.FragmentFacts) (r : Swf.Fallback.Negotiated),\n  Swf.Fallback.negotiateOne c f = some r →\n    (r.mode = Swf.Fallback.Mode.exact → ∃ hc, f.handle = some hc ∧ hc.strategy = Swf.Fallback.Strategy.drawable) ∧\n      (f.handle = none → r.mode = Swf.Fallback.Mode.placeholder)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "386a047a1ca0f4496a16dea0872e56eca7116e4e5e4f2aabcc43efd2ecfff4ad",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Fallback.lean",
+        "start": {
+          "line": 390,
+          "column": 1
+        },
+        "end": {
+          "line": 410,
+          "column": 45
+        }
+      }
+    },
+    {
+      "name": "Swf.Fallback.first_allowed_in_order",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Fallback.negotiateOne"
+      ],
+      "specifications": [],
+      "statement": "∀ (c : Swf.Fallback.NegotiationContext) (f : Swf.Fallback.FragmentFacts) (r : Swf.Fallback.Negotiated),\n  Swf.Fallback.negotiateOne c f = some r →\n    ∃ before after,\n      Swf.Fallback.representedModes f.represented f.order = before ++ r.mode :: after ∧\n        Swf.Fallback.gapsFor c f r.mode = [] ∧\n          (∀ (m : Swf.Fallback.Mode), m ∈ before → Swf.Fallback.gapsFor c f m ≠ []) ∧\n            r.gaps = (List.map (Swf.Fallback.gapsFor c f) before).flatten",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "a54b1d92ecfbd8368833a99a1c0e81269e64bdb4082ea8db2020068d7ea64c8b",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Fallback.lean",
+        "start": {
+          "line": 337,
+          "column": 1
+        },
+        "end": {
+          "line": 347,
+          "column": 55
+        }
+      }
+    },
+    {
+      "name": "Swf.Fallback.frame_is_each",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Fallback.negotiateFrame"
+      ],
+      "specifications": [],
+      "statement": "∀ (c : Swf.Fallback.NegotiationContext) (fs : Array Swf.Fallback.FragmentFacts) (i : Nat) (hi : i < fs.size),\n  (Swf.Fallback.negotiateFrame c fs)[i] = Swf.Fallback.negotiateOne c fs[i]",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "2f008e95f6fef7b8a10b09785cf1b0c762eb7ded1145a6926c9130a25aaaf2db",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Fallback.lean",
+        "start": {
+          "line": 412,
+          "column": 1
+        },
+        "end": {
+          "line": 417,
+          "column": 24
+        }
+      }
+    },
+    {
+      "name": "Swf.Fallback.live_needs_owner",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Fallback.negotiateOne"
+      ],
+      "specifications": [],
+      "statement": "∀ (c : Swf.Fallback.NegotiationContext) (f : Swf.Fallback.FragmentFacts) (r : Swf.Fallback.Negotiated),\n  Swf.Fallback.negotiateOne c f = some r →\n    r.mode ≠ Swf.Fallback.Mode.proxy ∧ r.mode ≠ Swf.Fallback.Mode.placeholder →\n      f.owner = true ∧ ∃ hc, f.handle = some hc ∧ hc.strategy ≠ Swf.Fallback.Strategy.proxyOnly",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "247853dbd92277082ac57ae0485e09dacab22ab6d3cb3c502cb7ba46a10016fb",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Fallback.lean",
+        "start": {
+          "line": 371,
+          "column": 1
+        },
+        "end": {
+          "line": 388,
+          "column": 47
+        }
+      }
+    },
+    {
+      "name": "Swf.Fallback.owner_rule",
+      "relation": "lungo.decides",
+      "subjects": [
+        "Swf.Fallback.FragmentFacts.owner"
+      ],
+      "specifications": [],
+      "statement": "∀ (f : Swf.Fallback.FragmentFacts),\n  f.owner = true ↔\n    f.viewportOwns = true ∧\n      (f.nativeOwner = true ∨ ∃ h, f.handle = some h ∧ h.strategy = Swf.Fallback.Strategy.drawable ∧ h.shared = true)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "de193c8fb8242d0af217e2295695694afc4a2e3ba8bf7bba8a4c1750791b28d2",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Fallback.lean",
+        "start": {
+          "line": 477,
+          "column": 1
+        },
+        "end": {
+          "line": 483,
+          "column": 57
+        }
+      }
+    },
+    {
+      "name": "Swf.Fallback.placeholder_last_resort",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Fallback.negotiateOne"
+      ],
+      "specifications": [],
+      "statement": "∀ (c : Swf.Fallback.NegotiationContext) (f : Swf.Fallback.FragmentFacts),\n  Swf.Fallback.Mode.placeholder ∈ f.order → (Swf.Fallback.negotiateOne c f).isSome = true",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "59d48d1e9a4202dfbae3d6f4ca387ccdd70b2d3f22713f734c115efbff031559",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Fallback.lean",
+        "start": {
+          "line": 349,
+          "column": 1
+        },
+        "end": {
+          "line": 369,
+          "column": 20
+        }
+      }
+    },
+    {
+      "name": "Swf.Fallback.policy_valid",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Fallback.policyIssue"
+      ],
+      "specifications": [],
+      "statement": "∀ (order : List String),\n  Swf.Fallback.policyIssue order = none →\n    ∃ ms, List.map Swf.Fallback.modeOf order = List.map some ms ∧ ms.Nodup ∧ order.getLast? = some \"placeholder\"",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "bac53739ef3e9727f2545df829a819fce55b8234253b5e0b9607ad8ffa137fef",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Fallback.lean",
+        "start": {
+          "line": 450,
+          "column": 1
+        },
+        "end": {
+          "line": 465,
+          "column": 16
+        }
+      }
+    },
+    {
+      "name": "Swf.Fallback.represented_only_stand_ins",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Fallback.representedModes"
+      ],
+      "specifications": [],
+      "statement": "∀ (order : List Swf.Fallback.Mode),\n  (∀ (m : Swf.Fallback.Mode),\n      m ∈ Swf.Fallback.representedModes true order → m = Swf.Fallback.Mode.proxy ∨ m = Swf.Fallback.Mode.placeholder) ∧\n    (Swf.Fallback.representedModes true order).Sublist order ∧ Swf.Fallback.representedModes false order = order",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "21d1aa5c6fd81fa25f80e16e1b9d462d80480d3346044c290bc441b4db970c60",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Fallback.lean",
+        "start": {
+          "line": 467,
+          "column": 1
+        },
+        "end": {
+          "line": 475,
+          "column": 23
+        }
+      }
+    },
+    {
       "name": "Swf.Hierarchy.lockRefuses_iff",
       "relation": "lungo.decides",
       "subjects": [
@@ -1624,6 +1878,159 @@
   ],
   "roles": [],
   "exports": [
+    {
+      "name": "Swf.Fallback.negotiateFrame",
+      "module": "Swf.Fallback",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [
+          "_private.Init.Data.Array.Basic.0.Array.mapMUnsafe.map"
+        ],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_array_size",
+          "lean_array_uget",
+          "lean_array_uset",
+          "lean_nat_dec_eq",
+          "lean_nat_dec_le",
+          "lean_nat_dec_lt",
+          "lean_string_append",
+          "lean_string_dec_eq",
+          "lean_usize_add",
+          "lean_usize_dec_lt"
+        ]
+      },
+      "claims": [
+        "Swf.Fallback.frame_is_each"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Fallback.lean",
+        "start": {
+          "line": 269,
+          "column": 1
+        },
+        "end": {
+          "line": 271,
+          "column": 26
+        }
+      }
+    },
+    {
+      "name": "Swf.Fallback.negotiateOne",
+      "module": "Swf.Fallback",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_nat_dec_eq",
+          "lean_nat_dec_le",
+          "lean_nat_dec_lt",
+          "lean_string_append",
+          "lean_string_dec_eq"
+        ]
+      },
+      "claims": [
+        "Swf.Fallback.exact_only_drawable",
+        "Swf.Fallback.first_allowed_in_order",
+        "Swf.Fallback.live_needs_owner",
+        "Swf.Fallback.placeholder_last_resort"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Fallback.lean",
+        "start": {
+          "line": 264,
+          "column": 1
+        },
+        "end": {
+          "line": 267,
+          "column": 61
+        }
+      }
+    },
+    {
+      "name": "Swf.Fallback.policyIssue",
+      "module": "Swf.Fallback",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_nat_dec_eq",
+          "lean_string_dec_eq"
+        ]
+      },
+      "claims": [
+        "Swf.Fallback.policy_valid"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Fallback.lean",
+        "start": {
+          "line": 296,
+          "column": 1
+        },
+        "end": {
+          "line": 302,
+          "column": 99
+        }
+      }
+    },
+    {
+      "name": "Swf.Fallback.representedModes",
+      "module": "Swf.Fallback",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_nat_dec_eq"
+        ]
+      },
+      "claims": [
+        "Swf.Fallback.represented_only_stand_ins"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Fallback.lean",
+        "start": {
+          "line": 259,
+          "column": 1
+        },
+        "end": {
+          "line": 262,
+          "column": 88
+        }
+      }
+    },
     {
       "name": "Swf.Hierarchy.lockRefuses",
       "module": "Swf.Hierarchy",

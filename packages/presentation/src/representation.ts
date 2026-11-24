@@ -1,7 +1,8 @@
 import type { Id, SceneState } from '@swf/core';
 import { makeError, SwfFailure } from '@swf/core';
 import type { ViewGeometry } from './fragments.js';
-import type { FallbackPolicy, PresentationMode } from './negotiation.js';
+import type { FallbackPolicy } from './negotiation.js';
+import { standInModes } from './negotiation.js';
 
 /**
  * How much of a surface a viewport shows, as a representation policy chooses it (semantic depth,
@@ -76,9 +77,6 @@ export function representationFor(
   return answer as Representation;
 }
 
-/** The modes that stand for a surface without its live content. */
-const REPRESENTED: readonly PresentationMode[] = Object.freeze(['proxy', 'placeholder']);
-
 /**
  * The fallback order negotiation follows for a surface represented as `representation`: the
  * policy's own for `full`; for `compact` and `label`, only the modes that stand for the surface
@@ -89,10 +87,8 @@ export function representedOrder(
   policy: FallbackPolicy,
   representation: Representation,
 ): FallbackPolicy {
-  if (representation === 'full') {
-    return policy;
-  }
-  return Object.freeze({
-    order: Object.freeze(policy.order.filter((mode) => REPRESENTED.includes(mode))),
-  });
+  const represented = representation !== 'full';
+  const order = standInModes(represented, policy);
+  // The policy itself when the model leaves its order as it is.
+  return represented ? Object.freeze({ order }) : policy;
 }

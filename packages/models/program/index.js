@@ -12,10 +12,154 @@ async function programModule() {
   return response.arrayBuffer();
 }
 
+/** Describes Swf.Fallback.NegotiationContext for polymorphic functions. */
+export function negotiationContextType() {
+  return new L.Type(
+    L.inductiveExpr(0),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.NegotiationContext");
+      w.u32(0);
+      rendererCapabilitiesType().encode(w, v.renderer);
+      compositorCapabilitiesType().encode(w, v.compositor);
+      L.BOOL.encode(w, v.nonlinear);
+    },
+    (r) => {
+      const c = r.u32();
+      if (c !== 0) throw new L.MalformedError(`constructor index ${c} of Swf.Fallback.NegotiationContext`);
+      return ({ renderer: rendererCapabilitiesType().decode(r), compositor: compositorCapabilitiesType().decode(r), nonlinear: L.BOOL.decode(r) });
+    },
+  );
+}
+
+/** Describes Swf.Fallback.FragmentFacts for polymorphic functions. */
+export function fragmentFactsType() {
+  return new L.Type(
+    L.inductiveExpr(1),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.FragmentFacts");
+      w.u32(0);
+      L.option(handleCapabilitiesType()).encode(w, v.handle);
+      L.STRING.encode(w, v.geometryKind);
+      L.BOOL.encode(w, v.geometrySupported);
+      L.BOOL.encode(w, v.geometryExact);
+      L.BOOL.encode(w, v.anchorExact);
+      L.BOOL.encode(w, v.viewportOwns);
+      L.BOOL.encode(w, v.nativeOwner);
+      L.list(modeType()).encode(w, v.order);
+      L.BOOL.encode(w, v.represented);
+    },
+    (r) => {
+      const c = r.u32();
+      if (c !== 0) throw new L.MalformedError(`constructor index ${c} of Swf.Fallback.FragmentFacts`);
+      return ({ handle: L.option(handleCapabilitiesType()).decode(r), geometryKind: L.STRING.decode(r), geometrySupported: L.BOOL.decode(r), geometryExact: L.BOOL.decode(r), anchorExact: L.BOOL.decode(r), viewportOwns: L.BOOL.decode(r), nativeOwner: L.BOOL.decode(r), order: L.list(modeType()).decode(r), represented: L.BOOL.decode(r) });
+    },
+  );
+}
+
+/** Describes Swf.Fallback.Negotiated for polymorphic functions. */
+export function negotiatedType() {
+  return new L.Type(
+    L.inductiveExpr(2),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.Negotiated");
+      w.u32(0);
+      modeType().encode(w, v.mode);
+      L.list(gapType()).encode(w, v.gaps);
+      shapeFidelityType().encode(w, v.shape);
+      fidelityType().encode(w, v.content);
+      interactionType().encode(w, v.interaction);
+      layerCategoryType().encode(w, v.layer);
+    },
+    (r) => {
+      const c = r.u32();
+      if (c !== 0) throw new L.MalformedError(`constructor index ${c} of Swf.Fallback.Negotiated`);
+      return ({ mode: modeType().decode(r), gaps: L.list(gapType()).decode(r), shape: shapeFidelityType().decode(r), content: fidelityType().decode(r), interaction: interactionType().decode(r), layer: layerCategoryType().decode(r) });
+    },
+  );
+}
+
+/** Describes Swf.Fallback.PolicyIssue for polymorphic functions. */
+export function policyIssueType() {
+  return new L.Type(
+    L.inductiveExpr(3),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.PolicyIssue");
+      switch (v.kind) {
+        case "empty":
+          w.u32(0);
+          return;
+        case "unknown":
+          w.u32(1);
+          L.STRING.encode(w, v.name);
+          return;
+        case "repeats":
+          w.u32(2);
+          modeType().encode(w, v.m);
+          return;
+        case "notEndingWithPlaceholder":
+          w.u32(3);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.Fallback.PolicyIssue`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "empty" });
+        case 1: return ({ kind: "unknown", name: L.STRING.decode(r) });
+        case 2: return ({ kind: "repeats", m: modeType().decode(r) });
+        case 3: return ({ kind: "notEndingWithPlaceholder" });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.Fallback.PolicyIssue`);
+      }
+    },
+  );
+}
+
+/** Describes Swf.Fallback.Mode for polymorphic functions. */
+export function modeType() {
+  return new L.Type(
+    L.inductiveExpr(4),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.Mode");
+      switch (v.kind) {
+        case "exact":
+          w.u32(0);
+          return;
+        case "native":
+          w.u32(1);
+          return;
+        case "approximated":
+          w.u32(2);
+          return;
+        case "proxy":
+          w.u32(3);
+          return;
+        case "placeholder":
+          w.u32(4);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.Fallback.Mode`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "exact" });
+        case 1: return ({ kind: "native" });
+        case 2: return ({ kind: "approximated" });
+        case 3: return ({ kind: "proxy" });
+        case 4: return ({ kind: "placeholder" });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.Fallback.Mode`);
+      }
+    },
+  );
+}
+
 /** Describes Swf.Kernel.Lifecycle for polymorphic functions. */
 export function lifecycleType() {
   return new L.Type(
-    L.inductiveExpr(0),
+    L.inductiveExpr(5),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.Lifecycle");
       switch (v.kind) {
@@ -48,7 +192,7 @@ export function lifecycleType() {
 /** Describes Swf.Kernel.Ledger for polymorphic functions. */
 export function ledgerType() {
   return new L.Type(
-    L.inductiveExpr(1),
+    L.inductiveExpr(6),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.Ledger");
       w.u32(0);
@@ -71,7 +215,7 @@ export function ledgerType() {
 /** Describes Swf.Kernel.Direction for polymorphic functions. */
 export function directionType() {
   return new L.Type(
-    L.inductiveExpr(2),
+    L.inductiveExpr(7),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.Direction");
       switch (v.kind) {
@@ -99,7 +243,7 @@ export function directionType() {
 /** Describes Swf.Kernel.Change for polymorphic functions. */
 export function changeType() {
   return new L.Type(
-    L.inductiveExpr(3),
+    L.inductiveExpr(8),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.Change");
       switch (v.kind) {
@@ -131,7 +275,7 @@ export function changeType() {
 /** Describes Swf.Kernel.Commit for polymorphic functions. */
 export function commitType() {
   return new L.Type(
-    L.inductiveExpr(4),
+    L.inductiveExpr(9),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.Commit");
       w.u32(0);
@@ -152,7 +296,7 @@ export function commitType() {
 /** Describes Swf.Kernel.TxRequest for polymorphic functions. */
 export function txRequestType() {
   return new L.Type(
-    L.inductiveExpr(5),
+    L.inductiveExpr(10),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.TxRequest");
       w.u32(0);
@@ -170,7 +314,7 @@ export function txRequestType() {
 /** Describes Swf.Kernel.TxGate for polymorphic functions. */
 export function txGateType() {
   return new L.Type(
-    L.inductiveExpr(6),
+    L.inductiveExpr(11),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.TxGate");
       switch (v.kind) {
@@ -210,7 +354,7 @@ export function txGateType() {
 /** Describes Swf.Kernel.IdleStep for polymorphic functions. */
 export function idleStepType() {
   return new L.Type(
-    L.inductiveExpr(7),
+    L.inductiveExpr(12),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.IdleStep");
       switch (v.kind) {
@@ -244,7 +388,7 @@ export function idleStepType() {
 /** Describes Swf.Kernel.Travel for polymorphic functions. */
 export function travelType() {
   return new L.Type(
-    L.inductiveExpr(8),
+    L.inductiveExpr(13),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.Travel");
       switch (v.kind) {
@@ -281,7 +425,7 @@ export function travelType() {
 /** Describes Swf.Migration.MigrationPlan for polymorphic functions. */
 export function migrationPlanType() {
   return new L.Type(
-    L.inductiveExpr(9),
+    L.inductiveExpr(14),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Migration.MigrationPlan");
       w.u32(0);
@@ -299,7 +443,7 @@ export function migrationPlanType() {
 /** Describes Swf.Save.SaveMachine for polymorphic functions. */
 export function saveMachineType() {
   return new L.Type(
-    L.inductiveExpr(10),
+    L.inductiveExpr(15),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Save.SaveMachine");
       w.u32(0);
@@ -319,7 +463,7 @@ export function saveMachineType() {
 /** Describes Swf.Save.SaveAnswer for polymorphic functions. */
 export function saveAnswerType() {
   return new L.Type(
-    L.inductiveExpr(11),
+    L.inductiveExpr(16),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Save.SaveAnswer");
       switch (v.kind) {
@@ -349,7 +493,7 @@ export function saveAnswerType() {
 /** Describes Swf.Save.SaveEnd for polymorphic functions. */
 export function saveEndType() {
   return new L.Type(
-    L.inductiveExpr(12),
+    L.inductiveExpr(17),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Save.SaveEnd");
       w.u32(0);
@@ -367,7 +511,7 @@ export function saveEndType() {
 /** Describes Swf.Surface.Presentation for polymorphic functions. */
 export function presentationType() {
   return new L.Type(
-    L.inductiveExpr(13),
+    L.inductiveExpr(18),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.Presentation");
       switch (v.kind) {
@@ -420,7 +564,7 @@ export function presentationType() {
 /** Describes Swf.Surface.SurfaceRefusal for polymorphic functions. */
 export function surfaceRefusalType() {
   return new L.Type(
-    L.inductiveExpr(14),
+    L.inductiveExpr(19),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.SurfaceRefusal");
       switch (v.kind) {
@@ -480,7 +624,7 @@ export function surfaceRefusalType() {
 /** Describes Swf.Surface.PresentFacts for polymorphic functions. */
 export function presentFactsType() {
   return new L.Type(
-    L.inductiveExpr(15),
+    L.inductiveExpr(20),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.PresentFacts");
       w.u32(0);
@@ -505,7 +649,7 @@ export function presentFactsType() {
 /** Describes Swf.Surface.SurfaceEvent for polymorphic functions. */
 export function surfaceEventType() {
   return new L.Type(
-    L.inductiveExpr(16),
+    L.inductiveExpr(21),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.SurfaceEvent");
       switch (v.kind) {
@@ -559,7 +703,7 @@ export function surfaceEventType() {
 /** Describes Swf.Surface.SurfaceStep for polymorphic functions. */
 export function surfaceStepType() {
   return new L.Type(
-    L.inductiveExpr(17),
+    L.inductiveExpr(22),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.SurfaceStep");
       w.u32(0);
@@ -577,7 +721,7 @@ export function surfaceStepType() {
 /** Describes Swf.Surface.UnbindGate for polymorphic functions. */
 export function unbindGateType() {
   return new L.Type(
-    L.inductiveExpr(18),
+    L.inductiveExpr(23),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.UnbindGate");
       switch (v.kind) {
@@ -610,7 +754,7 @@ export function unbindGateType() {
 /** Describes Swf.ViewMode.ModeMachine for polymorphic functions. */
 export function modeMachineType() {
   return new L.Type(
-    L.inductiveExpr(19),
+    L.inductiveExpr(24),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.ViewMode.ModeMachine");
       w.u32(0);
@@ -628,7 +772,7 @@ export function modeMachineType() {
 /** Describes Swf.ViewMode.ModeEvent for polymorphic functions. */
 export function modeEventType() {
   return new L.Type(
-    L.inductiveExpr(20),
+    L.inductiveExpr(25),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.ViewMode.ModeEvent");
       switch (v.kind) {
@@ -657,7 +801,7 @@ export function modeEventType() {
 /** Describes Swf.ViewMode.ViewSettings for polymorphic functions. */
 export function viewSettingsType() {
   return new L.Type(
-    L.inductiveExpr(21),
+    L.inductiveExpr(26),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.ViewMode.ViewSettings");
       w.u32(0);
@@ -676,7 +820,7 @@ export function viewSettingsType() {
 /** Describes Swf.ViewMode.ModeTransition for polymorphic functions. */
 export function modeTransitionType() {
   return new L.Type(
-    L.inductiveExpr(22),
+    L.inductiveExpr(27),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.ViewMode.ModeTransition");
       switch (v.kind) {
@@ -706,10 +850,237 @@ export function modeTransitionType() {
   );
 }
 
+/** Describes Swf.Fallback.RendererCapabilities for polymorphic functions. */
+export function rendererCapabilitiesType() {
+  return new L.Type(
+    L.inductiveExpr(28),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.RendererCapabilities");
+      w.u32(0);
+      L.list(L.pair(strategyType(), fidelityType())).encode(w, v.handleKinds);
+      transformModeType().encode(w, v.transformMode);
+      clipType().encode(w, v.clipping);
+    },
+    (r) => {
+      const c = r.u32();
+      if (c !== 0) throw new L.MalformedError(`constructor index ${c} of Swf.Fallback.RendererCapabilities`);
+      return ({ handleKinds: L.list(L.pair(strategyType(), fidelityType())).decode(r), transformMode: transformModeType().decode(r), clipping: clipType().decode(r) });
+    },
+  );
+}
+
+/** Describes Swf.Fallback.CompositorCapabilities for polymorphic functions. */
+export function compositorCapabilitiesType() {
+  return new L.Type(
+    L.inductiveExpr(29),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.CompositorCapabilities");
+      w.u32(0);
+      L.list(layerCategoryType()).encode(w, v.layerCategories);
+      L.BOOL.encode(w, v.directNative);
+      clipType().encode(w, v.clipping);
+      L.BOOL.encode(w, v.transparency);
+    },
+    (r) => {
+      const c = r.u32();
+      if (c !== 0) throw new L.MalformedError(`constructor index ${c} of Swf.Fallback.CompositorCapabilities`);
+      return ({ layerCategories: L.list(layerCategoryType()).decode(r), directNative: L.BOOL.decode(r), clipping: clipType().decode(r), transparency: L.BOOL.decode(r) });
+    },
+  );
+}
+
+/** Describes Swf.Fallback.HandleCapabilities for polymorphic functions. */
+export function handleCapabilitiesType() {
+  return new L.Type(
+    L.inductiveExpr(30),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.HandleCapabilities");
+      w.u32(0);
+      strategyType().encode(w, v.strategy);
+      interactionType().encode(w, v.nativeInteraction);
+      fidelityType().encode(w, v.transformFidelity);
+      L.BOOL.encode(w, v.transparency);
+      L.BOOL.encode(w, v.shared);
+    },
+    (r) => {
+      const c = r.u32();
+      if (c !== 0) throw new L.MalformedError(`constructor index ${c} of Swf.Fallback.HandleCapabilities`);
+      return ({ strategy: strategyType().decode(r), nativeInteraction: interactionType().decode(r), transformFidelity: fidelityType().decode(r), transparency: L.BOOL.decode(r), shared: L.BOOL.decode(r) });
+    },
+  );
+}
+
+/** Describes Swf.Fallback.Gap for polymorphic functions. */
+export function gapType() {
+  return new L.Type(
+    L.inductiveExpr(31),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.Gap");
+      w.u32(0);
+      modeType().encode(w, v.mode);
+      requirementType().encode(w, v.requirement);
+      L.STRING.encode(w, v.detail);
+    },
+    (r) => {
+      const c = r.u32();
+      if (c !== 0) throw new L.MalformedError(`constructor index ${c} of Swf.Fallback.Gap`);
+      return ({ mode: modeType().decode(r), requirement: requirementType().decode(r), detail: L.STRING.decode(r) });
+    },
+  );
+}
+
+/** Describes Swf.Fallback.ShapeFidelity for polymorphic functions. */
+export function shapeFidelityType() {
+  return new L.Type(
+    L.inductiveExpr(32),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.ShapeFidelity");
+      switch (v.kind) {
+        case "exact":
+          w.u32(0);
+          return;
+        case "approximate":
+          w.u32(1);
+          return;
+        case "none":
+          w.u32(2);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.Fallback.ShapeFidelity`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "exact" });
+        case 1: return ({ kind: "approximate" });
+        case 2: return ({ kind: "none" });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.Fallback.ShapeFidelity`);
+      }
+    },
+  );
+}
+
+/** Describes Swf.Fallback.Fidelity for polymorphic functions. */
+export function fidelityType() {
+  return new L.Type(
+    L.inductiveExpr(33),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.Fidelity");
+      switch (v.kind) {
+        case "native":
+          w.u32(0);
+          return;
+        case "exact":
+          w.u32(1);
+          return;
+        case "approximate":
+          w.u32(2);
+          return;
+        case "proxy":
+          w.u32(3);
+          return;
+        case "unsupported":
+          w.u32(4);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.Fallback.Fidelity`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "native" });
+        case 1: return ({ kind: "exact" });
+        case 2: return ({ kind: "approximate" });
+        case 3: return ({ kind: "proxy" });
+        case 4: return ({ kind: "unsupported" });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.Fallback.Fidelity`);
+      }
+    },
+  );
+}
+
+/** Describes Swf.Fallback.Interaction for polymorphic functions. */
+export function interactionType() {
+  return new L.Type(
+    L.inductiveExpr(34),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.Interaction");
+      switch (v.kind) {
+        case "full":
+          w.u32(0);
+          return;
+        case "partly":
+          w.u32(1);
+          return;
+        case "none":
+          w.u32(2);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.Fallback.Interaction`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "full" });
+        case 1: return ({ kind: "partly" });
+        case 2: return ({ kind: "none" });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.Fallback.Interaction`);
+      }
+    },
+  );
+}
+
+/** Describes Swf.Fallback.LayerCategory for polymorphic functions. */
+export function layerCategoryType() {
+  return new L.Type(
+    L.inductiveExpr(35),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.LayerCategory");
+      switch (v.kind) {
+        case "contentNative":
+          w.u32(0);
+          return;
+        case "contentRaster":
+          w.u32(1);
+          return;
+        case "proxy":
+          w.u32(2);
+          return;
+        case "placeholder":
+          w.u32(3);
+          return;
+        case "chrome":
+          w.u32(4);
+          return;
+        case "overlay":
+          w.u32(5);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.Fallback.LayerCategory`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "contentNative" });
+        case 1: return ({ kind: "contentRaster" });
+        case 2: return ({ kind: "proxy" });
+        case 3: return ({ kind: "placeholder" });
+        case 4: return ({ kind: "chrome" });
+        case 5: return ({ kind: "overlay" });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.Fallback.LayerCategory`);
+      }
+    },
+  );
+}
+
 /** Describes Swf.Save.SaveState for polymorphic functions. */
 export function saveStateType() {
   return new L.Type(
-    L.inductiveExpr(23),
+    L.inductiveExpr(36),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Save.SaveState");
       switch (v.kind) {
@@ -745,7 +1116,7 @@ export function saveStateType() {
 /** Describes Swf.Save.AckRefusal for polymorphic functions. */
 export function ackRefusalType() {
   return new L.Type(
-    L.inductiveExpr(24),
+    L.inductiveExpr(37),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Save.AckRefusal");
       switch (v.kind) {
@@ -773,7 +1144,7 @@ export function ackRefusalType() {
 /** Describes Swf.Surface.UnboundReason for polymorphic functions. */
 export function unboundReasonType() {
   return new L.Type(
-    L.inductiveExpr(25),
+    L.inductiveExpr(38),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.UnboundReason");
       switch (v.kind) {
@@ -809,7 +1180,7 @@ export function unboundReasonType() {
 /** Describes Swf.Surface.Resolution for polymorphic functions. */
 export function resolutionType() {
   return new L.Type(
-    L.inductiveExpr(26),
+    L.inductiveExpr(39),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.Resolution");
       switch (v.kind) {
@@ -841,7 +1212,7 @@ export function resolutionType() {
 /** Describes Swf.Surface.Release for polymorphic functions. */
 export function releaseType() {
   return new L.Type(
-    L.inductiveExpr(27),
+    L.inductiveExpr(40),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.Release");
       switch (v.kind) {
@@ -870,7 +1241,7 @@ export function releaseType() {
 /** Describes Swf.ViewMode.ProjectionSetting for polymorphic functions. */
 export function projectionSettingType() {
   return new L.Type(
-    L.inductiveExpr(28),
+    L.inductiveExpr(41),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.ViewMode.ProjectionSetting");
       w.u32(0);
@@ -888,7 +1259,7 @@ export function projectionSettingType() {
 /** Describes Swf.ViewMode.Quat for polymorphic functions. */
 export function quatType() {
   return new L.Type(
-    L.inductiveExpr(29),
+    L.inductiveExpr(42),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.ViewMode.Quat");
       w.u32(0);
@@ -905,10 +1276,154 @@ export function quatType() {
   );
 }
 
+/** Describes Swf.Fallback.Strategy for polymorphic functions. */
+export function strategyType() {
+  return new L.Type(
+    L.inductiveExpr(43),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.Strategy");
+      switch (v.kind) {
+        case "nativeDom":
+          w.u32(0);
+          return;
+        case "drawable":
+          w.u32(1);
+          return;
+        case "proxyOnly":
+          w.u32(2);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.Fallback.Strategy`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "nativeDom" });
+        case 1: return ({ kind: "drawable" });
+        case 2: return ({ kind: "proxyOnly" });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.Fallback.Strategy`);
+      }
+    },
+  );
+}
+
+/** Describes Swf.Fallback.TransformMode for polymorphic functions. */
+export function transformModeType() {
+  return new L.Type(
+    L.inductiveExpr(44),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.TransformMode");
+      switch (v.kind) {
+        case "translate":
+          w.u32(0);
+          return;
+        case "affine2d":
+          w.u32(1);
+          return;
+        case "perspective3d":
+          w.u32(2);
+          return;
+        case "mesh":
+          w.u32(3);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.Fallback.TransformMode`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "translate" });
+        case 1: return ({ kind: "affine2d" });
+        case 2: return ({ kind: "perspective3d" });
+        case 3: return ({ kind: "mesh" });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.Fallback.TransformMode`);
+      }
+    },
+  );
+}
+
+/** Describes Swf.Fallback.Clip for polymorphic functions. */
+export function clipType() {
+  return new L.Type(
+    L.inductiveExpr(45),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.Clip");
+      switch (v.kind) {
+        case "none":
+          w.u32(0);
+          return;
+        case "rect":
+          w.u32(1);
+          return;
+        case "path":
+          w.u32(2);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.Fallback.Clip`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "none" });
+        case 1: return ({ kind: "rect" });
+        case 2: return ({ kind: "path" });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.Fallback.Clip`);
+      }
+    },
+  );
+}
+
+/** Describes Swf.Fallback.Requirement for polymorphic functions. */
+export function requirementType() {
+  return new L.Type(
+    L.inductiveExpr(46),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.Requirement");
+      switch (v.kind) {
+        case "surface":
+          w.u32(0);
+          return;
+        case "renderer":
+          w.u32(1);
+          return;
+        case "compositor":
+          w.u32(2);
+          return;
+        case "projection":
+          w.u32(3);
+          return;
+        case "geometry":
+          w.u32(4);
+          return;
+        case "ownership":
+          w.u32(5);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.Fallback.Requirement`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "surface" });
+        case 1: return ({ kind: "renderer" });
+        case 2: return ({ kind: "compositor" });
+        case 3: return ({ kind: "projection" });
+        case 4: return ({ kind: "geometry" });
+        case 5: return ({ kind: "ownership" });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.Fallback.Requirement`);
+      }
+    },
+  );
+}
+
 /** Describes Swf.Json for polymorphic functions. */
 export function jsonType() {
   return new L.Type(
-    L.inductiveExpr(30),
+    L.inductiveExpr(47),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Json");
       switch (v.kind) {
@@ -974,6 +1489,260 @@ export const ASSURANCE = L.parseAssurance({
   "facilities": [],
   "assumptions": [],
   "claims": [
+    {
+      "name": "Swf.Fallback.exact_only_drawable",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Fallback.negotiateOne"
+      ],
+      "specifications": [],
+      "statement": "∀ (c : Swf.Fallback.NegotiationContext) (f : Swf.Fallback.FragmentFacts) (r : Swf.Fallback.Negotiated),\n  Swf.Fallback.negotiateOne c f = some r →\n    (r.mode = Swf.Fallback.Mode.exact → ∃ hc, f.handle = some hc ∧ hc.strategy = Swf.Fallback.Strategy.drawable) ∧\n      (f.handle = none → r.mode = Swf.Fallback.Mode.placeholder)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "386a047a1ca0f4496a16dea0872e56eca7116e4e5e4f2aabcc43efd2ecfff4ad",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Fallback.lean",
+        "start": {
+          "line": 390,
+          "column": 1
+        },
+        "end": {
+          "line": 410,
+          "column": 45
+        }
+      }
+    },
+    {
+      "name": "Swf.Fallback.first_allowed_in_order",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Fallback.negotiateOne"
+      ],
+      "specifications": [],
+      "statement": "∀ (c : Swf.Fallback.NegotiationContext) (f : Swf.Fallback.FragmentFacts) (r : Swf.Fallback.Negotiated),\n  Swf.Fallback.negotiateOne c f = some r →\n    ∃ before after,\n      Swf.Fallback.representedModes f.represented f.order = before ++ r.mode :: after ∧\n        Swf.Fallback.gapsFor c f r.mode = [] ∧\n          (∀ (m : Swf.Fallback.Mode), m ∈ before → Swf.Fallback.gapsFor c f m ≠ []) ∧\n            r.gaps = (List.map (Swf.Fallback.gapsFor c f) before).flatten",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "a54b1d92ecfbd8368833a99a1c0e81269e64bdb4082ea8db2020068d7ea64c8b",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Fallback.lean",
+        "start": {
+          "line": 337,
+          "column": 1
+        },
+        "end": {
+          "line": 347,
+          "column": 55
+        }
+      }
+    },
+    {
+      "name": "Swf.Fallback.frame_is_each",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Fallback.negotiateFrame"
+      ],
+      "specifications": [],
+      "statement": "∀ (c : Swf.Fallback.NegotiationContext) (fs : Array Swf.Fallback.FragmentFacts) (i : Nat) (hi : i < fs.size),\n  (Swf.Fallback.negotiateFrame c fs)[i] = Swf.Fallback.negotiateOne c fs[i]",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "2f008e95f6fef7b8a10b09785cf1b0c762eb7ded1145a6926c9130a25aaaf2db",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Fallback.lean",
+        "start": {
+          "line": 412,
+          "column": 1
+        },
+        "end": {
+          "line": 417,
+          "column": 24
+        }
+      }
+    },
+    {
+      "name": "Swf.Fallback.live_needs_owner",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Fallback.negotiateOne"
+      ],
+      "specifications": [],
+      "statement": "∀ (c : Swf.Fallback.NegotiationContext) (f : Swf.Fallback.FragmentFacts) (r : Swf.Fallback.Negotiated),\n  Swf.Fallback.negotiateOne c f = some r →\n    r.mode ≠ Swf.Fallback.Mode.proxy ∧ r.mode ≠ Swf.Fallback.Mode.placeholder →\n      f.owner = true ∧ ∃ hc, f.handle = some hc ∧ hc.strategy ≠ Swf.Fallback.Strategy.proxyOnly",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "247853dbd92277082ac57ae0485e09dacab22ab6d3cb3c502cb7ba46a10016fb",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Fallback.lean",
+        "start": {
+          "line": 371,
+          "column": 1
+        },
+        "end": {
+          "line": 388,
+          "column": 47
+        }
+      }
+    },
+    {
+      "name": "Swf.Fallback.owner_rule",
+      "relation": "lungo.decides",
+      "subjects": [
+        "Swf.Fallback.FragmentFacts.owner"
+      ],
+      "specifications": [],
+      "statement": "∀ (f : Swf.Fallback.FragmentFacts),\n  f.owner = true ↔\n    f.viewportOwns = true ∧\n      (f.nativeOwner = true ∨ ∃ h, f.handle = some h ∧ h.strategy = Swf.Fallback.Strategy.drawable ∧ h.shared = true)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "de193c8fb8242d0af217e2295695694afc4a2e3ba8bf7bba8a4c1750791b28d2",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Fallback.lean",
+        "start": {
+          "line": 477,
+          "column": 1
+        },
+        "end": {
+          "line": 483,
+          "column": 57
+        }
+      }
+    },
+    {
+      "name": "Swf.Fallback.placeholder_last_resort",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Fallback.negotiateOne"
+      ],
+      "specifications": [],
+      "statement": "∀ (c : Swf.Fallback.NegotiationContext) (f : Swf.Fallback.FragmentFacts),\n  Swf.Fallback.Mode.placeholder ∈ f.order → (Swf.Fallback.negotiateOne c f).isSome = true",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "59d48d1e9a4202dfbae3d6f4ca387ccdd70b2d3f22713f734c115efbff031559",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Fallback.lean",
+        "start": {
+          "line": 349,
+          "column": 1
+        },
+        "end": {
+          "line": 369,
+          "column": 20
+        }
+      }
+    },
+    {
+      "name": "Swf.Fallback.policy_valid",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Fallback.policyIssue"
+      ],
+      "specifications": [],
+      "statement": "∀ (order : List String),\n  Swf.Fallback.policyIssue order = none →\n    ∃ ms, List.map Swf.Fallback.modeOf order = List.map some ms ∧ ms.Nodup ∧ order.getLast? = some \"placeholder\"",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "bac53739ef3e9727f2545df829a819fce55b8234253b5e0b9607ad8ffa137fef",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Fallback.lean",
+        "start": {
+          "line": 450,
+          "column": 1
+        },
+        "end": {
+          "line": 465,
+          "column": 16
+        }
+      }
+    },
+    {
+      "name": "Swf.Fallback.represented_only_stand_ins",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Fallback.representedModes"
+      ],
+      "specifications": [],
+      "statement": "∀ (order : List Swf.Fallback.Mode),\n  (∀ (m : Swf.Fallback.Mode),\n      m ∈ Swf.Fallback.representedModes true order → m = Swf.Fallback.Mode.proxy ∨ m = Swf.Fallback.Mode.placeholder) ∧\n    (Swf.Fallback.representedModes true order).Sublist order ∧ Swf.Fallback.representedModes false order = order",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "21d1aa5c6fd81fa25f80e16e1b9d462d80480d3346044c290bc441b4db970c60",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Fallback.lean",
+        "start": {
+          "line": 467,
+          "column": 1
+        },
+        "end": {
+          "line": 475,
+          "column": 23
+        }
+      }
+    },
     {
       "name": "Swf.Hierarchy.lockRefuses_iff",
       "relation": "lungo.decides",
@@ -2583,6 +3352,159 @@ export const ASSURANCE = L.parseAssurance({
   "roles": [],
   "exports": [
     {
+      "name": "Swf.Fallback.negotiateFrame",
+      "module": "Swf.Fallback",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [
+          "_private.Init.Data.Array.Basic.0.Array.mapMUnsafe.map"
+        ],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_array_size",
+          "lean_array_uget",
+          "lean_array_uset",
+          "lean_nat_dec_eq",
+          "lean_nat_dec_le",
+          "lean_nat_dec_lt",
+          "lean_string_append",
+          "lean_string_dec_eq",
+          "lean_usize_add",
+          "lean_usize_dec_lt"
+        ]
+      },
+      "claims": [
+        "Swf.Fallback.frame_is_each"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Fallback.lean",
+        "start": {
+          "line": 269,
+          "column": 1
+        },
+        "end": {
+          "line": 271,
+          "column": 26
+        }
+      }
+    },
+    {
+      "name": "Swf.Fallback.negotiateOne",
+      "module": "Swf.Fallback",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_nat_dec_eq",
+          "lean_nat_dec_le",
+          "lean_nat_dec_lt",
+          "lean_string_append",
+          "lean_string_dec_eq"
+        ]
+      },
+      "claims": [
+        "Swf.Fallback.exact_only_drawable",
+        "Swf.Fallback.first_allowed_in_order",
+        "Swf.Fallback.live_needs_owner",
+        "Swf.Fallback.placeholder_last_resort"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Fallback.lean",
+        "start": {
+          "line": 264,
+          "column": 1
+        },
+        "end": {
+          "line": 267,
+          "column": 61
+        }
+      }
+    },
+    {
+      "name": "Swf.Fallback.policyIssue",
+      "module": "Swf.Fallback",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_nat_dec_eq",
+          "lean_string_dec_eq"
+        ]
+      },
+      "claims": [
+        "Swf.Fallback.policy_valid"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Fallback.lean",
+        "start": {
+          "line": 296,
+          "column": 1
+        },
+        "end": {
+          "line": 302,
+          "column": 99
+        }
+      }
+    },
+    {
+      "name": "Swf.Fallback.representedModes",
+      "module": "Swf.Fallback",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_nat_dec_eq"
+        ]
+      },
+      "claims": [
+        "Swf.Fallback.represented_only_stand_ins"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Fallback.lean",
+        "start": {
+          "line": 259,
+          "column": 1
+        },
+        "end": {
+          "line": 262,
+          "column": 88
+        }
+      }
+    },
+    {
       "name": "Swf.Hierarchy.lockRefuses",
       "module": "Swf.Hierarchy",
       "async": false,
@@ -3586,6 +4508,11 @@ export const ASSURANCE = L.parseAssurance({
 
 /** The layout fingerprint and descriptor of each type, by Lean name, for modules using them. */
 export const leanTypes = Object.freeze({
+  "Swf.Fallback.NegotiationContext": Object.freeze({ fingerprint: "b3f6a9eb4ad8fa17637d26e83501ebf78a6d86840df53c7a3297209b93abda7c", type: negotiationContextType }),
+  "Swf.Fallback.FragmentFacts": Object.freeze({ fingerprint: "c24eecba8b238681c16656957f2f215d0f97ca9973d0eae1978ca6bf46af7bf0", type: fragmentFactsType }),
+  "Swf.Fallback.Negotiated": Object.freeze({ fingerprint: "d83fa9d7293315e8dda49ffe7c35e6da48716e56ea775fc4d330682179de4536", type: negotiatedType }),
+  "Swf.Fallback.PolicyIssue": Object.freeze({ fingerprint: "1b5b86f52827b06ab586bd0c124d7c22e2d81b0d0b42d399c6f49f9493559ed0", type: policyIssueType }),
+  "Swf.Fallback.Mode": Object.freeze({ fingerprint: "3be8ac963f5c7df0fb9bd9af8ec14f2a179da4cf9a3640ed1c841fc4575f0dd4", type: modeType }),
   "Swf.Kernel.Lifecycle": Object.freeze({ fingerprint: "2c835e6526aff4101d4bbb4b9d142f054824f1bdb476b84b0b62f4aacbd3d96a", type: lifecycleType }),
   "Swf.Kernel.Ledger": Object.freeze({ fingerprint: "c220d887d23ae5ca11e8e818db6a2bfc08e2400ee159795866f856e91978e3b7", type: ledgerType }),
   "Swf.Kernel.Direction": Object.freeze({ fingerprint: "17f21a59b3409ae5cc98ff66c27a7bf7d3bf29a8a9ce98aafed6304be9d63e4d", type: directionType }),
@@ -3609,6 +4536,14 @@ export const leanTypes = Object.freeze({
   "Swf.ViewMode.ModeEvent": Object.freeze({ fingerprint: "feb6feb87a7e30d7693c96d0493a238c99e4e00601abc124d6b93b1888d68a96", type: modeEventType }),
   "Swf.ViewMode.ViewSettings": Object.freeze({ fingerprint: "c065e9ffb7dae7f29c43844de021c3579c10a16cd117a755f99ba60a4c5ef8c3", type: viewSettingsType }),
   "Swf.ViewMode.ModeTransition": Object.freeze({ fingerprint: "0c012f74883ff9576dd75b9011f2066f8c9bbf8813984c19dac02abf04d4888c", type: modeTransitionType }),
+  "Swf.Fallback.RendererCapabilities": Object.freeze({ fingerprint: "bbead800f5d4b28c524b28c072460acd75ceed866bfc53ff139ee0928a1d33e0", type: rendererCapabilitiesType }),
+  "Swf.Fallback.CompositorCapabilities": Object.freeze({ fingerprint: "cd77db5a55cb60c9dc739837f27d4bc41d09c713f3f612fee95354749407a5e1", type: compositorCapabilitiesType }),
+  "Swf.Fallback.HandleCapabilities": Object.freeze({ fingerprint: "75c8c4ab237c2bb359996036eb2a6c826d529d9e46e5be78208f892177a74f66", type: handleCapabilitiesType }),
+  "Swf.Fallback.Gap": Object.freeze({ fingerprint: "c87a6e4bbde5d77c1cee9bedae0eb7b65729f242da30323078987d0250dc9d11", type: gapType }),
+  "Swf.Fallback.ShapeFidelity": Object.freeze({ fingerprint: "556e6674760094c3e6a6957e976638fbcbe260b7966937ff51aa7287bbe38371", type: shapeFidelityType }),
+  "Swf.Fallback.Fidelity": Object.freeze({ fingerprint: "9caab1dda5db69f610048926711284e8fe14ba009169cdf8aa2bc645ebda4e56", type: fidelityType }),
+  "Swf.Fallback.Interaction": Object.freeze({ fingerprint: "a153a156432eadae9cbe7da2def154a0f9304402e948c844299ca460d9fa976f", type: interactionType }),
+  "Swf.Fallback.LayerCategory": Object.freeze({ fingerprint: "788c488edf4c7b129570b4f461f7b3e151071a333afe6482e10564ac989bb2b4", type: layerCategoryType }),
   "Swf.Save.SaveState": Object.freeze({ fingerprint: "ae6ddcd17f2d87663d31fb876b46dd9ea0372d089378bd4509e4e6fae3d9770d", type: saveStateType }),
   "Swf.Save.AckRefusal": Object.freeze({ fingerprint: "2f6eef547b4857866a273a8b018782b993df476b5a619fa70564b0a935bb0549", type: ackRefusalType }),
   "Swf.Surface.UnboundReason": Object.freeze({ fingerprint: "95fa7fe593058c7d2614587e173ffcc81e640a3b40fdf6ca0ca1edf836cdfd93", type: unboundReasonType }),
@@ -3616,6 +4551,10 @@ export const leanTypes = Object.freeze({
   "Swf.Surface.Release": Object.freeze({ fingerprint: "c86983c9af4e3ad8cd45eb8729699fbcd25fce764f7d43da2b19763c672fafeb", type: releaseType }),
   "Swf.ViewMode.ProjectionSetting": Object.freeze({ fingerprint: "97b34823a98c76e376fd8ca30ade4a7f301eeb0077d62d331825fc32f174adbf", type: projectionSettingType }),
   "Swf.ViewMode.Quat": Object.freeze({ fingerprint: "e8a26ff475b891483592b41e9ed64c444f631505486a1cd3299c5ddcfbf1a7a7", type: quatType }),
+  "Swf.Fallback.Strategy": Object.freeze({ fingerprint: "a86de2295cd433fc186ec98f01ab35dd1f6570cdef96a73eb439b3f9e10d43e0", type: strategyType }),
+  "Swf.Fallback.TransformMode": Object.freeze({ fingerprint: "2a4b8b93f5cb1a459e477132dd8b25c77dd354e4f13b6211f852f8e47e16681c", type: transformModeType }),
+  "Swf.Fallback.Clip": Object.freeze({ fingerprint: "e92fbc8fa4ed8d35fa9a45d4a3649b143d08e2674e787b9190d3b6bc675389ad", type: clipType }),
+  "Swf.Fallback.Requirement": Object.freeze({ fingerprint: "3bff8e4a7c2e0078c0527d7784e2e85c858a735831dd78fca1f2eec7a3ea6599", type: requirementType }),
   "Swf.Json": Object.freeze({ fingerprint: "44adb8c006802c79becdc00b1fa4e555bcbcd2b22f75fd40160944f233b7f49e", type: jsonType }),
 });
 
@@ -3624,6 +4563,18 @@ export class SwfModels {
   #program;
   constructor(program) {
     this.#program = program;
+  }
+  negotiateFrame(c, fs) {
+    return this.#program.invoke("swf_models__call_l_Swf_dFallback_dnegotiateFrame", [], [[negotiationContextType(), c], [L.array(fragmentFactsType()), fs]], L.value(L.array(L.option(negotiatedType()))));
+  }
+  negotiateOne(c, f) {
+    return this.#program.invoke("swf_models__call_l_Swf_dFallback_dnegotiateOne", [], [[negotiationContextType(), c], [fragmentFactsType(), f]], L.value(L.option(negotiatedType())));
+  }
+  policyIssue(order) {
+    return this.#program.invoke("swf_models__call_l_Swf_dFallback_dpolicyIssue", [], [[L.list(L.STRING), order]], L.value(L.option(policyIssueType())));
+  }
+  representedModes(represented, order) {
+    return this.#program.invoke("swf_models__call_l_Swf_dFallback_drepresentedModes", [], [[L.BOOL, represented], [L.list(modeType()), order]], L.value(L.list(modeType())));
   }
   lockRefuses(byUser, locked) {
     return this.#program.invoke("swf_models__call_l_Swf_dHierarchy_dlockRefuses", [], [[L.BOOL, byUser], [L.BOOL, locked]], L.value(L.BOOL));
