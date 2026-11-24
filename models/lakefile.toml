@@ -1,0 +1,12 @@
+name = "swf_models"
+version = "0.1.0"
+defaultTargets = ["Swf"]
+
+[[require]]
+name = "lungo"
+git = "https://github.com/machinefabric/lungo-rs"
+rev = "v1.127.0"
+subDir = "lean"
+
+[[lean_lib]]
+name = "Swf"

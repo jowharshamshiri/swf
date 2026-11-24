@@ -1,0 +1,18 @@
+# SWF's state machines and decision logic, written and proved in Lean (models/) and compiled by
+# lungo into @swf/models, which runs them as WebAssembly through lungo-ts. The README's "Models"
+# section says how they are built and changed.
+project = "models"
+
+[lean]
+name = "swf-models"
+exports = [
+  "Swf.ViewMode.transition",
+  "Swf.ViewMode.observed",
+]
+
+[assurance]
+require-claims = ["."]
+
+[ts]
+out = "packages/models/program"
+options = { embed = "true" }

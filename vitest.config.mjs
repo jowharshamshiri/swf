@@ -8,6 +8,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@swf/math': source('math'),
+      '@swf/models': source('models'),
       '@swf/core': source('core'),
       '@swf/surfaces': source('surfaces'),
       '@swf/presentation': source('presentation'),

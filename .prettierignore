@@ -9,3 +9,8 @@ packages/persistence/fixtures
 apps/reference/test/fixtures/golden
 # The pinned checkout of wsb, for its UI kit: its own formatting
 wsb
+# The program lungo generates from models/, byte for byte.
+packages/models/program
+# Lake's build of the models and lungo's scratch space.
+models/.lake
+.lungo

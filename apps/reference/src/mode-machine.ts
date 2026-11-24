@@ -1,11 +1,14 @@
 import type { ProjectionSetting } from '@swf/core';
 import type { Quat } from '@swf/math';
+import type * as Lean from '@swf/models';
+import { fromJson, models, toJson } from '@swf/models';
 
 /**
- * Which view mode a viewport is in, and the view it was entered from, as plain data with explicit
- * transitions. Nothing here touches a scene: a transition says which mode comes next and which view
- * settings to put back, and the caller turns that into one view-state commit. World transforms are
- * never part of it.
+ * Which view mode a viewport is in, and the view it was entered from. The machine is the Lean
+ * model `Swf.ViewMode` (models/Swf/ViewMode.lean), where its invariants are proved; this module
+ * only carries its states across. Nothing here touches a scene: a transition says which mode comes
+ * next and which view settings to put back, and the caller turns that into one view-state commit.
+ * World transforms are never part of it.
  */
 
 /** A viewport's view settings, as they were when a mode was entered. */
@@ -68,7 +71,8 @@ export function initialMode(mode: string): ModeMachine {
  * it is in that mode, with no view to go back to.
  */
 export function observedMode(machine: ModeMachine, recorded: string): ModeMachine {
-  return machine.mode === recorded ? machine : initialMode(recorded);
+  const observed = models.observed(leanMachine(machine), recorded);
+  return observed === null ? machine : machineOf(observed);
 }
 
 /**
@@ -83,47 +87,59 @@ export function transition(
   current: ViewSettings,
   traits: (mode: string) => ModeTraits,
 ): ModeTransition {
-  if (current.mode !== machine.mode) {
-    return refused(
-      `the viewport shows the ${current.mode} mode, but the machine is in the ${machine.mode} mode`,
-    );
+  const next = models.transition(
+    leanMachine(machine),
+    event,
+    leanView(current),
+    traits(machine.mode).restoresView,
+  );
+  if (next.kind === 'refused') {
+    return Object.freeze({ kind: 'refused', reason: next.reason });
   }
-  const leaving = traits(machine.mode);
-  const restored = leaving.restoresView && machine.from !== null ? machine.from.camera : null;
-  if (event.kind === 'back') {
-    const from = machine.from;
-    if (from === null) {
-      return refused(`the ${machine.mode} mode was not entered from another view`);
-    }
-    return Object.freeze({
-      kind: 'next',
-      machine: initialMode(from.mode),
-      mode: from.mode,
-      projection: from.projection,
-      camera: leaving.restoresView ? from.camera : null,
-    });
-  }
-  if (event.to === machine.mode) {
-    // Entered again: the view it was first entered from stays the one to go back to.
-    return Object.freeze({
-      kind: 'next',
-      machine,
-      mode: event.to,
-      projection: null,
-      camera: null,
-    });
-  }
-  // Leaving a mode that restores the view, the view left is the one put back.
-  const left: ViewSettings = leaving.restoresView && machine.from !== null ? machine.from : current;
   return Object.freeze({
     kind: 'next',
-    machine: Object.freeze({ mode: event.to, from: left }),
-    mode: event.to,
-    projection: null,
-    camera: restored,
+    machine: machineOf(next.machine),
+    mode: next.mode,
+    projection: next.projection === null ? null : projectionOf(next.projection),
+    camera: next.camera === null ? null : quatOf(next.camera),
   });
 }
 
-function refused(reason: string): ModeTransition {
-  return Object.freeze({ kind: 'refused', reason });
+function leanMachine(machine: ModeMachine): Lean.ModeMachine {
+  return { mode: machine.mode, origin: machine.from === null ? null : leanView(machine.from) };
+}
+
+function leanView(view: ViewSettings): Lean.ViewSettings {
+  const [x, y, z, w] = view.camera;
+  return {
+    mode: view.mode,
+    projection: {
+      id: view.projection.id,
+      config: toJson(view.projection.config, 'projection.config'),
+    },
+    camera: { x, y, z, w },
+  };
+}
+
+function machineOf(machine: Lean.ModeMachine): ModeMachine {
+  return Object.freeze({
+    mode: machine.mode,
+    from: machine.origin === null ? null : viewOf(machine.origin),
+  });
+}
+
+function viewOf(view: Lean.ViewSettings): ViewSettings {
+  return Object.freeze({
+    mode: view.mode,
+    projection: projectionOf(view.projection),
+    camera: quatOf(view.camera),
+  });
+}
+
+function projectionOf(projection: Lean.ProjectionSetting): ProjectionSetting {
+  return Object.freeze({ id: projection.id, config: fromJson(projection.config) });
+}
+
+function quatOf(q: Lean.Quat): Quat {
+  return Object.freeze([q.x, q.y, q.z, q.w] as const);
 }

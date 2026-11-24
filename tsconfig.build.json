@@ -5,6 +5,9 @@
       "path": "packages/math/tsconfig.build.json"
     },
     {
+      "path": "packages/models/tsconfig.build.json"
+    },
+    {
       "path": "packages/core/tsconfig.build.json"
     },
     {

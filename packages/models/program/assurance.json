@@ -1,0 +1,314 @@
+{
+  "schema_version": 1,
+  "program": "swf-models",
+  "provenance": {
+    "lean_version": "4.35.0",
+    "lean_githash": "eb6cafb7290e8bd5f2937522d8d804f58f02bafc",
+    "lungo_version": "1.127.0",
+    "bir_version": 3,
+    "runtime_abi": 3
+  },
+  "library": {
+    "package": "lungo",
+    "schema_version": 1
+  },
+  "specifications": [],
+  "facilities": [],
+  "assumptions": [],
+  "claims": [
+    {
+      "name": "Swf.ViewMode.back_restores_entry_view",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.ViewMode.transition"
+      ],
+      "specifications": [],
+      "statement": "∀ (m : Swf.ViewMode.ModeMachine) (v current : Swf.ViewMode.ViewSettings) (r : Bool),\n  current.mode = m.mode →\n    m.origin = some v →\n      Swf.ViewMode.transition m Swf.ViewMode.ModeEvent.back current r =\n        Swf.ViewMode.ModeTransition.next (Swf.ViewMode.initial v.mode) v.mode (some v.projection)\n          (if r = true then some v.camera else none)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "96066014e5a2b7448eb8aa86bce617cecd2c17b964ed3496a343b7e9e2e6f2a3",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/ViewMode.lean",
+        "start": {
+          "line": 89,
+          "column": 1
+        },
+        "end": {
+          "line": 96,
+          "column": 28
+        }
+      }
+    },
+    {
+      "name": "Swf.ViewMode.back_without_origin_refused",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.ViewMode.transition"
+      ],
+      "specifications": [],
+      "statement": "∀ (m : Swf.ViewMode.ModeMachine) (current : Swf.ViewMode.ViewSettings) (r : Bool),\n  m.origin = none →\n    ∃ reason,\n      Swf.ViewMode.transition m Swf.ViewMode.ModeEvent.back current r = Swf.ViewMode.ModeTransition.refused reason",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "245cea2f4bd9bb909f267e2ffcce8e4c09446b18bde0e9a7b23c0a2861f7b725",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/ViewMode.lean",
+        "start": {
+          "line": 98,
+          "column": 1
+        },
+        "end": {
+          "line": 102,
+          "column": 68
+        }
+      }
+    },
+    {
+      "name": "Swf.ViewMode.mismatch_refused",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.ViewMode.transition"
+      ],
+      "specifications": [],
+      "statement": "∀ (m : Swf.ViewMode.ModeMachine) (e : Swf.ViewMode.ModeEvent) (current : Swf.ViewMode.ViewSettings) (r : Bool),\n  current.mode ≠ m.mode → ∃ reason, Swf.ViewMode.transition m e current r = Swf.ViewMode.ModeTransition.refused reason",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "cb7a5349011ce3805fb25cdb7e9f72fbdbdf6a48798e6355e8640d2bfecdb12c",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/ViewMode.lean",
+        "start": {
+          "line": 83,
+          "column": 1
+        },
+        "end": {
+          "line": 87,
+          "column": 23
+        }
+      }
+    },
+    {
+      "name": "Swf.ViewMode.next_mode_consistent",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.ViewMode.transition"
+      ],
+      "specifications": [],
+      "statement": "∀ (m m' : Swf.ViewMode.ModeMachine) (e : Swf.ViewMode.ModeEvent) (current : Swf.ViewMode.ViewSettings) (r : Bool)\n  (mode : String) (p : Option Swf.ViewMode.ProjectionSetting) (c : Option Swf.ViewMode.Quat),\n  Swf.ViewMode.transition m e current r = Swf.ViewMode.ModeTransition.next m' mode p c → m'.mode = mode",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "66f39ba18b2a3da0e98db56624762c1e86ba2677b13425e926d027bcb8b4c846",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/ViewMode.lean",
+        "start": {
+          "line": 122,
+          "column": 1
+        },
+        "end": {
+          "line": 138,
+          "column": 55
+        }
+      }
+    },
+    {
+      "name": "Swf.ViewMode.observed_follows_record",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.ViewMode.observed"
+      ],
+      "specifications": [],
+      "statement": "∀ (m : Swf.ViewMode.ModeMachine) (recorded : String),\n  Swf.ViewMode.observed m m.mode = none ∧\n    (m.mode ≠ recorded → Swf.ViewMode.observed m recorded = some { mode := recorded, origin := none })",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "430c8fdfb86b6cda6de1dc0ca3684d8c4cac7e2c1055b425511974acf0de6d33",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/ViewMode.lean",
+        "start": {
+          "line": 140,
+          "column": 1
+        },
+        "end": {
+          "line": 146,
+          "column": 71
+        }
+      }
+    },
+    {
+      "name": "Swf.ViewMode.reenter_keeps_origin",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.ViewMode.transition"
+      ],
+      "specifications": [],
+      "statement": "∀ (m : Swf.ViewMode.ModeMachine) (current : Swf.ViewMode.ViewSettings) (r : Bool),\n  current.mode = m.mode →\n    Swf.ViewMode.transition m (Swf.ViewMode.ModeEvent.switch m.mode) current r =\n      Swf.ViewMode.ModeTransition.next m m.mode none none",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "f00f934c1685295a3344fa72047c0ac63527d37f5c5fbd159d6fe50e479f0b51",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/ViewMode.lean",
+        "start": {
+          "line": 104,
+          "column": 1
+        },
+        "end": {
+          "line": 109,
+          "column": 24
+        }
+      }
+    },
+    {
+      "name": "Swf.ViewMode.switch_remembers_view_left",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.ViewMode.transition"
+      ],
+      "specifications": [],
+      "statement": "∀ (m : Swf.ViewMode.ModeMachine) (current : Swf.ViewMode.ViewSettings) (to : String) (r : Bool),\n  current.mode = m.mode →\n    to ≠ m.mode →\n      Swf.ViewMode.transition m (Swf.ViewMode.ModeEvent.switch to) current r =\n        Swf.ViewMode.ModeTransition.next\n          { mode := to, origin := some ((if r = true then m.origin else none).getD current) } to none\n          (Option.map (fun x => x.camera) (if r = true then m.origin else none))",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "d9739a3a4715f74a99b539310eefec28370befc7f6ddd1c4b575c2093746195b",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/ViewMode.lean",
+        "start": {
+          "line": 111,
+          "column": 1
+        },
+        "end": {
+          "line": 120,
+          "column": 28
+        }
+      }
+    }
+  ],
+  "roles": [],
+  "exports": [
+    {
+      "name": "Swf.ViewMode.observed",
+      "module": "Swf.ViewMode",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_string_dec_eq"
+        ]
+      },
+      "claims": [
+        "Swf.ViewMode.observed_follows_record"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/ViewMode.lean",
+        "start": {
+          "line": 51,
+          "column": 1
+        },
+        "end": {
+          "line": 55,
+          "column": 62
+        }
+      }
+    },
+    {
+      "name": "Swf.ViewMode.transition",
+      "module": "Swf.ViewMode",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_string_append",
+          "lean_string_dec_eq"
+        ]
+      },
+      "claims": [
+        "Swf.ViewMode.back_restores_entry_view",
+        "Swf.ViewMode.back_without_origin_refused",
+        "Swf.ViewMode.mismatch_refused",
+        "Swf.ViewMode.next_mode_consistent",
+        "Swf.ViewMode.reenter_keeps_origin",
+        "Swf.ViewMode.switch_remembers_view_left"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/ViewMode.lean",
+        "start": {
+          "line": 57,
+          "column": 1
+        },
+        "end": {
+          "line": 79,
+          "column": 84
+        }
+      }
+    }
+  ]
+}

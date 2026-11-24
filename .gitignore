@@ -7,3 +7,6 @@ dist/
 .vitest/
 # The development-server test's copy of the reference application
 apps/reference/.dev-test-*/
+# Lake's build of the models and lungo's scratch space
+models/.lake/
+.lungo/

@@ -5,6 +5,7 @@ import { defineConfig } from 'vite';
 
 const PACKAGES = [
   'math',
+  'models',
   'core',
   'surfaces',
   'presentation',
@@ -114,6 +115,9 @@ export default defineConfig(({ mode }) => ({
     sourcemap: false,
     // The kit's faces too: a page opened from the file may load nothing else.
     assetsInlineLimit: () => true,
+    // One chunk: the models program loads its WebAssembly host (and, under Node only, Node's
+    // modules) through dynamic imports, which a page opened from the file must not fetch.
+    rolldownOptions: { output: { codeSplitting: false } },
   },
   plugins: [svelte(), uikit(), debugOverlay(mode), singleFile()],
 }));

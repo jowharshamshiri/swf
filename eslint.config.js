@@ -9,6 +9,8 @@ export default defineConfig(
       '**/node_modules/**',
       '.scrap/**',
       '.vitest/**',
+      // The program lungo generates from models/: never edited by hand.
+      'packages/models/program/**',
       // The pinned checkout of wsb, for its UI kit, and the dev-server test's copy of the app.
       'wsb/**',
       'apps/reference/.dev-test-*/**',
