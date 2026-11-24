@@ -52,6 +52,8 @@ exports = [
   "Swf.Gesture.gestureStep",
   "Swf.Gesture.keyRoute",
   "Swf.Gesture.holdGate",
+  "Swf.Arbitration.bestBid",
+  "Swf.Arbitration.pickOrder",
   "Swf.ViewMode.transition",
   "Swf.ViewMode.observed",
 ]

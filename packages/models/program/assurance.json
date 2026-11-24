@@ -17,6 +17,236 @@
   "assumptions": [],
   "claims": [
     {
+      "name": "Swf.Arbitration.covered_frames_dropped",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Arbitration.keeps"
+      ],
+      "specifications": [],
+      "statement": "∀ (hits : Array Swf.Arbitration.Hit) (i j : Nat),\n  i < hits.size →\n    j < hits.size →\n      hits[i]!.node = hits[j]!.node →\n        (hits[i]!.surface = none →\n            hits[i]!.region = Swf.Arbitration.HitRegion.chrome →\n              hits[j]!.surface.isSome = true → Swf.Arbitration.keeps hits i = false) ∧\n          (hits[i]!.surface.isSome = true →\n            hits[j]!.surface = none →\n              hits[j]!.region = Swf.Arbitration.HitRegion.resizeHandle → Swf.Arbitration.keeps hits i = false)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "2438fde89fa7393f7ab4ba1ea7489b7438f980aae1f133f3c63b67d167595dad",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Arbitration.lean",
+        "start": {
+          "line": 242,
+          "column": 1
+        },
+        "end": {
+          "line": 262,
+          "column": 33
+        }
+      }
+    },
+    {
+      "name": "Swf.Arbitration.occluded_by_nearer",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Arbitration.pickOrder"
+      ],
+      "specifications": [],
+      "statement": "∀ (hits : Array Swf.Arbitration.Hit) (tolerance : Float) (k : Nat),\n  k < (Swf.Arbitration.pickOrder hits tolerance).order.length →\n    ((Swf.Arbitration.pickOrder hits tolerance).occluded[k]! = true ↔\n      ∃ j,\n        j ∈ List.filter (Swf.Arbitration.keeps hits) (List.range hits.size) ∧\n          j ≠ (Swf.Arbitration.pickOrder hits tolerance).order[k]! ∧\n            hits[j]!.occluding = true ∧\n              Swf.Order.floatKey (hits[j]!.distance + tolerance) <\n                Swf.Order.floatKey hits[(Swf.Arbitration.pickOrder hits tolerance).order[k]!]!.distance)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "777c7fc0c4937bef368c4b276be0c18c37377268a937d30fcada637bc83ab4c0",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Arbitration.lean",
+        "start": {
+          "line": 264,
+          "column": 1
+        },
+        "end": {
+          "line": 280,
+          "column": 64
+        }
+      }
+    },
+    {
+      "name": "Swf.Arbitration.order_is_kept",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Arbitration.pickOrder"
+      ],
+      "specifications": [],
+      "statement": "∀ (hits : Array Swf.Arbitration.Hit) (tolerance : Float),\n  (Swf.Arbitration.pickOrder hits tolerance).order.Perm\n    (List.filter (Swf.Arbitration.keeps hits) (List.range hits.size))",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "a9e2c3fabab0dce55b794a586f825e8de9d4abe09e95bbf9334d5b2d24dc6095",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Arbitration.lean",
+        "start": {
+          "line": 226,
+          "column": 1
+        },
+        "end": {
+          "line": 231,
+          "column": 32
+        }
+      }
+    },
+    {
+      "name": "Swf.Arbitration.target_ranks_first",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Arbitration.pickOrder"
+      ],
+      "specifications": [],
+      "statement": "∀ (hits : Array Swf.Arbitration.Hit) (tolerance : Float) (t : Nat),\n  (Swf.Arbitration.pickOrder hits tolerance).order.head? = some t →\n    ∀ (j : Nat),\n      j < hits.size →\n        Swf.Arbitration.keeps hits j = true →\n          Swf.Arbitration.keyLe\n              (Swf.Arbitration.hitKey hits (List.filter (Swf.Arbitration.keeps hits) (List.range hits.size)) tolerance\n                t)\n              (Swf.Arbitration.hitKey hits (List.filter (Swf.Arbitration.keeps hits) (List.range hits.size)) tolerance\n                j) =\n            true",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "a9b580c2fc39336de2435a801637f9c9ee181702bbd86be8cc2bf653fbd323d7",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Arbitration.lean",
+        "start": {
+          "line": 233,
+          "column": 1
+        },
+        "end": {
+          "line": 240,
+          "column": 49
+        }
+      }
+    },
+    {
+      "name": "Swf.Arbitration.winner_eligible",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Arbitration.bestBid"
+      ],
+      "specifications": [],
+      "statement": "∀ (bids : Array Swf.Arbitration.Bid) (kind : Swf.Arbitration.BidKind) (pointers i : Nat),\n  Swf.Arbitration.bestBid bids kind pointers = some i →\n    i < bids.size ∧ bids[i]!.kind = kind ∧ bids[i]!.pointers = pointers",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "961180e0607e9b8d24d8cdbe946b2a8bd3cd9506d43df0234aaa001ed3f9e8d6",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Arbitration.lean",
+        "start": {
+          "line": 111,
+          "column": 1
+        },
+        "end": {
+          "line": 123,
+          "column": 37
+        }
+      }
+    },
+    {
+      "name": "Swf.Arbitration.winner_exists_iff",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Arbitration.bestBid"
+      ],
+      "specifications": [],
+      "statement": "∀ (bids : Array Swf.Arbitration.Bid) (kind : Swf.Arbitration.BidKind) (pointers : Nat),\n  (Swf.Arbitration.bestBid bids kind pointers).isSome = true ↔\n    ∃ j, j < bids.size ∧ Swf.Arbitration.eligibleBid bids kind pointers j = true",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "8c5d221ada46d1cbe11ed7b0faeefcb76f5508c0afa2ddb56fe34e65839885d2",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Arbitration.lean",
+        "start": {
+          "line": 134,
+          "column": 1
+        },
+        "end": {
+          "line": 157,
+          "column": 33
+        }
+      }
+    },
+    {
+      "name": "Swf.Arbitration.winner_ranks_first",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Arbitration.bestBid"
+      ],
+      "specifications": [],
+      "statement": "∀ (bids : Array Swf.Arbitration.Bid) (kind : Swf.Arbitration.BidKind) (pointers i : Nat),\n  Swf.Arbitration.bestBid bids kind pointers = some i →\n    ∀ (j : Nat),\n      j < bids.size →\n        Swf.Arbitration.eligibleBid bids kind pointers j = true →\n          Swf.Arbitration.keyLe (Swf.Arbitration.bidKey bids[i]!) (Swf.Arbitration.bidKey bids[j]!) = true",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "108ec85c3419aab7a56f8a3cd5d2184e40ccbeed5cd31b6e58fdee6d34d03c08",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Arbitration.lean",
+        "start": {
+          "line": 125,
+          "column": 1
+        },
+        "end": {
+          "line": 132,
+          "column": 49
+        }
+      }
+    },
+    {
       "name": "Swf.Fallback.exact_only_drawable",
       "relation": "lungo.law",
       "subjects": [
@@ -2471,6 +2701,122 @@
   ],
   "roles": [],
   "exports": [
+    {
+      "name": "Swf.Arbitration.bestBid",
+      "module": "Swf.Arbitration",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_array_get_borrowed",
+          "lean_array_get_size",
+          "lean_float_to_bits",
+          "lean_int_dec_eq",
+          "lean_int_dec_lt",
+          "lean_int_neg",
+          "lean_nat_add",
+          "lean_nat_dec_eq",
+          "lean_nat_dec_lt",
+          "lean_nat_shiftr",
+          "lean_nat_sub",
+          "lean_nat_to_int",
+          "lean_string_dec_lt",
+          "lean_uint64_complement",
+          "lean_uint64_dec_eq",
+          "lean_uint64_land",
+          "lean_uint64_to_float",
+          "lean_uint64_to_nat"
+        ]
+      },
+      "claims": [
+        "Swf.Arbitration.winner_eligible",
+        "Swf.Arbitration.winner_exists_iff",
+        "Swf.Arbitration.winner_ranks_first"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Arbitration.lean",
+        "start": {
+          "line": 106,
+          "column": 1
+        },
+        "end": {
+          "line": 109,
+          "column": 76
+        }
+      }
+    },
+    {
+      "name": "Swf.Arbitration.pickOrder",
+      "module": "Swf.Arbitration",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "fabs",
+          "lean_array_get_borrowed",
+          "lean_array_get_size",
+          "lean_float_add",
+          "lean_float_decLe",
+          "lean_float_sub",
+          "lean_float_to_bits",
+          "lean_int_dec_eq",
+          "lean_int_dec_lt",
+          "lean_int_neg",
+          "lean_nat_add",
+          "lean_nat_dec_eq",
+          "lean_nat_dec_lt",
+          "lean_nat_shiftr",
+          "lean_nat_sub",
+          "lean_nat_to_int",
+          "lean_string_append",
+          "lean_string_dec_eq",
+          "lean_string_dec_lt",
+          "lean_uint64_complement",
+          "lean_uint64_dec_eq",
+          "lean_uint64_land",
+          "lean_uint64_to_float",
+          "lean_uint64_to_nat"
+        ]
+      },
+      "claims": [
+        "Swf.Arbitration.occluded_by_nearer",
+        "Swf.Arbitration.order_is_kept",
+        "Swf.Arbitration.target_ranks_first"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Arbitration.lean",
+        "start": {
+          "line": 214,
+          "column": 1
+        },
+        "end": {
+          "line": 224,
+          "column": 50
+        }
+      }
+    },
     {
       "name": "Swf.Fallback.negotiateFrame",
       "module": "Swf.Fallback",

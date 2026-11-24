@@ -7,6 +7,8 @@ import {
   worldMatrix,
 } from '@swf/core';
 import type { Mat4, Ray, Vec3 } from '@swf/math';
+import type { HitRegion } from '@swf/models';
+import { models } from '@swf/models';
 import type { ViewGeometry } from '@swf/presentation';
 import type { Continuity, Projection } from '@swf/projections';
 import type { SceneIndex } from './scene-index.js';
@@ -110,7 +112,12 @@ export interface PickContext {
   readonly options: PickOptions;
 }
 
-const REGION_RANK = { 'resize-handle': 0, content: 1, chrome: 2 } as const;
+/** Each hit region as the arbitration model names it. */
+const HIT_REGIONS: Readonly<Record<PickCandidate['region'], HitRegion['kind']>> = Object.freeze({
+  'resize-handle': 'resizeHandle',
+  content: 'content',
+  chrome: 'chrome',
+});
 
 /**
  * Picks at a viewport point: the projection's inverse gives the world ray, the index the entries
@@ -155,31 +162,29 @@ export function pick(
       raw.push(hit);
     }
   }
-  // Inside a window, its frame counts only where no surface of its own covers it, except along
-  // its edges, where the resize band comes first.
-  const covered = new Set(raw.filter((c) => c.surfaceId !== null).map((c) => c.nodeId));
-  const merged = raw.filter((c) => {
-    if (c.surfaceId === null && c.region === 'chrome' && covered.has(c.nodeId)) {
-      return false;
+  // The arbitration model (`Swf.Arbitration`) merges the hits (a window's frame counts inside it
+  // only where no surface of its own covers it, except along its resize band), marks the occluded
+  // ones and orders them.
+  const decided = models.pickOrder(
+    raw.map((hit) => ({
+      node: hit.nodeId,
+      surface: hit.surfaceId,
+      region: { kind: HIT_REGIONS[hit.region] },
+      distance: hit.distance,
+      priority: hit.priority,
+      occluding:
+        options.occlusion({ nodeId: hit.nodeId, surfaceId: hit.surfaceId }) === 'occluding',
+    })),
+    options.depthTolerance,
+  );
+  const candidates: PickCandidate[] = decided.order.map((index, k) => {
+    const hit = raw[Number(index)];
+    const occluded = decided.occluded[k];
+    if (hit === undefined || occluded === undefined) {
+      throw new Error(`the arbitration model ordered hit ${String(index)}, which is not given`);
     }
-    if (c.surfaceId !== null) {
-      return !raw.some(
-        (h) => h.surfaceId === null && h.nodeId === c.nodeId && h.region === 'resize-handle',
-      );
-    }
-    return true;
+    return { ...hit, occluded };
   });
-  const byDepth = [...merged].sort((a, b) => a.distance - b.distance);
-  const candidates: PickCandidate[] = merged.map((c) => ({
-    ...c,
-    occluded: byDepth.some(
-      (h) =>
-        h !== c &&
-        h.distance + options.depthTolerance < c.distance &&
-        options.occlusion({ nodeId: h.nodeId, surfaceId: h.surfaceId }) === 'occluding',
-    ),
-  }));
-  candidates.sort(compareCandidates);
   const target = candidates[0];
   if (target === undefined) {
     return {
@@ -188,13 +193,7 @@ export function pick(
       region: options.modal === null ? 'background' : 'modal-overlay',
     };
   }
-  const second = candidates[1];
-  const ambiguous =
-    second !== undefined &&
-    second.nodeId !== target.nodeId &&
-    second.priority === target.priority &&
-    second.occluded === target.occluded &&
-    Math.abs(second.distance - target.distance) <= options.depthTolerance;
+  const ambiguous = decided.ambiguous;
   const excluded = options.modal !== null && !options.modal.has(target.nodeId);
   return {
     ...info,
@@ -297,15 +296,4 @@ function edgeAt(local: Vec3, w: number, h: number, band: number, world: Mat4): R
   const horizontal = local[0] >= w / 2 - bx ? 'e' : local[0] <= -w / 2 + bx ? 'w' : '';
   const edge = `${vertical}${horizontal}`;
   return edge === '' ? null : (edge as ResizeEdge);
-}
-
-function compareCandidates(a: PickCandidate, b: PickCandidate): number {
-  const id = (c: PickCandidate) => `${c.nodeId}\u0000${c.surfaceId ?? ''}`;
-  return (
-    b.priority - a.priority ||
-    Number(a.occluded) - Number(b.occluded) ||
-    a.distance - b.distance ||
-    REGION_RANK[a.region] - REGION_RANK[b.region] ||
-    (id(a) < id(b) ? -1 : id(a) > id(b) ? 1 : 0)
-  );
 }
