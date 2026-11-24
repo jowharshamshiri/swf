@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { commands, userEvent } from 'vitest/browser';
-import { DOM_ATTRIBUTES } from '../../src/index.js';
+import { DEFAULT_CHROME_INKS, DOM_ATTRIBUTES } from '../../src/index.js';
 import type { Stage } from './fixture.js';
 import { drag, onWindow, pageOf, screenOf, stage, W } from './fixture.js';
 
@@ -118,6 +118,53 @@ describe('chrome on its own layers (FR-054, FR-089)', () => {
     expect(hit?.closest(`[${DOM_ATTRIBUTES.layer}="chrome"]`)).toBeNull();
     // The chrome is a layer of its own, not inside the content's.
     expect(chrome.closest(`[${DOM_ATTRIBUTES.layer}="content-native"]`)).toBeNull();
+  });
+
+  it('draws the frame, and marks the selected and the focused window, in the host’s inks (WCAG 2.4.7, 1.4.11)', async () => {
+    current = await stage([framed], {
+      inks: { frame: 'var(--test-frame)', selected: 'rgb(0, 0, 200)', focused: 'rgb(200, 0, 0)' },
+    });
+    const view = current.views.get('v');
+    const container = current.containers.get('v');
+    if (view === undefined || container === undefined) {
+      throw new Error('no view');
+    }
+    container.style.setProperty('--test-frame', 'rgb(0, 120, 0)');
+    const frame = () => {
+      const element = view.root.querySelector<HTMLElement>(
+        `[${DOM_ATTRIBUTES.layer}="chrome-frame"]`,
+      );
+      if (element === null) {
+        throw new Error('no frame');
+      }
+      const style = getComputedStyle(element);
+      return {
+        colour: style.borderTopColor,
+        width: style.borderTopWidth,
+        line: style.borderTopStyle,
+      };
+    };
+    expect(frame()).toEqual({ colour: 'rgb(0, 120, 0)', width: '1px', line: 'solid' });
+    current.ws.dispatch({ type: 'selection.set', ids: ['a'] });
+    await view.update();
+    expect(frame()).toEqual({ colour: 'rgb(0, 0, 200)', width: '3px', line: 'solid' });
+    current.ws.dispatch({ type: 'focus.set', id: 'a' });
+    await view.update();
+    expect(frame()).toEqual({ colour: 'rgb(200, 0, 0)', width: '3px', line: 'solid' });
+    current.ws.transaction([
+      { type: 'selection.set', ids: [] },
+      { type: 'focus.set', id: null },
+    ]);
+    await view.update();
+    expect(frame()).toEqual({ colour: 'rgb(0, 120, 0)', width: '1px', line: 'solid' });
+  });
+
+  it('draws in inks that stand out on a light page by default', () => {
+    expect(DEFAULT_CHROME_INKS).toEqual({
+      frame: 'rgb(118, 118, 118)',
+      selected: 'rgb(0, 95, 184)',
+      focused: 'rgb(168, 74, 0)',
+    });
   });
 
   it('moves a window dragged by its frame, holding the pointer outside the view until release', async () => {

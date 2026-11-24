@@ -2,6 +2,8 @@ import type {
   CancelReason,
   Id,
   JsonValue,
+  NodeRecord,
+  PreviewApplied,
   SceneState,
   TxOutcome,
   TxResult,
@@ -9,7 +11,7 @@ import type {
   WorkspaceReader,
 } from '@swf/core';
 import { effectiveState, makeError, SwfFailure } from '@swf/core';
-import type { Vec3 } from '@swf/math';
+import type { Transform3D, Vec3 } from '@swf/math';
 import { add, scale, sub } from '@swf/math';
 import type { ViewGeometry } from '@swf/presentation';
 import { cameraRotation, headingPitchOf } from '@swf/projections';
@@ -24,11 +26,19 @@ export interface CommandContext {
   view(viewportId: Id): ViewGeometry;
   /** Cancels every gesture in progress; returns how many there were. */
   cancelGestures(reason: CancelReason): number;
+  /**
+   * Picks a node up from the keyboard in a viewport: until it is put down or cancelled, the
+   * commands that move, turn and resize it preview instead of committing.
+   */
+  hold(viewportId: Id, nodeId: Id): CommandOutcome;
+  /** Puts the held node down: what its preview shows is committed once. */
+  putDown(): CommandOutcome;
 }
 
-/** How a command ended. */
+/** How a command ended: `previewed` when it changed only what a held node's preview shows. */
 export type CommandOutcome =
   | TxOutcome
+  | PreviewApplied
   | { readonly status: 'cancelled'; readonly count: number }
   | { readonly status: 'unchanged'; readonly reason: string };
 
@@ -225,6 +235,147 @@ function cycleSelection(step: 1 | -1): InteractionCommand {
   };
 }
 
+/** A change to one node's placement or size, as a `node.patch` makes it. */
+export interface NodeChange {
+  readonly transform?: Transform3D;
+  readonly bounds?: Vec3;
+}
+
+type Unchanged = Extract<CommandOutcome, { status: 'unchanged' }>;
+
+/** A command that changes one node: how it reads its arguments and what it makes of them. */
+interface NodeOperation<P> {
+  readonly allowed: readonly string[];
+  /** Reads the arguments, checking each, whether or not there is a node to act on. */
+  parse(args: Args): P;
+  /** What the operation changes on the node as it is in `scene`. */
+  propose(
+    params: P,
+    scene: SceneState,
+    node: NodeRecord,
+    ctx: CommandContext,
+  ): NodeChange | Unchanged;
+}
+
+const requireNode = (scene: SceneState, nodeId: Id): NodeRecord => {
+  const node = scene.nodes.get(nodeId);
+  if (node === undefined) {
+    throw new SwfFailure(
+      makeError('UNKNOWN_ENTITY', `no node "${nodeId}" in this workspace`, { entityId: nodeId }),
+    );
+  }
+  return node;
+};
+
+const NODE_OPERATIONS = {
+  // Moves a node along the camera's right and up axes and in depth along the line from the
+  // camera: what a window drag and a depth gesture do, without a pointer.
+  'node.move': {
+    allowed: ['nodeId', 'viewportId', 'right', 'up', 'depth'],
+    parse: (a: Args) => ({
+      viewportId: a.requiredId('viewportId'),
+      right: a.number('right', 0),
+      up: a.number('up', 0),
+      depth: a.number('depth', 0),
+    }),
+    propose(p, scene, node, ctx) {
+      if (!node.flags.draggable) {
+        return { status: 'unchanged', reason: `node "${node.id}" cannot be moved` };
+      }
+      const view = ctx.view(p.viewportId);
+      const start = placementOf(scene, node.id);
+      const delta = cameraRelativeDelta(
+        view,
+        worldOrigin(start),
+        p.right,
+        p.up,
+        p.depth,
+        ctx.settings.minDistance,
+      );
+      const transform = translatedBy(start, delta);
+      return transform === null ? PARENT_SINGULAR : { transform };
+    },
+  } satisfies NodeOperation<{ viewportId: Id; right: number; up: number; depth: number }>,
+  // Turns a node about the world vertical through its origin.
+  'node.rotate': {
+    allowed: ['nodeId', 'yaw'],
+    parse: (a: Args) => a.number('yaw', 0),
+    propose(yaw, scene, node) {
+      if (!node.flags.rotatable) {
+        return { status: 'unchanged', reason: `node "${node.id}" cannot be rotated` };
+      }
+      const start = placementOf(scene, node.id);
+      const transform = turnedAbout(start, worldOrigin(start), yaw);
+      return transform === null ? PARENT_SINGULAR : { transform };
+    },
+  } satisfies NodeOperation<number>,
+  // Changes a node's width and height, keeping its centre.
+  'node.resize': {
+    allowed: ['nodeId', 'width', 'height'],
+    parse: (a: Args) => [a.number('width', 0), a.number('height', 0)] as const,
+    propose([dw, dh], _scene, node, ctx) {
+      if (!node.flags.resizable) {
+        return { status: 'unchanged', reason: `node "${node.id}" cannot be resized` };
+      }
+      const min = ctx.settings.minSize;
+      const [w, h, d] = node.bounds;
+      return { bounds: [Math.max(min, w + dw), Math.max(min, h + dh), d] };
+    },
+  } satisfies NodeOperation<readonly [number, number]>,
+} as const;
+
+type NodeOperationId = keyof typeof NODE_OPERATIONS;
+
+function operationOf(id: NodeOperationId): NodeOperation<unknown> {
+  return NODE_OPERATIONS[id];
+}
+
+/** A command that changes one node, committing at once. */
+function nodeCommand(id: NodeOperationId): InteractionCommand {
+  const operation = operationOf(id);
+  return {
+    id,
+    run(args, ctx) {
+      const a = new Args(id, args, operation.allowed);
+      const params = operation.parse(a);
+      const scene = ctx.workspace.getState();
+      const nodeId = subject(a, scene);
+      if (nodeId === null) {
+        return NOTHING_SELECTED;
+      }
+      const change = operation.propose(params, scene, requireNode(scene, nodeId), ctx);
+      return 'status' in change
+        ? change
+        : settle(ctx.workspace.transaction([{ type: 'node.patch', id: nodeId, ...change }], user));
+    },
+  };
+}
+
+/**
+ * What a command does to a held node, worked out on `scene` (the node as its hold shows it); null
+ * when the command is not one that moves, turns or resizes a node, or names another node, and so
+ * runs as it always does.
+ */
+export function heldChange(
+  id: string,
+  args: JsonValue,
+  scene: SceneState,
+  heldId: Id,
+  ctx: CommandContext,
+): NodeChange | Unchanged | null {
+  if (!Object.hasOwn(NODE_OPERATIONS, id)) {
+    return null;
+  }
+  const operation = operationOf(id as NodeOperationId);
+  const a = new Args(id, args, operation.allowed);
+  const params = operation.parse(a);
+  const named = a.id('nodeId');
+  if (named !== undefined && named !== heldId) {
+    return null;
+  }
+  return operation.propose(params, scene, requireNode(scene, heldId), ctx);
+}
+
 /** The commands every router offers. */
 export const BUILT_IN_COMMANDS: readonly InteractionCommand[] = Object.freeze([
   {
@@ -257,84 +408,9 @@ export const BUILT_IN_COMMANDS: readonly InteractionCommand[] = Object.freeze([
         : settle(ctx.workspace.transaction([{ type: 'focus.set', id: selected }], user));
     },
   },
-  {
-    // Moves a node along the camera's right and up axes and in depth along the line from the
-    // camera: what a window drag and a depth gesture do, without a pointer.
-    id: 'node.move',
-    run(args, ctx) {
-      const a = new Args(this.id, args, ['nodeId', 'viewportId', 'right', 'up', 'depth']);
-      const viewportId = a.requiredId('viewportId');
-      const [right, up, depth] = [a.number('right', 0), a.number('up', 0), a.number('depth', 0)];
-      const scene = ctx.workspace.getState();
-      const nodeId = subject(a, scene);
-      if (nodeId === null) {
-        return NOTHING_SELECTED;
-      }
-      const view = ctx.view(viewportId);
-      const start = placementOf(scene, nodeId);
-      const delta = cameraRelativeDelta(
-        view,
-        worldOrigin(start),
-        right,
-        up,
-        depth,
-        ctx.settings.minDistance,
-      );
-      const transform = translatedBy(start, delta);
-      if (transform === null) {
-        return PARENT_SINGULAR;
-      }
-      return settle(
-        ctx.workspace.transaction([{ type: 'node.patch', id: nodeId, transform }], user),
-      );
-    },
-  },
-  {
-    // Turns a node about the world vertical through its origin.
-    id: 'node.rotate',
-    run(args, ctx) {
-      const a = new Args(this.id, args, ['nodeId', 'yaw']);
-      const yaw = a.number('yaw', 0);
-      const scene = ctx.workspace.getState();
-      const nodeId = subject(a, scene);
-      if (nodeId === null) {
-        return NOTHING_SELECTED;
-      }
-      const start = placementOf(scene, nodeId);
-      const transform = turnedAbout(start, worldOrigin(start), yaw);
-      if (transform === null) {
-        return PARENT_SINGULAR;
-      }
-      return settle(
-        ctx.workspace.transaction([{ type: 'node.patch', id: nodeId, transform }], user),
-      );
-    },
-  },
-  {
-    // Changes a node's width and height, keeping its centre.
-    id: 'node.resize',
-    run(args, ctx) {
-      const a = new Args(this.id, args, ['nodeId', 'width', 'height']);
-      const [dw, dh] = [a.number('width', 0), a.number('height', 0)];
-      const scene = ctx.workspace.getState();
-      const nodeId = subject(a, scene);
-      if (nodeId === null) {
-        return NOTHING_SELECTED;
-      }
-      const node = scene.nodes.get(nodeId);
-      if (node === undefined) {
-        throw new SwfFailure(
-          makeError('UNKNOWN_ENTITY', `no node "${nodeId}" in this workspace`, {
-            entityId: nodeId,
-          }),
-        );
-      }
-      const min = ctx.settings.minSize;
-      const [w, h, d] = node.bounds;
-      const bounds: Vec3 = [Math.max(min, w + dw), Math.max(min, h + dh), d];
-      return settle(ctx.workspace.transaction([{ type: 'node.patch', id: nodeId, bounds }], user));
-    },
-  },
+  nodeCommand('node.move'),
+  nodeCommand('node.rotate'),
+  nodeCommand('node.resize'),
   {
     // Turns a viewport's camera: what a background drag does in camera navigation.
     id: 'camera.turn',
@@ -400,6 +476,23 @@ export const BUILT_IN_COMMANDS: readonly InteractionCommand[] = Object.freeze([
     run(args, ctx) {
       new Args(this.id, args, []);
       return settle(ctx.workspace.redo(user));
+    },
+  },
+  {
+    // Picks the named or selected node up from the keyboard.
+    id: 'gesture.grab',
+    run(args, ctx) {
+      const a = new Args(this.id, args, ['viewportId', 'nodeId']);
+      const viewportId = a.requiredId('viewportId');
+      const nodeId = subject(a, ctx.workspace.getState());
+      return nodeId === null ? NOTHING_SELECTED : ctx.hold(viewportId, nodeId);
+    },
+  },
+  {
+    id: 'gesture.drop',
+    run(args, ctx) {
+      new Args(this.id, args, []);
+      return ctx.putDown();
     },
   },
   {

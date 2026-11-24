@@ -6,6 +6,7 @@ import type {
   SceneCommand,
   SceneState,
   SwfErrorCode,
+  TxOutcome,
   TxResult,
   WorkspaceEvent,
   WorkspaceMutator,
@@ -16,8 +17,8 @@ import type { ViewGeometry } from '@swf/presentation';
 import { viewGeometryOf } from '@swf/presentation';
 import type { Continuity, Projection, ProjectionModule, RayResult } from '@swf/projections';
 import { projectionFor } from '@swf/projections';
-import type { CommandContext, CommandOutcome, InteractionCommand } from './commands.js';
-import { BUILT_IN_COMMANDS, commandIssue } from './commands.js';
+import type { CommandContext, CommandOutcome, InteractionCommand, NodeChange } from './commands.js';
+import { BUILT_IN_COMMANDS, commandIssue, heldChange } from './commands.js';
 import type {
   CommandIntent,
   InputIntent,
@@ -94,11 +95,18 @@ export interface PickMeasure {
 /** What the router's routes return: a result before its pick is added. */
 type Routed = Omit<DispatchResult, 'pick'>;
 
+/**
+ * The policy ID a gesture held from the keyboard reports: a node picked up with `gesture.grab`,
+ * moved, turned and resized in a preview, and put down once with `gesture.drop`, Enter or Space.
+ */
+export const KEYBOARD_HOLD_ID = 'swf.keyboard-hold/1';
+
 /** Notifications from the router. Hosts release platform pointer capture and styling on them. */
 export type InteractionEvent =
   | {
       readonly type: 'gesture.started';
       readonly gestureId: string;
+      /** The policy whose gesture won, or {@link KEYBOARD_HOLD_ID} for a keyboard hold. */
       readonly policyId: string;
       readonly operation: string;
       readonly viewportId: Id;
@@ -163,23 +171,45 @@ interface Pressed {
 interface Running {
   readonly id: string;
   readonly policyId: string;
-  readonly claim: GestureClaim;
+  /** The command that does what the gesture does. */
+  readonly operation: string;
+  readonly nodeId: Id | null;
   readonly handler: GestureHandler;
   readonly previewId: string;
 }
 
-/** The pointers pressed on one target and the gestures bidding for them. */
+/**
+ * The pointers pressed on one target and the gestures bidding for them; or a node held from the
+ * keyboard, with no pointer and nothing picked.
+ */
 interface Arena {
   readonly key: string;
   readonly viewportId: Id;
-  readonly pick: PressPick;
-  readonly region: InputRegion;
+  /** What the first pointer pressed; null for a keyboard hold. */
+  readonly pick: PressPick | null;
+  readonly region: InputRegion | null;
   readonly pointers: Map<string, Pressed>;
   claims: { readonly policy: InteractionPolicy; readonly claim: GestureClaim }[];
   running: Running | null;
   /** Set once the arena is being torn down, so a re-entrant end is ignored. */
   ending: boolean;
 }
+
+/** A node held from the keyboard: its arena, and what its moves have made of it so far. */
+interface Hold {
+  readonly arena: Arena;
+  readonly nodeId: Id;
+  readonly session: GestureSession;
+  change: NodeChange | null;
+  /** How putting it down went, once it has been tried. */
+  outcome: TxOutcome | null;
+}
+
+/** The arena of whatever gesture runs on a node in a viewport, pointer or keyboard. */
+const nodeArenaKey = (viewportId: Id, nodeId: Id) => `${viewportId}\u0000node:${nodeId}`;
+
+/** Keys that put a held node down. */
+const PUT_DOWN_KEYS: readonly string[] = ['Enter', ' '];
 
 const NOT_HANDLED = (reason: string, extra: Partial<Routed> = {}): Routed => ({
   consumed: false,
@@ -222,6 +252,7 @@ export class InteractionRouter {
   #modal: readonly Id[] | null = null;
   #takeover = false;
   #nextGesture = 1;
+  #hold: Hold | null = null;
   #disposed = false;
   #errors: string[] = [];
 
@@ -571,7 +602,10 @@ export class InteractionRouter {
     if (result.region === 'content' && !takeover && target?.proxy !== true) {
       return { ...NOT_HANDLED('content input stays native'), ...base, route: 'native' };
     }
-    const arenaKey = `${intent.viewportId}\u0000${target === null ? 'background' : `node:${target.nodeId}`}`;
+    const arenaKey =
+      target === null
+        ? `${intent.viewportId}\u0000background`
+        : nodeArenaKey(intent.viewportId, target.nodeId);
     const existing = this.#arenas.get(arenaKey);
     if (existing?.running != null) {
       // One gesture per target: a further pointer neither joins it nor reaches anything else.
@@ -604,11 +638,15 @@ export class InteractionRouter {
   }
 
   #claims(arena: Arena, scene: SceneState, takeover: boolean) {
+    const { pick, region } = arena;
+    if (pick === null || region === null) {
+      throw new Error('only pressed pointers are claimed');
+    }
     const context: ClaimContext = {
       viewportId: arena.viewportId,
       scene,
-      pick: arena.pick,
-      region: arena.region,
+      pick,
+      region,
       pointers: [...arena.pointers.values()].map((p) => p.down),
       takeover,
       settings: this.#settings,
@@ -682,7 +720,7 @@ export class InteractionRouter {
     const finish = this.#guard(arena, () => running.handler.finish());
     const result: Routed = {
       ...this.#handled(arena),
-      operation: { name: running.claim.operation, outcome: finish },
+      operation: { name: running.operation, outcome: finish },
     };
     if (finish.outcome === 'cancelled') {
       const { reason } = finish;
@@ -705,7 +743,14 @@ export class InteractionRouter {
       this.#forget(arena);
       throw error;
     }
-    arena.running = { id, policyId: winner.policy.id, claim: winner.claim, handler, previewId };
+    arena.running = {
+      id,
+      policyId: winner.policy.id,
+      operation: winner.claim.operation,
+      nodeId: winner.claim.nodeId,
+      handler,
+      previewId,
+    };
     arena.claims = [];
     this.#emit({
       type: 'gesture.started',
@@ -777,6 +822,9 @@ export class InteractionRouter {
   /** Releases an arena's pointers and forgets it. */
   #forget(arena: Arena): void {
     arena.ending = true;
+    if (this.#hold?.arena === arena) {
+      this.#hold = null;
+    }
     if (this.#arenas.get(arena.key) === arena) {
       this.#arenas.delete(arena.key);
     }
@@ -846,7 +894,7 @@ export class InteractionRouter {
       consumed: true,
       route: 'gesture',
       region: arena.region,
-      target: arena.pick.kind === 'hit' ? arena.pick.target : null,
+      target: arena.pick?.kind === 'hit' ? arena.pick.target : null,
       gestureId: arena.running?.id ?? null,
       operation: null,
       reason: null,
@@ -912,12 +960,19 @@ export class InteractionRouter {
       return NOT_HANDLED('key releases run nothing');
     }
     const held = (['shift', 'ctrl', 'alt', 'meta'] as const).filter((m) => intent.modifiers[m]);
-    const binding = this.#settings.keymap.find(
-      (b) =>
-        keyName(b.key) === keyName(intent.key) &&
-        b.modifiers.length === held.length &&
-        b.modifiers.every((m) => intent.modifiers[m]),
-    );
+    if (this.#hold !== null && held.length === 0 && PUT_DOWN_KEYS.includes(intent.key)) {
+      return commandResult('gesture.drop', this.#putDown());
+    }
+    const binding = this.#settings.keymap.find((b) => {
+      if (keyName(b.key) !== keyName(intent.key)) {
+        return false;
+      }
+      // A sign is typed with Shift on many layouts (+ is Shift and =): Shift does not count
+      // against a binding of one that does not list it. A letter's case is Shift's to say.
+      const signed = isSign(b.key) && !b.modifiers.includes('shift');
+      const counted = signed ? held.filter((m) => m !== 'shift') : held;
+      return b.modifiers.length === counted.length && b.modifiers.every((m) => intent.modifiers[m]);
+    });
     if (binding === undefined) {
       return NOT_HANDLED('no binding for this key');
     }
@@ -946,8 +1001,131 @@ export class InteractionRouter {
       settings: this.#settings,
       view: (viewportId: Id) => viewGeometryOf(this.#workspace.getState(), viewportId),
       cancelGestures: (reason: CancelReason) => this.#cancelWhere(() => true, reason),
+      hold: (viewportId: Id, nodeId: Id) => this.#holdNode(viewportId, nodeId),
+      putDown: () => this.#putDown(),
     };
+    const hold = this.#hold;
+    if (hold !== null) {
+      const shown = this.#workspace.getPreview(hold.arena.running?.previewId ?? '');
+      if (shown === undefined) {
+        throw new Error('a held node lost its preview without its hold ending');
+      }
+      const change = heldChange(id, args, shown, hold.nodeId, context);
+      if (change !== null) {
+        return 'status' in change ? change : this.#moveHeld(hold, change);
+      }
+    }
     return command.run(args, context);
+  }
+
+  // --- holding a node from the keyboard ---------------------------------------------------
+
+  #holdNode(viewportId: Id, nodeId: Id): CommandOutcome {
+    if (this.#hold !== null) {
+      return { status: 'unchanged', reason: `window "${this.#hold.nodeId}" is already held` };
+    }
+    const scene = this.#workspace.getState();
+    // Names an unknown viewport or node as such.
+    viewGeometryOf(scene, viewportId);
+    const node = scene.nodes.get(nodeId);
+    if (node?.status !== 'active') {
+      throw failure('UNKNOWN_ENTITY', `no node "${nodeId}" to hold`);
+    }
+    const key = nodeArenaKey(viewportId, nodeId);
+    if (this.#arenas.has(key)) {
+      return { status: 'unchanged', reason: `window "${nodeId}" is already in a gesture` };
+    }
+    const id = `gesture-${String(this.#nextGesture++)}`;
+    const previewId = `interaction:${id}`;
+    const arena: Arena = {
+      key,
+      viewportId,
+      pick: null,
+      region: null,
+      pointers: new Map(),
+      claims: [],
+      running: null,
+      ending: false,
+    };
+    const session = this.#session(arena, id, previewId);
+    // Held where it is: a node the operator may not move (a locked one) is refused here.
+    const shown = session.preview([{ type: 'node.patch', id: nodeId, transform: node.transform }]);
+    if (shown.status === 'rejected') {
+      return shown;
+    }
+    const hold: Hold = { arena, nodeId, session, change: null, outcome: null };
+    const handler: GestureHandler = {
+      update: () => {
+        // A hold has no pointers.
+      },
+      finish: () => {
+        if (hold.change === null) {
+          return { outcome: 'unchanged' };
+        }
+        const outcome = session.commit([{ type: 'node.patch', id: nodeId, ...hold.change }]);
+        hold.outcome = outcome;
+        return outcome.status === 'committed'
+          ? { outcome: 'committed', transactionId: outcome.transactionId }
+          : {
+              outcome: 'cancelled',
+              reason:
+                outcome.error.code === 'CONSTRAINT_REJECTED' || outcome.error.code === 'LOCKED'
+                  ? 'constraint-rejected'
+                  : 'commit-rejected',
+              error: outcome.error,
+            };
+      },
+      cancel: () => {
+        // Everything the hold changed is in its preview.
+      },
+    };
+    arena.running = {
+      id,
+      policyId: KEYBOARD_HOLD_ID,
+      operation: 'gesture.grab',
+      nodeId,
+      handler,
+      previewId,
+    };
+    this.#arenas.set(key, arena);
+    this.#hold = hold;
+    this.#emit({
+      type: 'gesture.started',
+      gestureId: id,
+      policyId: KEYBOARD_HOLD_ID,
+      operation: 'gesture.grab',
+      viewportId,
+      nodeId,
+      pointerIds: [],
+    });
+    return shown;
+  }
+
+  /** Shows a held node changed; a change the scene refuses leaves it as it was shown. */
+  #moveHeld(hold: Hold, change: NodeChange): CommandOutcome {
+    const next = { ...hold.change, ...change };
+    const outcome = hold.session.preview([{ type: 'node.patch', id: hold.nodeId, ...next }]);
+    if (outcome.status === 'previewed') {
+      hold.change = next;
+    }
+    return outcome;
+  }
+
+  #putDown(): CommandOutcome {
+    const hold = this.#hold;
+    const running = hold?.arena.running ?? null;
+    if (hold === null || running === null) {
+      return { status: 'unchanged', reason: 'no window is held' };
+    }
+    const finish = this.#guard(hold.arena, () => running.handler.finish());
+    this.#end(hold.arena, finish);
+    if (finish.outcome === 'unchanged') {
+      return { status: 'unchanged', reason: 'the window was put down where it was' };
+    }
+    if (hold.outcome === null) {
+      throw new Error('a hold finished without its commit');
+    }
+    return hold.outcome;
   }
 
   // --- picking and workspace events -------------------------------------------------------
@@ -1055,8 +1233,11 @@ export class InteractionRouter {
   }
 }
 
+/** A single character that is neither a letter nor a digit: a sign or punctuation. */
+const isSign = (key: string) => key.length === 1 && !/[\p{L}\p{N}\s]/u.test(key);
+
 /** Commands that act in a viewport: a key binding supplies the key's viewport. */
-const VIEWPORT_COMMANDS = new Set(['node.move', 'camera.turn', 'orbit.turn']);
+const VIEWPORT_COMMANDS = new Set(['node.move', 'camera.turn', 'orbit.turn', 'gesture.grab']);
 
 /** The best claim of a kind for a pointer count: highest priority, then lowest policy ID. */
 function best(
@@ -1076,11 +1257,11 @@ function best(
 /** Whether the arena's target (node, and surface when one was hit) is still active in the scene. */
 function targetPresent(arena: Arena, scene: SceneState): boolean {
   const nodeId =
-    arena.running?.claim.nodeId ?? (arena.pick.kind === 'hit' ? arena.pick.target.nodeId : null);
+    arena.running?.nodeId ?? (arena.pick?.kind === 'hit' ? arena.pick.target.nodeId : null);
   if (nodeId !== null && scene.nodes.get(nodeId)?.status !== 'active') {
     return false;
   }
-  if (arena.pick.kind === 'hit' && arena.pick.target.surfaceId !== null) {
+  if (arena.pick?.kind === 'hit' && arena.pick.target.surfaceId !== null) {
     const surface = scene.surfaces.get(arena.pick.target.surfaceId);
     return surface?.ownerNodeId === arena.pick.target.nodeId;
   }

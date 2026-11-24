@@ -314,10 +314,28 @@ viewport's `navigation` setting says.
 
 Every operation a gesture performs is also a command (`node.move`, `node.resize`,
 `node.rotate`, `camera.turn`, `orbit.turn`, `selection.set`, `focus.set` and more), and a policy
-is registered only if its operations are. The default keymap moves, turns, resizes and selects
-with the keyboard; `configure` changes it and the other settings, validating every field, and
-announces each change as a `settings.changed` event so a host can save the settings with the
-layout.
+is registered only if its operations are. A command honours the flags its gesture does: a window
+that is not draggable, rotatable or resizable is left as it is, saying why, and a locked one is
+refused by the scene. `configure` changes the keymap and the other settings, validating every
+field, and announces each change as a `settings.changed` event so a host can save the settings
+with the layout.
+
+The default keymap acts on the selected window while the view has the keyboard: the arrows move
+it along the camera's right and up (with Shift, five times as far), Page Up and Page Down change
+its depth, `[` and `]` turn it, `+` and `-` resize it; Alt with the arrows turns the camera, and
+Alt+Shift with Left and Right the orbit root; N and P select the next and previous window, Enter
+focuses the selected one, and Ctrl or Cmd with Z, Shift+Z or Y undo and redo. Tab is never bound,
+so the keyboard can always leave the view. A sign is matched however it is typed: `+` is Shift
+and `=` on many layouts, so Shift does not count against a binding of a sign that does not list
+it; a letter's case is Shift's to say.
+
+Space picks the selected window up (`gesture.grab`, or the command with a `nodeId`): a keyboard
+gesture reported like a pointer's (`gesture.started` with `KEYBOARD_HOLD_ID` and no pointers).
+While it is held, every `node.move`, `node.rotate` and `node.resize` of it, from a key or a
+program, previews instead of committing; Enter or Space (`gesture.drop`) puts it down as one
+commit that one undo takes back, and Escape, `gesture.cancel`, the window's removal or the view's
+disposal cancel it with nothing changed. A locked window is refused when it is picked up, and a
+pointer pressed on the held window is refused, as on any window in a gesture.
 
 ## Presenting in the browser
 
@@ -437,7 +455,10 @@ another view, or the other side of a seam, shows a proxy with the surface's labe
 views race for the same endpoint, the runtime refuses the second, and that view shows the proxy.
 
 Window chrome (frame outline and title) is a layer of its own that takes no pointer input, so it
-never intercepts content; only the resize handles along a window's edges take input, so a press
+never intercepts content. Its frame is drawn in `chrome.inks` (CSS colours, custom properties
+included): every frame in `frame`, the selected window's thicker in `selected` and the focused
+one's in `focused`, so the window keys act on is seen. The defaults stand out on a light page; a
+host gives the colours its own design system checks against its grounds; only the resize handles along a window's edges take input, so a press
 there reaches the framework even over a cross-origin frame. `createDomInput` offers every pointer,
 wheel and key event over the view to the interaction router. What the router consumes stops there
 (and a pressed pointer is captured until its gesture ends); what it does not consume reaches the
@@ -468,8 +489,11 @@ const compositor = new LayerCompositor();
 The geometry renderer draws: content a `drawable` adapter supplies (an image source with its
 size), warped by a mesh that follows the view's projection point by point and clipped to each
 fragment, so a surface split by the panorama seam is drawn on both sides; proxies and placeholders
-with their labels; window frames and titles along each window's projected frame; and markers at
-the edge of a narrow view pointing to windows outside it. Drawn content is warped piecewise, so it
+with their labels, each on a ground of its own; window frames and titles along each window's
+projected frame; and markers at the edge of a narrow view pointing to windows outside it. Frames,
+the selection, the focus, titles and markers are drawn in `inks`, a function the renderer reads
+every frame so a host's change of appearance is drawn at the next one; a canvas takes no custom
+property, so the host gives resolved colours. Drawn content is warped piecewise, so it
 is declared approximate, never exact. On its own it shows live surfaces as proxies; paired with a
 native renderer by `LayeredRenderer`, live content comes from that renderer and everything else
 from the geometry renderer, merged in plan order.

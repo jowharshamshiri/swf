@@ -5,7 +5,7 @@
  * cancellation, and named commands that do every spatial operation without a pointer.
  */
 export { BoundingVolumeTree } from './bvh.js';
-export type { CommandContext, CommandOutcome, InteractionCommand } from './commands.js';
+export type { CommandContext, CommandOutcome, InteractionCommand, NodeChange } from './commands.js';
 export { BUILT_IN_COMMANDS, cameraRelativeDelta, commandIssue, eyeOf } from './commands.js';
 export type { DragFrame, DragMode, Placement } from './drag.js';
 export {
@@ -69,7 +69,7 @@ export type {
   InteractionRouterOptions,
   Route,
 } from './router.js';
-export { createInteractionRouter, InteractionRouter } from './router.js';
+export { createInteractionRouter, InteractionRouter, KEYBOARD_HOLD_ID } from './router.js';
 export type { IndexKey } from './scene-index.js';
 export { nodeKey, SceneIndex, surfaceKey } from './scene-index.js';
 export type { InteractionSettings, KeyBinding, KeyboardSteps } from './settings.js';

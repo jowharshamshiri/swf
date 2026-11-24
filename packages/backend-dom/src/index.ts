@@ -14,8 +14,14 @@ export type { DomInputOptions } from './input.js';
 export { createDomInput } from './input.js';
 export type { CssMatrix } from './placement.js';
 export { applyMatrix, cssMatrixOf, cssTransform, quadMatrix } from './placement.js';
-export type { ChromeOptions, DomRendererOptions, DomRendererSession } from './renderer.js';
+export type {
+  ChromeInks,
+  ChromeOptions,
+  DomRendererOptions,
+  DomRendererSession,
+} from './renderer.js';
 export {
+  DEFAULT_CHROME_INKS,
   DOM_ATTRIBUTES,
   DOM_RENDERER_CAPABILITIES,
   DOM_RENDERER_ID,

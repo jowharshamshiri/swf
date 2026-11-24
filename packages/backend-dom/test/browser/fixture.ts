@@ -18,6 +18,7 @@ import { createProjectionRegistry, equirectangular } from '@swf/projections';
 import type { SurfaceAdapter, SurfaceCapabilities, SurfaceRuntime } from '@swf/surfaces';
 import { createSurfaceRuntime } from '@swf/surfaces';
 import { commands } from 'vitest/browser';
+import type { ChromeInks } from '../../src/index.js';
 import {
   animationFrames,
   createDomInput,
@@ -211,6 +212,8 @@ export async function stage(
     readonly update?: boolean;
     /** Run frames, and the workspace's preview coalescing, on the browser's animation frames. */
     readonly animationFrames?: boolean;
+    /** The inks window chrome is drawn in; default the renderer's own. */
+    readonly inks?: ChromeInks;
   } = {},
 ): Promise<Stage> {
   const viewports = options.viewports ?? ['v'];
@@ -250,7 +253,10 @@ export async function stage(
       throw new Error(`could not bind ${surface.id}`);
     }
   }
-  const renderer = new DomRenderer({ document, chrome: { projections } });
+  const renderer = new DomRenderer({
+    document,
+    chrome: { projections, ...(options.inks === undefined ? {} : { inks: options.inks }) },
+  });
   const unregister = presentation.registerRenderer(renderer);
   presentation.registerCompositor(new DomCompositor());
   const frames = animated ? animationFrames(window) : new ManualFrames();

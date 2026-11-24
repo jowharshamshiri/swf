@@ -65,8 +65,10 @@ const DEFAULT_STEPS: KeyboardSteps = Object.freeze({
 /**
  * The default keyboard bindings for the given steps: arrows move the selected window (Shift
  * coarser), Page Up/Down change its depth, `[`/`]` rotate it, `+`/`-` resize it, Alt+arrows turn
- * the camera, Tab cycles the selection, Enter focuses, and Ctrl or Cmd with Z/Y undo and redo.
- * Escape cancels gestures; it needs no binding.
+ * the camera, N and P select the next and previous window, Enter focuses, Space picks the selected
+ * window up, and Ctrl or Cmd with Z/Y undo and redo. Tab is left to the page, so keyboard focus can
+ * always leave the view. While a window is held its moves, turns and resizes preview, and Enter or
+ * Space puts it down as one change; Escape cancels gestures and holds. Those need no binding.
  */
 export function defaultKeymap(steps: KeyboardSteps = DEFAULT_STEPS): KeyBinding[] {
   const b = (
@@ -103,9 +105,10 @@ export function defaultKeymap(steps: KeyboardSteps = DEFAULT_STEPS): KeyBinding[
     b('ArrowDown', ['alt'], 'camera.turn', { pitch: -steps.turn }),
     b('ArrowLeft', ['alt', 'shift'], 'orbit.turn', { angle: steps.turn }),
     b('ArrowRight', ['alt', 'shift'], 'orbit.turn', { angle: -steps.turn }),
-    b('Tab', [], 'selection.next', {}),
-    b('Tab', ['shift'], 'selection.previous', {}),
+    b('n', [], 'selection.next', {}),
+    b('p', [], 'selection.previous', {}),
     b('Enter', [], 'focus.selected', {}),
+    b(' ', [], 'gesture.grab', {}),
     b('z', ['ctrl'], 'history.undo', {}),
     b('z', ['meta'], 'history.undo', {}),
     b('z', ['ctrl', 'shift'], 'history.redo', {}),

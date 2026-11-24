@@ -17,6 +17,6 @@ export type { GeometryLayer } from './layer.js';
 export { GEOMETRY_LAYER, isGeometryLayer } from './layer.js';
 export type { LayeredRendererOptions, LayeredRendererSession } from './layered.js';
 export { LayeredRenderer } from './layered.js';
-export type { GeometryRendererOptions, GeometryRendererSession } from './renderer.js';
-export { GEOMETRY_RENDERER_ID, GeometryRenderer } from './renderer.js';
+export type { GeometryInks, GeometryRendererOptions, GeometryRendererSession } from './renderer.js';
+export { DEFAULT_GEOMETRY_INKS, GEOMETRY_RENDERER_ID, GeometryRenderer } from './renderer.js';
 export { imageNear, planeMesh, planeOutline } from './sampling.js';

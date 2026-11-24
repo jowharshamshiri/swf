@@ -37,6 +37,33 @@ import { planeMesh, planeOutline } from './sampling.js';
 
 export const GEOMETRY_RENDERER_ID = 'swf.geometry-renderer/1';
 
+/**
+ * The colours drawn on whatever the view is drawn over, as canvas colours: every window frame
+ * (and each mark pointing to a window out of view), the selected and the focused window's frame,
+ * and text (window titles, labels standing for windows, the marks' names). Frames and marks should
+ * stand out from the view's ground by 3:1 at least (WCAG 1.4.11), text by 4.5:1 (WCAG 1.4.3).
+ */
+export interface GeometryInks {
+  readonly frame: string;
+  readonly selected: string;
+  readonly focused: string;
+  readonly text: string;
+}
+
+/** Inks that stand out on a light ground by 4.5:1 or more. */
+export const DEFAULT_GEOMETRY_INKS: GeometryInks = Object.freeze({
+  frame: 'rgb(118, 118, 118)',
+  selected: 'rgb(0, 95, 184)',
+  focused: 'rgb(168, 74, 0)',
+  text: 'rgb(30, 30, 30)',
+});
+
+/** What a stand-in draws on its own ground: legible whatever the view is drawn over. */
+const STAND_IN = Object.freeze({
+  proxy: { ground: 'rgb(72, 84, 108)', edge: 'rgb(48, 56, 72)', ink: 'rgb(255, 255, 255)' },
+  placeholder: { ground: 'rgb(220, 220, 220)', edge: 'rgb(90, 90, 90)', ink: 'rgb(40, 40, 40)' },
+});
+
 export interface GeometryRendererOptions {
   /**
    * The drawable an adapter supplies for a surface, for surfaces presented as drawn content
@@ -56,6 +83,11 @@ export interface GeometryRendererOptions {
    * Default {@link STAND_IN_TEXT}, in English.
    */
   readonly standIn?: (reason: StandInReason) => string;
+  /**
+   * The inks, read at every frame so a change of the host's appearance is drawn at the next one.
+   * Default {@link DEFAULT_GEOMETRY_INKS}.
+   */
+  readonly inks?: () => GeometryInks;
 }
 
 /**
@@ -122,6 +154,8 @@ export class GeometryRendererSession implements RendererSession {
   >();
   #used = new Set<string>();
   #writes = 0;
+  /** The inks of the frame being drawn. */
+  #inks: GeometryInks = DEFAULT_GEOMETRY_INKS;
   #released = false;
 
   constructor(rendererId: string, viewportId: Id, options: GeometryRendererOptions, cells: number) {
@@ -148,6 +182,7 @@ export class GeometryRendererSession implements RendererSession {
         ),
       );
     }
+    this.#inks = inksOf(this.#options.inks?.() ?? DEFAULT_GEOMETRY_INKS);
     if (frame.viewportId !== this.viewportId) {
       throw new SwfFailure(
         makeError(
@@ -312,10 +347,11 @@ export class GeometryRendererSession implements RendererSession {
       case 'proxy':
         if (planned.representation === 'label') {
           // The label alone stands for the window, in the middle of where it is.
-          signature = JSON.stringify(['label', fragment.bounds, label]);
+          const ink = this.#inks.text;
+          signature = JSON.stringify(['label', fragment.bounds, label, ink]);
           draw = (ctx) => {
             clipTo(ctx, fragment.bounds);
-            centredText(ctx, label, fragment.bounds, 'rgb(30, 30, 30)');
+            centredText(ctx, label, fragment.bounds, ink);
           };
           break;
         }
@@ -323,14 +359,14 @@ export class GeometryRendererSession implements RendererSession {
         draw = (ctx) => {
           clipTo(ctx, fragment.bounds);
           outline(ctx, fragment.corners ?? rectQuad(fragment.bounds));
-          ctx.fillStyle = 'rgba(96, 112, 140, 0.85)';
+          ctx.fillStyle = STAND_IN.proxy.ground;
           ctx.fill();
-          ctx.strokeStyle = 'rgb(48, 56, 72)';
+          ctx.strokeStyle = STAND_IN.proxy.edge;
           ctx.lineWidth = 1;
           ctx.stroke();
-          text(ctx, label, fragment.bounds, 'rgb(255, 255, 255)');
+          text(ctx, label, fragment.bounds, STAND_IN.proxy.ink);
           if (because !== null) {
-            text(ctx, because, shift(fragment.bounds, 16), 'rgb(255, 255, 255)');
+            text(ctx, because, shift(fragment.bounds, 16), STAND_IN.proxy.ink);
           }
         };
         break;
@@ -345,14 +381,14 @@ export class GeometryRendererSession implements RendererSession {
         draw = (ctx) => {
           clipTo(ctx, fragment.bounds);
           outline(ctx, fragment.corners ?? rectQuad(fragment.bounds));
-          ctx.fillStyle = 'rgba(200, 200, 200, 0.6)';
+          ctx.fillStyle = STAND_IN.placeholder.ground;
           ctx.fill();
           ctx.setLineDash([4, 3]);
-          ctx.strokeStyle = 'rgb(90, 90, 90)';
+          ctx.strokeStyle = STAND_IN.placeholder.edge;
           ctx.stroke();
-          text(ctx, label, fragment.bounds, 'rgb(40, 40, 40)');
+          text(ctx, label, fragment.bounds, STAND_IN.placeholder.ink);
           if (because !== null) {
-            text(ctx, because, shift(fragment.bounds, 16), 'rgb(40, 40, 40)');
+            text(ctx, because, shift(fragment.bounds, 16), STAND_IN.placeholder.ink);
           }
         };
         break;
@@ -475,7 +511,8 @@ export class GeometryRendererSession implements RendererSession {
     const label = node.label ?? '';
     const handles = selected && node.flags.resizable && !node.flags.locked;
     const corners = [0, 12, 24, 36].flatMap((i) => (points[i] === undefined ? [] : [points[i]]));
-    const signature = JSON.stringify([points, label, selected, focused, handles, after]);
+    const inks = this.#inks;
+    const signature = JSON.stringify([points, label, selected, focused, handles, after, inks]);
     return Object.freeze({
       id: `chrome:${nodeId}`,
       category: 'chrome',
@@ -484,21 +521,17 @@ export class GeometryRendererSession implements RendererSession {
       content: this.#keep(`chrome:${nodeId}`, signature, () =>
         layer(after, (ctx) => {
           outline(ctx, points);
-          ctx.strokeStyle = focused
-            ? 'rgb(255, 196, 0)'
-            : selected
-              ? 'rgb(0, 120, 215)'
-              : 'rgb(70, 70, 70)';
+          ctx.strokeStyle = focused ? inks.focused : selected ? inks.selected : inks.frame;
           ctx.lineWidth = selected || focused ? 3 : 1.5;
           ctx.stroke();
           const [tx, ty] = points[0] ?? [0, 0];
-          ctx.fillStyle = 'rgb(30, 30, 30)';
+          ctx.fillStyle = inks.text;
           ctx.font = '12px sans-serif';
           ctx.textBaseline = 'bottom';
           // Text drawn on a canvas is only ever text.
           ctx.fillText(label, tx, ty - 3);
           if (handles) {
-            ctx.fillStyle = 'rgb(0, 120, 215)';
+            ctx.fillStyle = inks.selected;
             for (const [x, y] of corners) {
               ctx.fillRect(x - 4, y - 4, 8, 8);
             }
@@ -547,7 +580,8 @@ export class GeometryRendererSession implements RendererSession {
     if (marks.length === 0) {
       return null;
     }
-    const signature = JSON.stringify(marks);
+    const inks = this.#inks;
+    const signature = JSON.stringify([marks, inks.frame, inks.text]);
     return Object.freeze({
       id: 'overlay:indicators',
       category: 'overlay',
@@ -563,8 +597,9 @@ export class GeometryRendererSession implements RendererSession {
             ctx.lineTo(x - dy * 6, y + dx * 6);
             ctx.lineTo(x + dy * 6, y - dx * 6);
             ctx.closePath();
-            ctx.fillStyle = 'rgb(0, 120, 215)';
+            ctx.fillStyle = inks.frame;
             ctx.fill();
+            ctx.fillStyle = inks.text;
             ctx.font = '11px sans-serif';
             ctx.textBaseline = 'middle';
             ctx.fillText(label, x - dx * 40 - 20, y - dy * 14);
@@ -658,6 +693,17 @@ function clipTo(ctx: CanvasRenderingContext2D, [x, y, w, h]: ScreenRect): void {
 
 /** A label at the top-left of the bounds, as text only. */
 /** A label in the middle of a box, as large as the box lets it be read. */
+/** The inks a host gives, checked: each a non-blank colour. */
+function inksOf(inks: GeometryInks): GeometryInks {
+  for (const name of ['frame', 'selected', 'focused', 'text'] as const) {
+    const ink: unknown = inks[name];
+    if (typeof ink !== 'string' || ink.trim() === '') {
+      throw new RangeError(`inks.${name} must be a canvas colour (got ${String(ink)})`);
+    }
+  }
+  return inks;
+}
+
 function centredText(
   ctx: CanvasRenderingContext2D,
   label: string,

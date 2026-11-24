@@ -195,7 +195,7 @@ describe('command equivalents (FR-109)', () => {
 describe('keyboard (FR-109, UX-012)', () => {
   it('runs bound commands on the selection in the key’s viewport', () => {
     const { ws, input } = world(two);
-    input.key('Tab', { viewportId: 'v' });
+    input.key('n', { viewportId: 'v' });
     expect(ws.getState().selection).toEqual(['a']);
     const x = ws.getState().nodes.get('a')?.transform.position[0] ?? 0;
     expect(input.key('ArrowRight', { viewportId: 'v' }).operation?.name).toBe('node.move');
@@ -223,7 +223,7 @@ describe('keyboard (FR-109, UX-012)', () => {
 
   it('leaves keys in content, releases and unbound keys alone', () => {
     const { ws, input } = world(two);
-    input.key('Tab', { viewportId: 'v' });
+    input.key('n', { viewportId: 'v' });
     const before = ws.getState().nodes.get('a')?.transform;
     expect(input.key('ArrowRight', { viewportId: 'v', focus: 'content' })).toMatchObject({
       consumed: false,
@@ -250,6 +250,223 @@ describe('keyboard (FR-109, UX-012)', () => {
       operation: { name: 'gesture.cancel', outcome: { status: 'cancelled', count: 1 } },
     });
     expect(router.captures()).toEqual([]);
+  });
+
+  it('leaves Tab to the page, so focus can always leave the view (WCAG 2.1.2)', () => {
+    const { ws, input } = world(two);
+    expect(input.key('Tab', { viewportId: 'v' }).consumed).toBe(false);
+    expect(input.key('Tab', { viewportId: 'v', modifiers: { shift: true } }).consumed).toBe(false);
+    expect(DEFAULT_SETTINGS.keymap.some((b) => b.key === 'Tab')).toBe(false);
+    // N and P step through the windows instead.
+    input.key('n', { viewportId: 'v' });
+    expect(ws.getState().selection).toEqual(['a']);
+    input.key('n', { viewportId: 'v' });
+    expect(ws.getState().selection).toEqual(['b']);
+    input.key('p', { viewportId: 'v' });
+    expect(ws.getState().selection).toEqual(['a']);
+  });
+
+  it('takes a bound sign however it is typed: Shift makes + on most layouts', () => {
+    const { ws, input } = world(two);
+    input.command('selection.set', { ids: ['a'] });
+    const width = ws.getState().nodes.get('a')?.bounds[0] ?? 0;
+    expect(input.key('+', { viewportId: 'v', modifiers: { shift: true } }).operation?.name).toBe(
+      'node.resize',
+    );
+    expect(ws.getState().nodes.get('a')?.bounds[0]).toBeCloseTo(
+      width + DEFAULT_SETTINGS.steps.resize,
+      12,
+    );
+    // A letter is another matter: Shift+N is not N.
+    expect(input.key('N', { viewportId: 'v', modifiers: { shift: true } }).consumed).toBe(false);
+    // Nor is any other modifier ignored.
+    expect(input.key('+', { viewportId: 'v', modifiers: { ctrl: true } }).consumed).toBe(false);
+  });
+
+  it('honours the flags a pointer gesture honours', () => {
+    const { ws, input } = world(two);
+    expect(
+      ws.dispatch({
+        type: 'node.patch',
+        id: 'a',
+        flags: { draggable: false, rotatable: false, resizable: false },
+      }).status,
+    ).toBe('committed');
+    const before = ws.getState().nodes.get('a');
+    expect(
+      input.command('node.move', { nodeId: 'a', viewportId: 'v', right: 1 }).operation?.outcome,
+    ).toEqual({ status: 'unchanged', reason: 'node "a" cannot be moved' });
+    expect(input.command('node.rotate', { nodeId: 'a', yaw: 1 }).operation?.outcome).toEqual({
+      status: 'unchanged',
+      reason: 'node "a" cannot be rotated',
+    });
+    expect(input.command('node.resize', { nodeId: 'a', width: 1 }).operation?.outcome).toEqual({
+      status: 'unchanged',
+      reason: 'node "a" cannot be resized',
+    });
+    expect(ws.getState().nodes.get('a')).toBe(before);
+  });
+});
+
+describe('holding a window from the keyboard (UX-012, UX-007, FR-112)', () => {
+  const position = (ws: ReturnType<typeof world>['ws'], id: string) =>
+    ws.getState().nodes.get(id)?.transform.position ?? [0, 0, 0];
+
+  it('previews every key while held and commits once when put down', () => {
+    const { ws, input, events } = world(two);
+    input.command('selection.set', { ids: ['a'] });
+    const start = ws.getState().nodes.get('a');
+    const history = ws.history().length;
+    const picked = input.key(' ', { viewportId: 'v' });
+    expect(picked).toMatchObject({ consumed: true, operation: { name: 'gesture.grab' } });
+    const started = events.find((e) => e.type === 'gesture.started');
+    expect(started).toMatchObject({
+      operation: 'gesture.grab',
+      nodeId: 'a',
+      viewportId: 'v',
+      pointerIds: [],
+    });
+    input.key('ArrowRight', { viewportId: 'v' });
+    input.key('ArrowUp', { viewportId: 'v' });
+    input.key('PageUp', { viewportId: 'v' });
+    input.key(']', { viewportId: 'v' });
+    input.key('+', { viewportId: 'v' });
+    // Nothing is committed while it is held; the view shows the preview.
+    expect(ws.getState().nodes.get('a')).toBe(start);
+    expect(ws.history()).toHaveLength(history);
+    const shown = ws.getPresented().nodes.get('a');
+    expect(shown?.transform.position).not.toEqual(start?.transform.position);
+    expect(shown?.bounds[0]).toBeCloseTo((start?.bounds[0] ?? 0) + DEFAULT_SETTINGS.steps.resize);
+    expect(
+      headingPitchOf(shown?.transform.rotation ?? [0, 0, 0, 1]).heading -
+        headingPitchOf(start?.transform.rotation ?? [0, 0, 0, 1]).heading,
+    ).toBeCloseTo(DEFAULT_SETTINGS.steps.rotate, 9);
+    // Enter puts it down: one commit, exactly the previewed placement.
+    const dropped = input.key('Enter', { viewportId: 'v' });
+    expect(dropped.operation).toMatchObject({
+      name: 'gesture.drop',
+      outcome: { status: 'committed' },
+    });
+    expect(ws.history()).toHaveLength(history + 1);
+    expect(ws.getState().nodes.get('a')?.transform).toEqual(shown?.transform);
+    expect(ws.getState().nodes.get('a')?.bounds).toEqual(shown?.bounds);
+    expect(events.at(-1)).toMatchObject({
+      type: 'gesture.ended',
+      finish: { outcome: 'committed' },
+    });
+    // One undo puts every step back.
+    input.command('history.undo', {});
+    expect(ws.getState().nodes.get('a')?.transform).toEqual(start?.transform);
+    expect(ws.getState().nodes.get('a')?.bounds).toEqual(start?.bounds);
+    // Enter, with nothing held, focuses as it always does.
+    expect(input.key('Enter', { viewportId: 'v' }).operation?.name).toBe('focus.selected');
+  });
+
+  it('puts down with Space too, and commits nothing when nothing changed', () => {
+    const { ws, input, events } = world(two);
+    input.command('selection.set', { ids: ['b'] });
+    const history = ws.history().length;
+    input.key(' ', { viewportId: 'v' });
+    expect(input.key(' ', { viewportId: 'v' }).operation).toEqual({
+      name: 'gesture.drop',
+      outcome: { status: 'unchanged', reason: 'the window was put down where it was' },
+    });
+    expect(ws.history()).toHaveLength(history);
+    expect(events.at(-1)).toMatchObject({
+      type: 'gesture.ended',
+      finish: { outcome: 'unchanged' },
+    });
+    expect(input.command('gesture.drop', {}).operation?.outcome).toEqual({
+      status: 'unchanged',
+      reason: 'no window is held',
+    });
+  });
+
+  it('cancels with Escape, by command, and when the window goes, leaving nothing behind', () => {
+    const { ws, input, events, router } = world(two);
+    input.command('selection.set', { ids: ['a'] });
+    const start = ws.getState().nodes.get('a');
+    input.key(' ', { viewportId: 'v' });
+    input.key('ArrowLeft', { viewportId: 'v' });
+    expect(input.key('Escape', { viewportId: 'v' }).operation).toEqual({
+      name: 'gesture.cancel',
+      outcome: { status: 'cancelled', count: 1 },
+    });
+    expect(events.at(-1)).toMatchObject({
+      type: 'gesture.ended',
+      finish: { outcome: 'cancelled', reason: 'escape' },
+    });
+    expect(ws.getPresented().nodes.get('a')).toBe(start);
+    expect(ws.getState().nodes.get('a')).toBe(start);
+
+    input.key(' ', { viewportId: 'v' });
+    expect(input.command('gesture.cancel', {}).operation?.outcome).toEqual({
+      status: 'cancelled',
+      count: 1,
+    });
+    expect(events.at(-1)).toMatchObject({ finish: { outcome: 'cancelled', reason: 'host' } });
+
+    input.key(' ', { viewportId: 'v' });
+    input.key('ArrowDown', { viewportId: 'v' });
+    expect(ws.dispatch({ type: 'node.delete', id: 'a', mode: 'subtree' }).status).toBe('committed');
+    expect(events.at(-1)).toMatchObject({
+      finish: { outcome: 'cancelled', reason: 'target-detached' },
+    });
+    expect(router.captures()).toEqual([]);
+    // Arrows move the selection again, at once, once nothing is held.
+    input.command('selection.set', { ids: ['b'] });
+    const bx = position(ws, 'b')[0];
+    input.key('ArrowRight', { viewportId: 'v' });
+    expect(position(ws, 'b')[0]).toBeCloseTo(bx + DEFAULT_SETTINGS.steps.move, 12);
+  });
+
+  it('refuses a locked window, a second hold, and a pointer on the held window', () => {
+    const { ws, input, events } = world(two);
+    expect(ws.dispatch({ type: 'node.patch', id: 'a', flags: { locked: true } }).status).toBe(
+      'committed',
+    );
+    input.command('selection.set', { ids: ['a'] });
+    expect(input.key(' ', { viewportId: 'v' }).operation?.outcome).toMatchObject({
+      status: 'rejected',
+      error: { code: 'LOCKED' },
+    });
+    expect(events.some((e) => e.type === 'gesture.started')).toBe(false);
+    expect(input.command('gesture.grab', { viewportId: 'v' }).operation?.outcome).toMatchObject({
+      status: 'rejected',
+    });
+
+    input.command('selection.set', { ids: ['b'] });
+    expect(input.key(' ', { viewportId: 'v' }).operation?.outcome).toMatchObject({
+      status: 'previewed',
+    });
+    expect(
+      input.command('gesture.grab', { viewportId: 'v', nodeId: 'a' }).operation?.outcome,
+    ).toEqual({ status: 'unchanged', reason: 'window "b" is already held' });
+    const [x, y] = titleBar(ws, 'b');
+    expect(input.pointer('down', 'v', x, y)).toMatchObject({
+      consumed: true,
+      reason: 'the target is already in a gesture',
+    });
+    // Nothing selected, nothing to hold.
+    input.key('Escape', { viewportId: 'v' });
+    input.command('selection.set', { ids: [] });
+    expect(input.key(' ', { viewportId: 'v' }).operation?.outcome).toEqual({
+      status: 'unchanged',
+      reason: 'no node is named or selected',
+    });
+  });
+
+  it('moves a named window at once while another is held', () => {
+    const { ws, input } = world(two);
+    input.command('gesture.grab', { viewportId: 'v', nodeId: 'a' });
+    const bx = position(ws, 'b')[0];
+    expect(
+      input.command('node.move', { nodeId: 'b', viewportId: 'v', right: 0.5 }).operation?.outcome,
+    ).toMatchObject({ status: 'committed' });
+    expect(position(ws, 'b')[0]).toBeCloseTo(bx + 0.5, 12);
+    expect(
+      input.command('node.move', { nodeId: 'a', viewportId: 'v', right: 0.5 }).operation?.outcome,
+    ).toMatchObject({ status: 'previewed' });
   });
 });
 
@@ -316,7 +533,8 @@ describe('settings (FR-004, CFG-001)', () => {
     // With no slop, the first movement drags.
     expect(input.pointer('move', 'v', x + 1, y).gestureId).not.toBeNull();
     input.pointer('up', 'v', x + 1, y);
-    expect(input.key('Tab').consumed).toBe(false);
+    // The keymap given replaces the default one.
+    expect(input.key('n', { viewportId: 'v' }).consumed).toBe(false);
     input.command('selection.set', { ids: ['b'] });
     const bx = ws.getState().nodes.get('b')?.transform.position[0] ?? 0;
     input.key('m', { viewportId: 'v' });

@@ -44,12 +44,33 @@ export const DOM_RENDERER_CAPABILITIES: RendererCapabilities = Object.freeze({
   recovery: 'rebuild',
 });
 
+/**
+ * The colours window chrome is drawn in, as CSS colours (a custom property such as
+ * `var(--focus)` included): every frame's outline, and the selected and the focused window's.
+ * Each should stand out from what the view is drawn over by 3:1 at least (WCAG 1.4.11), so the
+ * window keys act on is seen (WCAG 2.4.7).
+ */
+export interface ChromeInks {
+  readonly frame: string;
+  readonly selected: string;
+  readonly focused: string;
+}
+
+/** Inks that stand out on a light page by 4.5:1 or more. */
+export const DEFAULT_CHROME_INKS: ChromeInks = Object.freeze({
+  frame: 'rgb(118, 118, 118)',
+  selected: 'rgb(0, 95, 184)',
+  focused: 'rgb(168, 74, 0)',
+});
+
 /** Window chrome: frames, titles and resize handles drawn from each window's projected frame. */
 export interface ChromeOptions {
   /** The projection modules views use, to project window frames. */
   readonly projections: { get(id: string): ProjectionModule | undefined };
   /** Thickness of the resize handles along window edges, in CSS px. Default 12. */
   readonly handlePx?: number;
+  /** Default {@link DEFAULT_CHROME_INKS}. */
+  readonly inks?: ChromeInks;
 }
 
 export interface DomRendererOptions {
@@ -124,11 +145,28 @@ export class DomRenderer implements RendererBackend {
         `chrome.handlePx must be a positive finite number (got ${String(handlePx)})`,
       );
     }
+    const inks = options.chrome?.inks ?? DEFAULT_CHROME_INKS;
+    for (const name of ['frame', 'selected', 'focused'] as const) {
+      const ink: unknown = inks[name];
+      if (typeof ink !== 'string' || ink.trim() === '') {
+        throw new RangeError(`chrome.inks.${name} must be a CSS colour (got ${String(ink)})`);
+      }
+    }
     this.#options = {
       document: options.document,
       pixelsPerUnit: ppu,
       chrome:
-        options.chrome === undefined ? null : { projections: options.chrome.projections, handlePx },
+        options.chrome === undefined
+          ? null
+          : {
+              projections: options.chrome.projections,
+              handlePx,
+              inks: Object.freeze({
+                frame: inks.frame,
+                selected: inks.selected,
+                focused: inks.focused,
+              }),
+            },
       standIn: options.standIn ?? ((reason) => STAND_IN_TEXT[reason]),
     };
   }
@@ -577,15 +615,21 @@ export class DomRendererSession implements RendererSession {
     const matrix =
       quadMatrix(width, height, offsetQuad(corners, x, y)) ??
       quadMatrix(width, height, offsetQuad(rectQuad(piece.bounds), x, y));
+    const selected = scene.selection.includes(nodeId);
+    const focused = scene.focusedId === nodeId;
     this.#write.style(outline, {
       width: `${String(width)}px`,
       height: `${String(height)}px`,
       transform: matrix === null ? 'scale(0)' : cssTransform(matrix),
+      // The window keys act on is marked, and the one in focus above it.
+      border: `${focused || selected ? '3px' : '1px'} solid ${
+        focused ? chrome.inks.focused : selected ? chrome.inks.selected : chrome.inks.frame
+      }`,
     });
     // Labels are text, never markup.
     this.#write.text(title, node.label ?? '');
-    this.#write.toggle(element, DOM_ATTRIBUTES.selected, scene.selection.includes(nodeId));
-    this.#write.toggle(element, DOM_ATTRIBUTES.focused, scene.focusedId === nodeId);
+    this.#write.toggle(element, DOM_ATTRIBUTES.selected, selected);
+    this.#write.toggle(element, DOM_ATTRIBUTES.focused, focused);
     const resizable = node.flags.resizable && !node.flags.locked;
     const t = chrome.handlePx;
     const [tl, tr, br, bl] = corners;

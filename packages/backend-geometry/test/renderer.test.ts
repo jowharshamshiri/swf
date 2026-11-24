@@ -2,8 +2,10 @@ import { SwfFailure } from '@swf/core';
 import type { CompositionLayer, RenderedFrame, RepresentationPolicy } from '@swf/presentation';
 import { negotiate } from '@swf/presentation';
 import { describe, expect, it } from 'vitest';
+import type { GeometryInks } from '../src/index.js';
 import {
   affine,
+  DEFAULT_GEOMETRY_INKS,
   drawableIssue,
   GeometryRenderer,
   homographyMesh,
@@ -174,6 +176,88 @@ describe('geometry renderer', () => {
     const ids = rendered.layers.map((l) => l.id);
     expect(ids).toContain('chrome:near');
     expect(ids).not.toContain('chrome:far');
+  });
+
+  it('draws chrome, labels and indicators in the host’s inks, read every frame (WCAG 1.4.3, 1.4.11, 2.4.7)', async () => {
+    const { ws, projections, kinds } = scene(
+      [
+        { id: 'a', kind: 'drawn', heading: 0, distance: 3, label: 'A' },
+        { id: 'b', kind: 'drawn', heading: 0.6, distance: 3, label: 'B' },
+        { id: 'c', kind: 'drawn', heading: -0.6, distance: 3, label: 'C' },
+        { id: 'away', kind: 'drawn', heading: Math.PI, distance: 3, label: 'Away' },
+      ],
+      120,
+    );
+    ws.transaction([
+      { type: 'selection.set', ids: ['a'] },
+      { type: 'focus.set', id: 'b' },
+    ]);
+    let inks: GeometryInks = {
+      frame: 'rgb(1, 1, 1)',
+      selected: 'rgb(2, 2, 2)',
+      focused: 'rgb(3, 3, 3)',
+      text: 'rgb(4, 4, 4)',
+    };
+    const renderer = new GeometryRenderer({
+      drawables: () => drawable,
+      projections,
+      inks: () => inks,
+    });
+    const draw = async () => {
+      const frame = plan(
+        ws,
+        projections,
+        kinds,
+        { id: renderer.id, capabilities: renderer.capabilities() },
+        { id: LAYER_COMPOSITOR_ID, capabilities: LAYER_COMPOSITOR_CAPABILITIES },
+      );
+      const session = await renderer.prepare(frame.scene, frame.view);
+      const rendered = session.render(frame);
+      return (id: string) => inked(rendered.layers.find((l) => l.id === id));
+    };
+    let layer = await draw();
+    // The selected window's frame and its handles, the focused one's frame, any other's frame;
+    // each title in the text ink.
+    expect(layer('chrome:a')).toEqual([
+      'stroke rgb(2, 2, 2)',
+      'fillText:A rgb(4, 4, 4)',
+      'fill rgb(2, 2, 2)',
+    ]);
+    expect(layer('chrome:b')).toEqual(['stroke rgb(3, 3, 3)', 'fillText:B rgb(4, 4, 4)']);
+    expect(layer('chrome:c')).toEqual(['stroke rgb(1, 1, 1)', 'fillText:C rgb(4, 4, 4)']);
+    expect(layer('overlay:indicators')).toEqual([
+      'fill rgb(1, 1, 1)',
+      'fillText:Away rgb(4, 4, 4)',
+    ]);
+    // A change of the host's inks (a switch to a dark appearance) is drawn at the next frame.
+    inks = { ...inks, frame: 'rgb(9, 9, 9)', text: 'rgb(8, 8, 8)' };
+    layer = await draw();
+    expect(layer('chrome:c')).toEqual(['stroke rgb(9, 9, 9)', 'fillText:C rgb(8, 8, 8)']);
+    expect(DEFAULT_GEOMETRY_INKS).toEqual({
+      frame: 'rgb(118, 118, 118)',
+      selected: 'rgb(0, 95, 184)',
+      focused: 'rgb(168, 74, 0)',
+      text: 'rgb(30, 30, 30)',
+    });
+  });
+
+  it('draws a stand-in’s words on a ground of its own, whatever the view is drawn over', async () => {
+    const { rendered } = await render([
+      { id: 'prox', kind: 'proxied', heading: 0, distance: 3, label: 'P' },
+      { id: 'none', kind: 'unbound', heading: 0.8, distance: 3, label: 'N' },
+    ]);
+    const of = (surfaceId: string) => inked(rendered.layers.find((l) => l.surfaceId === surfaceId));
+    // Opaque grounds, each with an ink 4.5:1 or more on it.
+    expect(of('prox-s').slice(0, 3)).toEqual([
+      'fill rgb(72, 84, 108)',
+      'stroke rgb(48, 56, 72)',
+      'fillText:P rgb(255, 255, 255)',
+    ]);
+    expect(of('none-s').slice(0, 3)).toEqual([
+      'fill rgb(220, 220, 220)',
+      'stroke rgb(90, 90, 90)',
+      'fillText:N rgb(40, 40, 40)',
+    ]);
   });
 
   it('draws content and representations only without projection modules, no chrome', async () => {
@@ -356,6 +440,47 @@ describe('drawing math', () => {
 });
 
 /** The drawing calls a layer makes (fills, strokes and the text it writes), in order. */
+/** What a layer draws, each fill, stroke and text with the colour it is drawn in. */
+function inked(layer: CompositionLayer | undefined): string[] {
+  const content = layer?.content;
+  if (!isGeometryLayer(content)) {
+    throw new Error('not a drawn layer');
+  }
+  const calls: string[] = [];
+  const style = { fillStyle: '', strokeStyle: '' };
+  const ctx = new Proxy(style, {
+    get(target, name) {
+      if (name === 'fill') {
+        return () => calls.push(`fill ${target.fillStyle}`);
+      }
+      if (name === 'fillRect') {
+        // Handles are drawn as squares, one ink for all of them.
+        return () => {
+          const call = `fill ${target.fillStyle}`;
+          if (calls.at(-1) !== call) {
+            calls.push(call);
+          }
+        };
+      }
+      if (name === 'stroke') {
+        return () => calls.push(`stroke ${target.strokeStyle}`);
+      }
+      if (name === 'fillText') {
+        return (text: string) => calls.push(`fillText:${text} ${target.fillStyle}`);
+      }
+      return () => undefined;
+    },
+    set(target, name, value: string) {
+      if (name === 'fillStyle' || name === 'strokeStyle') {
+        target[name] = value;
+      }
+      return true;
+    },
+  }) as unknown as CanvasRenderingContext2D;
+  content.draw(ctx);
+  return calls;
+}
+
 function drawn(layer: CompositionLayer | undefined): string[] {
   const content = layer?.content;
   if (!isGeometryLayer(content)) {
