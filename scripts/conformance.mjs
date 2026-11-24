@@ -6,7 +6,8 @@ import { browserVersion, machine, parseArguments, vitest } from './browsers.mjs'
 /**
  * Runs the browser suites in each browser in turn and records, per browser, every test and how it
  * ended, with each of the end-to-end acceptance scenarios (§33.2) gathered from the tests that
- * name it: `<out>/<browser>-tests.json` (Vitest's own report), `<out>/conformance.json` and
+ * name it: `<out>/<browser>-tests.json` (Vitest's own report), `<out>/<browser>-failures.json`
+ * (each failed test with its errors' messages), `<out>/conformance.json` and
  * `<out>/conformance.md`. Exits non-zero when any test failed or any scenario has no test.
  *
  *   npm run conformance -- --out <folder> [--browsers chromium,firefox,webkit]
@@ -24,14 +25,21 @@ await mkdir(out, { recursive: true });
 const runs = [];
 for (const browser of browsers) {
   const report = path.join(out, `${browser}-tests.json`);
-  const code = await vitest(browser, [
-    '--config',
-    'vitest.browser.config.mjs',
-    '--reporter=default',
-    '--reporter=json',
-    `--outputFile.json=${report}`,
-  ]);
+  const failuresFile = path.join(out, `${browser}-failures.json`);
+  const code = await vitest(
+    browser,
+    [
+      '--config',
+      'vitest.browser.config.mjs',
+      '--reporter=default',
+      '--reporter=json',
+      `--outputFile.json=${report}`,
+      '--reporter=./scripts/failures-reporter.mjs',
+    ],
+    { SWF_FAILURES_FILE: failuresFile },
+  );
   const json = JSON.parse(await readFile(report, 'utf8'));
+  const failures = JSON.parse(await readFile(failuresFile, 'utf8'));
   const tests = json.testResults.flatMap((file) =>
     file.assertionResults.map((t) => ({
       file: path.relative(process.cwd(), file.name),
@@ -39,7 +47,7 @@ for (const browser of browsers) {
       status: t.status,
     })),
   );
-  runs.push({ ...(await browserVersion(browser)), exitCode: code, tests });
+  runs.push({ ...(await browserVersion(browser)), exitCode: code, tests, failures });
 }
 
 /** The tests of a scenario: those whose names say `§33.2 scenario <n>`. */
@@ -57,6 +65,7 @@ const record = {
       version: run.version,
       exitCode: run.exitCode,
       counts,
+      failures: run.failures,
       scenarios: SCENARIOS.map((n) => {
         const tests = ofScenario(run.tests, n);
         return {
@@ -102,6 +111,17 @@ const lines = [
         .map(([status, n]) => `${String(n)} ${status}`)
         .join(', ')} (exit ${String(b.exitCode)})`,
   ),
+  '',
+  '## Failures',
+  '',
+  ...(record.browsers.every((b) => b.failures.length === 0)
+    ? ['None.', '']
+    : record.browsers.flatMap((b) =>
+        b.failures.flatMap((f) => [
+          `- ${b.browser} ${b.version}: ${f.file}: ${f.name}`,
+          ...f.errors.map((e) => `  - ${e.message.split('\n')[0] ?? ''}`),
+        ]),
+      )),
   '',
   '## Tests by scenario',
   '',

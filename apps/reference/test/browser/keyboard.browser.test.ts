@@ -118,7 +118,11 @@ describe('the keyboard alone (§33.2 scenario 10, AC-014, UX-012, FR-109)', () =
     expect(document.activeElement).toBe(app.root);
     expect(app.root.getAttribute('role')).toBe('application');
     expect(app.root.getAttribute('aria-description')).toMatch(/Arrows move/);
-    expect(root.querySelector('[data-wsb="application.panel.keys"]')).not.toBeNull();
+    // Its keys show once the browser says the panorama has the keyboard (its focus event), which
+    // Firefox driven over WebDriver BiDi may deliver a frame after the focus itself.
+    await expect
+      .poll(() => root.querySelector('[data-wsb="application.panel.keys"]'))
+      .not.toBeNull();
 
     // Select: N and P step through the windows, each said.
     await keys('n');
