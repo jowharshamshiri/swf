@@ -366,4 +366,41 @@ describe('workspace lifecycle', () => {
       expect(ws.lifecycle).toBe('disposed');
     }
   });
+
+  it('carries the commands of a transaction and how long it took, by the timer', () => {
+    let timer = 0;
+    // Each reading of the timer advances it by 5 ms: a transaction reads it as it starts and as it
+    // is announced.
+    const ws = makeWorkspace({ timer: () => (timer += 5) });
+    const events = record(ws);
+    const commands = [window('a'), { type: 'selection.set' as const, ids: ['a'] }];
+    committed(ws.transaction(commands, { source: 'user' }));
+    const commit = events.find((e) => e.type === 'transaction.committed');
+    expect(commit?.payload).toMatchObject({ commands, durationMs: 5 });
+    events.length = 0;
+    rejected(ws.dispatch({ type: 'node.delete', id: 'missing', mode: 'subtree' }));
+    const refusal = events.find((e) => e.type === 'transaction.rejected');
+    expect(refusal?.payload).toMatchObject({ commandTypes: ['node.delete'], durationMs: 5 });
+    events.length = 0;
+    committed(ws.undo());
+    const undone = events.find((e) => e.type === 'transaction.committed');
+    // An undo carries no commands of its own: it names the transaction it reverses.
+    expect(undone?.payload).toMatchObject({ commands: null, durationMs: 5 });
+  });
+
+  it('times transactions by the now clock when no timer is given', () => {
+    let tick = 0;
+    const ws = createWorkspace({ id: 'ws', now: () => (tick += 2) });
+    const events = record(ws);
+    committed(ws.transaction([window('a')]));
+    const commit = events.find((e) => e.type === 'transaction.committed');
+    expect(commit?.payload).toMatchObject({ durationMs: expect.any(Number) as number });
+    expect((commit?.payload as { durationMs: number }).durationMs).toBeGreaterThan(0);
+  });
+
+  it('refuses a timer that is not a function', () => {
+    expect(() => createWorkspace({ id: 'ws', timer: 5 as unknown as () => number })).toThrow(
+      /options.timer must be a function/,
+    );
+  });
 });

@@ -13,7 +13,13 @@ import type {
   RepresentationPolicy,
   ViewGeometry,
 } from '../src/index.js';
-import { createViewOutput, fragmentId, groupFallbacks, planFrame } from '../src/index.js';
+import {
+  conditionFor,
+  createViewOutput,
+  fragmentId,
+  groupFallbacks,
+  planFrame,
+} from '../src/index.js';
 
 const PANORAMA: ProjectionProfile = {
   id: 'test.panorama/1',
@@ -207,17 +213,19 @@ describe('frame planning', () => {
       compositor: { id: 'c/1', capabilities: compositor },
       projection: profile,
       ...(representation === undefined ? {} : { representation }),
-      surfaceCapabilities: (id) =>
-        id === 'b'
-          ? mockCapabilities({
-              attachStrategy: 'drawable',
-              nativeInteraction: 'none',
-              transformFidelity: 'exact',
-              viewportSharing: 'shared',
-            })
-          : id === 'c'
-            ? null
-            : mockCapabilities(),
+      condition: (id) =>
+        conditionFor(
+          id === 'b'
+            ? mockCapabilities({
+                attachStrategy: 'drawable',
+                nativeInteraction: 'none',
+                transformFidelity: 'exact',
+                viewportSharing: 'shared',
+              })
+            : id === 'c'
+              ? null
+              : mockCapabilities(),
+        ),
       viewportOwns: owns,
       geometry: (id) => ws.surfaceGeometry(id),
     });
@@ -323,7 +331,7 @@ describe('frame planning', () => {
       renderer: { id: 'r/1', capabilities: MOCK_RENDERER_CAPABILITIES },
       compositor: { id: 'c/1', capabilities: MOCK_COMPOSITOR_CAPABILITIES },
       projection: PERSPECTIVE,
-      surfaceCapabilities: () => null,
+      condition: () => conditionFor(null),
       viewportOwns: () => true,
       geometry: (id: string) => ws.surfaceGeometry(id),
     };

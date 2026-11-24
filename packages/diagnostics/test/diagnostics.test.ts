@@ -256,7 +256,7 @@ describe('diagnostics (API-013, AN-001, AN-003, AN-005, AN-008)', () => {
     });
     expect(report.resources).toMatchObject({
       presenter: { viewports: 1, sessions: 2 },
-      subscriptions: 2,
+      subscriptions: 3,
       handoffs: 0,
     });
     expect(report.errors.map((e) => [e.source, e.error.code])).toEqual([

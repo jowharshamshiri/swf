@@ -1,5 +1,5 @@
 import type { Transform3D } from '@swf/math';
-import type { EventSource, OperationType } from './commands.js';
+import type { EventSource, OperationType, SceneCommand } from './commands.js';
 import type { SwfError } from './errors.js';
 import type { Id } from './model.js';
 
@@ -63,11 +63,20 @@ interface EventPayloads {
     readonly previewId: string | null;
     /** Set when the commit is an undo or redo of an earlier transaction. */
     readonly history: { readonly action: 'undo' | 'redo'; readonly transactionId: string } | null;
+    /**
+     * The commands committed, as the caller gave them, for tracing; null for an undo, redo or
+     * restore, which carry none of their own. Listeners must not change them.
+     */
+    readonly commands: readonly SceneCommand[] | null;
+    /** How long the transaction took, by the workspace's timer, in milliseconds. */
+    readonly durationMs: number;
   };
   'transaction.rejected': {
     readonly transactionId: string;
     readonly commandTypes: readonly OperationType[];
     readonly error: SwfError;
+    /** How long it took to be refused, by the workspace's timer, in milliseconds. */
+    readonly durationMs: number;
   };
   'node.created': { readonly nodeId: Id; readonly parentId: Id | null };
   'node.deleted': { readonly nodeId: Id; readonly parentId: Id | null };

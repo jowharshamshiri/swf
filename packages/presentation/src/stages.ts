@@ -1,6 +1,6 @@
 import type { Id, ResolvedGeometry, SceneState } from '@swf/core';
 import { makeError, SwfFailure } from '@swf/core';
-import type { SurfaceCapabilities } from '@swf/surfaces';
+import type { SurfaceCondition } from './conditions.js';
 import type {
   CompositorCapabilities,
   ProjectionProfile,
@@ -65,8 +65,8 @@ export interface FrameInput {
   readonly policy?: FallbackPolicy;
   /** How each surface is represented here; with none, every surface is `full`. */
   readonly representation?: RepresentationPolicy;
-  /** The bound handle's capabilities for a surface, or null when it has none. */
-  readonly surfaceCapabilities: (surfaceId: Id) => SurfaceCapabilities | null;
+  /** Where each surface's binding stands; a bound one carries its handle's capabilities. */
+  readonly condition: (surfaceId: Id) => SurfaceCondition;
   /**
    * Whether this viewport may hold the surface's live handle: false when a single-owner handle is
    * presented in another viewport.
@@ -123,7 +123,8 @@ export function planFrame(input: FrameInput): RenderFrame {
     return chosen;
   };
   const planned: PlannedFragment[] = output.fragments.map((fragment) => {
-    const surface = input.surfaceCapabilities(fragment.surfaceId);
+    const condition = input.condition(fragment.surfaceId);
+    const surface = condition.kind === 'bound' ? condition.capabilities : null;
     const geometry = input.geometry(fragment.surfaceId);
     if (geometry === undefined) {
       return fail(`surface "${fragment.surfaceId}" has no geometry`);
@@ -151,7 +152,7 @@ export function planFrame(input: FrameInput): RenderFrame {
       },
       representedOrder(input.policy ?? DEFAULT_FALLBACK_POLICY, representation),
     );
-    return Object.freeze({ fragment, negotiation, representation });
+    return Object.freeze({ fragment, negotiation, representation, condition });
   });
   return Object.freeze({
     viewportId: view.viewportId,

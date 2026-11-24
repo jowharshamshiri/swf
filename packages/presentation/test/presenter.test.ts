@@ -22,7 +22,12 @@ import type {
   ViewportOptions,
   ViewProjector,
 } from '../src/index.js';
-import { createPresentationRegistry, createPresenter, fragmentId } from '../src/index.js';
+import {
+  createPresentationRegistry,
+  createPresenter,
+  fragmentId,
+  standInReason,
+} from '../src/index.js';
 
 const FLAT: ProjectionProfile = {
   id: 'test.flat/1',
@@ -410,6 +415,81 @@ describe('advisory hints (FR-045, FR-046, FR-141, FR-149, AC-006)', () => {
     v.invalidate();
     await h.frames.flush();
     expect(frames(h.events).at(-1)?.metrics.hints).toBe(0);
+    // The frame still holds every surface's hint as it computed it, for inspection.
+    const hints = v.lastFrame()?.hints ?? [];
+    expect(hints.map((hint) => hint.surfaceId).sort()).toEqual(['a-s', 'b-s', 'c-s']);
+    expect(hints.find((hint) => hint.surfaceId === 'b-s')).toMatchObject({
+      tier: 'full',
+      occlusion: { value: 0, confidence: 'exact' },
+    });
+  });
+});
+
+describe('stand-ins say why they stand in (FR-195, AC-004, §33.2 scenario 7)', () => {
+  /** Each surface's condition and the reason its fragments give, in the last frame of a view. */
+  const reasons = (v: PresentedViewport) =>
+    Object.fromEntries(
+      (v.lastFrame()?.frame.planned ?? []).map((p) => [
+        p.fragment.surfaceId,
+        `${p.condition.kind}:${String(standInReason(p))}`,
+      ]),
+    );
+
+  it('tells unbound, unsupported, pending and failed surfaces apart', async () => {
+    const h = await harness({
+      windows: [
+        ...windowAt('ok', -3),
+        // No adapter is registered for its type.
+        ...windowAt('alien', -1.5).map((c) =>
+          c.type === 'surface.attach'
+            ? { ...c, surface: { ...c.surface, adapterTypeId: 'test.missing/1' } }
+            : c,
+        ),
+        // It names no endpoint.
+        ...windowAt('blank', 0).map((c) =>
+          c.type === 'surface.attach' ? { ...c, surface: { ...c.surface, bindingKey: null } } : c,
+        ),
+        ...windowAt('lost', 1.5),
+        ...windowAt('slow', 3),
+        ...windowAt('broken', 2.2, 1.2),
+      ],
+    });
+    // Every surface bound as the adapter was registered: two are pointed at endpoints that the
+    // adapter does not know, or takes its time over; one will fail to attach.
+    h.adapter.unknown.add('key-gone');
+    h.adapter.holding.add('key-wait');
+    h.adapter.attachFailing.add('key-broken');
+    h.ws.transaction([
+      { type: 'surface.rebind', id: 'lost-s', bindingKey: 'key-gone' },
+      { type: 'surface.rebind', id: 'slow-s', bindingKey: 'key-wait' },
+    ]);
+    await settle();
+    const v = await h.open();
+    await h.frames.flush();
+    await h.frames.flush();
+    expect(reasons(v)).toMatchObject({
+      'ok-s': 'bound:null',
+      'alien-s': 'unsupported:unsupported',
+      'blank-s': 'unbound:unbound',
+      'lost-s': 'unbound:unbound',
+      'slow-s': 'pending:pending',
+      // Attaching threw: retryable, so temporarily unavailable.
+      'broken-s': 'failed:unavailable',
+    });
+    // The surface that works is presented as itself, whatever the others do.
+    expect(h.runtime.get('ok-s')?.state).toBe('presented');
+  });
+
+  it('says a single-owner surface shown in another view is shown there', async () => {
+    const h = await harness();
+    const v = await h.open();
+    await h.frames.flush();
+    const w = await h.open({ viewportId: 'w' });
+    await h.frames.flush();
+    expect(reasons(v)['a-s']).toBe('bound:null');
+    // The mock adapter's handles are single-owner: the second view stands in for them.
+    expect(reasons(w)['a-s']).toBe('bound:elsewhere');
+    expect(w.presentation('a-s')).toBe('proxy');
   });
 });
 

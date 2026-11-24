@@ -8,6 +8,7 @@ import type {
 import type { ProjectedFragment, ViewGeometry, ViewOutput } from './fragments.js';
 import type { FallbackDiagnostic, Negotiation } from './negotiation.js';
 import type { Representation } from './representation.js';
+import type { SurfaceCondition } from './conditions.js';
 
 /** The version of the renderer and compositor contracts this package defines. */
 export const PRESENTATION_API_VERSION = 1;
@@ -23,6 +24,8 @@ export interface PlannedFragment {
    * proxy as the surface's label alone, and leaves out its window's chrome.
    */
   readonly representation: Representation;
+  /** Where the surface's binding stands: what a stand-in for its content says (FR-195). */
+  readonly condition: SurfaceCondition;
 }
 
 /** One frame for one viewport: what to realize, in presentation order (back to front). */

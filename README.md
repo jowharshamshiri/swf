@@ -44,8 +44,10 @@ interaction; the host owns whatever is presented.
 - `@swf/conformance`: suites that check an adapter, a renderer or a compositor against the
   contracts, with reference mocks to run them against.
 - `@swf/diagnostics`: what a running presentation can report locally: each viewport's backend
-  and capabilities, the fallbacks chosen and why, frame and attachment measures, scene density,
-  resource health and the last typed errors.
+  and capabilities, the fallbacks chosen and why, frame, attachment and scene-operation measures,
+  scene density, resource health and the last typed errors; a trace of the workspace's operations
+  to reproduce interaction bugs; and an export of both that discloses labels, binding keys and the
+  host's data only when asked.
 - `@swf/persistence`: versioned, canonical workspace snapshots with a published JSON Schema and
   a validator that matches it, policy parameters and opaque extension state with size limits,
   two-phase restore with format migrations, a replaceable storage interface with in-memory, Web
@@ -98,6 +100,12 @@ A transaction applies all of its commands as one revision or none of them. A rej
 error envelope with a stable `code` (such as `INVALID_INPUT`, `UNKNOWN_ENTITY`, `CONFLICT`,
 `LOCKED` or `CONSTRAINT_REJECTED`), the `path` of the failing input and a readable message.
 Committed state is immutable: every commit produces a new `SceneState`.
+
+Every commit ends with one `transaction.committed` event, and every refusal is announced as
+`transaction.rejected`. Each says how long the transaction took by the workspace's `timer` (its
+`now` clock unless a finer one, such as `performance.now`, is given), and a commit carries the
+commands it committed (none for an undo, a redo or a restore, which name what they reverse or
+replace), so a listener can trace operations without the caller's help.
 
 The node commands are `node.create`, `node.patch`, `node.reparent`, `node.reorder`,
 `node.duplicate`, `node.archive`, `node.restoreArchived`, `node.delete`, `node.group`,
@@ -176,6 +184,17 @@ compositor's and projection's capabilities, walking the fallback policy (by defa
 `native`, `approximated`, `proxy`, `placeholder`) and reporting why each better mode was not
 possible. Where a live element is placed exactly but its shape only approximates the projection,
 the result says so; nothing approximate is ever labelled exact.
+
+Each planned fragment also carries its surface's `condition`: `bound` (with the capabilities its
+endpoint declares, and whether a single-owner handle is presented in another viewport),
+`pending`, `unbound` (no key, an unknown key, or released), `unsupported` (no adapter for its
+type) or `failed` (with the typed error). `standInReason` turns it into what a proxy or
+placeholder says: `pending`, `unbound`, `unsupported`, `unavailable` (a failure that can be
+retried), `failed` or `elsewhere` (shown in another view). Both renderers write the reason on
+the stand-in, in English by default (`STAND_IN_TEXT`) or in the host's words (their `standIn`
+option), and the DOM renderer marks it `data-swf-stand-in`; a stand-in chosen by a representation,
+or a seam's secondary proxy, says nothing, since the view shows why. A viewport with no working
+backend says `Backend unavailable` and why.
 
 Rendering order depends only on the scene revision and the view: layers come in the plan's order
 whatever order fragments were produced in, and a compositor declares how overlapping layers
@@ -264,7 +283,9 @@ input.command('node.move', { viewportId: 'main-viewport', right: 0.2 });
 Every device reaches the router as the same intents: pointer samples carry the viewport, device,
 pointer ID, position, buttons, modifiers, phase, timestamp and, when the device has them,
 pressure, tilt and twist. `dispatch` answers whether the framework consumed the intent; anything
-it does not consume is the host's to deliver natively.
+it does not consume is the host's to deliver natively. A pointer or wheel intent that picked also
+reports its hit query (`pick`): whether its best two candidates tied, and how long it took by the
+router's `timer` (`Date.now` unless the host gives a finer clock, such as `performance.now`).
 
 Picking follows the viewport's projection inverse to a world ray, finds candidates in a
 bounding-volume tree kept in step with the scene, and intersects their exact geometry. Candidates
@@ -368,7 +389,8 @@ last is not sent again. A hint keeps apart whether the frame shows the surface a
 (`visible`), whether its own content is attached and shown (`mounted`), the scene's own flag
 (`sceneVisible`), how much of it is in the view (`intersectionRatio`), how much is covered by
 what is in front (`occlusion`, `exact`, `estimated` or `unknown`), and how much attention it
-has (`active` when its window has focus). Hints never stop, pause or reconfigure a producer, and
+has (`active` when its window has focus). The frame keeps every attached surface's hint as it
+computed it (`view.lastFrame().hints`), sent again or not, for inspection. Hints never stop, pause or reconfigure a producer, and
 nothing the framework does to presentation calls the adapter for anything but attaching, hints and
 releasing an attachment.
 
@@ -499,8 +521,35 @@ and longest duration, why the last frame was due, fragments drawn and writes mad
 measures per adapter type (bound, presented, failed, binding time and fallback modes), scene
 density (nodes, surfaces, and per viewport the candidates, mounted surfaces and culled ones),
 resource health (sessions, listeners and subscriptions held, handoffs under way) and the last
-typed errors. It holds identifiers, counts and timings only, never content, and sends nothing
-anywhere.
+typed errors. Scene operations are measured by command type (AN-002): how many committed and were
+refused, the nodes they changed, the last revision, and the last, longest and total duration by
+the workspace's `timer` (its `now` clock unless the host gives a finer one). It holds
+identifiers, counts and timings only, never content, and sends nothing anywhere.
+
+```ts
+import { createOperationTrace, exportDiagnostics } from '@swf/diagnostics';
+
+const trace = createOperationTrace({ workspace });
+// ... reproduce the bug ...
+const text = trace.serialize(); // canonical JSON: the same operations give the same text
+const shared = exportDiagnostics({
+  report: diagnostics.read(),
+  scene: workspace.getState(),
+  trace,
+  exportedAt: Date.now(),
+  disclosure: { labels: false, bindingKeys: false, hostData: false }, // the default
+});
+```
+
+The operation trace keeps every transaction, committed or refused, in order (1000 by default):
+its ID, source, cause, revisions, command types, the commands committed (each transaction event
+carries them), what an undo or redo reversed, the IDs it changed, and a refusal's error code and
+path. Serialized, it leaves out what is the host's unless disclosed: a label becomes `"[label]"`,
+a binding key a token (`binding-1`, one per key), tags and metadata `"[host data]"`, and error
+messages and timings are dropped, so two runs of the same operations give the same text. The
+export holds identifiers, performance numbers and error codes by default; labels, binding keys,
+the host's data, error messages and timings are added only when chosen, each in its own section
+keyed by ID, and the host's own measures go in as given. Nothing walks a surface's content.
 
 ## Saving layouts
 

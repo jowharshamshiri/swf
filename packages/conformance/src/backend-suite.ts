@@ -10,6 +10,7 @@ import type {
   ViewGeometry,
 } from '@swf/presentation';
 import {
+  conditionFor,
   createPresentationRegistry,
   createViewOutput,
   fragmentId,
@@ -152,7 +153,7 @@ function plan(
     renderer: { id: renderer.id, capabilities: renderer.capabilities() },
     compositor: { id: compositor.id, capabilities: compositor.capabilities() },
     projection: profile,
-    surfaceCapabilities: (id) => capabilities.get(id) ?? null,
+    condition: (id) => conditionFor(capabilities.get(id) ?? null),
     viewportOwns: () => true,
     geometry: (id) => workspace.surfaceGeometry(id),
   });

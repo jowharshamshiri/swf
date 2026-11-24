@@ -78,7 +78,21 @@ export interface DispatchResult {
   } | null;
   /** Why the intent was not consumed or not acted on, when it was not. */
   readonly reason: string | null;
+  /**
+   * The hit query the intent made, for pointer and wheel intents that picked: whether its best
+   * two candidates tied, and how long it took by the router's timer, in milliseconds.
+   */
+  readonly pick: PickMeasure | null;
 }
+
+/** One hit query, measured. */
+export interface PickMeasure {
+  readonly ambiguous: boolean;
+  readonly ms: number;
+}
+
+/** What the router's routes return: a result before its pick is added. */
+type Routed = Omit<DispatchResult, 'pick'>;
 
 /** Notifications from the router. Hosts release platform pointer capture and styling on them. */
 export type InteractionEvent =
@@ -128,6 +142,11 @@ export interface InteractionRouterOptions {
   readonly policies?: readonly InteractionPolicy[];
   /** Commands besides the built-in ones. */
   readonly commands?: readonly InteractionCommand[];
+  /**
+   * The clock hit queries are timed with, in milliseconds: a monotonic one, such as
+   * `performance.now`, for useful timings. Default `Date.now`.
+   */
+  readonly timer?: () => number;
 }
 
 /** A pointer is identified by its device and its ID on that device. */
@@ -162,7 +181,7 @@ interface Arena {
   ending: boolean;
 }
 
-const NOT_HANDLED = (reason: string, extra: Partial<DispatchResult> = {}): DispatchResult => ({
+const NOT_HANDLED = (reason: string, extra: Partial<Routed> = {}): Routed => ({
   consumed: false,
   route: 'ignored',
   region: null,
@@ -188,6 +207,9 @@ export class InteractionRouter {
   readonly #projections: { get(id: string): ProjectionModule | undefined };
   readonly #presentation: PresentationLookup;
   readonly #occlusion: OcclusionLookup;
+  readonly #timer: () => number;
+  /** The hit query of the dispatch under way, once it has made one. */
+  #lastPick: PickMeasure | null = null;
   #settings: InteractionSettings;
   readonly #policies = new Map<string, InteractionPolicy>();
   readonly #commands = new Map<string, InteractionCommand>();
@@ -208,6 +230,10 @@ export class InteractionRouter {
     this.#projections = options.projections;
     this.#presentation = options.presentation ?? (() => 'live');
     this.#occlusion = options.occlusion ?? (() => 'occluding');
+    if (options.timer !== undefined && typeof options.timer !== 'function') {
+      throw failure('INVALID_INPUT', 'timer must be a function');
+    }
+    this.#timer = options.timer ?? Date.now;
     this.#settings = mergeSettings(DEFAULT_SETTINGS, options.settings ?? {});
     for (const command of [...BUILT_IN_COMMANDS, ...(options.commands ?? [])]) {
       this.registerCommand(command);
@@ -454,6 +480,18 @@ export class InteractionRouter {
     if (issue !== null) {
       throw failure('INVALID_INPUT', `intent: ${issue}`);
     }
+    // A dispatch made while another runs (by a policy, say) reports its own hit query only.
+    const outer = this.#lastPick;
+    this.#lastPick = null;
+    try {
+      const routed = this.#route(intent);
+      return { ...routed, pick: this.#lastPick };
+    } finally {
+      this.#lastPick = outer;
+    }
+  }
+
+  #route(intent: InputIntent): Routed {
     switch (intent.kind) {
       case 'pointer':
         return this.#pointer(intent);
@@ -489,7 +527,7 @@ export class InteractionRouter {
 
   // --- pointers ---------------------------------------------------------------------------
 
-  #pointer(intent: PointerIntent): DispatchResult {
+  #pointer(intent: PointerIntent): Routed {
     const key = pointerKey(intent);
     const arena = this.#pressed.get(key);
     switch (intent.phase) {
@@ -517,7 +555,7 @@ export class InteractionRouter {
     }
   }
 
-  #press(intent: PointerIntent, key: string): DispatchResult {
+  #press(intent: PointerIntent, key: string): Routed {
     const scene = this.#workspace.getState();
     const view = viewGeometryOf(scene, intent.viewportId);
     const result = this.#pickIn(scene, view, intent.x, intent.y);
@@ -595,7 +633,7 @@ export class InteractionRouter {
     return claims;
   }
 
-  #move(arena: Arena, key: string, intent: PointerIntent): DispatchResult {
+  #move(arena: Arena, key: string, intent: PointerIntent): Routed {
     const pressed = arena.pointers.get(key);
     if (pressed === undefined) {
       return NOT_HANDLED('the pointer is not captured');
@@ -624,7 +662,7 @@ export class InteractionRouter {
     return this.#handled(arena);
   }
 
-  #release(arena: Arena, key: string, intent: PointerIntent): DispatchResult {
+  #release(arena: Arena, key: string, intent: PointerIntent): Routed {
     const pressed = arena.pointers.get(key);
     if (pressed !== undefined) {
       pressed.last = intent;
@@ -642,7 +680,7 @@ export class InteractionRouter {
       throw new Error('a gesture that began is not running');
     }
     const finish = this.#guard(arena, () => running.handler.finish());
-    const result: DispatchResult = {
+    const result: Routed = {
       ...this.#handled(arena),
       operation: { name: running.claim.operation, outcome: finish },
     };
@@ -803,7 +841,7 @@ export class InteractionRouter {
     return [...arena.pointers.values()].map((p) => p.last);
   }
 
-  #handled(arena: Arena): DispatchResult {
+  #handled(arena: Arena): Routed {
     return {
       consumed: true,
       route: 'gesture',
@@ -817,7 +855,7 @@ export class InteractionRouter {
 
   // --- wheel, keys and commands -----------------------------------------------------------
 
-  #wheel(intent: WheelIntent): DispatchResult {
+  #wheel(intent: WheelIntent): Routed {
     const scene = this.#workspace.getState();
     for (const arena of this.#arenas.values()) {
       const handler = arena.running?.handler;
@@ -862,7 +900,7 @@ export class InteractionRouter {
     };
   }
 
-  #key(intent: KeyIntent): DispatchResult {
+  #key(intent: KeyIntent): Routed {
     if (intent.phase === 'down' && intent.key === 'Escape' && this.#arenas.size > 0) {
       const count = this.#cancelWhere(() => true, 'escape');
       return commandResult('gesture.cancel', { status: 'cancelled', count });
@@ -894,7 +932,7 @@ export class InteractionRouter {
     return commandResult(binding.command, this.#run(binding.command, args));
   }
 
-  #command(intent: CommandIntent): DispatchResult {
+  #command(intent: CommandIntent): Routed {
     return commandResult(intent.command, this.#run(intent.command, intent.args));
   }
 
@@ -932,6 +970,7 @@ export class InteractionRouter {
     y: number,
     continuity?: Continuity,
   ): PickResult {
+    const started = this.#timer();
     this.#index.sync(scene, (id) => this.#workspace.surfaceGeometry(id));
     const modal =
       this.#modal === null
@@ -941,7 +980,7 @@ export class InteractionRouter {
               scene.nodes.has(id) ? [id, ...descendantIds(scene.nodes, id)] : [],
             ),
           );
-    return pick(
+    const result = pick(
       {
         scene,
         view,
@@ -960,6 +999,11 @@ export class InteractionRouter {
       y,
       continuity,
     );
+    this.#lastPick = Object.freeze({
+      ambiguous: result.kind === 'hit' && result.ambiguous,
+      ms: this.#timer() - started,
+    });
+    return result;
   }
 
   #onWorkspaceEvent(event: WorkspaceEvent): void {
@@ -1047,7 +1091,7 @@ function isRecord(value: JsonValue): value is Readonly<Record<string, JsonValue>
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function commandResult(name: string, outcome: CommandOutcome): DispatchResult {
+function commandResult(name: string, outcome: CommandOutcome): Routed {
   return {
     consumed: true,
     route: 'command',

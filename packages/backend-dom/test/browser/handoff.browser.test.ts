@@ -38,7 +38,7 @@ describe('losing the renderer in an active scene (§33.2 scenario 6, NFR-013, §
     await until(() => view.viewport.state === 'presentation-degraded', 'degradation');
     const notice = view.root.querySelector(`[${DOM_ATTRIBUTES.degraded}]`);
     expect(notice?.getAttribute('role')).toBe('status');
-    expect(notice?.textContent).toMatch(/^Presentation unavailable: viewport "v"/);
+    expect(notice?.textContent).toMatch(/^Backend unavailable: viewport "v"/);
     // Its live content left the view, released (the endpoint allows it), never destroyed.
     expect(live.element.isConnected).toBe(false);
     expect(s.runtime.get('a-view')?.viewports).toEqual([]);

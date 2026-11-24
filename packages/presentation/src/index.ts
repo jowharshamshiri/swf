@@ -98,5 +98,13 @@ export {
   representedOrder,
   REPRESENTATIONS,
 } from './representation.js';
+export type { StandInReason, SurfaceCondition } from './conditions.js';
+export {
+  conditionFor,
+  STAND_IN_REASONS,
+  STAND_IN_TEXT,
+  standInReason,
+  surfaceCondition,
+} from './conditions.js';
 export type { FrameInput, ViewProjector } from './stages.js';
 export { groupFallbacks, planFrame, PRESENTATION_STAGES } from './stages.js';

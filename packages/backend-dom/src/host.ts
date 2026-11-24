@@ -38,7 +38,7 @@ export function showDegraded(container: unknown, error: SwfError): () => void {
   notice.setAttribute('role', 'status');
   notice.setAttribute(DOM_ATTRIBUTES.degraded, error.code);
   // The message is text, never markup.
-  notice.textContent = `Presentation unavailable: ${error.message}`;
+  notice.textContent = `Backend unavailable: ${error.message}`;
   container.append(notice);
   return () => {
     notice.remove();

@@ -18,9 +18,15 @@ import type {
   RendererSession,
   RenderFrame,
   ScreenRect,
+  StandInReason,
   ViewGeometry,
 } from '@swf/presentation';
-import { PRESENTATION_API_VERSION, viewGeometryIssue } from '@swf/presentation';
+import {
+  PRESENTATION_API_VERSION,
+  STAND_IN_TEXT,
+  standInReason,
+  viewGeometryIssue,
+} from '@swf/presentation';
 import type { Projection, ProjectionModule } from '@swf/projections';
 import { projectionFor } from '@swf/projections';
 import type { Drawable, Mesh } from './drawing.js';
@@ -45,6 +51,11 @@ export interface GeometryRendererOptions {
   readonly projections?: { get(id: string): ProjectionModule | undefined };
   /** Cells per side of the mesh a drawable is warped with. Default 12. */
   readonly meshCells?: number;
+  /**
+   * What a proxy or placeholder says when it stands in for content for a reason (FR-195), as text.
+   * Default {@link STAND_IN_TEXT}, in English.
+   */
+  readonly standIn?: (reason: StandInReason) => string;
 }
 
 /**
@@ -271,6 +282,9 @@ export class GeometryRendererSession implements RendererSession {
     const { fragment, negotiation } = planned;
     const category = negotiation.layer;
     const label = labelOf(frame.scene, fragment.surfaceId);
+    const reason = standInReason(planned);
+    const because =
+      reason === null ? null : (this.#options.standIn ?? ((r) => STAND_IN_TEXT[r]))(reason);
     let draw: (ctx: CanvasRenderingContext2D) => void;
     let signature: string | null;
     switch (category) {
@@ -305,7 +319,7 @@ export class GeometryRendererSession implements RendererSession {
           };
           break;
         }
-        signature = JSON.stringify(['proxy', fragment.bounds, fragment.corners, label]);
+        signature = JSON.stringify(['proxy', fragment.bounds, fragment.corners, label, because]);
         draw = (ctx) => {
           clipTo(ctx, fragment.bounds);
           outline(ctx, fragment.corners ?? rectQuad(fragment.bounds));
@@ -315,10 +329,19 @@ export class GeometryRendererSession implements RendererSession {
           ctx.lineWidth = 1;
           ctx.stroke();
           text(ctx, label, fragment.bounds, 'rgb(255, 255, 255)');
+          if (because !== null) {
+            text(ctx, because, shift(fragment.bounds, 16), 'rgb(255, 255, 255)');
+          }
         };
         break;
       case 'placeholder':
-        signature = JSON.stringify(['placeholder', fragment.bounds, fragment.corners, label]);
+        signature = JSON.stringify([
+          'placeholder',
+          fragment.bounds,
+          fragment.corners,
+          label,
+          because,
+        ]);
         draw = (ctx) => {
           clipTo(ctx, fragment.bounds);
           outline(ctx, fragment.corners ?? rectQuad(fragment.bounds));
@@ -328,7 +351,9 @@ export class GeometryRendererSession implements RendererSession {
           ctx.strokeStyle = 'rgb(90, 90, 90)';
           ctx.stroke();
           text(ctx, label, fragment.bounds, 'rgb(40, 40, 40)');
-          text(ctx, 'Not presented', shift(fragment.bounds, 16), 'rgb(40, 40, 40)');
+          if (because !== null) {
+            text(ctx, because, shift(fragment.bounds, 16), 'rgb(40, 40, 40)');
+          }
         };
         break;
       case 'content-native':

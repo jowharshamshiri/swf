@@ -10,9 +10,15 @@ import type {
   RendererSession,
   RenderFrame,
   ScreenRect,
+  StandInReason,
   ViewGeometry,
 } from '@swf/presentation';
-import { PRESENTATION_API_VERSION, viewGeometryIssue } from '@swf/presentation';
+import {
+  PRESENTATION_API_VERSION,
+  STAND_IN_TEXT,
+  standInReason,
+  viewGeometryIssue,
+} from '@swf/presentation';
 import type { ProjectionModule } from '@swf/projections';
 import { projectionFor } from '@swf/projections';
 import type { Quad2 } from '@swf/math';
@@ -52,6 +58,11 @@ export interface DomRendererOptions {
   readonly pixelsPerUnit?: number;
   /** Draws window chrome when given; without it the renderer draws content only. */
   readonly chrome?: ChromeOptions;
+  /**
+   * What a proxy or placeholder says when it stands in for content for a reason (FR-195), as text.
+   * Default {@link STAND_IN_TEXT}, in English.
+   */
+  readonly standIn?: (reason: StandInReason) => string;
 }
 
 /** The attribute names the renderer marks its elements with, for hosts' styles and tests. */
@@ -72,6 +83,8 @@ export const DOM_ATTRIBUTES = Object.freeze({
   label: 'data-swf-label',
   degraded: 'data-swf-degraded',
   representation: 'data-swf-representation',
+  /** On a proxy or placeholder: why it stands in for the content, or empty when no reason is due. */
+  standIn: 'data-swf-stand-in',
 });
 
 /** Each resize handle and the frame sides it lies on. */
@@ -86,13 +99,19 @@ const RESIZE_EDGES = Object.freeze({
   sw: ['s', 'w'],
 } as const);
 
+/** What a session is made with. */
+interface SessionOptions {
+  readonly document: Document;
+  readonly pixelsPerUnit: number;
+  readonly chrome: Required<ChromeOptions> | null;
+  readonly standIn: (reason: StandInReason) => string;
+}
+
 /** Realizes views as DOM: live slots, proxies, placeholders and chrome under one root per view. */
 export class DomRenderer implements RendererBackend {
   readonly id = DOM_RENDERER_ID;
   readonly apiVersion = PRESENTATION_API_VERSION;
-  readonly #options: Required<Pick<DomRendererOptions, 'document' | 'pixelsPerUnit'>> & {
-    readonly chrome: Required<ChromeOptions> | null;
-  };
+  readonly #options: SessionOptions;
 
   constructor(options: DomRendererOptions) {
     const ppu = options.pixelsPerUnit ?? 400;
@@ -110,6 +129,7 @@ export class DomRenderer implements RendererBackend {
       pixelsPerUnit: ppu,
       chrome:
         options.chrome === undefined ? null : { projections: options.chrome.projections, handlePx },
+      standIn: options.standIn ?? ((reason) => STAND_IN_TEXT[reason]),
     };
   }
 
@@ -144,21 +164,19 @@ export class DomRendererSession implements RendererSession {
   readonly #document: Document;
   readonly #ppu: number;
   readonly #chrome: Required<ChromeOptions> | null;
+  readonly #standIn: (reason: StandInReason) => string;
   readonly #slots = new Map<Id, NativeSlot>();
   readonly #elements = new Map<string, HTMLElement>();
   readonly #write = new DomWriter();
   #released = false;
 
-  constructor(
-    rendererId: string,
-    view: ViewGeometry,
-    options: { document: Document; pixelsPerUnit: number; chrome: Required<ChromeOptions> | null },
-  ) {
+  constructor(rendererId: string, view: ViewGeometry, options: SessionOptions) {
     this.rendererId = rendererId;
     this.viewportId = view.viewportId;
     this.#document = options.document;
     this.#ppu = options.pixelsPerUnit;
     this.#chrome = options.chrome;
+    this.#standIn = options.standIn;
     this.root = options.document.createElement('div');
     this.root.setAttribute(DOM_ATTRIBUTES.viewport, view.viewportId);
     style(this.root, {
@@ -318,6 +336,15 @@ export class DomRendererSession implements RendererSession {
           // Labels are text, never markup.
           this.#write.text(label, labelOf(frame.scene, fragment.surfaceId));
         }
+        // Why it stands in for the content, when it is for a reason the view does not show.
+        const reason = standInReason(planned);
+        // The element is this session's own: its last child is the span made for the reason.
+        const note = element.lastElementChild as HTMLElement | null;
+        if (note !== null && note !== label) {
+          this.#write.text(note, reason === null ? '' : this.#standIn(reason));
+          this.#write.style(note, { display: reason === null ? 'none' : 'block' });
+        }
+        this.#write.attribute(element, DOM_ATTRIBUTES.standIn, reason ?? '');
         this.#write.attribute(element, DOM_ATTRIBUTES.mode, negotiation.mode);
         this.#write.attribute(element, DOM_ATTRIBUTES.shape, negotiation.shapeFidelity);
         this.#write.attribute(element, DOM_ATTRIBUTES.representation, planned.representation);
@@ -432,12 +459,9 @@ export class DomRendererSession implements RendererSession {
     style(element, { position: 'absolute', overflow: 'hidden', 'pointer-events': 'auto' });
     const label = this.#document.createElement('span');
     label.setAttribute(DOM_ATTRIBUTES.label, '');
-    element.append(label);
-    if (category === 'placeholder') {
-      const state = this.#document.createElement('span');
-      state.textContent = 'Not presented';
-      element.append(state);
-    }
+    // The reason it stands in, when there is one: written with each frame.
+    const note = this.#document.createElement('span');
+    element.append(label, note);
     return element;
   }
 

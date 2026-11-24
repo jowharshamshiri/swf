@@ -63,6 +63,7 @@ export {
 } from './policies.js';
 export type {
   DispatchResult,
+  PickMeasure,
   InputAdapter,
   InteractionEvent,
   InteractionRouterOptions,

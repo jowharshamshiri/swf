@@ -70,6 +70,28 @@ describe('geometry renderer', () => {
     expect(live?.negotiation.fallback?.gaps.some((g) => g.requirement === 'renderer')).toBe(true);
   });
 
+  it('writes why a placeholder stands in, in the host’s words when it gives them (FR-195)', async () => {
+    const placed = [
+      { id: 'drawn', kind: 'drawn', heading: 0, distance: 3, label: 'Drawn' },
+      { id: 'none', kind: 'unbound', heading: 0.8, distance: 3, label: 'None' },
+    ] as const;
+    const of = (rendered: RenderedFrame, surfaceId: string) =>
+      rendered.layers.find((l) => l.surfaceId === surfaceId);
+    const english = await render(placed);
+    expect(drawn(of(english.rendered, 'none-s'))).toEqual([
+      'fill',
+      'stroke',
+      'fillText:None',
+      'fillText:Unbound: no content is bound',
+    ]);
+    // Drawn content is itself: nothing is said over it.
+    expect(drawn(of(english.rendered, 'drawn-s'))).not.toContain(
+      'fillText:Unbound: no content is bound',
+    );
+    const host = await render(placed, { standIn: (reason) => `[${reason}]` });
+    expect(drawn(of(host.rendered, 'none-s'))).toContain('fillText:[unbound]');
+  });
+
   it('never claims drawn content exact: it is warped by a mesh (AC-005, ARCH-012)', async () => {
     const { frame } = await render([{ id: 'drawn', kind: 'drawn', heading: 0, distance: 3 }]);
     const drawn = frame.planned.find((p) => p.fragment.surfaceId === 'drawn-s');

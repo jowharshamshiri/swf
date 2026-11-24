@@ -8,6 +8,7 @@ import type {
   RepresentationPolicy,
 } from '@swf/presentation';
 import {
+  conditionFor,
   createPresentationRegistry,
   createViewOutput,
   planFrame,
@@ -173,7 +174,7 @@ export function plan(
     compositor,
     projection: module.profile,
     ...(representation === undefined ? {} : { representation }),
-    surfaceCapabilities: (id) => capabilitiesOf(kinds.get(id) ?? 'unbound'),
+    condition: (id) => conditionFor(capabilitiesOf(kinds.get(id) ?? 'unbound')),
     viewportOwns: () => true,
     geometry,
   });

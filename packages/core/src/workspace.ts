@@ -50,6 +50,11 @@ export interface WorkspaceOptions {
   /** The clock for timestamps, in milliseconds. Default `Date.now`. */
   readonly now?: () => number;
   /**
+   * The clock transactions are timed with, in milliseconds: a monotonic one with sub-millisecond
+   * resolution, such as `performance.now`, for useful durations. Default: `now`.
+   */
+  readonly timer?: () => number;
+  /**
    * Supplies IDs for nodes and surfaces created without one; returning an ID already in use
    * rejects the transaction. Default: the next unused of `node-1`, `node-2`, ... in this
    * workspace, which keeps scenes reproducible.
@@ -281,6 +286,7 @@ const OPTION_KEYS = [
   'idempotencyCapacity',
   'diagnosticsCapacity',
   'now',
+  'timer',
   'createId',
   'constraints',
   'geometry',
@@ -318,6 +324,8 @@ interface Meta {
   readonly source: EventSource;
   readonly causeId: string | null;
   readonly timestamp: number;
+  /** When the operation began, by the timer. */
+  readonly started: number;
 }
 
 class WorkspaceImpl implements Workspace {
@@ -328,6 +336,7 @@ class WorkspaceImpl implements Workspace {
   readonly #idempotencyCapacity: number;
   readonly #diagnosticsCapacity: number;
   readonly #now: () => number;
+  readonly #timer: () => number;
   readonly #createId: (inUse: (id: Id) => boolean) => Id;
   readonly #onDiagnostic: ((d: Diagnostic) => void) | undefined;
   readonly #frameBoundary: ((flush: () => void) => void) | undefined;
@@ -368,6 +377,7 @@ class WorkspaceImpl implements Workspace {
     this.#idempotencyCapacity = record.idempotencyCapacity;
     this.#diagnosticsCapacity = record.diagnosticsCapacity;
     this.#now = record.now;
+    this.#timer = record.timer;
     const hostCreateId = record.createId;
     this.#createId =
       hostCreateId === undefined
@@ -666,18 +676,25 @@ class WorkspaceImpl implements Workspace {
   // --- internals --------------------------------------------------------------------------
 
   #transaction(commands: unknown, rawOptions: unknown): TxOutcome {
+    const started = this.#timer();
     const transactionId = this.#nextTransactionId();
     let options: CheckedTxOptions;
     try {
       options = checkTxOptions(rawOptions);
     } catch (error) {
-      return this.#reject(transactionId, error, { source: 'host', causeId: null, commands });
+      return this.#reject(transactionId, error, {
+        source: 'host',
+        causeId: null,
+        commands,
+        started,
+      });
     }
     const meta: Meta = {
       transactionId,
       source: options.source,
       causeId: options.causeId,
       timestamp: this.#now(),
+      started,
     };
     const settle = (outcome: TxOutcome): TxOutcome => {
       if (
@@ -756,6 +773,8 @@ class WorkspaceImpl implements Workspace {
       idempotencyKey: options.idempotencyKey,
       previewId: options.previewId,
       history: null,
+      // Validated by applying them.
+      commands: commands as readonly SceneCommand[],
     });
     if (options.idempotencyKey !== null && fingerprint !== null) {
       this.#idempotency.set(options.idempotencyKey, { fingerprint, result });
@@ -770,17 +789,29 @@ class WorkspaceImpl implements Workspace {
   }
 
   #restore(snapshot: unknown, rawOptions: unknown): TxOutcome {
+    const started = this.#timer();
     const transactionId = this.#nextTransactionId();
     const commands = [{ type: 'scene.restore' }];
     let options: CheckedTxOptions;
     try {
       options = checkTxOptions(rawOptions, ['expectedRevision', 'source', 'causeId']);
     } catch (error) {
-      return this.#reject(transactionId, error, { source: 'restore', causeId: null, commands });
+      return this.#reject(transactionId, error, {
+        source: 'restore',
+        causeId: null,
+        commands,
+        started,
+      });
     }
     const source =
       (rawOptions as { source?: unknown }).source === undefined ? 'restore' : options.source;
-    const meta: Meta = { transactionId, source, causeId: options.causeId, timestamp: this.#now() };
+    const meta: Meta = {
+      transactionId,
+      source,
+      causeId: options.causeId,
+      timestamp: this.#now(),
+      started,
+    };
     if (this.#lifecycle !== 'ready') {
       return this.#reject(transactionId, this.#disposedSignal(), { ...meta, commands });
     }
@@ -839,6 +870,7 @@ class WorkspaceImpl implements Workspace {
         idempotencyKey: null,
         previewId: null,
         history: null,
+        commands: null,
         // The revision never goes back, and a restored scene is never older than its snapshot.
         revision: Math.max(before.revision + 1, scene.revision),
       },
@@ -914,6 +946,8 @@ class WorkspaceImpl implements Workspace {
       idempotencyKey: string | null;
       previewId: string | null;
       history: { action: 'undo' | 'redo'; transactionId: string } | null;
+      /** The commands committed; null for an undo, redo or restore. */
+      commands: readonly SceneCommand[] | null;
       /** The new revision, when not the next one. */
       revision?: number;
     },
@@ -963,6 +997,8 @@ class WorkspaceImpl implements Workspace {
         idempotencyKey: extra.idempotencyKey,
         previewId: extra.previewId,
         history: extra.history,
+        commands: extra.commands,
+        durationMs: this.#timer() - meta.started,
       },
       { source: meta.source, causeId: meta.causeId ?? meta.transactionId, phase: 'committed' },
     );
@@ -1013,18 +1049,25 @@ class WorkspaceImpl implements Workspace {
    * CONFLICT and history is left as it was.
    */
   #travel(action: 'undo' | 'redo', rawOptions: unknown): TxOutcome {
+    const started = this.#timer();
     const transactionId = this.#nextTransactionId();
     let options: CheckedTxOptions;
     try {
       options = checkTxOptions(rawOptions, ['source', 'causeId']);
     } catch (error) {
-      return this.#reject(transactionId, error, { source: 'host', causeId: null, commands: [] });
+      return this.#reject(transactionId, error, {
+        source: 'host',
+        causeId: null,
+        commands: [],
+        started,
+      });
     }
     const meta: Meta = {
       transactionId,
       source: options.source,
       causeId: options.causeId,
       timestamp: this.#now(),
+      started,
     };
     if (this.#lifecycle !== 'ready') {
       return this.#reject(transactionId, this.#disposedSignal(), { ...meta, commands: [] });
@@ -1102,6 +1145,7 @@ class WorkspaceImpl implements Workspace {
         idempotencyKey: null,
         previewId: null,
         history: { action, transactionId: record.entry.transactionId },
+        commands: null,
       },
     );
   }
@@ -1287,7 +1331,12 @@ class WorkspaceImpl implements Workspace {
   #reject(
     transactionId: string,
     error: unknown,
-    meta: { source: EventSource; causeId: string | null; commands: unknown } | null,
+    meta: {
+      source: EventSource;
+      causeId: string | null;
+      commands: unknown;
+      started: number;
+    } | null,
   ): TxRejected {
     if (!(error instanceof RejectionSignal)) {
       throw error;
@@ -1302,7 +1351,12 @@ class WorkspaceImpl implements Workspace {
     if (meta !== null && this.#lifecycle === 'ready') {
       this.#emit(
         'transaction.rejected',
-        { transactionId, commandTypes: commandTypesOf(meta.commands), error: swfError },
+        {
+          transactionId,
+          commandTypes: commandTypesOf(meta.commands),
+          error: swfError,
+          durationMs: this.#timer() - meta.started,
+        },
         { source: meta.source, causeId: meta.causeId ?? transactionId, phase: 'rejected' },
       );
     }
@@ -1580,6 +1634,7 @@ interface CheckedOptions {
   readonly idempotencyCapacity: number;
   readonly diagnosticsCapacity: number;
   readonly now: () => number;
+  readonly timer: () => number;
   readonly createId: (() => Id) | undefined;
   readonly constraints: readonly Constraint[];
   readonly geometry: readonly GeometryProvider[];
@@ -1618,7 +1673,7 @@ function checkOptions(options: WorkspaceOptions): CheckedOptions {
     }
     return value;
   };
-  for (const key of ['now', 'createId', 'onDiagnostic', 'frameBoundary']) {
+  for (const key of ['now', 'timer', 'createId', 'onDiagnostic', 'frameBoundary']) {
     if (record[key] !== undefined && typeof record[key] !== 'function') {
       throw fail(key, 'must be a function');
     }
@@ -1651,6 +1706,7 @@ function checkOptions(options: WorkspaceOptions): CheckedOptions {
     idempotencyCapacity: integer('idempotencyCapacity', 1024, 1, Number.MAX_SAFE_INTEGER),
     diagnosticsCapacity: integer('diagnosticsCapacity', 100, 1, Number.MAX_SAFE_INTEGER),
     now: options.now ?? Date.now,
+    timer: options.timer ?? options.now ?? Date.now,
     createId: options.createId,
     constraints: options.constraints ?? [],
     geometry: options.geometry ?? [],

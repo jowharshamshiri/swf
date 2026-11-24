@@ -187,6 +187,34 @@ describe('picking order and reporting (FR-102)', () => {
     expect(result.target.nodeId).toBe('a');
   });
 
+  it('reports the hit query of each dispatch: its ambiguity and duration (AN-004)', () => {
+    let clock = 0;
+    // Every reading of the timer advances it by 3 ms: a hit query reads it as it starts and ends.
+    const timer = () => (clock += 3);
+    const { ws, input } = world(
+      [
+        { id: 'b', heading: 0, distance: 3 },
+        { id: 'a', heading: 0, distance: 3 },
+        { id: 'c', heading: Math.PI / 2, distance: 3 },
+      ],
+      { router: { timer } },
+    );
+    const [x, y] = contentOf(ws, 'a');
+    expect(input.pointer('down', 'v', x, y).pick).toEqual({ ambiguous: true, ms: 3 });
+    input.pointer('up', 'v', x, y);
+    const [cx, cy] = contentOf(ws, 'c');
+    expect(input.pointer('down', 'v', cx, cy).pick).toEqual({ ambiguous: false, ms: 3 });
+    // A move of a captured pointer and a command make no hit query.
+    expect(input.pointer('move', 'v', cx + 1, cy).pick).toBeNull();
+    expect(input.command('selection.next', {}).pick).toBeNull();
+  });
+
+  it('refuses a timer that is not a function', () => {
+    expect(() => world([], { router: { timer: 1 as unknown as () => number } })).toThrow(
+      /timer must be a function/,
+    );
+  });
+
   it('gives one Surface ID wherever a seam splits the surface (FR-111)', () => {
     const { router } = world([{ id: 's', heading: Math.PI, distance: 3, size: [3, 1.2] }]);
     const left = hit(router.pick('v', 1, H / 2));

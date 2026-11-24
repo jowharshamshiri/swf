@@ -8,6 +8,7 @@ import { createWorkspace, SwfFailure } from '@swf/core';
 import { quatFromAxisAngle, quatRotate, quatSameRotation } from '@swf/math';
 import type { ViewGeometry } from '@swf/presentation';
 import {
+  conditionFor,
   createPresentationRegistry,
   createViewOutput,
   planFrame,
@@ -152,7 +153,7 @@ describe('several viewports over one scene (FR-060, FR-069, FR-072, AC-002)', ()
       renderer: { id: 'r/1', capabilities: MOCK_RENDERER_CAPABILITIES },
       compositor: { id: 'c/1', capabilities: MOCK_COMPOSITOR_CAPABILITIES },
       projection: equirectangular.profile,
-      surfaceCapabilities: () => null,
+      condition: () => conditionFor(null),
       viewportOwns: () => true,
       geometry: (id) => ws.surfaceGeometry(id),
     });

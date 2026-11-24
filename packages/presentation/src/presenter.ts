@@ -1,6 +1,8 @@
 import type { Id, SceneState, SwfError, WorkspaceReader } from '@swf/core';
 import { makeError, surfaceEffectiveState, SwfFailure } from '@swf/core';
-import type { PresentationHint, SurfaceCapabilities, SurfaceRuntime } from '@swf/surfaces';
+import type { PresentationHint, SurfaceRuntime } from '@swf/surfaces';
+import type { SurfaceCondition } from './conditions.js';
+import { surfaceCondition } from './conditions.js';
 import type { CompositorCapabilities, RendererCapabilities } from './capabilities.js';
 import type {
   ComposedFrame,
@@ -136,6 +138,11 @@ export interface ViewportFrame {
   readonly hidden: readonly Id[];
   /** Surfaces whose presentation here the runtime refused; they are shown as proxies instead. */
   readonly refused: readonly { readonly surfaceId: Id; readonly error: SwfError }[];
+  /**
+   * The advisory hint of every surface attached here, as this frame computed it (whether or not
+   * the runtime delivered it again): visibility, occlusion and its confidence, the tier.
+   */
+  readonly hints: readonly PresentationHint[];
   readonly metrics: FrameMetrics;
 }
 
@@ -864,7 +871,7 @@ class ViewportImpl implements PresentedViewport {
       const hidden = await this.#hideAllBut(live, this.#options.release === true);
       this.#live = new Set(live);
       // Stage 5: the hints, once the attachments have settled.
-      const hints = this.#hint(scene, view, frame);
+      const hinted = this.#hint(scene, view, frame);
       const metrics: FrameMetrics = Object.freeze({
         viewportId: this.viewportId,
         rendererId: backend.choice.renderer,
@@ -876,7 +883,7 @@ class ViewportImpl implements PresentedViewport {
         fragments: frame.planned.length,
         live: live.length,
         writes: rendered.writes + composed.writes,
-        hints,
+        hints: hinted.delivered,
       });
       const result: ViewportFrame = Object.freeze({
         status: 'presented',
@@ -887,6 +894,7 @@ class ViewportImpl implements PresentedViewport {
         presented: Object.freeze(presented),
         hidden: Object.freeze(hidden),
         refused: Object.freeze(refused),
+        hints: hinted.hints,
         metrics,
       });
       this.#last = result;
@@ -947,12 +955,10 @@ class ViewportImpl implements PresentedViewport {
         ),
       );
     }
-    const capabilities = (id: Id): SurfaceCapabilities | null => {
-      const presentation = runtime.get(id);
-      return presentation !== undefined && BOUND_STATES.has(presentation.state)
-        ? presentation.capabilities
-        : null;
-    };
+    const attachedElsewhere = (id: Id): boolean =>
+      runtime.get(id)?.viewports.some((v) => v.viewportId !== this.viewportId) ?? false;
+    const condition = (id: Id): SurfaceCondition =>
+      surfaceCondition(runtime.get(id), attachedElsewhere(id));
     return planFrame({
       scene,
       view,
@@ -962,15 +968,14 @@ class ViewportImpl implements PresentedViewport {
       projection: projector.capabilities,
       ...(policy === undefined ? {} : { policy }),
       ...(this.#representation === null ? {} : { representation: this.#representation }),
-      surfaceCapabilities: capabilities,
+      condition,
       // A single-owner handle presented in another viewport stays there; this one shows a proxy.
       viewportOwns: (id) => {
         if (notHere.has(id)) {
           return false;
         }
-        const elsewhere =
-          runtime.get(id)?.viewports.some((v) => v.viewportId !== this.viewportId) ?? false;
-        return !(capabilities(id)?.viewportSharing === 'single-owner' && elsewhere);
+        const now = condition(id);
+        return !(now.kind === 'bound' && now.presentedElsewhere);
       },
       geometry: (id) => workspace.presentedGeometry(id),
     });
@@ -1048,8 +1053,13 @@ class ViewportImpl implements PresentedViewport {
    * mounting, the scene's own flag, intersection, occlusion and attention are kept apart.
    * Repeats are coalesced away by the runtime; returns how many hints were delivered.
    */
-  #hint(scene: SceneState, view: ViewGeometry, frame: RenderFrame): number {
+  #hint(
+    scene: SceneState,
+    view: ViewGeometry,
+    frame: RenderFrame,
+  ): { readonly hints: readonly PresentationHint[]; readonly delivered: number } {
     const { runtime } = this.#presenter.options;
+    const hints: PresentationHint[] = [];
     let delivered = 0;
     for (const presentation of runtime.list()) {
       const here = presentation.viewports.find((v) => v.viewportId === this.viewportId);
@@ -1060,12 +1070,13 @@ class ViewportImpl implements PresentedViewport {
       if (hint === null) {
         continue;
       }
+      hints.push(hint);
       const outcome = runtime.deliverHint(hint);
       if (outcome.status === 'ok' && outcome.delivered) {
         delivered += 1;
       }
     }
-    return delivered;
+    return { hints: Object.freeze(hints), delivered };
   }
 
   // --- handoff -------------------------------------------------------------------------------

@@ -29,6 +29,7 @@ const answer = (consumed: boolean): DispatchResult => ({
   gestureId: null,
   operation: null,
   reason: null,
+  pick: null,
 });
 
 const WRAPS = { width: 800, wraps: true };

@@ -1,7 +1,7 @@
 import { SwfFailure } from '@swf/core';
 import { createWorkspace } from '@swf/core';
 import type { ProjectionProfile, RenderFrame } from '@swf/presentation';
-import { createViewOutput, fragmentId, planFrame } from '@swf/presentation';
+import { conditionFor, createViewOutput, fragmentId, planFrame } from '@swf/presentation';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   DOM_ATTRIBUTES,
@@ -25,8 +25,14 @@ afterEach(() => {
   });
 });
 
-/** A frame of one live surface under an affine projection, with fragments as given. */
-function frame(corners: RenderFrame['output']['fragments'][number]['corners']): RenderFrame {
+/**
+ * A frame of one surface under an affine projection, with fragments as given: live, or unbound
+ * when `bound` is false.
+ */
+function frame(
+  corners: RenderFrame['output']['fragments'][number]['corners'],
+  bound = true,
+): RenderFrame {
   const ws = createWorkspace({ id: 'ws' });
   const result = ws.transaction([
     { type: 'node.create', node: { id: 'w', kind: 'window', bounds: [1, 0.5, 0.01] } },
@@ -75,21 +81,26 @@ function frame(corners: RenderFrame['output']['fragments'][number]['corners']): 
     renderer: { id: 'swf.dom-renderer/1', capabilities: DOM_RENDERER_CAPABILITIES },
     compositor: { id: 'swf.dom-compositor/1', capabilities: DOM_COMPOSITOR_CAPABILITIES },
     projection: PERSPECTIVE,
-    surfaceCapabilities: () => ({
-      attachStrategy: 'native-dom',
-      nativeInteraction: 'full',
-      uvAddressing: true,
-      transformFidelity: 'approximate',
-      transparency: false,
-      clipping: true,
-      cursorMapping: true,
-      resize: 'intrinsic',
-      viewportSharing: 'single-owner',
-      safeDetach: true,
-      rebinding: true,
-      placeholder: false,
-      snapshotHooks: false,
-    }),
+    condition: () =>
+      conditionFor(
+        bound
+          ? {
+              attachStrategy: 'native-dom',
+              nativeInteraction: 'full',
+              uvAddressing: true,
+              transformFidelity: 'approximate',
+              transparency: false,
+              clipping: true,
+              cursorMapping: true,
+              resize: 'intrinsic',
+              viewportSharing: 'single-owner',
+              safeDetach: true,
+              rebinding: true,
+              placeholder: false,
+              snapshotHooks: false,
+            }
+          : null,
+      ),
     viewportOwns: () => true,
     geometry: (id) => ws.surfaceGeometry(id),
   });
@@ -105,6 +116,19 @@ async function session(f: RenderFrame) {
 }
 
 describe('the DOM renderer’s declarations', () => {
+  it('says why a placeholder stands in, and stops saying it once the content is bound (FR-195)', async () => {
+    const unbound = frame(null, false);
+    const { renderer, compositor, container } = await session(unbound);
+    compositor.compose(renderer.render(unbound));
+    const placeholder = container.querySelector(`[${DOM_ATTRIBUTES.layer}="placeholder"]`);
+    expect(placeholder?.getAttribute(DOM_ATTRIBUTES.standIn)).toBe('unbound');
+    expect(placeholder?.textContent).toContain('Unbound: no content is bound');
+    const bound = frame(null);
+    compositor.compose(renderer.render(bound));
+    expect(container.querySelector(`[${DOM_ATTRIBUTES.layer}="placeholder"]`)).toBeNull();
+    expect(container.querySelector(`[${DOM_ATTRIBUTES.layer}="content-native"]`)).not.toBeNull();
+  });
+
   it('declares a live element exact only when it follows exact corners', async () => {
     const exact = frame([
       [110, 105],

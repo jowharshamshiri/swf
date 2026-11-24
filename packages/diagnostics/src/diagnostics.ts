@@ -1,4 +1,4 @@
-import type { Id, SwfError, WorkspaceReader } from '@swf/core';
+import type { Id, OperationType, SwfError, WorkspaceEvent, WorkspaceReader } from '@swf/core';
 import { makeError, SwfFailure } from '@swf/core';
 import type {
   BackendCapabilities,
@@ -98,6 +98,23 @@ export interface ResourceReport {
   readonly handoffs: number;
 }
 
+/**
+ * Scene operations of one command type since diagnostics began (AN-002): a transaction counts
+ * once for each distinct command type it holds.
+ */
+export interface OperationReport {
+  readonly commandType: OperationType;
+  readonly committed: number;
+  readonly rejected: number;
+  /** Nodes the committed ones changed, all told. */
+  readonly affectedNodes: number;
+  readonly lastRevision: number;
+  /** How long the last and the slowest took, and all of them together, in milliseconds. */
+  readonly lastDurationMs: number;
+  readonly maxDurationMs: number;
+  readonly totalDurationMs: number;
+}
+
 /** A typed error as it was reported, with where it came from. */
 export interface ReportedError {
   readonly at: number;
@@ -115,6 +132,7 @@ export interface DiagnosticsReport {
   readonly frames: readonly FrameReport[];
   readonly attachments: readonly AttachmentReport[];
   readonly density: DensityReport;
+  readonly operations: readonly OperationReport[];
   readonly resources: ResourceReport;
   /** The last typed errors, oldest first. */
   readonly errors: readonly ReportedError[];
@@ -156,6 +174,16 @@ interface FrameTotals {
   fallbacks: readonly FallbackDiagnostic[];
 }
 
+interface OperationTotals {
+  committed: number;
+  rejected: number;
+  affectedNodes: number;
+  lastRevision: number;
+  lastDurationMs: number;
+  maxDurationMs: number;
+  totalDurationMs: number;
+}
+
 interface AdapterTotals {
   failed: number;
   bindMs: { last: number; max: number } | null;
@@ -169,6 +197,7 @@ class Collector implements Diagnostics {
   readonly #now: () => number;
   readonly #frames = new Map<Id, FrameTotals>();
   readonly #adapters = new Map<string, AdapterTotals>();
+  readonly #operations = new Map<OperationType, OperationTotals>();
   /** When each surface's current binding attempt began. */
   readonly #binding = new Map<Id, number>();
   readonly #errors: ReportedError[] = [];
@@ -184,6 +213,9 @@ class Collector implements Diagnostics {
       }),
       options.runtime.subscribe((event) => {
         this.#runtimeEvent(event);
+      }),
+      options.workspace.subscribe((event) => {
+        this.#workspaceEvent(event);
       }),
     ];
   }
@@ -272,6 +304,9 @@ class Collector implements Diagnostics {
           };
         }),
       },
+      operations: [...this.#operations]
+        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+        .map(([commandType, totals]) => ({ commandType, ...totals })),
       resources: {
         presenter: presenter.resources(),
         subscriptions: this.#unsubscribe.length,
@@ -345,6 +380,35 @@ class Collector implements Diagnostics {
     if (to === 'error' && error !== null) {
       this.#totals(type).failed += 1;
       this.#error('surfaces', error);
+    }
+  }
+
+  #workspaceEvent(event: WorkspaceEvent): void {
+    if (event.type !== 'transaction.committed' && event.type !== 'transaction.rejected') {
+      return;
+    }
+    const p = event.payload;
+    for (const type of new Set(p.commandTypes)) {
+      const totals = this.#operations.get(type) ?? {
+        committed: 0,
+        rejected: 0,
+        affectedNodes: 0,
+        lastRevision: 0,
+        lastDurationMs: 0,
+        maxDurationMs: 0,
+        totalDurationMs: 0,
+      };
+      if (event.type === 'transaction.committed') {
+        totals.committed += 1;
+        totals.affectedNodes += event.payload.changedNodeIds.length;
+      } else {
+        totals.rejected += 1;
+      }
+      totals.lastRevision = event.revision;
+      totals.lastDurationMs = p.durationMs;
+      totals.maxDurationMs = Math.max(totals.maxDurationMs, p.durationMs);
+      totals.totalDurationMs += p.durationMs;
+      this.#operations.set(type, totals);
     }
   }
 
