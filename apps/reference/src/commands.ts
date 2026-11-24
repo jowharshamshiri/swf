@@ -18,6 +18,7 @@ export interface AppCommandSpecs {
   'reference.scene.reseed': { readonly seed?: number };
   'reference.mode.switch': { readonly mode: string };
   'reference.backend.switch': { readonly backend: BackendId };
+  'reference.window.reveal': { readonly id: string };
 }
 
 export type AppCommandId = keyof AppCommandSpecs;
@@ -28,6 +29,7 @@ export const APP_COMMAND_NAMES: Readonly<Record<AppCommandId, MessageId>> = Obje
   'reference.scene.reseed': 'command.scene.reseed',
   'reference.mode.switch': 'command.mode.switch',
   'reference.backend.switch': 'command.backend.switch',
+  'reference.window.reveal': 'command.window.reveal',
 });
 
 /** What running a command did. */
@@ -90,6 +92,12 @@ export function createAppCommands(app: () => ReferenceApp): AppCommands {
       }
       const outcome = await app().switchBackend(backend);
       return outcome.status === 'switched' ? DONE : rejected('backend', outcome.error.message);
+    },
+    'reference.window.reveal': async ({ id }) => {
+      if (app().workspace.getState().nodes.get(id)?.kind !== 'window') {
+        return rejected('id', `no window "${id}"`);
+      }
+      return committed(app().revealWindow(id));
     },
   };
   return Object.freeze({

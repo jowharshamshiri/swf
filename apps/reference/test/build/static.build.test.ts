@@ -9,36 +9,54 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 /**
  * The static build (ENV-006, NFR-014, NFR-027): one page that runs straight from the file, with
- * no server, no credentials and no network at all.
+ * no server, no credentials and no network at all. Production builds leave the debug overlay out;
+ * staging builds carry it (ENV-005).
  */
 
 const configFile = fileURLToPath(new URL('../../vite.config.mjs', import.meta.url));
-let outDir = '';
+/** Said only by the diagnostics package: present in a bundle exactly when the package is. */
+const DIAGNOSTICS_ONLY = 'errorCapacity must be a whole number of at least 1';
+
+const builds = { production: '', staging: '' };
 let browser: Browser;
 
 beforeAll(async () => {
-  outDir = await mkdtemp(join(tmpdir(), 'swf-reference-'));
-  await build({ configFile, logLevel: 'silent', build: { outDir, emptyOutDir: true } });
+  for (const mode of ['production', 'staging'] as const) {
+    builds[mode] = await mkdtemp(join(tmpdir(), `swf-reference-${mode}-`));
+    await build({
+      configFile,
+      mode,
+      logLevel: 'silent',
+      build: { outDir: builds[mode], emptyOutDir: true },
+    });
+  }
   browser = await chromium.launch();
 });
 
 afterAll(async () => {
   await browser.close();
-  await rm(outDir, { recursive: true, force: true });
+  for (const dir of Object.values(builds)) {
+    await rm(dir, { recursive: true, force: true });
+  }
 });
 
-/** Opens the built page offline, recording every request and every error it makes. */
-async function open(search: string) {
+/** The automation driver the page installs, as a scenario reaches it. */
+interface Driver {
+  has(handle: string): boolean;
+}
+
+/** Opens a built page offline, recording every request and every error it makes. */
+async function open(search: string, mode: keyof typeof builds = 'production') {
   const context = await browser.newContext({
     offline: true,
-    viewport: { width: 1200, height: 500 },
+    viewport: { width: 1280, height: 720 },
   });
   const page = await context.newPage();
-  const page_url = `${pathToFileURL(join(outDir, 'index.html')).href}${search}`;
+  const pageUrl = `${pathToFileURL(join(builds[mode], 'index.html')).href}${search}`;
   const requests: string[] = [];
   const errors: string[] = [];
   page.on('request', (request) => {
-    if (request.url() !== page_url) {
+    if (request.url() !== pageUrl) {
       requests.push(request.url());
     }
   });
@@ -48,11 +66,16 @@ async function open(search: string) {
       errors.push(message.text());
     }
   });
-  await page.goto(page_url);
-  return { page, requests, errors, close: () => context.close() };
+  await page.goto(pageUrl);
+  const has = (handle: string) =>
+    page.evaluate(
+      (h) => (window as unknown as { wsbAutomation: Driver }).wsbAutomation.has(h),
+      handle,
+    );
+  return { page, requests, errors, has, close: () => context.close() };
 }
 
-/** Waits until the view shows `count` of a selector. */
+/** Waits until the page shows `count` of a selector. */
 async function shows(page: Page, selector: string, count: (n: number) => boolean) {
   await expect
     .poll(async () => count(await page.locator(selector).count()), { timeout: 10_000 })
@@ -61,16 +84,22 @@ async function shows(page: Page, selector: string, count: (n: number) => boolean
 
 describe('the static build', () => {
   it('is one self-contained page, loading nothing from anywhere', async () => {
-    expect(await readdir(outDir)).toEqual(['index.html']);
-    const html = await readFile(join(outDir, 'index.html'), 'utf8');
-    expect(html).not.toMatch(/<(?:script|link|img|iframe|source)\b[^>]*\b(?:src|href)=/);
-    expect(html).toContain('<script type="module">');
+    for (const dir of Object.values(builds)) {
+      expect(await readdir(dir)).toEqual(['index.html']);
+      const html = await readFile(join(dir, 'index.html'), 'utf8');
+      expect(html).not.toMatch(/<(?:script|link|img|iframe|source)\b[^>]*\b(?:src|href)=/);
+      expect(html).toContain('<script type="module">');
+    }
   });
 
-  it('shows the sparse panorama from the file, offline, without a single request', async () => {
+  it('shows the shell and the sparse panorama from the file, offline, without a single request', async () => {
     const run = await open('');
     await shows(run.page, '[data-reference-content]', (n) => n === 3);
     await shows(run.page, '[data-swf-viewport]', (n) => n === 1);
+    expect(await run.has('page.scene.preset')).toBe(true);
+    expect(await run.has('editor.actions.commands')).toBe(true);
+    // The kit's faces are in the page itself.
+    expect(await run.page.evaluate(() => document.fonts.check('16px "Inter Variable"'))).toBe(true);
     expect(run.requests).toEqual([]);
     expect(run.errors).toEqual([]);
     await run.close();
@@ -93,11 +122,50 @@ describe('the static build', () => {
     await run.close();
   });
 
-  it('reports an invalid address setting by name', async () => {
-    const run = await open('?preset=busy');
-    await expect.poll(() => run.errors, { timeout: 10_000 }).toHaveLength(1);
-    expect(run.errors[0]).toContain('preset: a preset must be one of empty, sparse, dense, seam');
+  it('explains how to add windows when the workspace is empty (UX-009)', async () => {
+    const run = await open('?preset=empty');
+    await shows(run.page, 'text=No windows yet', (n) => n === 1);
+    expect(await run.has('page.panorama.load')).toBe(true);
     expect(run.requests).toEqual([]);
+    await run.close();
+  });
+
+  it('says which address setting is invalid, by name, and starts nothing', async () => {
+    const run = await open('?preset=busy');
+    await shows(
+      run.page,
+      'text=The address names an invalid preset: a preset must be one of empty, sparse, dense, seam',
+      (n) => n === 1,
+    );
+    expect(await run.page.locator('[data-swf-viewport]').count()).toBe(0);
+    expect(run.errors).toEqual([]);
+    expect(run.requests).toEqual([]);
+    await run.close();
+  });
+});
+
+describe('the debug overlay (ENV-005)', () => {
+  it('is left out of production builds, diagnostics package and all', async () => {
+    const html = await readFile(join(builds.production, 'index.html'), 'utf8');
+    expect(html).not.toContain(DIAGNOSTICS_ONLY);
+    const run = await open('?preset=sparse');
+    await shows(run.page, '[data-swf-viewport]', (n) => n === 1);
+    expect(await run.has('worktree.view#inspector')).toBe(true);
+    expect(await run.has('worktree.view#diagnostics')).toBe(false);
+    await run.close();
+  });
+
+  it('is carried by staging builds, reading the running presentation', async () => {
+    const html = await readFile(join(builds.staging, 'index.html'), 'utf8');
+    expect(html).toContain(DIAGNOSTICS_ONLY);
+    const run = await open('?preset=sparse', 'staging');
+    await shows(run.page, '[data-swf-viewport]', (n) => n === 1);
+    expect(await run.has('worktree.view#diagnostics')).toBe(true);
+    await run.page.click('[data-wsb="worktree.view#diagnostics"]');
+    await shows(run.page, '[data-wsb="page.diagnostics"]', (n) => n === 1);
+    await shows(run.page, 'text=Candidates in view', (n) => n === 1);
+    expect(run.requests).toEqual([]);
+    expect(run.errors).toEqual([]);
     await run.close();
   });
 });

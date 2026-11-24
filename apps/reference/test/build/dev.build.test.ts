@@ -1,5 +1,4 @@
 import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Browser, Page } from 'playwright';
@@ -17,13 +16,14 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 const app = fileURLToPath(new URL('../..', import.meta.url));
 const configFile = join(app, 'vite.config.mjs');
-const packages = fileURLToPath(new URL('../../../../packages', import.meta.url));
+const repository = fileURLToPath(new URL('../../../..', import.meta.url));
 let root = '';
 let server: ViteDevServer;
 let browser: Browser;
 
 beforeAll(async () => {
-  root = await mkdtemp(join(tmpdir(), 'swf-reference-dev-'));
+  // Inside the application's folder, so the copy resolves the packages the application installs.
+  root = await mkdtemp(join(app, '.dev-test-'));
   await cp(join(app, 'index.html'), join(root, 'index.html'));
   await cp(join(app, 'src'), join(root, 'src'), { recursive: true });
   server = await createServer({
@@ -31,7 +31,7 @@ beforeAll(async () => {
     configFile,
     root,
     logLevel: 'silent',
-    server: { host: '127.0.0.1', port: 0, fs: { allow: [root, packages] } },
+    server: { host: '127.0.0.1', port: 0, fs: { allow: [repository] } },
   });
   await server.listen();
   browser = await chromium.launch();

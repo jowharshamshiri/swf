@@ -1,0 +1,3 @@
+[submodule "wsb"]
+	path = wsb
+	url = https://github.com/jowharshamshiri/wsb

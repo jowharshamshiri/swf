@@ -6,3 +6,5 @@ package-lock.json
 .vitest
 # Snapshot fixtures are canonical text, byte for byte.
 packages/persistence/fixtures
+# The pinned checkout of wsb, for its UI kit: its own formatting
+wsb

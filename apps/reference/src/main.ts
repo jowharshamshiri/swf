@@ -1,25 +1,53 @@
-import { createReferenceApp } from './app.js';
-import { parseConfig } from './config.js';
+import '@wsb/uikit/styles/uikit.scss';
+import '@wsb/uikit/fonts';
+import { installAutomation } from '@wsb/uikit/automation';
+import { ROOT_CLASS, setAppearance, setDensity } from '@wsb/uikit/primitives';
+import { mount, unmount } from 'svelte';
+import { ConfigError, parseConfig } from './config.js';
+import { createMessages } from './messages.js';
+import Shell from './shell/Shell.svelte';
+import { diagnostics } from 'virtual:reference/debug';
+import { ShellModel } from './shell/model.svelte.js';
 
 /** What a replaced module hands the next: the disposal of the application it ran. */
 interface HotData {
   disposing?: Promise<void>;
 }
 
-/** Starts the application in the page's viewport element, configured by the address. */
-async function main(): Promise<void> {
-  const root = document.getElementById('swf-viewport');
-  if (root === null) {
-    throw new Error('the page has no #swf-viewport element');
+/** The configuration the address names, or why it names none the application can use. */
+function configOf(search: string): ReturnType<typeof parseConfig> | ConfigError {
+  try {
+    return parseConfig(search);
+  } catch (error) {
+    if (error instanceof ConfigError) {
+      return error;
+    }
+    throw error;
   }
+}
+
+/**
+ * Starts the application in the page: the kit's root class, appearance (the system's) and
+ * density on the document, then the shell, which starts the workspace in its viewport.
+ */
+async function main(): Promise<void> {
   // In development an edit to the application or the framework replaces the running application
   // in place: the old one is disposed, leaving nothing behind, before the new one starts.
   const hot = import.meta.hot;
   const data = hot?.data as HotData | undefined;
   await data?.disposing;
-  const app = await createReferenceApp({ root, config: parseConfig(window.location.search) });
+
+  const html = document.documentElement;
+  html.classList.add(ROOT_CLASS);
+  setAppearance(html, null);
+  setDensity(html, 'default');
+
+  const model = new ShellModel(createMessages(), configOf(window.location.search));
+  const shell = mount(Shell, { target: document.body, props: { model, diagnostics } });
+  // Automation presses what a person presses, by the kit's handles.
+  installAutomation(document.body, () => 'reference');
   hot?.dispose((next: HotData) => {
-    next.disposing = app.dispose();
+    next.disposing = model.dispose().then(() => unmount(shell));
   });
 }
 

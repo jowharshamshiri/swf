@@ -5,6 +5,9 @@
   "version": {
     "major": 0,
     "file": "version.txt",
-    "detect_manifests": true
+    "detect_manifests": true,
+    "third_party_submodules": [
+      "wsb"
+    ]
   }
 }

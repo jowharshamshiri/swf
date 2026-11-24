@@ -9,20 +9,29 @@
     "build": "vite build",
     "build:staging": "vite build --mode staging",
     "preview": "vite preview",
-    "typecheck": "tsc -p tsconfig.json && tsc -p test/build/tsconfig.json"
+    "typecheck": "svelte-check --tsconfig ./tsconfig.json --fail-on-warnings && tsc -p test/build/tsconfig.json"
   },
   "dependencies": {
+    "@fontsource-variable/inter": "5.3.0",
+    "@fontsource/jetbrains-mono": "5.3.0",
     "@swf/backend-dom": "0.0.0",
     "@swf/backend-geometry": "0.0.0",
     "@swf/core": "0.0.0",
+    "@swf/diagnostics": "0.0.0",
     "@swf/interaction": "0.0.0",
     "@swf/math": "0.0.0",
     "@swf/presentation": "0.0.0",
     "@swf/projections": "0.0.0",
-    "@swf/surfaces": "0.0.0"
+    "@swf/surfaces": "0.0.0",
+    "@wsb/uikit": "file:../../wsb/wsb/daemon/uikit",
+    "lucide-svelte": "1.0.1",
+    "svelte": "5.57.3"
   },
   "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "7.0.0",
     "@types/node": "24.19.2",
+    "sass": "1.103.1",
+    "svelte-check": "4.7.8",
     "vite": "8.3.8"
   }
 }

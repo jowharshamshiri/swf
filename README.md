@@ -609,13 +609,40 @@ entry points and registers everything it shows through them (the demo content's 
 DOM, layered and geometry backends, the projection, input and the view modes). It shows the
 scene as a 360° panorama around the camera.
 
+Its window is built from wsb's UI kit (`@wsb/uikit`) with Svelte 5, and nothing else: every
+control, look and automation handle is the kit's. The scene's controls and the list of windows
+are on the left; what is selected is on the right; the panorama is the document in the centre,
+with the view mode, the backend, the command list and the panel at the end of its tab strip; how
+the panorama is presented is in the panel below it. In a narrow window one side at a time floats
+over the panorama. Ctrl+Shift+P or F1 opens the command list, which runs every command and goes
+to any window by its name. The page installs the kit's automation driver as
+`window.wsbAutomation`, which presses controls by their handles as a person does.
+
+The kit is taken from a checkout of wsb pinned as the git submodule `wsb`, at the commit the
+application builds with; the application depends on the kit's folder there
+(`file:../../wsb/wsb/daemon/uikit`), and no framework package depends on the kit, wsb or Svelte.
+Clone with `git clone --recurse-submodules`, or run `git submodule update --init` in a clone made
+without it, before `npm ci`. npm installs the kit's own development tools inside its folder
+there; nothing of the application's build reads them. A new version of the kit is taken by moving
+the pin and installing again:
+
 ```sh
-npm run dev                          # the development server, reloading in place on every edit
-npm run build -w @swf/reference      # apps/reference/dist/index.html: one self-contained page
+git -C wsb fetch && git -C wsb checkout <commit>
+npm install
+git add wsb package-lock.json && git commit
 ```
 
-The built page holds its script and styles inline, so it runs from any static host or opened
-straight from the file, offline, with no server, account or network access.
+```sh
+npm run dev                                # the development server, reloading in place on every edit
+npm run build -w @swf/reference            # apps/reference/dist/index.html: one self-contained page
+npm run build:staging -w @swf/reference    # the same, with the debug overlay
+```
+
+The built page holds its script, styles and the kit's faces inline, so it runs from any static
+host or opened straight from the file, offline, with no server, account or network access.
+Staging builds and the development server add a Diagnostics view to the right side: what the
+running presentation reports, read with every frame. Production builds leave it out, with the
+diagnostics package.
 
 The address picks the scene: `?preset=seam&seed=7&backend=geometry`.
 
@@ -625,7 +652,7 @@ The address picks the scene: `?preset=seam&seed=7&backend=geometry`.
 - `seed`: an integer from 0 to 4294967295; each preset has its own default.
 - `backend`: `dom` (the default) or `geometry`; each is the other's fallback.
 
-An unknown or invalid setting is an error naming it. A preset plans the same windows from the
+An unknown or invalid setting is said in the page, naming it, and nothing starts. A preset plans the same windows from the
 same seed on every run, browser and release; the plans of the default seeds are a committed
 fixture (`apps/reference/test/fixtures/preset-plans.json`), so a change to them is deliberate.
 Loading a preset, resetting it and reseeding it each replace every window in one undoable step and
@@ -636,7 +663,7 @@ DOM one.
 Every string the application shows is a message with a stable ID, in English unless a translation
 pack is given, and each action is a command with a stable ID (`reference.preset.load`,
 `reference.scene.reset`, `reference.scene.reseed`, `reference.mode.switch`,
-`reference.backend.switch`).
+`reference.backend.switch`, `reference.window.reveal`).
 
 ## Development
 
@@ -644,7 +671,8 @@ The workspace needs Node.js 24 or later and npm.
 
 ```sh
 npm install     # install the locked development tools
-npm run check   # formatting, type checks, lint, tests and build, in that order
+npm run check   # formatting, type checks (svelte-check for the application), lint, tests and
+                # build, in that order
 npm test        # the test suites only
 npm run build   # compile every package to dist/ (ES modules, declarations, source maps),
                 # then build the reference application

@@ -1,5 +1,7 @@
 import process from 'node:process';
+import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { playwright } from '@vitest/browser-playwright';
+import { uikit } from '@wsb/uikit/vite';
 import { defineConfig } from 'vitest/config';
 import nodeConfig from './vitest.config.mjs';
 
@@ -47,6 +49,8 @@ async function mouse(ctx, action, x, y, modifiers = []) {
 
 export default defineConfig({
   resolve: nodeConfig.resolve,
+  // The reference application's shell is Svelte, built from the kit.
+  plugins: [svelte(), uikit()],
   test: {
     include: ['packages/*/test/**/*.browser.test.ts', 'apps/*/test/**/*.browser.test.ts'],
     browser: {

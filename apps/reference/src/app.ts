@@ -27,7 +27,7 @@ import type {
 } from '@swf/presentation';
 import { createPresentationRegistry, createPresenter } from '@swf/presentation';
 import type { ProjectionRegistry } from '@swf/projections';
-import { createProjectionRegistry, equirectangular } from '@swf/projections';
+import { cameraRotation, createProjectionRegistry, equirectangular } from '@swf/projections';
 import type { SurfaceRuntime } from '@swf/surfaces';
 import { createSurfaceRuntime } from '@swf/surfaces';
 import type { AppCommands } from './commands.js';
@@ -102,6 +102,7 @@ export interface ReferenceApp {
   readonly projections: ProjectionRegistry;
   readonly presentation: PresentationRegistry;
   readonly presenter: Presenter;
+  /** The viewport as it is presented now, in the element it was last given. */
   readonly viewport: PresentedViewport;
   readonly router: InteractionRouter;
   readonly modes: Modes;
@@ -121,6 +122,17 @@ export interface ReferenceApp {
   reseed(seed?: number): TxResult;
   /** Presents the viewport with the other backend, handing its live content over. */
   switchBackend(backend: BackendId): Promise<SwitchOutcome>;
+  /**
+   * Selects and focuses a window and turns the camera to face it, level with the horizon: the
+   * window itself does not move.
+   */
+  revealWindow(id: string): TxResult;
+  /**
+   * Presents the viewport in another element, as when the view that shows it moves: the view in
+   * the old element is released and one is opened in the new, on the same backend, with input
+   * taken there instead. The scene is untouched.
+   */
+  rehome(root: HTMLElement): Promise<void>;
   dispose(): Promise<void>;
 }
 
@@ -211,45 +223,69 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
     frames: animationFrames(view),
     showDegraded,
   });
-  const viewport = await presenter.open({
-    viewportId: VIEWPORT_ID,
-    container: root,
-    backends: BACKENDS[config.backend],
-  });
+  /** The viewport presented in one element: its view, the input taken there, its size kept. */
+  interface Mount {
+    readonly root: HTMLElement;
+    readonly viewport: PresentedViewport;
+    release(): Promise<void>;
+  }
 
   const router = createInteractionRouter({
     workspace,
     projections,
-    presentation: (surfaceId) => viewport.presentation(surfaceId),
+    presentation: (surfaceId) => mount.viewport.presentation(surfaceId),
   });
-  router.registerInputAdapter(
-    createDomInput({
-      root,
-      viewportId: VIEWPORT_ID,
-      events: (listener) => router.subscribe(listener),
-    }),
-  );
+
+  const mountIn = async (
+    element: HTMLElement,
+    backends: readonly BackendChoice[],
+  ): Promise<Mount> => {
+    // The viewport is as large as its element, always.
+    const resizes = new ResizeObserver((entries) => {
+      const entry = entries.at(-1);
+      if (entry === undefined) {
+        return;
+      }
+      const size = sizeOf(entry.contentRect.width, entry.contentRect.height);
+      const current = workspace.getState().viewports.get(VIEWPORT_ID)?.size;
+      if (
+        current?.width !== size.width ||
+        current.height !== size.height ||
+        current.devicePixelRatio !== size.devicePixelRatio
+      ) {
+        workspace.dispatch({ type: 'viewport.patch', id: VIEWPORT_ID, size }, { source: 'system' });
+      }
+    });
+    const box = element.getBoundingClientRect();
+    const size = sizeOf(box.width, box.height);
+    const current = workspace.getState().viewports.get(VIEWPORT_ID)?.size;
+    if (current?.width !== size.width || current.height !== size.height) {
+      workspace.dispatch({ type: 'viewport.patch', id: VIEWPORT_ID, size }, { source: 'system' });
+    }
+    const opened = await presenter.open({ viewportId: VIEWPORT_ID, container: element, backends });
+    const unregisterInput = router.registerInputAdapter(
+      createDomInput({
+        root: element,
+        viewportId: VIEWPORT_ID,
+        events: (listener) => router.subscribe(listener),
+      }),
+    );
+    resizes.observe(element);
+    return {
+      root: element,
+      viewport: opened,
+      async release() {
+        resizes.disconnect();
+        unregisterInput();
+        await opened.dispose();
+      },
+    };
+  };
+
+  let mount = await mountIn(root, BACKENDS[config.backend]);
 
   const modes = createModes(workspace, VIEWPORT_ID);
   modes.register(PANORAMA);
-
-  // The viewport is as large as its element, always.
-  const resizes = new ResizeObserver((entries) => {
-    const entry = entries.at(-1);
-    if (entry === undefined) {
-      return;
-    }
-    const size = sizeOf(entry.contentRect.width, entry.contentRect.height);
-    const current = workspace.getState().viewports.get(VIEWPORT_ID)?.size;
-    if (
-      current?.width !== size.width ||
-      current.height !== size.height ||
-      current.devicePixelRatio !== size.devicePixelRatio
-    ) {
-      workspace.dispatch({ type: 'viewport.patch', id: VIEWPORT_ID, size }, { source: 'system' });
-    }
-  });
-  resizes.observe(root);
 
   let scene: SceneSource = { preset: config.preset, seed: config.seed };
   const listeners = new Set<(status: AppStatus) => void>();
@@ -265,7 +301,8 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
     return Object.freeze({
       scene,
       windows,
-      backend: viewport.state === 'active' ? backendOf(viewport.backend?.renderer) : null,
+      backend:
+        mount.viewport.state === 'active' ? backendOf(mount.viewport.backend?.renderer) : null,
       mode: modes.current(),
     });
   };
@@ -328,7 +365,9 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
     projections,
     presentation,
     presenter,
-    viewport,
+    get viewport() {
+      return mount.viewport;
+    },
     router,
     modes,
     content,
@@ -350,12 +389,36 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
       if (choice === undefined) {
         throw new Error(`backend "${backend}" has no renderer`);
       }
-      const outcome = await viewport.switchBackend(choice);
+      const outcome = await mount.viewport.switchBackend(choice);
       announce();
       return outcome;
     },
+    revealWindow(id) {
+      const node = workspace.getState().nodes.get(id);
+      if (node?.kind !== 'window') {
+        throw new Error(`no window "${id}"`);
+      }
+      const [x, , z] = node.transform.position;
+      return workspace.transaction(
+        [
+          { type: 'selection.set', ids: [id] },
+          { type: 'focus.set', id },
+          { type: 'camera.patch', id: CAMERA_ID, rotation: cameraRotation(Math.atan2(x, -z), 0) },
+        ],
+        { source: 'user' },
+      );
+    },
+    async rehome(element) {
+      if (element === mount.root) {
+        return;
+      }
+      const current = backendOf(mount.viewport.backend?.renderer) ?? config.backend;
+      await mount.release();
+      mount = await mountIn(element, BACKENDS[current]);
+      announce();
+    },
     async dispose() {
-      resizes.disconnect();
+      await mount.release();
       unwatch();
       unwatchPresenter();
       listeners.clear();

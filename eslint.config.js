@@ -3,7 +3,17 @@ import { defineConfig } from 'eslint/config';
 import tseslint from 'typescript-eslint';
 
 export default defineConfig(
-  { ignores: ['**/dist/**', '**/node_modules/**', '.scrap/**', '.vitest/**'] },
+  {
+    ignores: [
+      '**/dist/**',
+      '**/node_modules/**',
+      '.scrap/**',
+      '.vitest/**',
+      // The pinned checkout of wsb, for its UI kit, and the dev-server test's copy of the app.
+      'wsb/**',
+      'apps/reference/.dev-test-*/**',
+    ],
+  },
   js.configs.recommended,
   tseslint.configs.strictTypeChecked,
   tseslint.configs.stylisticTypeChecked,

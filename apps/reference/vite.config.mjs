@@ -1,4 +1,6 @@
 import { fileURLToPath, URL } from 'node:url';
+import { svelte } from '@sveltejs/vite-plugin-svelte';
+import { uikit } from '@wsb/uikit/vite';
 import { defineConfig } from 'vite';
 
 const PACKAGES = [
@@ -10,6 +12,7 @@ const PACKAGES = [
   'interaction',
   'backend-dom',
   'backend-geometry',
+  'diagnostics',
 ];
 
 /**
@@ -27,8 +30,9 @@ const alias = Object.fromEntries(
 const inlineSafe = (code, tag) => code.replaceAll(`</${tag}`, `<\\/${tag}`);
 
 /**
- * Builds one self-contained page: the script and styles are inlined into index.html, so the
- * application runs from any static host or straight from the file, offline, with nothing to fetch.
+ * Builds one self-contained page: the script and styles, with the kit's faces in them, are inlined
+ * into index.html, so the application runs from any static host or straight from the file, offline,
+ * with nothing to fetch.
  */
 function singleFile() {
   return {
@@ -73,7 +77,30 @@ function singleFile() {
   };
 }
 
-export default defineConfig({
+/** The module that says which debug overlay the build carries. */
+const DEBUG_MODULE = 'virtual:reference/debug';
+
+/**
+ * The debug overlay (ENV-005): staging builds and development carry the diagnostics view;
+ * production builds get a module holding none, so nothing of the view or the diagnostics
+ * package reaches their bundle.
+ */
+function debugOverlay(mode) {
+  const resolved = `\0${DEBUG_MODULE}`;
+  const view = fileURLToPath(new URL('./src/shell/DiagnosticsView.svelte', import.meta.url));
+  return {
+    name: 'swf-debug-overlay',
+    resolveId: (id) => (id === DEBUG_MODULE ? resolved : null),
+    load: (id) =>
+      id !== resolved
+        ? null
+        : mode === 'production'
+          ? 'export const diagnostics = null;'
+          : `export { default as diagnostics } from ${JSON.stringify(view)};`,
+  };
+}
+
+export default defineConfig(({ mode }) => ({
   root: fileURLToPath(new URL('.', import.meta.url)),
   base: './',
   resolve: { alias },
@@ -84,6 +111,8 @@ export default defineConfig({
     modulePreload: false,
     cssCodeSplit: false,
     sourcemap: false,
+    // The kit's faces too: a page opened from the file may load nothing else.
+    assetsInlineLimit: () => true,
   },
-  plugins: [singleFile()],
-});
+  plugins: [svelte(), uikit(), debugOverlay(mode), singleFile()],
+}));
