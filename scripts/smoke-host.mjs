@@ -42,7 +42,7 @@ export async function installHost(tarballs) {
   const dir = await mkdtemp(path.join(os.tmpdir(), 'swf-host-'));
   await writeFile(
     path.join(dir, 'package.json'),
-    `${JSON.stringify({ name: 'swf-host', private: true, type: 'module' }, null, 2)}\n`,
+    `${JSON.stringify({ name: 'swf-host', version: '0.0.0', private: true, type: 'module' }, null, 2)}\n`,
   );
   run('npm', ['install', '--no-fund', '--no-audit', '--prefer-offline', ...tarballs], dir);
   return dir;
