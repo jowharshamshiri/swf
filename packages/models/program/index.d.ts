@@ -589,6 +589,14 @@ export type SurfaceRefusal =
 ;
 export function surfaceRefusalType(): L.Type<SurfaceRefusal>;
 
+/** Lean's Swf.Surface.HandoverFacts. */
+export interface HandoverFacts {
+  readonly singleOwner: boolean;
+  readonly severalViewports: boolean;
+  readonly endpointElsewhere: boolean;
+}
+export function handoverFactsType(): L.Type<HandoverFacts>;
+
 /** Lean's Swf.Surface.PresentFacts. */
 export interface PresentFacts {
   readonly disposed: boolean;
@@ -1144,6 +1152,8 @@ export class SwfModels {
   bindGate(disposed: boolean, p: Presentation): L.Option<SurfaceRefusal>;
   /** Lean's Swf.Surface.bindsOnAdapter : Swf.Surface.Presentation → Bool */
   bindsOnAdapter(p: Presentation): boolean;
+  /** Lean's Swf.Surface.handoverGate : Swf.Surface.HandoverFacts → Option Swf.Surface.SurfaceRefusal */
+  handoverGate(f: HandoverFacts): L.Option<SurfaceRefusal>;
   /** Lean's Swf.Surface.hideGate : Bool → Bool → Option Swf.Surface.SurfaceRefusal */
   hideGate(attached: boolean, replacing: boolean): L.Option<SurfaceRefusal>;
   /** Lean's Swf.Surface.hideReleases : Bool → Bool → Bool */

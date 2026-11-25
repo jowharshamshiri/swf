@@ -349,7 +349,9 @@ is registered only if its operations are. A command honours the flags its gestur
 that is not draggable, rotatable or resizable is left as it is, saying why, and a locked one is
 refused by the scene. `configure` changes the keymap and the other settings, validating every
 field, and announces each change as a `settings.changed` event so a host can save the settings
-with the layout.
+with the layout. A keymap must bind only commands the router has, given at creation or configured
+later. Other step sizes for the keyboard come as a keymap: `defaultKeymap({ move: 0.2 })` builds
+the default bindings with those steps, to configure as `keymap`.
 
 The default keymap acts on the selected window while the view has the keyboard: the arrows move
 it along the camera's right and up (with Shift, five times as far), Page Up and Page Down change
@@ -1107,7 +1109,7 @@ attachments); the model decides each state it passes through and each request it
 | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `Swf.Kernel`         | The workspace lifecycle (§13.1); a transaction's admission, idempotent replay and refusals in order; what a commit, undo, redo or restore does to the revision, the history and the idempotency cache |
 | `Swf.Hierarchy`      | That a node never becomes its own ancestor (reparenting, grouping), and which commands a lock refuses                                                                                                 |
-| `Swf.Surface`        | Every surface presentation state and its announcement (§13.2), and the bind, unbind, present, replace, move and hide requests each state admits, single-owner mounts included                         |
+| `Swf.Surface`        | Every surface presentation state and its announcement (§13.2), and the bind, unbind, present, replace, move and hide requests each state admits, single-owner mounts and handovers included           |
 | `Swf.Gesture`        | Where each pointer sample, press and key goes; each gesture phase from press to commit or cancel (§13.3); the keyboard hold's admission                                                               |
 | `Swf.Arbitration`    | Which gesture wins a press, and which hit under a pointer is the target, in what order and whether ambiguously                                                                                        |
 | `Swf.Save`           | The snapshot save states (§13.4), which acknowledgements count, and that the saved revision never goes back                                                                                           |

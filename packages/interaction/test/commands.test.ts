@@ -6,8 +6,11 @@ import { describe, expect, it } from 'vitest';
 import type { InputAdapter, InteractionCommand, InteractionPolicy } from '../src/index.js';
 import {
   BUILT_IN_POLICIES,
+  createInteractionRouter,
   createSyntheticInput,
+  DEFAULT_KEYBOARD_STEPS,
   DEFAULT_SETTINGS,
+  defaultKeymap,
   INTERACTION_API_VERSION,
 } from '../src/index.js';
 import { titleBar, world } from './fixtures.js';
@@ -200,23 +203,23 @@ describe('keyboard (FR-109, UX-012)', () => {
     const x = ws.getState().nodes.get('a')?.transform.position[0] ?? 0;
     expect(input.key('ArrowRight', { viewportId: 'v' }).operation?.name).toBe('node.move');
     expect(ws.getState().nodes.get('a')?.transform.position[0]).toBeCloseTo(
-      x + DEFAULT_SETTINGS.steps.move,
+      x + DEFAULT_KEYBOARD_STEPS.move,
       12,
     );
     input.key('ArrowRight', { viewportId: 'v', modifiers: { shift: true }, repeat: true });
     expect(ws.getState().nodes.get('a')?.transform.position[0]).toBeCloseTo(
-      x + 6 * DEFAULT_SETTINGS.steps.move,
+      x + 6 * DEFAULT_KEYBOARD_STEPS.move,
       12,
     );
     input.key('z', { modifiers: { ctrl: true } });
     expect(ws.getState().nodes.get('a')?.transform.position[0]).toBeCloseTo(
-      x + DEFAULT_SETTINGS.steps.move,
+      x + DEFAULT_KEYBOARD_STEPS.move,
       12,
     );
     // Shift turns z into Z; letters match either way.
     input.key('Z', { modifiers: { ctrl: true, shift: true } });
     expect(ws.getState().nodes.get('a')?.transform.position[0]).toBeCloseTo(
-      x + 6 * DEFAULT_SETTINGS.steps.move,
+      x + 6 * DEFAULT_KEYBOARD_STEPS.move,
       12,
     );
   });
@@ -274,7 +277,7 @@ describe('keyboard (FR-109, UX-012)', () => {
       'node.resize',
     );
     expect(ws.getState().nodes.get('a')?.bounds[0]).toBeCloseTo(
-      width + DEFAULT_SETTINGS.steps.resize,
+      width + DEFAULT_KEYBOARD_STEPS.resize,
       12,
     );
     // A letter is another matter: Shift+N is not N.
@@ -336,11 +339,11 @@ describe('holding a window from the keyboard (UX-012, UX-007, FR-112)', () => {
     expect(ws.history()).toHaveLength(history);
     const shown = ws.getPresented().nodes.get('a');
     expect(shown?.transform.position).not.toEqual(start?.transform.position);
-    expect(shown?.bounds[0]).toBeCloseTo((start?.bounds[0] ?? 0) + DEFAULT_SETTINGS.steps.resize);
+    expect(shown?.bounds[0]).toBeCloseTo((start?.bounds[0] ?? 0) + DEFAULT_KEYBOARD_STEPS.resize);
     expect(
       headingPitchOf(shown?.transform.rotation ?? [0, 0, 0, 1]).heading -
         headingPitchOf(start?.transform.rotation ?? [0, 0, 0, 1]).heading,
-    ).toBeCloseTo(DEFAULT_SETTINGS.steps.rotate, 9);
+    ).toBeCloseTo(DEFAULT_KEYBOARD_STEPS.rotate, 9);
     // Enter puts it down: one commit, exactly the previewed placement.
     const dropped = input.key('Enter', { viewportId: 'v' });
     expect(dropped.operation).toMatchObject({
@@ -417,7 +420,7 @@ describe('holding a window from the keyboard (UX-012, UX-007, FR-112)', () => {
     input.command('selection.set', { ids: ['b'] });
     const bx = position(ws, 'b')[0];
     input.key('ArrowRight', { viewportId: 'v' });
-    expect(position(ws, 'b')[0]).toBeCloseTo(bx + DEFAULT_SETTINGS.steps.move, 12);
+    expect(position(ws, 'b')[0]).toBeCloseTo(bx + DEFAULT_KEYBOARD_STEPS.move, 12);
   });
 
   it('refuses a locked window, a second hold, and a pointer on the held window', () => {
@@ -481,8 +484,10 @@ describe('settings (FR-004, CFG-001)', () => {
     expect(bad({ takeoverModifier: 'hyper' })).toMatch(/settings.takeoverModifier/);
     expect(bad({ depthModifier: 'alt' })).toMatch(/settings.depthModifier must differ/);
     expect(bad({ worldPlaneNormal: [0, 0, 0] })).toMatch(/settings.worldPlaneNormal/);
-    expect(bad({ steps: { move: 0 } })).toMatch(/settings.steps.move/);
-    expect(bad({ steps: { jump: 1 } })).toMatch(/settings.steps.jump is not a step/);
+    // Steps build a keymap (defaultKeymap); they are not a setting that would change none.
+    expect(bad({ steps: { move: 0.2 } })).toMatch(
+      /^INVALID_INPUT: settings.steps is not a setting/,
+    );
     expect(bad({ colour: 'red' })).toMatch(/settings.colour is not a setting/);
     expect(bad({ keymap: [{ key: 'x', modifiers: [], command: 'node.fly', args: {} }] })).toMatch(
       /unknown command "node.fly"/,
@@ -504,6 +509,31 @@ describe('settings (FR-004, CFG-001)', () => {
       bad({ keymap: [{ key: 'x', modifiers: [], command: 'history.undo', args: { f: () => 1 } }] }),
     ).toMatch(/args.f must be JSON data/);
     expect(router.settings()).toBe(before);
+  });
+
+  it('come with a default keymap built from step sizes, each checked by name', () => {
+    const coarse = defaultKeymap({ move: 0.2 });
+    const left = (
+      keymap: readonly { key: string; modifiers: readonly string[]; args: unknown }[],
+    ) => keymap.find((b) => b.key === 'ArrowLeft' && b.modifiers.length === 0)?.args;
+    expect(left(coarse)).toEqual({ right: -0.2 });
+    expect(coarse.find((b) => b.key === 'PageUp')?.args).toEqual({
+      depth: DEFAULT_KEYBOARD_STEPS.depth,
+    });
+    expect(left(DEFAULT_SETTINGS.keymap)).toEqual({ right: -DEFAULT_KEYBOARD_STEPS.move });
+    const refused = (steps: Record<string, unknown>) => codeOf(() => defaultKeymap(steps));
+    expect(refused({ move: 0 })).toMatch(
+      /^INVALID_INPUT: steps.move must be a positive finite number/,
+    );
+    expect(refused({ turn: Number.NaN })).toMatch(/^INVALID_INPUT: steps.turn/);
+    expect(refused({ jump: 1 })).toMatch(/^INVALID_INPUT: steps.jump is not a step/);
+    // A keymap built from steps takes effect once configured.
+    const { ws, input, router } = world(two);
+    router.configure({ keymap: coarse });
+    input.key('n', { viewportId: 'v' });
+    const x = ws.getState().nodes.get('a')?.transform.position[0] ?? 0;
+    input.key('ArrowRight', { viewportId: 'v' });
+    expect(ws.getState().nodes.get('a')?.transform.position[0]).toBeCloseTo(x + 0.2, 12);
   });
 
   it('announce every change, so a host can save them (CFG-003), and only changes that hold', () => {
@@ -660,6 +690,95 @@ describe('registration (FR-181)', () => {
     expect(codeOf(() => router.pick('v', 1, 1))).toMatch(
       /^INVALID_TRANSITION: the interaction router is disposed/,
     );
+  });
+
+  it('leaves a device whose registration failed, or that was disconnected, unable to reach the router', () => {
+    const { router } = world([]);
+    let runs = 0;
+    router.registerCommand({
+      id: 'test.count',
+      run: () => {
+        runs += 1;
+        return { status: 'unchanged', reason: 'counted' };
+      },
+    });
+    const intent = {
+      kind: 'command',
+      command: 'test.count',
+      args: {},
+      deviceId: 'device',
+      timestamp: 0,
+    } as const;
+    const device = (id: string, disconnect: unknown) => {
+      const held: { dispatch: ((i: typeof intent) => unknown) | null } = { dispatch: null };
+      const adapter = {
+        id,
+        apiVersion: INTERACTION_API_VERSION,
+        connect: (dispatch: (i: typeof intent) => unknown) => {
+          held.dispatch = dispatch;
+          // A device may send input while it connects.
+          dispatch(intent);
+          return disconnect;
+        },
+      } as unknown as InputAdapter;
+      return { adapter, send: () => codeOf(() => held.dispatch?.(intent)) };
+    };
+    const broken = device('test.broken/1', 'not a function');
+    expect(codeOf(() => router.registerInputAdapter(broken.adapter))).toMatch(
+      /^INVALID_INPUT: input adapter "test.broken\/1" must return a disconnect function/,
+    );
+    expect(runs).toBe(1);
+    expect(broken.send()).toMatch(
+      /^INVALID_TRANSITION: input adapter "test.broken\/1" is not connected/,
+    );
+    expect(runs).toBe(1);
+    // Its ID stays free: the device can connect again, properly this time.
+    const fixed = device('test.broken/1', () => undefined);
+    const remove = router.registerInputAdapter(fixed.adapter);
+    expect(fixed.send()).toBe('accepted');
+    expect(runs).toBe(3);
+    remove();
+    expect(fixed.send()).toMatch(/^INVALID_TRANSITION: input adapter "test.broken\/1" is not/);
+    expect(runs).toBe(3);
+    // One whose connect throws is not connected either.
+    const failing = device('test.failing/1', null);
+    const throwing = {
+      ...failing.adapter,
+      connect: (dispatch: never) => {
+        failing.adapter.connect(dispatch);
+        throw new Error('no device');
+      },
+    } as InputAdapter;
+    expect(codeOf(() => router.registerInputAdapter(throwing))).toMatch(/no device/);
+    expect(failing.send()).toMatch(/^INVALID_TRANSITION: input adapter "test.failing\/1" is not/);
+    expect(runs).toBe(4);
+  });
+
+  it('refuses a listener once disposed', () => {
+    const { router } = world([]);
+    router.dispose();
+    expect(codeOf(() => router.subscribe(() => undefined))).toMatch(
+      /^INVALID_TRANSITION: the interaction router is disposed/,
+    );
+  });
+
+  it('checks the keymap it is created with against its commands, as configure does', () => {
+    const { ws, projections } = world([]);
+    const keymap = [{ key: 'x', modifiers: [], command: 'node.fly', args: {} }];
+    expect(
+      codeOf(() => createInteractionRouter({ workspace: ws, projections, settings: { keymap } })),
+    ).toMatch(/^INVALID_INPUT: settings.keymap binds unknown command "node.fly"/);
+    const fly: InteractionCommand = {
+      id: 'node.fly',
+      run: () => ({ status: 'unchanged', reason: 'flown' }),
+    };
+    const router = createInteractionRouter({
+      workspace: ws,
+      projections,
+      commands: [fly],
+      settings: { keymap },
+    });
+    expect(router.settings().keymap.map((b) => b.command)).toEqual(['node.fly']);
   });
 
   it('refuses synthetic input that is not connected', () => {

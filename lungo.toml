@@ -24,6 +24,7 @@ exports = [
   "Swf.Surface.unbindGate",
   "Swf.Surface.presentGate",
   "Swf.Surface.replaceGate",
+  "Swf.Surface.handoverGate",
   "Swf.Surface.moveGate",
   "Swf.Surface.hideGate",
   "Swf.Surface.hideReleases",

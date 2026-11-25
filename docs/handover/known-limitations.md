@@ -51,12 +51,6 @@ These were found while documenting the API; the JSDoc states today's behaviour.
   case only, no `_`).
 - **A host's `causeId`** reaches the `transaction.*` and `transform.preview` events, not the
   entity events of a commit, which carry the transaction's own ID.
-- **Interaction and surfaces**: a keymap given to `createInteractionRouter` may name an unknown
-  command (which `configure` refuses); `settings.steps` changes only the default keymap; an input
-  adapter whose `connect` returns no function stays connected when its registration fails; a
-  listener subscribed after `dispose` is accepted and never called; during `replaceBinding` the
-  binding context carries the old binding's generation; and `replaceBinding` checks single
-  ownership only against the surface's own viewports.
 - **The reference application's models and the arbitration model**: the wrapped cursor accepts a
   pointer position that is not finite and wraps it to one that is not a number; a disposed
   workspaces machine still answers a save or an adoption; moving a window's last surface out plans

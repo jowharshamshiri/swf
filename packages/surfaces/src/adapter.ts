@@ -136,8 +136,9 @@ export interface BindingContext {
   /** The surface being bound. */
   readonly surfaceId: Id;
   /**
-   * The surface's binding generation when the attempt started, as
-   * {@link SurfacePresentation.generation} counts it.
+   * The generation the surface has once this binding holds, as
+   * {@link SurfacePresentation.generation} counts it: for a replacement, the one its handoff
+   * commits as.
    */
   readonly generation: number;
   /**

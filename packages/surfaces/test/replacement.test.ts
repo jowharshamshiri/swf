@@ -134,6 +134,70 @@ describe('binding replacement', () => {
     expect(runtime.get('s')?.binding.bindingKey).toBe('k');
   });
 
+  it('hands the new binding the generation it commits as', async () => {
+    const { runtime, adapter } = await presented();
+    const before = runtime.get('s')?.generation ?? -1;
+    adapter.contexts.length = 0;
+    expect(await runtime.replaceBinding('s', { bindingKey: 'new' })).toMatchObject({
+      status: 'ok',
+    });
+    const after = runtime.get('s')?.generation;
+    expect(after).toBe(before + 1);
+    expect(adapter.contexts.map((c) => c.generation)).toEqual([after]);
+  });
+
+  it('refuses to hand a single-owner endpoint over while another surface presents it, as present does', async () => {
+    const { ws, runtime, adapter } = await presented();
+    committed(ws.transaction([window('w2'), surface('s2', 'w2', 'other')]));
+    await settle();
+    await runtime.present('s2', 'v2', {});
+    const revision = ws.getState().revision;
+    expect(await runtime.replaceBinding('s2', { bindingKey: 'old' })).toMatchObject({
+      status: 'rejected',
+      error: {
+        code: 'UNSUPPORTED_CAPABILITY',
+        entityId: 's2',
+        message: expect.stringMatching(/already presented by surface "s"/) as unknown,
+      },
+    });
+    expect(runtime.get('s2')).toMatchObject({
+      state: 'presented',
+      binding: { bindingKey: 'other' },
+      replacing: false,
+    });
+    expect(ws.getState().revision).toBe(revision);
+    // The endpoint was never mounted a second time.
+    expect(
+      adapter.calls.filter((c) => c.method === 'attach' && c.handle?.key === 'old'),
+    ).toHaveLength(1);
+    // Once the endpoint is free, it can be handed over.
+    await runtime.hide('s', 'v1', { release: true });
+    expect(await runtime.replaceBinding('s2', { bindingKey: 'old' })).toMatchObject({
+      status: 'ok',
+    });
+  });
+
+  it('refuses to present a single-owner endpoint another surface is handing over to', async () => {
+    const adapter = new MockOpaqueAdapter();
+    const { ws, runtime } = await presented(adapter);
+    committed(ws.transaction([window('w2'), surface('s2', 'w2', 'next')]));
+    await settle();
+    adapter.holdingAttach.add('next');
+    const replacing = runtime.replaceBinding('s', { bindingKey: 'next' });
+    await settle();
+    expect(runtime.get('s')?.replacing).toBe(true);
+    expect(await runtime.present('s2', 'v2', {})).toMatchObject({
+      status: 'rejected',
+      error: {
+        code: 'UNSUPPORTED_CAPABILITY',
+        entityId: 's2',
+        message: expect.stringMatching(/already presented by surface "s"/) as unknown,
+      },
+    });
+    adapter.attachHeld.get('next')?.shift()?.();
+    expect(await replacing).toMatchObject({ status: 'ok' });
+  });
+
   it('hands off across adapters and reports the new capabilities', async () => {
     const { ws, runtime, events } = await presented();
     const drawable = new MockOpaqueAdapter(

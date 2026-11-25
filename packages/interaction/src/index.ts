@@ -74,6 +74,11 @@ export { createInteractionRouter, InteractionRouter, KEYBOARD_HOLD_ID } from './
 export type { IndexKey } from './scene-index.js';
 export { nodeKey, SceneIndex, surfaceKey } from './scene-index.js';
 export type { InteractionSettings, KeyBinding, KeyboardSteps } from './settings.js';
-export { DEFAULT_SETTINGS, defaultKeymap, mergeSettings } from './settings.js';
+export {
+  DEFAULT_KEYBOARD_STEPS,
+  DEFAULT_SETTINGS,
+  defaultKeymap,
+  mergeSettings,
+} from './settings.js';
 export type { SyntheticInput, SyntheticPointerOptions } from './synthetic.js';
 export { createSyntheticInput } from './synthetic.js';

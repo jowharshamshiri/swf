@@ -32,8 +32,9 @@ export interface KeyBinding {
 
 /**
  * Step sizes of keyboard operations, each positive and finite. Distances in world units, angles in
- * radians. They are what {@link defaultKeymap} builds its bindings from; the keymap holds the
- * resulting amounts, so changing the steps alone changes no binding.
+ * radians. They are what {@link defaultKeymap} builds its bindings from: a binding holds the
+ * resulting amount, so a router takes other steps as a keymap built from them, configured as
+ * `keymap`.
  */
 export interface KeyboardSteps {
   /**
@@ -50,6 +51,15 @@ export interface KeyboardSteps {
   /** How far Alt with an arrow key turns the camera, or orbits it with Shift. Default π/36 (5°). */
   readonly turn: number;
 }
+
+/** The step sizes {@link defaultKeymap} uses for those it is not given; frozen. */
+export const DEFAULT_KEYBOARD_STEPS: KeyboardSteps = Object.freeze({
+  move: 0.05,
+  depth: 0.1,
+  resize: 0.05,
+  rotate: Math.PI / 36,
+  turn: Math.PI / 36,
+});
 
 /**
  * Interaction settings. Every field is validated by {@link mergeSettings}; an invalid update
@@ -98,24 +108,12 @@ export interface InteractionSettings {
   /** Smallest window width or height a resize may make, in world units: positive. Default 0.05. */
   readonly minSize: number;
   /**
-   * The step sizes the default keymap is built from. A patch may give some of them; the rest are
-   * kept.
-   */
-  readonly steps: KeyboardSteps;
-  /**
    * The key bindings, each key and modifier combination at most once. A patch replaces the whole
-   * keymap. Default: {@link defaultKeymap} with the default steps.
+   * keymap; other step sizes come as `defaultKeymap(steps)`. Default: {@link defaultKeymap} with
+   * the default steps.
    */
   readonly keymap: readonly KeyBinding[];
 }
-
-const DEFAULT_STEPS: KeyboardSteps = Object.freeze({
-  move: 0.05,
-  depth: 0.1,
-  resize: 0.05,
-  rotate: Math.PI / 36,
-  turn: Math.PI / 36,
-});
 
 /**
  * The default keyboard bindings for the given steps: arrows move the selected window (Shift
@@ -125,8 +123,13 @@ const DEFAULT_STEPS: KeyboardSteps = Object.freeze({
  * always leave the view. While a window is held its moves, turns and resizes preview, and Enter or
  * Space puts it down as one change; Escape cancels gestures and holds. Those need no binding.
  * Returns a fresh, unfrozen array of fresh bindings.
+ *
+ * @param given Step sizes to use; each one left out is {@link DEFAULT_KEYBOARD_STEPS}'. Throws
+ *   {@link SwfFailure} (`INVALID_INPUT`) naming the first that is not a step (`steps.<name> is not a
+ *   step`) or not a positive finite number.
  */
-export function defaultKeymap(steps: KeyboardSteps = DEFAULT_STEPS): KeyBinding[] {
+export function defaultKeymap(given: Partial<KeyboardSteps> = {}): KeyBinding[] {
+  const steps = stepsOf(given);
   const b = (
     key: string,
     modifiers: ModifierKey[],
@@ -188,7 +191,6 @@ export const DEFAULT_SETTINGS: InteractionSettings = Object.freeze({
   wheelDepthPerPixel: 0.002,
   minDistance: 0.1,
   minSize: 0.05,
-  steps: DEFAULT_STEPS,
   keymap: Object.freeze(defaultKeymap()),
 });
 
@@ -268,22 +270,6 @@ export function mergeSettings(current: InteractionSettings, patch: unknown): Int
         next[key] = Object.freeze([...(v as number[])]);
         break;
       }
-      case 'steps': {
-        if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-          fail(key, 'must be an object');
-        }
-        const steps = value as Record<string, unknown>;
-        const extra = Object.keys(steps).find((k) => !(k in DEFAULT_STEPS));
-        if (extra !== undefined) {
-          fail(`steps.${extra}`, 'is not a step');
-        }
-        const merged: Record<string, number> = { ...current.steps };
-        for (const [name, step] of Object.entries(steps)) {
-          merged[name] = positive(`steps.${name}`, step);
-        }
-        next[key] = Object.freeze(merged);
-        break;
-      }
       case 'keymap':
         next[key] = keymapOf(value, fail);
         break;
@@ -293,6 +279,27 @@ export function mergeSettings(current: InteractionSettings, patch: unknown): Int
     fail('depthModifier', 'must differ from takeoverModifier');
   }
   return Object.freeze(next) as unknown as InteractionSettings;
+}
+
+/** The default steps with `given` applied, each checked. */
+function stepsOf(given: unknown): KeyboardSteps {
+  const fail = (path: string, message: string): never => {
+    throw new SwfFailure(makeError('INVALID_INPUT', `${path} ${message}`, { path }));
+  };
+  if (typeof given !== 'object' || given === null || Array.isArray(given)) {
+    return fail('steps', 'must be an object');
+  }
+  const steps: Record<string, number> = { ...DEFAULT_KEYBOARD_STEPS };
+  for (const [name, step] of Object.entries(given)) {
+    if (!(name in DEFAULT_KEYBOARD_STEPS)) {
+      fail(`steps.${name}`, 'is not a step');
+    }
+    if (typeof step !== 'number' || !Number.isFinite(step) || step <= 0) {
+      fail(`steps.${name}`, 'must be a positive finite number');
+    }
+    steps[name] = step as number;
+  }
+  return steps as unknown as KeyboardSteps;
 }
 
 function keymapOf(value: unknown, fail: (path: string, message: string) => never): KeyBinding[] {

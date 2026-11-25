@@ -287,8 +287,9 @@ export interface SurfaceRuntime {
    * adapter type with no registered adapter with `ADAPTER_UNAVAILABLE`, a key the adapter does not
    * know or an endpoint that fails to resolve or attach with `BIND_FAILED`, capabilities that are
    * malformed or exceed the adapter's declaration, or a single-owner endpoint for a surface
-   * attached in several viewports, with `UNSUPPORTED_CAPABILITY`, and a transaction the
-   * workspace rejects (such as `LOCKED`) with that rejection's error. The commit sends
+   * attached in several viewports or that another surface presents (single ownership as
+   * {@link SurfaceRuntime.present} checks it), with `UNSUPPORTED_CAPABILITY`, and a transaction
+   * the workspace rejects (such as `LOCKED`) with that rejection's error. The commit sends
    * `presentation.replaced`.
    *
    * @param binding The endpoint to present: a non-blank binding key, and the adapter type that
@@ -875,6 +876,8 @@ class Runtime implements SurfaceRuntime {
     const oldHandle = entry.handle;
     const previous = entry.binding;
     const generation = entry.generation;
+    // The generation the new binding has once the handoff commits; a change before then cancels it.
+    const nextGeneration = generation + 1;
     entry.replacing = next;
     const attempt = newAttempt();
     const cancelled = () => entry.removed || entry.generation !== generation;
@@ -890,7 +893,7 @@ class Runtime implements SurfaceRuntime {
       return Object.freeze({ status: 'rejected', error });
     };
 
-    const resolution = await this.#resolve(adapter, next, entry, attempt);
+    const resolution = await this.#resolve(adapter, next, entry, attempt, nextGeneration);
     if (cancelled()) {
       return giveUp(this.#changedWhile(surfaceId, 'replacing its binding'));
     }
@@ -914,13 +917,18 @@ class Runtime implements SurfaceRuntime {
       return giveUp(resolution.error);
     }
     const handle = resolution.handle;
-    if (resolution.capabilities.viewportSharing === 'single-owner' && entry.attachments.size > 1) {
+    const singleOwner = resolution.capabilities.viewportSharing === 'single-owner';
+    const other = singleOwner ? this.#endpointPresenter(entry, next) : undefined;
+    const overlap = models.handoverGate({
+      singleOwner,
+      severalViewports: entry.attachments.size > 1,
+      endpointElsewhere: other !== undefined,
+    });
+    if (overlap !== null) {
       return giveUp(
-        this.#error(
-          'UNSUPPORTED_CAPABILITY',
-          `the new endpoint has a single owner and cannot be shown in ${entry.attachments.size} viewports`,
-          surfaceId,
-        ),
+        this.#refusal(entry, overlap, 'replace', {
+          ...(other === undefined ? {} : { other: other.surfaceId }),
+        }),
         handle,
       );
     }
@@ -972,7 +980,7 @@ class Runtime implements SurfaceRuntime {
     const oldTargets = [...entry.attachments.values()].map((a) => a.target);
     const previousCapabilities = entry.capabilities;
     entry.replacing = null;
-    entry.generation += 1;
+    entry.generation = nextGeneration;
     entry.attempt = attempt;
     entry.binding = next;
     entry.adapter = adapter;
@@ -1168,58 +1176,62 @@ class Runtime implements SurfaceRuntime {
     entry.attempt = attempt;
     entry.adapter = adapter;
     this.#apply(entry, step);
-    entry.settled = this.#resolve(adapter, entry.binding, entry, attempt).then((resolution) => {
-      if (entry.removed || entry.generation !== generation) {
-        if (resolution.kind === 'bound') {
-          // Never attached, so there is nothing of ours to release: the handle is dropped.
-          this.#diagnose(
-            'STALE_COMPLETION',
-            `a binding of surface "${entry.surfaceId}" completed after the surface changed; discarded`,
-            entry.surfaceId,
-            { phase: 'resolve' },
-          );
+    entry.settled = this.#resolve(adapter, entry.binding, entry, attempt, generation).then(
+      (resolution) => {
+        if (entry.removed || entry.generation !== generation) {
+          if (resolution.kind === 'bound') {
+            // Never attached, so there is nothing of ours to release: the handle is dropped.
+            this.#diagnose(
+              'STALE_COMPLETION',
+              `a binding of surface "${entry.surfaceId}" completed after the surface changed; discarded`,
+              entry.surfaceId,
+              { phase: 'resolve' },
+            );
+          }
+          return;
         }
-        return;
-      }
-      switch (resolution.kind) {
-        case 'bound':
-          entry.handle = resolution.handle;
-          entry.capabilities = resolution.capabilities;
-          this.#step(entry, { kind: 'resolved', r: { kind: 'bound' } });
-          return;
-        case 'unknown-key':
-          entry.attempt = null;
-          entry.adapter = null;
-          this.#step(entry, { kind: 'resolved', r: { kind: 'unknownKey' } });
-          return;
-        case 'failed':
-          entry.attempt = null;
-          entry.adapter = null;
-          entry.error = resolution.error;
-          this.#step(entry, { kind: 'resolved', r: { kind: 'failed' } });
-          return;
-        case 'cancelled':
-          return;
-      }
-    });
+        switch (resolution.kind) {
+          case 'bound':
+            entry.handle = resolution.handle;
+            entry.capabilities = resolution.capabilities;
+            this.#step(entry, { kind: 'resolved', r: { kind: 'bound' } });
+            return;
+          case 'unknown-key':
+            entry.attempt = null;
+            entry.adapter = null;
+            this.#step(entry, { kind: 'resolved', r: { kind: 'unknownKey' } });
+            return;
+          case 'failed':
+            entry.attempt = null;
+            entry.adapter = null;
+            entry.error = resolution.error;
+            this.#step(entry, { kind: 'resolved', r: { kind: 'failed' } });
+            return;
+          case 'cancelled':
+            return;
+        }
+      },
+    );
   }
 
   /**
    * Resolves a binding through its adapter, with the attempt's abort signal and the timeout, and
    * negotiates the handle's capabilities against the adapter's declaration. The binding context
-   * it hands the adapter acts only while `attempt` is the surface's current attempt.
+   * it hands the adapter carries `generation`, the one the binding has once it holds, and acts
+   * only while `attempt` is the surface's current attempt.
    */
   async #resolve(
     adapter: SurfaceAdapter,
     binding: BindingRef,
     entry: Entry,
     attempt: Attempt,
+    generation: number,
   ): Promise<Resolution> {
     const surfaceId = entry.surfaceId;
     const current = () => entry.attempt === attempt && !entry.removed;
     const context: BindingContext = Object.freeze({
       surfaceId,
-      generation: entry.generation,
+      generation,
       announceCapabilities: (capabilities: SurfaceCapabilities) => {
         if (current() && entry.capabilities !== null) {
           void this.#capabilitiesChanged(entry, adapter, capabilities);
@@ -1473,7 +1485,7 @@ class Runtime implements SurfaceRuntime {
     const valid = typeof viewportId === 'string' && viewportId.trim() !== '';
     const existing = valid ? entry.attachments.get(viewportId) : undefined;
     const singleOwner = entry.capabilities?.viewportSharing === 'single-owner';
-    const other = singleOwner ? this.#endpointPresenter(entry) : undefined;
+    const other = singleOwner ? this.#endpointPresenter(entry, entry.binding) : undefined;
     const refused = models.presentGate({
       disposed: this.#disposed !== null,
       viewportValid: valid,
@@ -1493,13 +1505,20 @@ class Runtime implements SurfaceRuntime {
         });
   }
 
-  /** Another surface presenting, or attaching, the same endpoint through the same adapter. */
-  #endpointPresenter(entry: Entry): Entry | undefined {
+  /**
+   * Another surface than `entry` presenting, attaching or handing over to `endpoint` through the
+   * same adapter: one attached or attaching somewhere whose binding, or the binding it is handing
+   * over to, is that endpoint.
+   */
+  #endpointPresenter(entry: Entry, endpoint: BindingRef): Entry | undefined {
+    const same = (ref: BindingRef | null) =>
+      ref !== null &&
+      ref.bindingKey === endpoint.bindingKey &&
+      ref.adapterTypeId === endpoint.adapterTypeId;
     for (const other of this.#entries.values()) {
       if (
         other !== entry &&
-        other.binding.bindingKey === entry.binding.bindingKey &&
-        other.binding.adapterTypeId === entry.binding.adapterTypeId &&
+        (same(other.binding) || same(other.replacing)) &&
         (other.attachments.size > 0 || other.pending.size > 0)
       ) {
         return other;
@@ -1544,13 +1563,15 @@ class Runtime implements SurfaceRuntime {
       case 'singleOwnerElsewhere':
         return this.#error(
           'UNSUPPORTED_CAPABILITY',
-          `surface "${id}" has a single-owner handle already presented in another viewport; show a proxy there`,
+          request === 'replace'
+            ? `the new endpoint of surface "${id}" has a single owner and cannot be shown in the ${String(entry.attachments.size)} viewports it is attached in`
+            : `surface "${id}" has a single-owner handle already presented in another viewport; show a proxy there`,
           id,
         );
       case 'endpointPresented':
         return this.#error(
           'UNSUPPORTED_CAPABILITY',
-          `the single-owner endpoint of surface "${id}" is already presented by surface "${String(at.other)}"`,
+          `the ${request === 'replace' ? 'new ' : ''}single-owner endpoint of surface "${id}" is already presented by surface "${String(at.other)}"`,
           id,
         );
       case 'notAttached':

@@ -222,7 +222,8 @@ export interface InteractionRouterOptions {
   readonly occlusion?: OcclusionLookup;
   /**
    * Overrides of {@link DEFAULT_SETTINGS}, checked as {@link mergeSettings} checks them; every key
-   * binding must name a registered command.
+   * binding must name a command the router has once `commands` are registered, as
+   * {@link InteractionRouter.configure} requires.
    */
   readonly settings?: Partial<InteractionSettings>;
   /** The gesture policies, registered in order. Default: {@link BUILT_IN_POLICIES}. */
@@ -314,7 +315,8 @@ const NOT_HANDLED = (reason: string, extra: Partial<Routed> = {}): Routed => ({
  * disposes the workspace or the projection modules.
  *
  * @throws A {@link SwfFailure}: `INVALID_INPUT` for invalid settings (naming `settings.<field>`),
- *   a malformed command or policy, a taken ID or a `timer` that is not a function;
+ *   a key binding to a command it does not have, a malformed command or policy, a taken ID or a
+ *   `timer` that is not a function;
  *   `UNSUPPORTED_CAPABILITY` for a policy of another contract version or one whose operation has
  *   no command.
  *
@@ -340,7 +342,7 @@ export function createInteractionRouter(options: InteractionRouterOptions): Inte
 
 /**
  * The interaction router of one workspace, created with {@link createInteractionRouter}. Once it
- * is disposed, configuring, registering, picking, dispatching and cancelling throw
+ * is disposed, configuring, registering, subscribing, picking, dispatching and cancelling throw
  * {@link SwfFailure} (`INVALID_TRANSITION`); reading its settings, captures, listings and listener
  * errors does not.
  *
@@ -391,6 +393,7 @@ export class InteractionRouter {
     for (const command of [...BUILT_IN_COMMANDS, ...(options.commands ?? [])]) {
       this.registerCommand(command);
     }
+    this.#checkKeymap(this.#settings);
     for (const policy of options.policies ?? BUILT_IN_POLICIES) {
       this.registerPolicy(policy);
     }
@@ -415,10 +418,7 @@ export class InteractionRouter {
   configure(patch: Partial<InteractionSettings>): InteractionSettings {
     this.#live();
     const next = mergeSettings(this.#settings, patch);
-    const unknown = next.keymap.find((b) => !this.#commands.has(b.command));
-    if (unknown !== undefined) {
-      throw failure('INVALID_INPUT', `settings.keymap binds unknown command "${unknown.command}"`);
-    }
+    this.#checkKeymap(next);
     this.#settings = next;
     this.#emit({ type: 'settings.changed', settings: next });
     return next;
@@ -490,9 +490,12 @@ export class InteractionRouter {
   /**
    * Calls `listener` with every router event from now on, synchronously and in order, until the
    * returned function is called; that function is safe to call more than once. Disposing the
-   * router drops every listener. The listener is not checked: it must be a function.
+   * router drops every listener, and a disposed router throws {@link SwfFailure}
+   * (`INVALID_TRANSITION`) here, since it sends no more events. The listener is not checked: it
+   * must be a function.
    */
   subscribe(listener: (event: InteractionEvent) => void): () => void {
+    this.#live();
     this.#listeners.add(listener);
     return () => {
       this.#listeners.delete(listener);
@@ -609,10 +612,13 @@ export class InteractionRouter {
   }
 
   /**
-   * Connects an input device: calls its `connect` at once with the router's dispatch. Throws
+   * Connects an input device: calls its `connect` at once with a dispatch of its own, which routes
+   * intents as {@link InteractionRouter.dispatch} does while the device is connected. Throws
    * {@link SwfFailure}: `INVALID_INPUT` for a malformed adapter, a taken ID or a `connect` that
    * returns no function, `UNSUPPORTED_CAPABILITY` for another contract version. An exception from
-   * `connect` itself reaches the caller.
+   * `connect` itself reaches the caller. A registration that fails leaves the device disconnected:
+   * its dispatch then throws {@link SwfFailure} (`INVALID_TRANSITION`), as it does once the device
+   * is disconnected, and its ID stays free.
    *
    * @returns A function that disconnects the device, calling the function `connect` returned.
    *   Calling it again does nothing.
@@ -638,13 +644,32 @@ export class InteractionRouter {
     if (this.#adapters.has(adapter.id)) {
       throw failure('INVALID_INPUT', `input adapter "${adapter.id}" is already registered`);
     }
-    const disconnect = adapter.connect((intent) => this.dispatch(intent));
-    if (typeof disconnect !== 'function') {
+    let connected = true;
+    const dispatch = (intent: InputIntent): DispatchResult => {
+      if (!connected) {
+        throw failure('INVALID_TRANSITION', `input adapter "${adapter.id}" is not connected`);
+      }
+      return this.dispatch(intent);
+    };
+    let returned: unknown;
+    try {
+      returned = adapter.connect(dispatch);
+    } catch (error) {
+      connected = false;
+      throw error;
+    }
+    if (typeof returned !== 'function') {
+      connected = false;
       throw failure(
         'INVALID_INPUT',
         `input adapter "${adapter.id}" must return a disconnect function`,
       );
     }
+    const release = returned as () => void;
+    const disconnect = () => {
+      connected = false;
+      release();
+    };
     this.#adapters.set(adapter.id, disconnect);
     return () => {
       if (this.#adapters.get(adapter.id) === disconnect) {
@@ -1486,6 +1511,17 @@ export class InteractionRouter {
       } catch (error) {
         this.#errors.push(`a listener threw while handling ${event.type}: ${messageOf(error)}`);
       }
+    }
+  }
+
+  /**
+   * Throws {@link SwfFailure} (`INVALID_INPUT`) for a key binding of `settings` to a command the
+   * router does not have.
+   */
+  #checkKeymap(settings: InteractionSettings): void {
+    const unknown = settings.keymap.find((b) => !this.#commands.has(b.command));
+    if (unknown !== undefined) {
+      throw failure('INVALID_INPUT', `settings.keymap binds unknown command "${unknown.command}"`);
     }
   }
 

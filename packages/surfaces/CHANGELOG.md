@@ -12,3 +12,6 @@ An adapter's `resolve` receives its abort signal typed as `BindingSignal`, the p
 platform's `AbortSignal` every runtime provides, in place of the ambient `AbortSignal`. This is a
 type-only change to the adapter contract: the runtime passes a real `AbortSignal`, and an adapter
 that declares the parameter as `AbortSignal` compiles as before.
+
+A replacement's binding context carries the generation the handoff commits as, and
+`replaceBinding` refuses a single-owner endpoint another surface presents, as `present` does.

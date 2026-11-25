@@ -230,6 +230,27 @@ def replaceGate (disposed : Bool) (p : Presentation) (replacing hasAdapter pendi
   else if !p.bound || !hasAdapter || pending then some .notBound
   else none
 
+/-- What handing a surface over to a newly resolved endpoint depends on: the endpoint is attached
+in every viewport the surface is attached in. -/
+structure HandoverFacts where
+  /-- The new endpoint's handle presents only one viewport at a time. -/
+  singleOwner : Bool
+  /-- The surface is attached in more than one viewport. -/
+  severalViewports : Bool
+  /-- Another surface presents, is attaching, or is handing over to the same endpoint. -/
+  endpointElsewhere : Bool
+
+/-- Whether a surface may hand over to a newly resolved endpoint, as presenting checks single
+ownership: an endpoint that may present several viewports is admitted (`none`); a single-owner one
+is refused when the surface is attached in several viewports (`singleOwnerElsewhere`) or another
+surface presents the same endpoint (`endpointPresented`). The model proves a single-owner handle
+handed over is never mounted twice. -/
+def handoverGate (f : HandoverFacts) : Option SurfaceRefusal :=
+  if !f.singleOwner then none
+  else if f.severalViewports then some .singleOwnerElsewhere
+  else if f.endpointElsewhere then some .endpointPresented
+  else none
+
 /-- Moving an attachment to another container: the surface must be attached in the viewport (and
 not attaching there), and not replacing its binding. -/
 def moveGate (disposed attached replacing : Bool) : Option SurfaceRefusal :=
@@ -308,6 +329,15 @@ theorem present_admits_single_mount (f : PresentFacts) (h : presentGate f = none
     cases hb : ph.bound <;> simp_all <;>
     cases ex <;> (try rename_i b; cases b) <;> simp_all <;>
     cases pe <;> cases so <;> cases aa <;> cases ee <;> simp_all
+
+/-- A single-owner endpoint is handed over only to a surface attached in at most one viewport, and
+only while no other surface presents it: never mounted twice, as presenting guarantees. -/
+@[lungo_claim "lungo.law" subject handoverGate]
+theorem handover_admits_single_mount (f : HandoverFacts) :
+    handoverGate f = none ↔
+      (f.singleOwner = true → f.severalViewports = false ∧ f.endpointElsewhere = false) := by
+  obtain ⟨so, sv, ee⟩ := f
+  cases so <;> cases sv <;> cases ee <;> simp [handoverGate]
 
 /-- Hiding releases an attachment only when asked and the handle declares it safe. -/
 @[lungo_claim "lungo.decides" subject hideReleases]
