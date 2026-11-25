@@ -9,15 +9,15 @@
   "@swf/models": {
     "budget": 43264,
     "recorded": {
-      "minified": 242236,
-      "gzip": 41070
+      "minified": 243319,
+      "gzip": 41251
     }
   },
   "@swf/core": {
     "budget": 24576,
     "recorded": {
-      "minified": 82906,
-      "gzip": 23075
+      "minified": 82909,
+      "gzip": 23091
     }
   },
   "@swf/surfaces": {
@@ -30,8 +30,8 @@
   "@swf/presentation": {
     "budget": 13824,
     "recorded": {
-      "minified": 41213,
-      "gzip": 12752
+      "minified": 43122,
+      "gzip": 13337
     }
   },
   "@swf/projections": {

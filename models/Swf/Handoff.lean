@@ -120,8 +120,10 @@ def swapStep (action : SwapAction) (accepted visible hadTarget : Bool) : SwapSte
 inductive Attempt where
   /-- There was no candidate to try. -/
   | untried
-  /-- Every candidate tried failed. -/
-  | failed
+  /-- Every candidate tried failed. `restored` is whether their rollbacks put back every surface
+  their swap steps had moved, hidden or released: false when an undo step failed for a surface
+  that no later rollback put back. -/
+  | failed (restored : Bool)
   /-- A candidate worked. -/
   | worked
 
@@ -131,24 +133,28 @@ inductive Settlement where
   /-- The viewport is on a backend that works and nothing failed: a candidate that worked, or the
   previous backend when there was no candidate to try. -/
   | switched
-  /-- Every candidate tried failed; the previous backend still works and stays active. -/
-  | kept
+  /-- Every candidate tried failed; the previous backend still works and stays active. `restored`
+  is false when a rollback could not put a surface back, and the handoff then names each such
+  surface. -/
+  | kept (restored : Bool)
   /-- No backend works: the viewport is degraded. -/
   | degraded
 deriving DecidableEq
 
 /-- How a handoff ends: `switched` when a candidate worked, or when there was none to try and the
 previous backend works; `kept` when candidates were tried, all failed, and the previous backend
-works; and `degraded` exactly when no backend works at all. -/
+works, saying whether their rollbacks put every surface back; and `degraded` exactly when no
+backend works at all, whatever the rollbacks left, since degrading hides every surface still in
+the previous backend's resources and releases those whose endpoint allows it. -/
 def settle (attempt : Attempt) (oldUsable : Bool) : Settlement :=
   match attempt with
   | .worked => .switched
   | .untried => if oldUsable then .switched else .degraded
-  | .failed => if oldUsable then .kept else .degraded
+  | .failed restored => if oldUsable then .kept restored else .degraded
 
 /-- The state a settlement leaves the viewport in. -/
 def Settlement.state : Settlement → ViewportState
-  | .switched | .kept => .active
+  | .switched | .kept _ => .active
   | .degraded => .degraded
 
 /-- The state a settlement leaves the viewport in: active on a backend, or degraded. -/
@@ -220,15 +226,28 @@ theorem carried_out_step_is_undone (visible hadTarget : Bool) :
 
 /-- A handoff degrades the viewport exactly when no candidate worked and the previous backend is
 gone; it answers `kept`, the settlement that reports a failure while a backend still works, only
-when candidates were tried and all failed; and with nothing to try it leaves a previous backend
-that works active, with nothing failed. -/
+when candidates were tried and all failed, carrying what their rollbacks restored; and with
+nothing to try it leaves a previous backend that works active, with nothing failed. -/
 @[lungo_claim "lungo.law" subject settle]
 theorem settles_truthfully (attempt : Attempt) (oldUsable : Bool) :
     (settle attempt oldUsable = .degraded ↔ attempt ≠ .worked ∧ oldUsable = false) ∧
-      (settle attempt oldUsable = .kept ↔ attempt = .failed ∧ oldUsable = true) ∧
+      (∀ restored, settle attempt oldUsable = .kept restored ↔
+        attempt = .failed restored ∧ oldUsable = true) ∧
       (attempt = .untried → oldUsable = true → settle attempt oldUsable = .switched) ∧
       (oldUsable = true → (settle attempt oldUsable).state = .active) := by
   cases attempt <;> cases oldUsable <;> simp [settle, Settlement.state]
+
+/-- A failed undo is never lost: when every candidate failed and the previous backend still works,
+the handoff keeps it and says whether every surface was put back, so a rollback that could not put
+one back is reported as unrestored, never as kept and restored. Where the previous backend is gone
+the viewport degrades, which hides every surface still in the previous resources (releasing those
+whose endpoint allows it), so there a failed undo changes nothing. -/
+@[lungo_claim "lungo.law" subject settle]
+theorem failed_undo_is_reported (restored oldUsable : Bool) :
+    (oldUsable = true → settle (.failed restored) oldUsable = .kept restored) ∧
+      (settle (.failed restored) oldUsable = .kept true → restored = true) ∧
+      (oldUsable = false → settle (.failed restored) oldUsable = .degraded) := by
+  cases restored <;> cases oldUsable <;> simp [settle]
 
 @[lungo_claim "lungo.decides" subject viewportPresents]
 theorem presents_iff_active (s : ViewportState) : viewportPresents s = true ↔ s = .active := by

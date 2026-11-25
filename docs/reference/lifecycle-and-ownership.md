@@ -70,7 +70,8 @@ disposing a whole host leave no listener, observer, frame request or timer behin
   is opening or open, and a viewport that fails to start is disposed, freeing its ID
   ([Presenting in the browser](../../README.md#presenting-in-the-browser)).
 - **Backend handoff:** `active` → `preparing` → `validating` → `swapping` → `active`; any failure
-  puts back what moved, was released or was hidden, and keeps the previous backend
+  releases what the candidate made, puts back what moved, was released or was hidden, and keeps
+  the previous backend, naming each surface it could not put back
   ([Presenting in the browser](../../README.md#presenting-in-the-browser)).
 - **Save:** `clean`, `dirty`, `saving`, `failed`; only the store's acknowledgement of the saved
   key and revision makes it `clean` ([Saving layouts](../../README.md#saving-layouts)).

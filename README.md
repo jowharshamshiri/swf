@@ -483,15 +483,22 @@ is not a representation is an error naming the policy and the surface.
 prepared (`preparing`), the scene is planned with its capabilities (`validating`), the view is
 rebuilt in it and live content is moved over (`swapping`), and only then does it become active and
 the old pair is released. Any failure on the way, a surface the runtime will not move, release or
-hide included, puts back what was moved, released or hidden and keeps the old pair; a switch that
-would strand content whose endpoint cannot be detached safely is refused. When the
+hide included, and a new pair whose loss cannot be watched, releases everything the new pair made,
+puts back what was moved, released or hidden and keeps the old pair; a switch that would strand
+content whose endpoint cannot be detached safely is refused. Putting back goes on past a surface
+the runtime will not put back, and `kept` names each such surface, with why, in `unrestored`. When the
 backend in use is unregistered, or loses its resources (a canvas's 2D context, say), the viewport
 falls back through its `backends` in order. When none works it is `presentation-degraded`:
 `showDegraded` puts a status line in its container saying why, the scene keeps taking commands and
 input, and when a preferred backend is registered again (or `view.restore()` is called after a
 loss) the viewport returns to it with whatever was committed meanwhile. `view.restore()` answers
 `kept`, with the failure, only when a preferred backend was tried and failed; a viewport already on
-its first backend has nothing to try and answers `switched` with it.
+its first backend has nothing to try and answers `switched` with it. A handoff the viewport begins
+on its own (a loss, an unregistration, a preferred backend registered again) has no caller, so
+when it fails to finish, because `showDegraded` throws, say, the viewport is degraded all the
+same, its old pair released, and the failure is kept in `presenter.getDiagnostics()` as
+`BACKGROUND_FAILED`; a function `showDegraded` returned that throws is kept there as
+`HOST_THREW`.
 
 Each live surface gets a slot of its own in each view, laid out at the surface's size
 (`pixelsPerUnit` CSS pixels per world unit, 400 by default) and mapped onto its projected corners

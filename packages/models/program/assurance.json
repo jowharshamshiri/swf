@@ -2553,11 +2553,11 @@
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 237,
+          "line": 256,
           "column": 1
         },
         "end": {
-          "line": 239,
+          "line": 258,
           "column": 24
         }
       }
@@ -2584,11 +2584,11 @@
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 207,
+          "line": 213,
           "column": 1
         },
         "end": {
-          "line": 219,
+          "line": 225,
           "column": 56
         }
       }
@@ -2615,11 +2615,11 @@
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 241,
+          "line": 260,
           "column": 1
         },
         "end": {
-          "line": 244,
+          "line": 263,
           "column": 47
         }
       }
@@ -2646,12 +2646,43 @@
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 177,
+          "line": 183,
           "column": 1
         },
         "end": {
-          "line": 182,
+          "line": 188,
           "column": 45
+        }
+      }
+    },
+    {
+      "name": "Swf.Handoff.failed_undo_is_reported",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Handoff.settle"
+      ],
+      "specifications": [],
+      "statement": "∀ (restored oldUsable : Bool),\n  (oldUsable = true →\n      Swf.Handoff.settle (Swf.Handoff.Attempt.failed restored) oldUsable = Swf.Handoff.Settlement.kept restored) ∧\n    (Swf.Handoff.settle (Swf.Handoff.Attempt.failed restored) oldUsable = Swf.Handoff.Settlement.kept true →\n        restored = true) ∧\n      (oldUsable = false →\n        Swf.Handoff.settle (Swf.Handoff.Attempt.failed restored) oldUsable = Swf.Handoff.Settlement.degraded)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "a777fa7e50351b85e538a2130c409c9978559fad511bff544b94f201887369b5",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Handoff.lean",
+        "start": {
+          "line": 240,
+          "column": 1
+        },
+        "end": {
+          "line": 250,
+          "column": 55
         }
       }
     },
@@ -2677,11 +2708,11 @@
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 233,
+          "line": 252,
           "column": 1
         },
         "end": {
-          "line": 235,
+          "line": 254,
           "column": 26
         }
       }
@@ -2708,11 +2739,11 @@
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 201,
+          "line": 207,
           "column": 1
         },
         "end": {
-          "line": 205,
+          "line": 211,
           "column": 18
         }
       }
@@ -2734,16 +2765,16 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "60862e92d14454e2c2e7cbb62bf8008628e4adffa3d36a0e05aa51759d726087",
+      "fingerprint": "f831e27cc195e0969be75675544a22ad07daa5c5a9615dd9b908ce0df4de7efa",
       "source": {
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 246,
+          "line": 265,
           "column": 1
         },
         "end": {
-          "line": 249,
+          "line": 268,
           "column": 52
         }
       }
@@ -2755,26 +2786,27 @@
         "Swf.Handoff.settle"
       ],
       "specifications": [],
-      "statement": "∀ (attempt : Swf.Handoff.Attempt) (oldUsable : Bool),\n  (Swf.Handoff.settle attempt oldUsable = Swf.Handoff.Settlement.degraded ↔\n      attempt ≠ Swf.Handoff.Attempt.worked ∧ oldUsable = false) ∧\n    (Swf.Handoff.settle attempt oldUsable = Swf.Handoff.Settlement.kept ↔\n        attempt = Swf.Handoff.Attempt.failed ∧ oldUsable = true) ∧\n      (attempt = Swf.Handoff.Attempt.untried →\n          oldUsable = true → Swf.Handoff.settle attempt oldUsable = Swf.Handoff.Settlement.switched) ∧\n        (oldUsable = true → (Swf.Handoff.settle attempt oldUsable).state = Swf.Handoff.ViewportState.active)",
+      "statement": "∀ (attempt : Swf.Handoff.Attempt) (oldUsable : Bool),\n  (Swf.Handoff.settle attempt oldUsable = Swf.Handoff.Settlement.degraded ↔\n      attempt ≠ Swf.Handoff.Attempt.worked ∧ oldUsable = false) ∧\n    (∀ (restored : Bool),\n        Swf.Handoff.settle attempt oldUsable = Swf.Handoff.Settlement.kept restored ↔\n          attempt = Swf.Handoff.Attempt.failed restored ∧ oldUsable = true) ∧\n      (attempt = Swf.Handoff.Attempt.untried →\n          oldUsable = true → Swf.Handoff.settle attempt oldUsable = Swf.Handoff.Settlement.switched) ∧\n        (oldUsable = true → (Swf.Handoff.settle attempt oldUsable).state = Swf.Handoff.ViewportState.active)",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
+          "Quot.sound",
           "propext"
         ],
         "depends_on_sorry": false
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "b13de4bcb3f55e0cc0763a1f45db5dee26ebaac9c7e1cc2f6da8882525ad43f7",
+      "fingerprint": "71eb5118ae0e35062667cf9dda103135b941db6a8c52ebf0f699e988790c5834",
       "source": {
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 221,
+          "line": 227,
           "column": 1
         },
         "end": {
-          "line": 231,
+          "line": 238,
           "column": 72
         }
       }
@@ -2801,11 +2833,11 @@
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 168,
+          "line": 174,
           "column": 1
         },
         "end": {
-          "line": 175,
+          "line": 181,
           "column": 45
         }
       }
@@ -2832,11 +2864,11 @@
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 184,
+          "line": 190,
           "column": 1
         },
         "end": {
-          "line": 190,
+          "line": 196,
           "column": 66
         }
       }
@@ -2863,11 +2895,11 @@
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 192,
+          "line": 198,
           "column": 1
         },
         "end": {
-          "line": 199,
+          "line": 205,
           "column": 55
         }
       }
@@ -5987,6 +6019,7 @@
         "extern_dependencies": []
       },
       "claims": [
+        "Swf.Handoff.failed_undo_is_reported",
         "Swf.Handoff.settles_truthfully"
       ],
       "assumptions": [],
@@ -5996,12 +6029,12 @@
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 140,
+          "line": 144,
           "column": 1
         },
         "end": {
-          "line": 147,
-          "column": 54
+          "line": 153,
+          "column": 72
         }
       }
     },
@@ -6026,11 +6059,11 @@
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 154,
+          "line": 160,
           "column": 1
         },
         "end": {
-          "line": 155,
+          "line": 161,
           "column": 61
         }
       }
@@ -6149,11 +6182,11 @@
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 160,
+          "line": 166,
           "column": 1
         },
         "end": {
-          "line": 161,
+          "line": 167,
           "column": 63
         }
       }
@@ -6181,11 +6214,11 @@
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 163,
+          "line": 169,
           "column": 1
         },
         "end": {
-          "line": 164,
+          "line": 170,
           "column": 100
         }
       }
@@ -6213,11 +6246,11 @@
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 157,
+          "line": 163,
           "column": 1
         },
         "end": {
-          "line": 158,
+          "line": 164,
           "column": 63
         }
       }

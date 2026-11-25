@@ -401,7 +401,7 @@ export function handoffEventType(): L.Type<HandoffEvent>;
 /** Lean's Swf.Handoff.Attempt. */
 export type Attempt =
   | { readonly kind: "untried" }
-  | { readonly kind: "failed" }
+  | { readonly kind: "failed"; readonly restored: boolean }
   | { readonly kind: "worked" }
 ;
 export function attemptType(): L.Type<Attempt>;
@@ -409,7 +409,7 @@ export function attemptType(): L.Type<Attempt>;
 /** Lean's Swf.Handoff.Settlement. */
 export type Settlement =
   | { readonly kind: "switched" }
-  | { readonly kind: "kept" }
+  | { readonly kind: "kept"; readonly restored: boolean }
   | { readonly kind: "degraded" }
 ;
 export function settlementType(): L.Type<Settlement>;

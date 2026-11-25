@@ -19,7 +19,7 @@
     "Swf/Arbitration.lean": "19e96a8bd9b9420de7f304d064350876a70ed98a4ff1054a990820b76735f5b2",
     "Swf/Fallback.lean": "f277e41e454875b6f9e1a8eb2aa78ffdcfd31ad7e79dbef09d3e3654e20eeba9",
     "Swf/Gesture.lean": "e3633d7e629d5a80960ae942f60f964124b64cac488a864a9b639a12dfb864d7",
-    "Swf/Handoff.lean": "217276f78b8b86ef9c4258653035a29f292a128711b147a9926929c6ecf11bd2",
+    "Swf/Handoff.lean": "fe531a5918803c6ce0db56d916ba01658548f1fee73f785cf6e4d46019dd931b",
     "Swf/Hierarchy.lean": "7f30f759bfb333e8ed5fae95c977f7afbe907b1f054e782f5c9572ba6efc94ec",
     "Swf/Json.lean": "efdc7f4f6f6e1c84ebac2b3fc39f887f8c3634cb87b10d5fe298635fa5a26631",
     "Swf/Kernel.lean": "1a5ae706818eeebb0fe5acf3440ba85475e4b2abea64e194787e905a9c860ebe",
@@ -36,9 +36,9 @@
   "project": ".",
   "link_directives": [],
   "output_digests": {
-    "assurance.json": "ab094dd8e3c06c664d66d89d87f2128bffce822794119564ff377e878d2daa46",
-    "index.d.ts": "8c0fd817216cb882a8d3d903b15f6769d2fe7ac90d7b693b11d5525ce03beb87",
-    "index.js": "2c3ea5c19036975b0be5ba72eb23bddb69f3e1e9db3399b420d648b007900f39"
+    "assurance.json": "e8797b3d20566eee5b0c75f431a49a23cfdb2c0f95561569dd585fce9b7a598b",
+    "index.d.ts": "eb8105e6a6f004273fe8926cca6f4382fe6823f1ba7bf8a7c70cdb4ca0bacdf2",
+    "index.js": "c5e155ebc175426a16b73fe3d7dcea49f2c8da5823fc6576c11a9ad8fbd15044"
   },
   "platform_products": [
     "program.wasm"

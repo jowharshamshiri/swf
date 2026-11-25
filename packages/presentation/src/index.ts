@@ -73,6 +73,7 @@ export type {
   PresenterResources,
   SwitchOutcome,
   SwitchReason,
+  UnrestoredSurface,
   ViewportFrame,
   ViewportOptions,
   ViewportState,

@@ -5,7 +5,7 @@ import {
   MockOpaqueAdapter,
   MockRenderer,
 } from '@swf/conformance';
-import type { MockRendererSession } from '@swf/conformance';
+import type { MockCompositorSession, MockRendererSession } from '@swf/conformance';
 import type { SceneCommand, SceneState, SwfError, Workspace } from '@swf/core';
 import { createWorkspace, makeError, surfaceEffectiveState, SwfFailure } from '@swf/core';
 import type { PresentationHint, SurfaceCapabilities, SurfaceRuntime } from '@swf/surfaces';
@@ -145,6 +145,12 @@ const settle = () =>
     setTimeout(() => {
       resolve();
     }, 0);
+  });
+
+/** Lets every pending rejection surface, so an unhandled one fails the test that made it. */
+const drain = () =>
+  new Promise<void>((resolve) => {
+    setTimeout(resolve, 10);
   });
 
 interface Harness {
@@ -846,6 +852,124 @@ describe('backend handoff (FR-087, API-007, §13.5)', () => {
       ['a-s', 'b-s', 'c-s'].map(() => [{ viewportId: 'v', visible: false }]),
     );
   });
+
+  it('fails a handoff whose candidate cannot be watched for loss, releasing every session it made', async () => {
+    const h = await harness();
+    const v = await h.open();
+    await h.frames.flush();
+    const oldRenderer = first(h.renderer.sessions);
+    const oldCompositor = first(h.compositor.sessions);
+    const targets = ['a-s', 'b-s', 'c-s'].map((s) => oldRenderer.targetOf(s));
+    // The candidate's renderer session is watched; its compositor session refuses to be.
+    const prepare = h.compositor.prepare.bind(h.compositor);
+    h.compositor.prepare = async (target, renderer) => {
+      const session = (await prepare(target, renderer)) as MockCompositorSession;
+      session.watchLoss = () => {
+        throw new Error('no loss events here');
+      };
+      return session;
+    };
+    expect(await v.switchBackend(SPARE)).toMatchObject({
+      status: 'kept',
+      backend: MAIN,
+      unrestored: [],
+      error: {
+        code: 'BACKEND_SWITCH_FAILED',
+        details: { phase: 'swapping', reason: 'no loss events here' },
+      },
+    });
+    h.compositor.prepare = prepare;
+    // Every session the candidate made is released, and nothing watches them any more.
+    const renderer = first(h.spare.sessions);
+    expect([renderer.released, h.compositor.sessions.at(-1)?.released]).toEqual([1, 1]);
+    expect(renderer.lossWatchers).toBe(0);
+    // The previous backend is as it was: its content back in it, held, and still watched.
+    expect(['key-a', 'key-b', 'key-c'].map((k) => attachedTo(h.adapter, k))).toEqual(targets);
+    expect([oldRenderer.released, oldCompositor.released]).toEqual([0, 0]);
+    expect([oldRenderer.lossWatchers, oldCompositor.lossWatchers]).toEqual([1, 1]);
+    expect(h.presenter.resources()).toMatchObject({ viewports: 1, sessions: 2 });
+    oldCompositor.lose('the GPU went away');
+    await settle();
+    expect(v.backend).toEqual(SPARE);
+  });
+
+  it('goes on undoing when an undo step fails, and reports each surface it could not put back', async () => {
+    const h = await harness();
+    const v = await h.open();
+    await h.frames.flush();
+    const targets = ['a-s', 'b-s', 'c-s'].map((s) => first(h.renderer.sessions).targetOf(s));
+    // c-s cannot move into the spare backend, so a-s and b-s, moved before it, are moved back;
+    // b-s cannot go back.
+    const attach = h.adapter.attach.bind(h.adapter);
+    const refusing = (refuseBack: boolean) => {
+      h.adapter.attach = (handle, t) => {
+        const back = targets.includes(t.container);
+        return (handle.key === 'key-c' && !back) || (refuseBack && handle.key === 'key-b' && back)
+          ? Promise.reject(new Error('no room'))
+          : attach(handle, t);
+      };
+    };
+    refusing(true);
+    const outcome = await v.switchBackend(SPARE);
+    expect(outcome).toMatchObject({
+      status: 'kept',
+      backend: MAIN,
+      error: { details: { phase: 'swapping', unrestored: ['b-s'] } },
+      unrestored: [{ surfaceId: 'b-s', error: { code: 'BIND_FAILED' } }],
+    });
+    expect(h.events.filter((e) => e.type === 'backend.failed').at(-1)).toMatchObject({
+      backend: SPARE,
+      error: { details: { unrestored: ['b-s'] } },
+    });
+    // a-s, undone after b-s's undo failed, is back where it was; b-s is not.
+    expect(['key-a', 'key-c'].map((k) => attachedTo(h.adapter, k))).toEqual([
+      targets[0],
+      targets[2],
+    ]);
+    expect(attachedTo(h.adapter, 'key-b')).not.toBe(targets[1]);
+    // The next failed handoff puts b-s back: nothing is left unrestored.
+    refusing(false);
+    expect(await v.switchBackend(SPARE)).toMatchObject({ status: 'kept', unrestored: [] });
+    h.adapter.attach = attach;
+    expect(['key-a', 'key-b', 'key-c'].map((k) => attachedTo(h.adapter, k))).toEqual(targets);
+    expect(h.spare.sessions.every((s) => s.released === 1)).toBe(true);
+  });
+
+  it('completes a handoff when the previous backend’s loss watch cannot be stopped, and reports it', async () => {
+    const h = await harness();
+    const prepare = h.renderer.prepare.bind(h.renderer);
+    h.renderer.prepare = async (scene, view) => {
+      const session = (await prepare(scene, view)) as MockRendererSession;
+      const watch = session.watchLoss.bind(session);
+      session.watchLoss = (listener) => {
+        const stop = watch(listener);
+        return () => {
+          stop();
+          throw new Error('the watch is stuck');
+        };
+      };
+      return session;
+    };
+    const v = await h.open();
+    await h.frames.flush();
+    const old = first(h.renderer.sessions);
+    expect(await v.switchBackend(SPARE)).toEqual({ status: 'switched', backend: SPARE });
+    expect([old.released, first(h.compositor.sessions).released]).toEqual([1, 1]);
+    expect(first(h.spare.sessions).lossWatchers).toBe(1);
+    expect(h.presenter.resources()).toMatchObject({ viewports: 1, sessions: 2 });
+    expect(h.events).toContainEqual(
+      expect.objectContaining({
+        type: 'backend.failed',
+        backend: MAIN,
+        error: expect.objectContaining({
+          message: expect.stringMatching(
+            /stopping the loss watch of renderer "mock\.renderer\/1" failed/,
+          ) as unknown,
+          details: { phase: 'releasing', reason: 'the watch is stuck' },
+        }) as unknown,
+      }),
+    );
+  });
 });
 
 describe('fallback, loss and degradation (§27, NFR-013, §33.2 scenario 6)', () => {
@@ -927,6 +1051,154 @@ describe('fallback, loss and degradation (§27, NFR-013, §33.2 scenario 6)', ()
     expect(v.backend).toEqual(MAIN);
     expect(session.released).toBe(0);
     expect(h.events.filter((e) => e.type === 'backend.failed')).toEqual([]);
+  });
+
+  it('reports a host that throws while showing degradation after a loss or an unregistration, leaving no rejection unhandled', async () => {
+    const h = await harness();
+    const presenter = createPresenter({
+      workspace: h.ws,
+      runtime: h.runtime,
+      registry: h.registry,
+      frames: h.frames,
+      showDegraded: () => {
+        throw new Error('the container is gone');
+      },
+    });
+    try {
+      const v = await presenter.open({ viewportId: 'v', container: 'v', backends: [MAIN] });
+      const w = await presenter.open({ viewportId: 'w', container: 'w', backends: [SPARE] });
+      // v loses its only backend's resources, and w's only renderer is unregistered.
+      first(h.compositor.sessions).lose('the GPU went away');
+      h.remove.spare();
+      await drain();
+      const diagnostics = presenter.getDiagnostics();
+      expect(diagnostics).toHaveLength(2);
+      expect(diagnostics).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            code: 'BACKGROUND_FAILED',
+            details: { viewportId: 'v', work: 'lost', reason: 'the container is gone' },
+          }),
+          expect.objectContaining({
+            code: 'BACKGROUND_FAILED',
+            details: { viewportId: 'w', work: 'unavailable', reason: 'the container is gone' },
+          }),
+        ]),
+      );
+      // Each viewport is degraded all the same, and released what it held.
+      expect([v.state, w.state]).toEqual(['presentation-degraded', 'presentation-degraded']);
+      expect(presenter.resources()).toMatchObject({ viewports: 2, sessions: 0 });
+      expect([...h.renderer.sessions, ...h.spare.sessions].map((s) => s.released)).toEqual([1, 1]);
+    } finally {
+      await presenter.dispose();
+    }
+  });
+
+  it('reports a failing handoff after a registration, and never takes a degradation away twice', async () => {
+    const h = await harness();
+    let throwing = false;
+    let removals = 0;
+    const presenter = createPresenter({
+      workspace: h.ws,
+      runtime: h.runtime,
+      registry: h.registry,
+      frames: h.frames,
+      showDegraded: () => {
+        if (throwing) {
+          throw new Error('the container is gone');
+        }
+        return () => {
+          removals += 1;
+        };
+      },
+    });
+    try {
+      // w opens degraded: its only renderer cannot be prepared.
+      h.spare.failPrepare = 'no context';
+      const w = await presenter.open({ viewportId: 'w', container: 'w', backends: [SPARE] });
+      expect(w.state).toBe('presentation-degraded');
+      // Its renderer is registered again but still cannot be prepared, and showing that throws.
+      h.remove.spare();
+      throwing = true;
+      h.registry.registerRenderer(h.spare);
+      await drain();
+      expect(presenter.getDiagnostics()).toEqual([
+        expect.objectContaining({
+          code: 'BACKGROUND_FAILED',
+          details: { viewportId: 'w', work: 'restored', reason: 'the container is gone' },
+        }),
+      ]);
+      expect(w.state).toBe('presentation-degraded');
+      expect(removals).toBe(1);
+      // Once it works the viewport recovers, and what was taken away is not taken away again.
+      throwing = false;
+      h.spare.failPrepare = null;
+      expect(await w.restore()).toEqual({ status: 'switched', backend: SPARE });
+      expect(removals).toBe(1);
+    } finally {
+      await presenter.dispose();
+    }
+  });
+
+  it('switches when taking a degradation away throws, and reports it', async () => {
+    const h = await harness();
+    const presenter = createPresenter({
+      workspace: h.ws,
+      runtime: h.runtime,
+      registry: h.registry,
+      frames: h.frames,
+      showDegraded: () => () => {
+        throw new Error('the banner is stuck');
+      },
+    });
+    try {
+      h.renderer.failPrepare = 'no';
+      const v = await presenter.open({ viewportId: 'v', container: 'v', backends: [MAIN] });
+      expect(v.state).toBe('presentation-degraded');
+      h.renderer.failPrepare = null;
+      expect(await v.restore()).toEqual({ status: 'switched', backend: MAIN });
+      expect(v.state).toBe('active');
+      expect(presenter.getDiagnostics()).toEqual([
+        expect.objectContaining({
+          code: 'HOST_THREW',
+          details: { viewportId: 'v', hook: 'showDegraded', reason: 'the banner is stuck' },
+        }),
+      ]);
+    } finally {
+      await presenter.dispose();
+    }
+  });
+
+  it('releases a lost backend even when hiding its content is refused, and reports the refusal', async () => {
+    const h = await harness();
+    const v = await h.open({ backends: [MAIN] });
+    await h.frames.flush();
+    const hide = h.runtime.hide.bind(h.runtime);
+    h.runtime.hide = (surfaceId, viewportId, options) =>
+      surfaceId === 'b-s'
+        ? Promise.resolve({
+            status: 'rejected',
+            error: makeError('INVALID_TRANSITION', 'b-s is busy'),
+          })
+        : hide(surfaceId, viewportId, options);
+    const lost = first(h.compositor.sessions);
+    lost.lose('the GPU went away');
+    await drain();
+    expect(v.state).toBe('presentation-degraded');
+    expect([first(h.renderer.sessions).released, lost.released]).toEqual([1, 1]);
+    expect(h.presenter.resources()).toMatchObject({ viewports: 1, sessions: 0 });
+    expect(h.shown).toHaveLength(1);
+    expect(h.events).toContainEqual(
+      expect.objectContaining({ type: 'viewport.degraded', viewportId: 'v' }),
+    );
+    // The others left the lost resources; b-s's refusal is reported.
+    expect(['a-s', 'c-s'].map((s) => h.runtime.get(s)?.viewports)).toEqual([[], []]);
+    expect(h.presenter.getDiagnostics()).toEqual([
+      expect.objectContaining({
+        code: 'BACKGROUND_FAILED',
+        details: { viewportId: 'v', work: 'lost', reason: 'b-s is busy' },
+      }),
+    ]);
   });
 });
 

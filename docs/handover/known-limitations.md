@@ -48,8 +48,3 @@ These were found while documenting the API; the JSDoc states today's behaviour.
   to remove the window even when it holds other nodes, which a merge refuses; gesture bids and hits
   are ordered by priority and distance without checking those numbers are finite; and a backend
   handoff may be begun again while one is under way, restarting it.
-- **The presenter's backend handoff**: when a backend's loss watch throws while a handoff
-  activates it, the resources prepared for that backend are not released; when a backend is lost
-  or unregistered and the host's `showDegraded` throws, the failure surfaces as an unhandled
-  promise rejection rather than through the viewport; and when a failed handoff cannot put a
-  surface back where it was, nothing reports it.

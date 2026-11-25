@@ -1372,6 +1372,7 @@ export function attemptType() {
           return;
         case "failed":
           w.u32(1);
+          L.BOOL.encode(w, v.restored);
           return;
         case "worked":
           w.u32(2);
@@ -1384,7 +1385,7 @@ export function attemptType() {
       const c = r.u32();
       switch (c) {
         case 0: return ({ kind: "untried" });
-        case 1: return ({ kind: "failed" });
+        case 1: return ({ kind: "failed", restored: L.BOOL.decode(r) });
         case 2: return ({ kind: "worked" });
         default: throw new L.MalformedError(`constructor index ${c} of Swf.Handoff.Attempt`);
       }
@@ -1404,6 +1405,7 @@ export function settlementType() {
           return;
         case "kept":
           w.u32(1);
+          L.BOOL.encode(w, v.restored);
           return;
         case "degraded":
           w.u32(2);
@@ -1416,7 +1418,7 @@ export function settlementType() {
       const c = r.u32();
       switch (c) {
         case 0: return ({ kind: "switched" });
-        case 1: return ({ kind: "kept" });
+        case 1: return ({ kind: "kept", restored: L.BOOL.decode(r) });
         case 2: return ({ kind: "degraded" });
         default: throw new L.MalformedError(`constructor index ${c} of Swf.Handoff.Settlement`);
       }
@@ -6101,11 +6103,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 237,
+          "line": 256,
           "column": 1
         },
         "end": {
-          "line": 239,
+          "line": 258,
           "column": 24
         }
       }
@@ -6132,11 +6134,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 207,
+          "line": 213,
           "column": 1
         },
         "end": {
-          "line": 219,
+          "line": 225,
           "column": 56
         }
       }
@@ -6163,11 +6165,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 241,
+          "line": 260,
           "column": 1
         },
         "end": {
-          "line": 244,
+          "line": 263,
           "column": 47
         }
       }
@@ -6194,12 +6196,43 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 177,
+          "line": 183,
           "column": 1
         },
         "end": {
-          "line": 182,
+          "line": 188,
           "column": 45
+        }
+      }
+    },
+    {
+      "name": "Swf.Handoff.failed_undo_is_reported",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Handoff.settle"
+      ],
+      "specifications": [],
+      "statement": "∀ (restored oldUsable : Bool),\n  (oldUsable = true →\n      Swf.Handoff.settle (Swf.Handoff.Attempt.failed restored) oldUsable = Swf.Handoff.Settlement.kept restored) ∧\n    (Swf.Handoff.settle (Swf.Handoff.Attempt.failed restored) oldUsable = Swf.Handoff.Settlement.kept true →\n        restored = true) ∧\n      (oldUsable = false →\n        Swf.Handoff.settle (Swf.Handoff.Attempt.failed restored) oldUsable = Swf.Handoff.Settlement.degraded)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "a777fa7e50351b85e538a2130c409c9978559fad511bff544b94f201887369b5",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Handoff.lean",
+        "start": {
+          "line": 240,
+          "column": 1
+        },
+        "end": {
+          "line": 250,
+          "column": 55
         }
       }
     },
@@ -6225,11 +6258,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 233,
+          "line": 252,
           "column": 1
         },
         "end": {
-          "line": 235,
+          "line": 254,
           "column": 26
         }
       }
@@ -6256,11 +6289,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 201,
+          "line": 207,
           "column": 1
         },
         "end": {
-          "line": 205,
+          "line": 211,
           "column": 18
         }
       }
@@ -6282,16 +6315,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "60862e92d14454e2c2e7cbb62bf8008628e4adffa3d36a0e05aa51759d726087",
+      "fingerprint": "f831e27cc195e0969be75675544a22ad07daa5c5a9615dd9b908ce0df4de7efa",
       "source": {
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 246,
+          "line": 265,
           "column": 1
         },
         "end": {
-          "line": 249,
+          "line": 268,
           "column": 52
         }
       }
@@ -6303,26 +6336,27 @@ export const ASSURANCE = L.parseAssurance({
         "Swf.Handoff.settle"
       ],
       "specifications": [],
-      "statement": "∀ (attempt : Swf.Handoff.Attempt) (oldUsable : Bool),\n  (Swf.Handoff.settle attempt oldUsable = Swf.Handoff.Settlement.degraded ↔\n      attempt ≠ Swf.Handoff.Attempt.worked ∧ oldUsable = false) ∧\n    (Swf.Handoff.settle attempt oldUsable = Swf.Handoff.Settlement.kept ↔\n        attempt = Swf.Handoff.Attempt.failed ∧ oldUsable = true) ∧\n      (attempt = Swf.Handoff.Attempt.untried →\n          oldUsable = true → Swf.Handoff.settle attempt oldUsable = Swf.Handoff.Settlement.switched) ∧\n        (oldUsable = true → (Swf.Handoff.settle attempt oldUsable).state = Swf.Handoff.ViewportState.active)",
+      "statement": "∀ (attempt : Swf.Handoff.Attempt) (oldUsable : Bool),\n  (Swf.Handoff.settle attempt oldUsable = Swf.Handoff.Settlement.degraded ↔\n      attempt ≠ Swf.Handoff.Attempt.worked ∧ oldUsable = false) ∧\n    (∀ (restored : Bool),\n        Swf.Handoff.settle attempt oldUsable = Swf.Handoff.Settlement.kept restored ↔\n          attempt = Swf.Handoff.Attempt.failed restored ∧ oldUsable = true) ∧\n      (attempt = Swf.Handoff.Attempt.untried →\n          oldUsable = true → Swf.Handoff.settle attempt oldUsable = Swf.Handoff.Settlement.switched) ∧\n        (oldUsable = true → (Swf.Handoff.settle attempt oldUsable).state = Swf.Handoff.ViewportState.active)",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
+          "Quot.sound",
           "propext"
         ],
         "depends_on_sorry": false
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "b13de4bcb3f55e0cc0763a1f45db5dee26ebaac9c7e1cc2f6da8882525ad43f7",
+      "fingerprint": "71eb5118ae0e35062667cf9dda103135b941db6a8c52ebf0f699e988790c5834",
       "source": {
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 221,
+          "line": 227,
           "column": 1
         },
         "end": {
-          "line": 231,
+          "line": 238,
           "column": 72
         }
       }
@@ -6349,11 +6383,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 168,
+          "line": 174,
           "column": 1
         },
         "end": {
-          "line": 175,
+          "line": 181,
           "column": 45
         }
       }
@@ -6380,11 +6414,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 184,
+          "line": 190,
           "column": 1
         },
         "end": {
-          "line": 190,
+          "line": 196,
           "column": 66
         }
       }
@@ -6411,11 +6445,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 192,
+          "line": 198,
           "column": 1
         },
         "end": {
-          "line": 199,
+          "line": 205,
           "column": 55
         }
       }
@@ -9535,6 +9569,7 @@ export const ASSURANCE = L.parseAssurance({
         "extern_dependencies": []
       },
       "claims": [
+        "Swf.Handoff.failed_undo_is_reported",
         "Swf.Handoff.settles_truthfully"
       ],
       "assumptions": [],
@@ -9544,12 +9579,12 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 140,
+          "line": 144,
           "column": 1
         },
         "end": {
-          "line": 147,
-          "column": 54
+          "line": 153,
+          "column": 72
         }
       }
     },
@@ -9574,11 +9609,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 154,
+          "line": 160,
           "column": 1
         },
         "end": {
-          "line": 155,
+          "line": 161,
           "column": 61
         }
       }
@@ -9697,11 +9732,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 160,
+          "line": 166,
           "column": 1
         },
         "end": {
-          "line": 161,
+          "line": 167,
           "column": 63
         }
       }
@@ -9729,11 +9764,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 163,
+          "line": 169,
           "column": 1
         },
         "end": {
-          "line": 164,
+          "line": 170,
           "column": 100
         }
       }
@@ -9761,11 +9796,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 157,
+          "line": 163,
           "column": 1
         },
         "end": {
-          "line": 158,
+          "line": 164,
           "column": 63
         }
       }
@@ -10912,8 +10947,8 @@ export const leanTypes = Object.freeze({
   "Swf.Gesture.PressRoute": Object.freeze({ fingerprint: "601b56817c509f3faa4fee1acdca2048593e347b08b499b2639cc71e5e1fe7dc", type: pressRouteType }),
   "Swf.Handoff.ViewportState": Object.freeze({ fingerprint: "d48034198877ad49b1509eb60cee794fd46e222a1b8d66a43bc44948b1d0d7ba", type: viewportStateType }),
   "Swf.Handoff.HandoffEvent": Object.freeze({ fingerprint: "f78447ab58433ef66d970681edb52c20e7f8a7c3d665dd1e2ef1ef9773410343", type: handoffEventType }),
-  "Swf.Handoff.Attempt": Object.freeze({ fingerprint: "c3f11fc657964ed9e5b723e28b480b270e699d5e7bb40b75d4ba192bb7d4c89a", type: attemptType }),
-  "Swf.Handoff.Settlement": Object.freeze({ fingerprint: "145c50ce2259406af25d09207982a76e783f0b9903ae3b45851b3d64bc6dd396", type: settlementType }),
+  "Swf.Handoff.Attempt": Object.freeze({ fingerprint: "0326a95ed685352ab2175ba71daf148aabf052c5fe989569d05587caffca9d9f", type: attemptType }),
+  "Swf.Handoff.Settlement": Object.freeze({ fingerprint: "d9f324daec9c12357c88783ce895c3ba861090268c014f1d9c2e0f271dba984d", type: settlementType }),
   "Swf.Handoff.SwapAction": Object.freeze({ fingerprint: "9cf7062d32231479d0bfa2d0abb6dbc23d62276a0662d22b1015366de87d024e", type: swapActionType }),
   "Swf.Handoff.SwapStep": Object.freeze({ fingerprint: "e4f0dea71924a00df60ac1c39f365e77346946a69c119127180e821d1eccf371", type: swapStepType }),
   "Swf.Handoff.Validation": Object.freeze({ fingerprint: "3bbff96f1a8d0230be938c1f09a959251b306a519e504c3b1b246d1dea451666", type: validationType }),

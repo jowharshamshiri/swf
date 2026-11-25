@@ -136,7 +136,10 @@ export interface PresenterOptions {
   readonly frames: FrameSource;
   /**
    * Shows, in a viewport's container, that the viewport has no working backend, with why; the
-   * returned function takes it away again.
+   * returned function takes it away again. The viewport is degraded whether or not this throws:
+   * a throw rejects the open or call that degraded it, or, for a handoff the viewport began on
+   * its own, is kept as a `BACKGROUND_FAILED` diagnostic. A throw from the returned function is
+   * kept as a `HOST_THREW` diagnostic, except when the viewport is disposed, which it rejects.
    */
   readonly showDegraded: (container: unknown, error: SwfError) => () => void;
   /** How long one frame's work may take before background viewports wait: milliseconds. Default 8. */
@@ -233,9 +236,12 @@ export type SwitchReason = 'opened' | 'requested' | 'unavailable' | 'lost' | 're
 /**
  * How a backend switch or restore ended. A backend that fails is reported here and as a
  * `backend.failed` event, never thrown; its error is `BACKEND_SWITCH_FAILED` (retryable), with
- * `details.phase` naming the handoff stage that failed (`preparing`, `validating` or `swapping`).
- * A failed handoff releases what it prepared and undoes the moves it made, so the previous
- * backend is as it was.
+ * `details.phase` naming the handoff stage that failed (`preparing`, `validating` or `swapping`;
+ * a candidate whose loss cannot be watched fails in `swapping`). A failed handoff releases every
+ * session it prepared and undoes each step it carried out, going on when an undo step fails, so
+ * the previous backend is as it was, but for the surfaces a `kept` outcome names as
+ * `unrestored`; a failed handoff that left some has them in its error's `details.unrestored` as
+ * well, by ID.
  */
 export type SwitchOutcome =
   | {
@@ -255,6 +261,12 @@ export type SwitchOutcome =
       readonly backend: BackendChoice;
       /** Why the last backend tried failed. */
       readonly error: SwfError;
+      /**
+       * The surfaces a failed handoff could not put back as they were (a rollback's step for
+       * them was refused, and no later rollback put them back), each with why; empty when every
+       * surface was put back.
+       */
+      readonly unrestored: readonly UnrestoredSurface[];
     }
   /** No backend works and the previous one is gone: the viewport is degraded. */
   | {
@@ -263,6 +275,14 @@ export type SwitchOutcome =
       /** Why the last backend tried failed, or that there was none to try. */
       readonly error: SwfError;
     };
+
+/** A surface a failed handoff could not put back as it was, in a `kept` {@link SwitchOutcome}. */
+export interface UnrestoredSurface {
+  /** The surface. */
+  readonly surfaceId: Id;
+  /** Why the runtime refused to put it back, as its rejection gave it. */
+  readonly error: SwfError;
+}
 
 /** What a viewport is presented with. */
 export interface BackendCapabilities {
@@ -419,15 +439,26 @@ export interface PresentedViewport {
   }>;
 }
 
-/** A listener that threw: presentation went on, and the other listeners heard the event. */
+/**
+ * A failure presentation went on past, with no caller to reject: `LISTENER_THREW`, a listener
+ * that threw while the other listeners still heard the event; `BACKGROUND_FAILED`, a handoff a
+ * viewport began on its own (its backend lost its resources or was unregistered, or a preferred
+ * one was registered again) that failed to finish, such as when `showDegraded` threw; or
+ * `HOST_THREW`, the function `showDegraded` returned throwing when a viewport stopped being
+ * degraded, while the viewport went on.
+ */
 export interface PresenterDiagnostic {
-  /** Always `LISTENER_THREW`. */
-  readonly code: 'LISTENER_THREW';
-  /** Which event type the listener was handling. */
+  /** What failed. */
+  readonly code: 'LISTENER_THREW' | 'BACKGROUND_FAILED' | 'HOST_THREW';
+  /** What was being done: the event a listener was handling, or the viewport's work. */
   readonly message: string;
   /** When, by the presenter's clock, in milliseconds. */
   readonly timestamp: number;
-  /** `reason`: what the listener threw, as a message. */
+  /**
+   * `reason`: what was thrown, as a message. A `BACKGROUND_FAILED` or `HOST_THREW` diagnostic
+   * also has `viewportId`; `BACKGROUND_FAILED` has `work` (`lost`, `unavailable` or `restored`:
+   * why the handoff began), and `HOST_THREW` has `hook` (`showDegraded`).
+   */
   readonly details: Readonly<Record<string, string>>;
 }
 
@@ -482,7 +513,10 @@ export interface Presenter {
    * idempotent unsubscribe.
    */
   subscribe(listener: (event: PresenterEvent) => void): () => void;
-  /** The last 100 listener failures, oldest first. */
+  /**
+   * The last 100 failures presentation went on past (listeners that threw, handoffs a viewport
+   * began on its own that failed, host cleanups that threw), oldest first.
+   */
   getDiagnostics(): readonly PresenterDiagnostic[];
   /** A frozen snapshot of what the presenter holds now. */
   resources(): PresenterResources;
@@ -567,8 +601,23 @@ interface Backend {
   readonly compositor: Registered<Compositor, CompositorCapabilities>;
   readonly rendererSession: RendererSession;
   readonly compositorSession: CompositorSession;
-  unwatch: () => void;
+  /** What stops watching its sessions for loss, each with the session it watches. */
+  readonly watches: LossWatch[];
 }
+
+/** A watch on one of a backend's sessions for loss: what stops it, and which session it is. */
+interface LossWatch {
+  readonly session: 'renderer' | 'compositor';
+  readonly stop: () => void;
+}
+
+/** Why a viewport began a handoff on its own, as its `BACKGROUND_FAILED` diagnostic says it. */
+const BACKGROUND_WORK: Readonly<Record<'lost' | 'unavailable' | 'restored', string>> =
+  Object.freeze({
+    lost: 'the loss of its backend’s resources',
+    unavailable: 'its backend being unregistered',
+    restored: 'a preferred backend being registered again',
+  });
 
 class PresenterImpl implements Presenter {
   readonly options: PresenterOptions;
@@ -703,17 +752,28 @@ class PresenterImpl implements Presenter {
         listener(frozen);
       } catch (error) {
         // Presentation goes on, and the other listeners still hear the event.
-        this.#diagnostics.push(
-          Object.freeze({
-            code: 'LISTENER_THREW' as const,
-            message: `a listener threw while handling ${event.type}`,
-            timestamp: this.now(),
-            details: Object.freeze({ reason: describe(error) }),
-          }),
-        );
-        this.#diagnostics.splice(0, this.#diagnostics.length - 100);
+        this.diagnose('LISTENER_THREW', `a listener threw while handling ${event.type}`, {
+          reason: describe(error),
+        });
       }
     }
+  }
+
+  /** Keeps a failure presentation went on past, with the last 100 kept. */
+  diagnose(
+    code: PresenterDiagnostic['code'],
+    message: string,
+    details: Readonly<Record<string, string>>,
+  ): void {
+    this.#diagnostics.push(
+      Object.freeze({
+        code,
+        message,
+        timestamp: this.now(),
+        details: Object.freeze({ ...details }),
+      }),
+    );
+    this.#diagnostics.splice(0, this.#diagnostics.length - 100);
   }
 
   /**
@@ -1030,7 +1090,7 @@ class ViewportImpl implements PresentedViewport {
     if (!change.registered) {
       const current = this.#backend;
       if (current !== null && uses(current.choice)) {
-        void this.#serial(async () => {
+        this.#background('unavailable', async () => {
           if (this.#backend?.choice === current.choice) {
             await this.#activate(this.#fallbacks(current.choice), 'unavailable', false);
           }
@@ -1046,8 +1106,29 @@ class ViewportImpl implements PresentedViewport {
       }
     }
     if (this.#ahead().some(uses)) {
-      void this.#serial(() => this.#activate(this.#ahead(), 'restored', this.#backend !== null));
+      this.#background('restored', () =>
+        this.#activate(this.#ahead(), 'restored', this.#backend !== null),
+      );
     }
+  }
+
+  /**
+   * Queues a handoff the viewport begins on its own, after the work queued before it. Nobody
+   * waits for it, so its failure is kept as a `BACKGROUND_FAILED` diagnostic; once the viewport
+   * is disposed it has nothing left to do and does nothing.
+   */
+  #background(work: keyof typeof BACKGROUND_WORK, run: () => Promise<unknown>): void {
+    const next = this.#queue.then(() =>
+      models.viewportAdmits(leanState(this.#state)) ? run() : undefined,
+    );
+    this.#queue = next.catch(() => undefined);
+    next.catch((error: unknown) => {
+      this.#presenter.diagnose(
+        'BACKGROUND_FAILED',
+        `viewport "${this.viewportId}" failed to finish handling ${BACKGROUND_WORK[work]}`,
+        { viewportId: this.viewportId, work, reason: describe(error) },
+      );
+    });
   }
 
   #serial<T>(work: () => Promise<T>): Promise<T> {
@@ -1130,7 +1211,14 @@ class ViewportImpl implements PresentedViewport {
       if (replan) {
         continue;
       }
-      const hidden = await this.#hideAllBut(live, this.#options.release === true);
+      const { hidden, refused: hiding } = await this.#hideAllBut(
+        live,
+        this.#options.release === true,
+      );
+      const [unhidden] = hiding;
+      if (unhidden !== undefined) {
+        throw new SwfFailure(unhidden);
+      }
       this.#live = new Set(live);
       // Stage 5: the hints, once the attachments have settled.
       const hinted = this.#hint(scene, view, frame);
@@ -1288,11 +1376,16 @@ class ViewportImpl implements PresentedViewport {
   /**
    * Hides here every surface shown here that is not in `live`. With `release`, attachments are
    * released where the endpoint declares safe detachment, hidden ones included; the others stay
-   * attached, hidden, and the endpoint stays the host's.
+   * attached, hidden, and the endpoint stays the host's. A refusal leaves that surface as it is
+   * and the others are hidden all the same; returns the surfaces hidden and every refusal.
    */
-  async #hideAllBut(live: readonly Id[], release: boolean): Promise<Id[]> {
+  async #hideAllBut(
+    live: readonly Id[],
+    release: boolean,
+  ): Promise<{ readonly hidden: Id[]; readonly refused: SwfError[] }> {
     const { runtime } = this.#presenter.options;
     const hidden: Id[] = [];
+    const refused: SwfError[] = [];
     for (const presentation of runtime.list()) {
       const here = presentation.viewports.find((v) => v.viewportId === this.viewportId);
       if (here === undefined || live.includes(presentation.surfaceId)) {
@@ -1304,13 +1397,12 @@ class ViewportImpl implements PresentedViewport {
       }
       const outcome = await runtime.hide(presentation.surfaceId, this.viewportId, { release });
       if (outcome.status === 'rejected') {
-        throw new SwfFailure(outcome.error);
-      }
-      if (here.visible) {
+        refused.push(outcome.error);
+      } else if (here.visible) {
         hidden.push(presentation.surfaceId);
       }
     }
-    return hidden;
+    return { hidden, refused };
   }
 
   /**
@@ -1357,11 +1449,13 @@ class ViewportImpl implements PresentedViewport {
   ): Promise<SwitchOutcome> {
     const old = this.#backend;
     let error: SwfError | null = null;
+    // The surfaces a failed rollback could not put back, until a later rollback puts them back.
+    const unrestored = new Map<Id, SwfError>();
     for (const choice of candidates) {
       if (old !== null && usable && sameChoice(old.choice, choice)) {
         return Object.freeze({ status: 'switched', backend: old.choice });
       }
-      const failure = await this.#handoff(choice, old, usable, reason);
+      const failure = await this.#handoff(choice, old, usable, reason, unrestored);
       if (failure === null) {
         return Object.freeze({ status: 'switched', backend: choice });
       }
@@ -1375,7 +1469,7 @@ class ViewportImpl implements PresentedViewport {
     }
     // Every candidate tried set `error`: none is set only when there was nothing to try.
     const settlement = models.settle(
-      { kind: error === null ? 'untried' : 'failed' },
+      error === null ? { kind: 'untried' } : { kind: 'failed', restored: unrestored.size === 0 },
       old !== null && usable,
     );
     const state = STATES[models.settledState(settlement).kind];
@@ -1395,7 +1489,14 @@ class ViewportImpl implements PresentedViewport {
           );
         }
         this.#state = state;
-        return Object.freeze({ status: 'kept', backend: old.choice, error });
+        return Object.freeze({
+          status: 'kept',
+          backend: old.choice,
+          error,
+          unrestored: Object.freeze(
+            [...unrestored].map(([surfaceId, why]) => Object.freeze({ surfaceId, error: why })),
+          ),
+        });
       case 'degraded': {
         const why = error ?? this.#noBackend();
         await this.#degrade(why, state);
@@ -1406,17 +1507,25 @@ class ViewportImpl implements PresentedViewport {
 
   /**
    * Prepares `choice`, negotiates the scene with it, rebuilds the view in it and moves the live
-   * content over, then activates it and releases `old`. Returns null on success; on failure,
-   * everything it did is undone and the previous backend is as it was.
+   * content over, then watches it for loss, activates it and releases `old`. Returns null on
+   * success; on failure, every session it prepared is released and every step it carried out is
+   * undone, so the previous backend is as it was, but for the surfaces an undo step could not put
+   * back: those are kept in `unrestored`, and a surface put back is taken out of it.
    */
   async #handoff(
     choice: BackendChoice,
     old: Backend | null,
     usable: boolean,
     reason: SwitchReason,
+    unrestored: Map<Id, SwfError>,
   ): Promise<SwfError | null> {
     const { registry, workspace, runtime } = this.#presenter.options;
-    const fail = (phase: string, message: string, cause?: unknown): SwfError =>
+    const fail = (
+      phase: string,
+      message: string,
+      cause?: unknown,
+      left: readonly Id[] = [],
+    ): SwfError =>
       makeError(
         'BACKEND_SWITCH_FAILED',
         `viewport "${this.viewportId}" cannot switch to renderer "${choice.renderer}" with compositor "${choice.compositor}": ${message}`,
@@ -1428,6 +1537,7 @@ class ViewportImpl implements PresentedViewport {
             renderer: choice.renderer,
             compositor: choice.compositor,
             ...(cause === undefined ? {} : { reason: describe(cause) }),
+            ...(left.length === 0 ? {} : { unrestored: Object.freeze([...left]) }),
           },
         },
       );
@@ -1464,7 +1574,7 @@ class ViewportImpl implements PresentedViewport {
       compositor,
       rendererSession,
       compositorSession,
-      unwatch: () => undefined,
+      watches: [],
     };
     const abandon = async (error: SwfError) => {
       await this.#releaseQuietly(choice, candidate.compositorSession, candidate.rendererSession);
@@ -1515,12 +1625,21 @@ class ViewportImpl implements PresentedViewport {
     } catch (error) {
       return abandon(fail('swapping', 'it could not render the view', error));
     }
-    const undo: (() => Promise<unknown>)[] = [];
-    const rollback = async (error: SwfError) => {
+    const undo: { readonly surfaceId: Id; readonly run: () => Promise<PresentationOutcome> }[] = [];
+    // Every undo step is carried out, latest first, whether or not one before it failed: a
+    // surface not put back is kept in `unrestored`, and one put back is taken out of it.
+    const rollback = async (phase: string, message: string, cause?: unknown) => {
+      const left: Id[] = [];
       for (const step of undo.reverse()) {
-        await step();
+        const outcome = await step.run();
+        if (outcome.status === 'ok') {
+          unrestored.delete(step.surfaceId);
+        } else {
+          unrestored.set(step.surfaceId, outcome.error);
+          left.push(step.surfaceId);
+        }
       }
-      return abandon(error);
+      return abandon(fail(phase, message, cause, left));
     };
     // Attachments here move into the new resources when they stay live, and leave the old ones
     // (released where the endpoint allows) when they do not. Newly live content is attached by
@@ -1537,7 +1656,7 @@ class ViewportImpl implements PresentedViewport {
       if (action.kind === 'move') {
         const target = candidate.rendererSession.targetOf(surfaceId);
         if (target === undefined) {
-          return rollback(fail('swapping', `surface "${surfaceId}" is live without a target`));
+          return rollback('swapping', `surface "${surfaceId}" is live without a target`);
         }
         outcome = await runtime.move(surfaceId, this.viewportId, target);
       } else {
@@ -1555,31 +1674,34 @@ class ViewportImpl implements PresentedViewport {
       );
       if (step.kind === 'rollback') {
         return rollback(
-          fail(
-            'swapping',
-            `surface "${surfaceId}" could not be ${SWAP_VERBS[action.kind]}`,
-            outcome.status === 'rejected' ? outcome.error.message : undefined,
-          ),
+          'swapping',
+          `surface "${surfaceId}" could not be ${SWAP_VERBS[action.kind]}`,
+          outcome.status === 'rejected' ? outcome.error.message : undefined,
         );
       }
       const back = this.#undoStep(step.undo, surfaceId, from, here.visible);
       if (back !== null) {
-        undo.push(back);
+        undo.push({ surfaceId, run: back });
       }
     }
 
+    // A backend whose loss cannot be watched cannot be used: watching is the last step that can
+    // fail, before the previous backend is let go.
+    try {
+      this.#watch(candidate);
+    } catch (error) {
+      return rollback('swapping', 'its loss could not be watched', error);
+    }
     // Activate at once, then release the previous backend.
-    old?.unwatch();
-    candidate.unwatch = this.#watch(candidate);
     this.#backend = candidate;
     this.#live = new Set(
       live.filter((id) => attachmentHere(runtime, id, this.viewportId)?.visible === true),
     );
     this.#advance('swapped');
     this.#degradedBy = null;
-    this.#hideDegraded?.();
-    this.#hideDegraded = null;
+    this.#takeDegradedAway();
     if (old !== null) {
+      this.#unwatch(old);
       await this.#releaseQuietly(old.choice, old.compositorSession, old.rendererSession);
     }
     this.#presenter.emit({
@@ -1600,14 +1722,15 @@ class ViewportImpl implements PresentedViewport {
   /**
    * What a rollback does for a surface whose swap step was carried out, as the handoff model
    * decided: move it back into `from`, present it there again (hidden again when it was hidden),
-   * show it again where it stayed attached, or nothing.
+   * show it again where it stayed attached, or nothing. Each resolves to the runtime's outcome:
+   * the first refusal, or the last step's success.
    */
   #undoStep(
     undo: SwapUndo,
     surfaceId: Id,
     from: unknown,
     visible: boolean,
-  ): (() => Promise<unknown>) | null {
+  ): (() => Promise<PresentationOutcome>) | null {
     const { runtime } = this.#presenter.options;
     switch (undo.kind) {
       case 'nothing':
@@ -1616,10 +1739,10 @@ class ViewportImpl implements PresentedViewport {
         return () => runtime.move(surfaceId, this.viewportId, from);
       case 'represent':
         return async () => {
-          await runtime.present(surfaceId, this.viewportId, from);
-          if (!visible) {
-            await runtime.hide(surfaceId, this.viewportId);
-          }
+          const presented = await runtime.present(surfaceId, this.viewportId, from);
+          return presented.status === 'ok' && !visible
+            ? runtime.hide(surfaceId, this.viewportId)
+            : presented;
         };
       case 'reveal':
         // Still attached: presenting it again shows it where it is.
@@ -1647,10 +1770,13 @@ class ViewportImpl implements PresentedViewport {
     );
   }
 
-  /** Listens for the backend losing its resources; returns what stops listening. */
-  #watch(backend: Backend): () => void {
+  /**
+   * Listens for the backend losing its resources, keeping what stops listening in its `watches`.
+   * When a session's `watchLoss` throws, the watches already made are stopped and it rethrows.
+   */
+  #watch(backend: Backend): void {
     const lost = (reason: string) => {
-      void this.#serial(async () => {
+      this.#background('lost', async () => {
         if (this.#backend !== backend) {
           return;
         }
@@ -1664,20 +1790,70 @@ class ViewportImpl implements PresentedViewport {
         await this.#activate(this.#fallbacks(backend.choice), 'lost', false);
       });
     };
-    const stops = [
-      backend.rendererSession.watchLoss(lost),
-      backend.compositorSession.watchLoss(lost),
-    ];
-    return () => {
-      for (const stop of stops) {
-        stop();
+    try {
+      backend.watches.push({ session: 'renderer', stop: backend.rendererSession.watchLoss(lost) });
+      backend.watches.push({
+        session: 'compositor',
+        stop: backend.compositorSession.watchLoss(lost),
+      });
+    } catch (error) {
+      this.#unwatch(backend);
+      throw error;
+    }
+  }
+
+  /**
+   * Stops every watch on the backend's sessions for loss. A stop that throws is reported as a
+   * `backend.failed` event of the `releasing` phase, and the others are stopped all the same.
+   */
+  #unwatch(backend: Backend): void {
+    for (const watch of backend.watches.splice(0)) {
+      try {
+        watch.stop();
+      } catch (error) {
+        const id =
+          watch.session === 'renderer' ? backend.choice.renderer : backend.choice.compositor;
+        this.#presenter.emit({
+          type: 'backend.failed',
+          viewportId: this.viewportId,
+          backend: backend.choice,
+          error: makeError(
+            'BACKEND_SWITCH_FAILED',
+            `viewport "${this.viewportId}": stopping the loss watch of ${watch.session} "${id}" failed`,
+            { entityId: this.viewportId, details: { phase: 'releasing', reason: describe(error) } },
+          ),
+        });
       }
-    };
+    }
+  }
+
+  /**
+   * Takes away what shows that the viewport is degraded, if anything does. The host's function
+   * that throws is kept as a `HOST_THREW` diagnostic, and is never called again.
+   */
+  #takeDegradedAway(): void {
+    const hide = this.#hideDegraded;
+    this.#hideDegraded = null;
+    if (hide === null) {
+      return;
+    }
+    try {
+      hide();
+    } catch (error) {
+      this.#presenter.diagnose(
+        'HOST_THREW',
+        `viewport "${this.viewportId}": taking away what showed that it was degraded threw`,
+        { viewportId: this.viewportId, hook: 'showDegraded', reason: describe(error) },
+      );
+    }
   }
 
   /**
    * No backend works: the live content leaves the old resources (released where the endpoint
-   * allows), they are released, and the container shows that the viewport is degraded.
+   * allows), they are released, and the container shows that the viewport is degraded. The
+   * viewport is degraded, its old backend released and `viewport.degraded` sent even when hiding
+   * a surface is refused or `showDegraded` throws; then it throws what failed: that failure, or
+   * an `AggregateError` of them all.
    */
   async #degrade(error: SwfError, state: ViewportState): Promise<void> {
     const old = this.#backend;
@@ -1685,14 +1861,32 @@ class ViewportImpl implements PresentedViewport {
     this.#live = new Set();
     this.#state = state;
     this.#degradedBy = error;
+    const failures: unknown[] = [];
     if (old !== null) {
-      old.unwatch();
-      await this.#hideAllBut([], true);
-      await this.#releaseQuietly(old.choice, old.compositorSession, old.rendererSession);
+      this.#unwatch(old);
+      try {
+        const { refused } = await this.#hideAllBut([], true);
+        failures.push(...refused.map((r) => new SwfFailure(r)));
+      } finally {
+        await this.#releaseQuietly(old.choice, old.compositorSession, old.rendererSession);
+      }
     }
-    this.#hideDegraded?.();
-    this.#hideDegraded = this.#presenter.options.showDegraded(this.#options.container, error);
+    this.#takeDegradedAway();
+    try {
+      this.#hideDegraded = this.#presenter.options.showDegraded(this.#options.container, error);
+    } catch (thrown) {
+      failures.push(thrown);
+    }
     this.#presenter.emit({ type: 'viewport.degraded', viewportId: this.viewportId, error });
+    if (failures.length === 1) {
+      throw failures[0];
+    }
+    if (failures.length > 1) {
+      throw new AggregateError(
+        failures,
+        `viewport "${this.viewportId}" degraded, but ${failures.map(describe).join('; ')}`,
+      );
+    }
   }
 
   async #releaseQuietly(
@@ -1756,7 +1950,7 @@ class ViewportImpl implements PresentedViewport {
         }
       }
       if (old !== null) {
-        old.unwatch();
+        this.#unwatch(old);
         await this.#releaseQuietly(old.choice, old.compositorSession, old.rendererSession);
       }
       const hideDegraded = this.#hideDegraded;
