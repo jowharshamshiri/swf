@@ -7,7 +7,7 @@ import {
 } from '@swf/conformance';
 import type { MockRendererSession } from '@swf/conformance';
 import type { SceneCommand, SceneState, SwfError, Workspace } from '@swf/core';
-import { createWorkspace, surfaceEffectiveState, SwfFailure } from '@swf/core';
+import { createWorkspace, makeError, surfaceEffectiveState, SwfFailure } from '@swf/core';
 import type { PresentationHint, SurfaceCapabilities, SurfaceRuntime } from '@swf/surfaces';
 import { createSurfaceRuntime } from '@swf/surfaces';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -793,6 +793,59 @@ describe('backend handoff (FR-087, API-007, §13.5)', () => {
     });
     expect(h.adapter.methods()).not.toContain('detach');
   });
+
+  it('fails a handoff when a surface it keeps hidden cannot be hidden, showing again what it hid', async () => {
+    const h = await harness({
+      capabilities: mockCapabilities({ safeDetach: false, rebinding: false }),
+    });
+    const THIRD = { renderer: 'third.renderer/1', compositor: MAIN.compositor };
+    const third = new MockRenderer(THIRD.renderer);
+    h.registry.registerRenderer(third);
+    const v = await h.open({ backends: [MAIN, SPARE, THIRD] });
+    await h.frames.flush();
+    const shown = ['a-s', 'b-s', 'c-s'].map(() => [{ viewportId: 'v', visible: true }]);
+    expect(['a-s', 'b-s', 'c-s'].map((s) => h.runtime.get(s)?.viewports)).toEqual(shown);
+    // The runtime refuses to hide b-s once: the spare backend cannot keep it hidden.
+    const hide = h.runtime.hide.bind(h.runtime);
+    let refuse = true;
+    h.runtime.hide = (surfaceId, viewportId, options) => {
+      if (surfaceId === 'b-s' && refuse) {
+        refuse = false;
+        return Promise.resolve({
+          status: 'rejected',
+          error: makeError('INVALID_TRANSITION', 'b-s is busy'),
+        });
+      }
+      return hide(surfaceId, viewportId, options);
+    };
+    // The third backend finds the spare one's handoff undone: what it hid is shown again.
+    const found: unknown[] = [];
+    const prepare = third.prepare.bind(third);
+    third.prepare = (scene, view) => {
+      found.push(['a-s', 'b-s', 'c-s'].map((s) => h.runtime.get(s)?.viewports));
+      return prepare(scene, view);
+    };
+    // The main backend is lost: its content, which cannot be detached safely, is stranded.
+    first(h.compositor.sessions).lose('the GPU went away');
+    await settle();
+    expect(h.events).toContainEqual(
+      expect.objectContaining({
+        type: 'backend.failed',
+        backend: SPARE,
+        error: expect.objectContaining({
+          code: 'BACKEND_SWITCH_FAILED',
+          message: expect.stringMatching(/surface "b-s" could not be hidden/) as unknown,
+          details: expect.objectContaining({ phase: 'swapping', reason: 'b-s is busy' }) as unknown,
+        }) as unknown,
+      }),
+    );
+    expect(found).toEqual([shown]);
+    expect(h.spare.sessions.every((s) => s.released === 1)).toBe(true);
+    expect(v.backend).toEqual(THIRD);
+    expect(['a-s', 'b-s', 'c-s'].map((s) => h.runtime.get(s)?.viewports)).toEqual(
+      ['a-s', 'b-s', 'c-s'].map(() => [{ viewportId: 'v', visible: false }]),
+    );
+  });
 });
 
 describe('fallback, loss and degradation (§27, NFR-013, §33.2 scenario 6)', () => {
@@ -863,6 +916,18 @@ describe('fallback, loss and degradation (§27, NFR-013, §33.2 scenario 6)', ()
     expect(await v.restore()).toEqual({ status: 'switched', backend: MAIN });
     expect(h.shown[0]?.removed).toBe(true);
   });
+
+  it('restores a viewport already on its first backend as switched, with nothing failed', async () => {
+    const h = await harness();
+    const v = await h.open();
+    await h.frames.flush();
+    const session = first(h.renderer.sessions);
+    expect(await v.restore()).toEqual({ status: 'switched', backend: MAIN });
+    expect(v.state).toBe('active');
+    expect(v.backend).toEqual(MAIN);
+    expect(session.released).toBe(0);
+    expect(h.events.filter((e) => e.type === 'backend.failed')).toEqual([]);
+  });
 });
 
 describe('presenter contract', () => {
@@ -887,6 +952,50 @@ describe('presenter contract', () => {
     });
     await h.open();
     await expect(h.open()).rejects.toThrow(SwfFailure);
+  });
+
+  it('leaves nothing registered when a viewport fails to open, so its ID opens again', async () => {
+    const h = await harness();
+    let failing = true;
+    const presenter = createPresenter({
+      workspace: h.ws,
+      runtime: h.runtime,
+      registry: h.registry,
+      frames: h.frames,
+      showDegraded: () => {
+        if (failing) {
+          throw new Error('the container is gone');
+        }
+        return () => undefined;
+      },
+    });
+    const options = { viewportId: 'v', container: { host: 'v' }, backends: [MAIN, SPARE] };
+    // No backend works, and showing that the viewport is degraded throws.
+    h.renderer.failPrepare = 'no';
+    h.spare.failPrepare = 'no';
+    await expect(presenter.open(options)).rejects.toThrow('the container is gone');
+    expect(presenter.viewport('v')).toBeUndefined();
+    expect(presenter.viewports()).toEqual([]);
+    expect(presenter.resources()).toMatchObject({ viewports: 0, sessions: 0 });
+    // The same ID opens again.
+    failing = false;
+    h.renderer.failPrepare = null;
+    const v = await presenter.open(options);
+    expect(v.backend).toEqual(MAIN);
+    expect(presenter.viewport('v')).toBe(v);
+    await presenter.dispose();
+  });
+
+  it('lists a viewport only once it started, and refuses its ID while it starts', async () => {
+    const h = await harness();
+    const opening = h.open();
+    expect(h.presenter.viewport('v')).toBeUndefined();
+    expect(h.presenter.viewports()).toEqual([]);
+    await expect(h.open()).rejects.toThrow(/viewport "v" is already opening/);
+    const v = await opening;
+    expect(h.presenter.viewport('v')).toBe(v);
+    expect(h.presenter.viewports()).toEqual([v]);
+    await expect(h.open()).rejects.toThrow(/viewport "v" is already open/);
   });
 
   it('isolates a throwing listener and keeps it in its diagnostics', async () => {

@@ -2553,12 +2553,43 @@
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 165,
+          "line": 237,
           "column": 1
         },
         "end": {
-          "line": 167,
+          "line": 239,
           "column": 24
+        }
+      }
+    },
+    {
+      "name": "Swf.Handoff.carried_out_step_is_undone",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Handoff.swapStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (visible hadTarget : Bool),\n  Swf.Handoff.swapStep Swf.Handoff.SwapAction.move true visible hadTarget =\n      Swf.Handoff.SwapStep.done\n        (if hadTarget = true then Swf.Handoff.SwapUndo.moveBack else Swf.Handoff.SwapUndo.nothing) ∧\n    Swf.Handoff.swapStep Swf.Handoff.SwapAction.release true visible hadTarget =\n        Swf.Handoff.SwapStep.done\n          (if hadTarget = true then Swf.Handoff.SwapUndo.represent else Swf.Handoff.SwapUndo.nothing) ∧\n      (Swf.Handoff.swapStep Swf.Handoff.SwapAction.keepHidden true visible hadTarget =\n            Swf.Handoff.SwapStep.done Swf.Handoff.SwapUndo.reveal ↔\n          visible = true) ∧\n        (Swf.Handoff.swapStep Swf.Handoff.SwapAction.keepHidden true visible hadTarget =\n            Swf.Handoff.SwapStep.done Swf.Handoff.SwapUndo.nothing ↔\n          visible = false)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "a72acd29e5c4fb1e51ba58ba913f41e3c599cba035efe3ccb0ce27059043a795",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Handoff.lean",
+        "start": {
+          "line": 207,
+          "column": 1
+        },
+        "end": {
+          "line": 219,
+          "column": 56
         }
       }
     },
@@ -2584,43 +2615,12 @@
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 169,
+          "line": 241,
           "column": 1
         },
         "end": {
-          "line": 172,
+          "line": 244,
           "column": 47
-        }
-      }
-    },
-    {
-      "name": "Swf.Handoff.degraded_only_without_backend",
-      "relation": "lungo.law",
-      "subjects": [
-        "Swf.Handoff.settle"
-      ],
-      "specifications": [],
-      "statement": "∀ (anyWorked oldUsable : Bool),\n  (Swf.Handoff.settle anyWorked oldUsable = Swf.Handoff.Settlement.degraded ↔ anyWorked = false ∧ oldUsable = false) ∧\n    (anyWorked = false →\n      oldUsable = true → (Swf.Handoff.settle anyWorked oldUsable).state = Swf.Handoff.ViewportState.active)",
-      "status": "proved",
-      "evidence_trust": {
-        "axioms": [
-          "propext"
-        ],
-        "depends_on_sorry": false
-      },
-      "assumptions": [],
-      "package": "swf_models",
-      "fingerprint": "f25d413e8ea5295cf82ae02107fd4dbdc6fb6a5ef6a10041a5fc1bdee2edaa3c",
-      "source": {
-        "package": "swf_models",
-        "file": "Swf/Handoff.lean",
-        "start": {
-          "line": 153,
-          "column": 1
-        },
-        "end": {
-          "line": 159,
-          "column": 74
         }
       }
     },
@@ -2646,11 +2646,11 @@
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 129,
+          "line": 177,
           "column": 1
         },
         "end": {
-          "line": 134,
+          "line": 182,
           "column": 45
         }
       }
@@ -2677,12 +2677,43 @@
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 161,
+          "line": 233,
           "column": 1
         },
         "end": {
-          "line": 163,
+          "line": 235,
           "column": 26
+        }
+      }
+    },
+    {
+      "name": "Swf.Handoff.refused_step_rolls_back",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Handoff.swapStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (action : Swf.Handoff.SwapAction) (visible hadTarget : Bool),\n  Swf.Handoff.swapStep action false visible hadTarget = Swf.Handoff.SwapStep.rollback",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "cdf2d6db24b92cfbe1f84b4ca89b3a7c760a701ab0b4539646ff42293bd666cb",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Handoff.lean",
+        "start": {
+          "line": 201,
+          "column": 1
+        },
+        "end": {
+          "line": 205,
+          "column": 18
         }
       }
     },
@@ -2708,12 +2739,43 @@
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 174,
+          "line": 246,
           "column": 1
         },
         "end": {
-          "line": 177,
+          "line": 249,
           "column": 52
+        }
+      }
+    },
+    {
+      "name": "Swf.Handoff.settles_truthfully",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Handoff.settle"
+      ],
+      "specifications": [],
+      "statement": "∀ (attempt : Swf.Handoff.Attempt) (oldUsable : Bool),\n  (Swf.Handoff.settle attempt oldUsable = Swf.Handoff.Settlement.degraded ↔\n      attempt ≠ Swf.Handoff.Attempt.worked ∧ oldUsable = false) ∧\n    (Swf.Handoff.settle attempt oldUsable = Swf.Handoff.Settlement.kept ↔\n        attempt = Swf.Handoff.Attempt.failed ∧ oldUsable = true) ∧\n      (attempt = Swf.Handoff.Attempt.untried →\n          oldUsable = true → Swf.Handoff.settle attempt oldUsable = Swf.Handoff.Settlement.switched) ∧\n        (oldUsable = true → (Swf.Handoff.settle attempt oldUsable).state = Swf.Handoff.ViewportState.active)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "b13de4bcb3f55e0cc0763a1f45db5dee26ebaac9c7e1cc2f6da8882525ad43f7",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Handoff.lean",
+        "start": {
+          "line": 221,
+          "column": 1
+        },
+        "end": {
+          "line": 231,
+          "column": 72
         }
       }
     },
@@ -2739,11 +2801,11 @@
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 120,
+          "line": 168,
           "column": 1
         },
         "end": {
-          "line": 127,
+          "line": 175,
           "column": 45
         }
       }
@@ -2770,11 +2832,11 @@
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 136,
+          "line": 184,
           "column": 1
         },
         "end": {
-          "line": 142,
+          "line": 190,
           "column": 66
         }
       }
@@ -2801,11 +2863,11 @@
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 144,
+          "line": 192,
           "column": 1
         },
         "end": {
-          "line": 151,
+          "line": 199,
           "column": 55
         }
       }
@@ -3632,6 +3694,99 @@
         "end": {
           "line": 131,
           "column": 41
+        }
+      }
+    },
+    {
+      "name": "Swf.Presenter.failed_open_frees_id",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Presenter.slotStep"
+      ],
+      "specifications": [],
+      "statement": "Swf.Presenter.slotStep Swf.Presenter.Slot.opening Swf.Presenter.SlotEvent.closed = some Swf.Presenter.Slot.absent ∧\n  Swf.Presenter.slotStep Swf.Presenter.Slot.open Swf.Presenter.SlotEvent.closed = some Swf.Presenter.Slot.absent ∧\n    Swf.Presenter.slotStep Swf.Presenter.Slot.absent Swf.Presenter.SlotEvent.open = some Swf.Presenter.Slot.opening",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "514ed4b9a9e3ee8d01c242dbe1f58f3130c51e0819519b86b78b08bf264b52ae",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Presenter.lean",
+        "start": {
+          "line": 54,
+          "column": 1
+        },
+        "end": {
+          "line": 60,
+          "column": 18
+        }
+      }
+    },
+    {
+      "name": "Swf.Presenter.listed_iff_open",
+      "relation": "lungo.decides",
+      "subjects": [
+        "Swf.Presenter.slotListed"
+      ],
+      "specifications": [],
+      "statement": "∀ (s : Swf.Presenter.Slot), Swf.Presenter.slotListed s = true ↔ s = Swf.Presenter.Slot.open",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "dffdffcfc73b61c2188faae08c3d07b066a8e20890ef2da9167e9e76ef0920d6",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Presenter.lean",
+        "start": {
+          "line": 62,
+          "column": 1
+        },
+        "end": {
+          "line": 65,
+          "column": 20
+        }
+      }
+    },
+    {
+      "name": "Swf.Presenter.open_once",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Presenter.slotStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (s : Swf.Presenter.Slot),\n  ((Swf.Presenter.slotStep s Swf.Presenter.SlotEvent.open).isSome = true ↔ s = Swf.Presenter.Slot.absent) ∧\n    ((Swf.Presenter.slotStep s Swf.Presenter.SlotEvent.started).isSome = true ↔ s = Swf.Presenter.Slot.opening)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "612cb4a102113077d83e867f958e6a41f26ee23b44e444cecfff2fab6e278323",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Presenter.lean",
+        "start": {
+          "line": 47,
+          "column": 1
+        },
+        "end": {
+          "line": 52,
+          "column": 30
         }
       }
     },
@@ -5801,7 +5956,7 @@
         "extern_dependencies": []
       },
       "claims": [
-        "Swf.Handoff.degraded_only_without_backend"
+        "Swf.Handoff.settles_truthfully"
       ],
       "assumptions": [],
       "facilities": [],
@@ -5810,12 +5965,12 @@
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 96,
+          "line": 140,
           "column": 1
         },
         "end": {
-          "line": 99,
-          "column": 74
+          "line": 147,
+          "column": 54
         }
       }
     },
@@ -5840,12 +5995,43 @@
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
+          "line": 154,
+          "column": 1
+        },
+        "end": {
+          "line": 155,
+          "column": 61
+        }
+      }
+    },
+    {
+      "name": "Swf.Handoff.swapStep",
+      "module": "Swf.Handoff",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": []
+      },
+      "claims": [
+        "Swf.Handoff.carried_out_step_is_undone",
+        "Swf.Handoff.refused_step_rolls_back"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Handoff.lean",
+        "start": {
           "line": 106,
           "column": 1
         },
         "end": {
-          "line": 107,
-          "column": 61
+          "line": 117,
+          "column": 69
         }
       }
     },
@@ -5932,11 +6118,11 @@
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 112,
+          "line": 160,
           "column": 1
         },
         "end": {
-          "line": 113,
+          "line": 161,
           "column": 63
         }
       }
@@ -5964,11 +6150,11 @@
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 115,
+          "line": 163,
           "column": 1
         },
         "end": {
-          "line": 116,
+          "line": 164,
           "column": 100
         }
       }
@@ -5996,11 +6182,11 @@
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 109,
+          "line": 157,
           "column": 1
         },
         "end": {
-          "line": 110,
+          "line": 158,
           "column": 63
         }
       }
@@ -6479,6 +6665,71 @@
         "end": {
           "line": 45,
           "column": 35
+        }
+      }
+    },
+    {
+      "name": "Swf.Presenter.slotListed",
+      "module": "Swf.Presenter",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_nat_dec_eq"
+        ]
+      },
+      "claims": [
+        "Swf.Presenter.listed_iff_open"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Presenter.lean",
+        "start": {
+          "line": 42,
+          "column": 1
+        },
+        "end": {
+          "line": 43,
+          "column": 46
+        }
+      }
+    },
+    {
+      "name": "Swf.Presenter.slotStep",
+      "module": "Swf.Presenter",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": []
+      },
+      "claims": [
+        "Swf.Presenter.failed_open_frees_id",
+        "Swf.Presenter.open_once"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Presenter.lean",
+        "start": {
+          "line": 31,
+          "column": 1
+        },
+        "end": {
+          "line": 40,
+          "column": 17
         }
       }
     },

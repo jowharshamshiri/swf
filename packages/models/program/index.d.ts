@@ -398,6 +398,14 @@ export type HandoffEvent =
 ;
 export function handoffEventType(): L.Type<HandoffEvent>;
 
+/** Lean's Swf.Handoff.Attempt. */
+export type Attempt =
+  | { readonly kind: "untried" }
+  | { readonly kind: "failed" }
+  | { readonly kind: "worked" }
+;
+export function attemptType(): L.Type<Attempt>;
+
 /** Lean's Swf.Handoff.Settlement. */
 export type Settlement =
   | { readonly kind: "switched" }
@@ -413,6 +421,13 @@ export type SwapAction =
   | { readonly kind: "release" }
 ;
 export function swapActionType(): L.Type<SwapAction>;
+
+/** Lean's Swf.Handoff.SwapStep. */
+export type SwapStep =
+  | { readonly kind: "rollback" }
+  | { readonly kind: "done"; readonly undo: SwapUndo }
+;
+export function swapStepType(): L.Type<SwapStep>;
 
 /** Lean's Swf.Handoff.Validation. */
 export type Validation =
@@ -506,6 +521,22 @@ export interface MigrationPlan {
   readonly blocked: L.Option<string>;
 }
 export function migrationPlanType(): L.Type<MigrationPlan>;
+
+/** Lean's Swf.Presenter.Slot. */
+export type Slot =
+  | { readonly kind: "absent" }
+  | { readonly kind: "opening" }
+  | { readonly kind: "open" }
+;
+export function slotType(): L.Type<Slot>;
+
+/** Lean's Swf.Presenter.SlotEvent. */
+export type SlotEvent =
+  | { readonly kind: "open" }
+  | { readonly kind: "started" }
+  | { readonly kind: "closed" }
+;
+export function slotEventType(): L.Type<SlotEvent>;
 
 /** Lean's Swf.Save.SaveMachine. */
 export interface SaveMachine {
@@ -860,6 +891,15 @@ export type Region =
 ;
 export function regionType(): L.Type<Region>;
 
+/** Lean's Swf.Handoff.SwapUndo. */
+export type SwapUndo =
+  | { readonly kind: "nothing" }
+  | { readonly kind: "moveBack" }
+  | { readonly kind: "represent" }
+  | { readonly kind: "reveal" }
+;
+export function swapUndoType(): L.Type<SwapUndo>;
+
 /** Lean's Swf.Save.SaveState. */
 export type SaveState =
   | { readonly kind: "clean" }
@@ -1044,10 +1084,12 @@ export class SwfModels {
   pressRoute(f: PressFacts): PressRoute;
   /** Lean's Swf.Handoff.handoffStep : Swf.Handoff.ViewportState → Swf.Handoff.HandoffEvent → Option Swf.Handoff.ViewportState */
   handoffStep(s: ViewportState, e: HandoffEvent): L.Option<ViewportState>;
-  /** Lean's Swf.Handoff.settle : Bool → Bool → Swf.Handoff.Settlement */
-  settle(anyWorked: boolean, oldUsable: boolean): Settlement;
+  /** Lean's Swf.Handoff.settle : Swf.Handoff.Attempt → Bool → Swf.Handoff.Settlement */
+  settle(attempt: Attempt, oldUsable: boolean): Settlement;
   /** Lean's Swf.Handoff.settledState : Swf.Handoff.Settlement → Swf.Handoff.ViewportState */
   settledState(s: Settlement): ViewportState;
+  /** Lean's Swf.Handoff.swapStep : Swf.Handoff.SwapAction → Bool → Bool → Bool → Swf.Handoff.SwapStep */
+  swapStep(action: SwapAction, accepted: boolean, visible: boolean, hadTarget: boolean): SwapStep;
   /** Lean's Swf.Handoff.swapSurface : Bool → Bool → Swf.Handoff.SwapAction */
   swapSurface(live: boolean, stranded: boolean): SwapAction;
   /** Lean's Swf.Handoff.validateSurface : Bool → Bool → Swf.Handoff.Validation */
@@ -1086,6 +1128,10 @@ export class SwfModels {
   travel(l: Ledger, d: Direction, stale: boolean): Travel;
   /** Lean's Swf.Migration.migrationPlan : Array (String × String) → String → String → Swf.Migration.MigrationPlan */
   migrationPlan(steps: Array<[string, string]>, source: string, current: string): MigrationPlan;
+  /** Lean's Swf.Presenter.slotListed : Swf.Presenter.Slot → Bool */
+  slotListed(s: Slot): boolean;
+  /** Lean's Swf.Presenter.slotStep : Swf.Presenter.Slot → Swf.Presenter.SlotEvent → Option Swf.Presenter.Slot */
+  slotStep(s: Slot, e: SlotEvent): L.Option<Slot>;
   /** Lean's Swf.Save.saveBegin : Swf.Save.SaveMachine → Int → Option Swf.Save.SaveMachine */
   saveBegin(m: SaveMachine, changes: bigint): L.Option<SaveMachine>;
   /** Lean's Swf.Save.saveChanged : Swf.Save.SaveMachine → Int → Swf.Save.SaveMachine */

@@ -51,10 +51,6 @@ These were found while documenting the API; the JSDoc states today's behaviour.
   case only, no `_`).
 - **A host's `causeId`** reaches the `transaction.*` and `transform.preview` events, not the
   entity events of a commit, which carry the transaction's own ID.
-- **The presenter**: an `open` that fails while starting leaves the viewport registered, so
-  opening the same ID again is refused as already open; a backend handoff ignores a refused hide
-  of a surface it keeps hidden; and `restore()` on a viewport already on its first backend
-  reports a failed switch where nothing failed.
 - **Interaction and surfaces**: a keymap given to `createInteractionRouter` may name an unknown
   command (which `configure` refuses); `settings.steps` changes only the default keymap; an input
   adapter whose `connect` returns no function stays connected when its registration fails; a
@@ -67,3 +63,8 @@ These were found while documenting the API; the JSDoc states today's behaviour.
   to remove the window even when it holds other nodes, which a merge refuses; gesture bids and hits
   are ordered by priority and distance without checking those numbers are finite; and a backend
   handoff may be begun again while one is under way, restarting it.
+- **The presenter's backend handoff**: when a backend's loss watch throws while a handoff
+  activates it, the resources prepared for that backend are not released; when a backend is lost
+  or unregistered and the host's `showDegraded` throws, the failure surfaces as an unhandled
+  promise rejection rather than through the viewport; and when a failed handoff cannot put a
+  surface back where it was, nothing reports it.

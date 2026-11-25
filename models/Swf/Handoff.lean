@@ -6,7 +6,7 @@ active(new)`; a failure before the swap leaves the previous backend as it was, a
 rolls back with the retained old resources, and when no backend works and the previous one is gone
 the viewport is `presentation-degraded` while the scene stays usable. The presenter prepares,
 plans, renders and moves; this model decides each state, what happens to each attached surface,
-and how a handoff that found no backend ends.
+what a rollback does for each surface step carried out, and how a handoff ends.
 -/
 namespace Swf.Handoff
 
@@ -82,21 +82,69 @@ view; otherwise `keepHidden` when validation stranded it, and `release` when it 
 def swapSurface (live stranded : Bool) : SwapAction :=
   if live then .move else if stranded then .keepHidden else .release
 
-/-- How a handoff that tried every candidate ends: on the first that worked; else the previous
-backend, kept active, when it still works; else degraded. -/
+/-- What a failed handoff's rollback does for a surface whose swap step was carried out. -/
+inductive SwapUndo where
+  /-- Nothing: the step left its attachment as it was, or there is no previous target to go back
+  to. -/
+  | nothing
+  /-- Move its attachment back into the previous backend's target. -/
+  | moveBack
+  /-- Present it again in the previous backend's target, and hide it again when it was hidden. -/
+  | represent
+  /-- Show it again: it stayed attached, only hidden. -/
+  | reveal
+deriving DecidableEq
+
+/-- How a surface's swap step ends. -/
+inductive SwapStep where
+  /-- The runtime refused it: the handoff fails, and every step recorded so far is undone. -/
+  | rollback
+  /-- It was carried out, and a rollback does `undo` for it. -/
+  | done (undo : SwapUndo)
+deriving DecidableEq
+
+/-- How a surface's swap step ends, from its action, whether the runtime carried it out, whether
+the surface was shown here, and whether the previous backend has a target for it: a refused step
+of any action rolls the handoff back; a move is moved back and a release presented again, each
+into the previous target when there is one; a surface kept hidden is shown again when it was
+shown. -/
+def swapStep (action : SwapAction) (accepted visible hadTarget : Bool) : SwapStep :=
+  if !accepted then .rollback
+  else
+    match action with
+    | .move => .done (if hadTarget then .moveBack else .nothing)
+    | .keepHidden => .done (if visible then .reveal else .nothing)
+    | .release => .done (if hadTarget then .represent else .nothing)
+
+/-- What trying a handoff's candidates came to. -/
+inductive Attempt where
+  /-- There was no candidate to try. -/
+  | untried
+  /-- Every candidate tried failed. -/
+  | failed
+  /-- A candidate worked. -/
+  | worked
+
+/-- How a handoff ends: on a backend that works with nothing failed, on the previous backend after
+every candidate failed, or degraded. -/
 inductive Settlement where
-  /-- A candidate worked and is active. -/
+  /-- The viewport is on a backend that works and nothing failed: a candidate that worked, or the
+  previous backend when there was no candidate to try. -/
   | switched
-  /-- No candidate worked; the previous backend still works and stays active. -/
+  /-- Every candidate tried failed; the previous backend still works and stays active. -/
   | kept
   /-- No backend works: the viewport is degraded. -/
   | degraded
 deriving DecidableEq
 
-/-- How a handoff ends: `switched` when any candidate worked; otherwise `kept` when the previous
-backend still works, and `degraded` exactly when no backend works at all. -/
-def settle (anyWorked oldUsable : Bool) : Settlement :=
-  if anyWorked then .switched else if oldUsable then .kept else .degraded
+/-- How a handoff ends: `switched` when a candidate worked, or when there was none to try and the
+previous backend works; `kept` when candidates were tried, all failed, and the previous backend
+works; and `degraded` exactly when no backend works at all. -/
+def settle (attempt : Attempt) (oldUsable : Bool) : Settlement :=
+  match attempt with
+  | .worked => .switched
+  | .untried => if oldUsable then .switched else .degraded
+  | .failed => if oldUsable then .kept else .degraded
 
 /-- The state a settlement leaves the viewport in. -/
 def Settlement.state : Settlement → ViewportState
@@ -150,13 +198,37 @@ theorem swap_moves_live (live stranded : Bool) :
       (live = false → stranded = false → swapSurface live stranded = .release) := by
   cases live <;> cases stranded <;> simp [swapSurface]
 
-/-- A handoff that found no backend leaves the previous one active when it works, and degrades the
-viewport exactly when no backend works at all. -/
+/-- A refused swap step fails the handoff whatever its action, a surface kept hidden included. -/
+@[lungo_claim "lungo.law" subject swapStep]
+theorem refused_step_rolls_back (action : SwapAction) (visible hadTarget : Bool) :
+    swapStep action false visible hadTarget = .rollback := by
+  simp [swapStep]
+
+/-- Every swap step carried out records what puts its surface back as it was: a move is moved back
+and a release presented again whenever the previous backend has a target for it, and a surface
+kept hidden is shown again exactly when it was shown. Nothing is recorded only for a step that
+changed nothing, or one with no previous target to go back to. -/
+@[lungo_claim "lungo.law" subject swapStep]
+theorem carried_out_step_is_undone (visible hadTarget : Bool) :
+    swapStep .move true visible hadTarget =
+        .done (if hadTarget then .moveBack else .nothing) ∧
+      swapStep .release true visible hadTarget =
+        .done (if hadTarget then .represent else .nothing) ∧
+      (swapStep .keepHidden true visible hadTarget = .done .reveal ↔ visible = true) ∧
+      (swapStep .keepHidden true visible hadTarget = .done .nothing ↔ visible = false) := by
+  cases visible <;> cases hadTarget <;> simp [swapStep]
+
+/-- A handoff degrades the viewport exactly when no candidate worked and the previous backend is
+gone; it answers `kept`, the settlement that reports a failure while a backend still works, only
+when candidates were tried and all failed; and with nothing to try it leaves a previous backend
+that works active, with nothing failed. -/
 @[lungo_claim "lungo.law" subject settle]
-theorem degraded_only_without_backend (anyWorked oldUsable : Bool) :
-    (settle anyWorked oldUsable = .degraded ↔ anyWorked = false ∧ oldUsable = false) ∧
-      (anyWorked = false → oldUsable = true → (settle anyWorked oldUsable).state = .active) := by
-  cases anyWorked <;> cases oldUsable <;> simp [settle, Settlement.state]
+theorem settles_truthfully (attempt : Attempt) (oldUsable : Bool) :
+    (settle attempt oldUsable = .degraded ↔ attempt ≠ .worked ∧ oldUsable = false) ∧
+      (settle attempt oldUsable = .kept ↔ attempt = .failed ∧ oldUsable = true) ∧
+      (attempt = .untried → oldUsable = true → settle attempt oldUsable = .switched) ∧
+      (oldUsable = true → (settle attempt oldUsable).state = .active) := by
+  cases attempt <;> cases oldUsable <;> simp [settle, Settlement.state]
 
 @[lungo_claim "lungo.decides" subject viewportPresents]
 theorem presents_iff_active (s : ViewportState) : viewportPresents s = true ↔ s = .active := by

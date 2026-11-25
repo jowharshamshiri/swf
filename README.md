@@ -432,6 +432,11 @@ frame they are due; `background` ones (an overview, say) wait while the frame bu
 waits there and resumes from the latest state. `view.update()` presents a frame at once, for
 code that cannot wait.
 
+A viewport is listed (`presenter.viewport(id)`, `presenter.viewports()`) once it started, on a
+backend or degraded; its ID cannot be opened again while it is open or still opening. When it
+cannot start, because the host's `showDegraded` throws, say, it is disposed and the `open` rejects
+with that failure: nothing of it stays registered, and the same ID can be opened again.
+
 Unchanged objects cause no writes: the DOM renderer and compositor write an element's properties
 only when they change, the geometry renderer redraws a layer only when what it shows changed
 (give a drawable a `revision` that changes with its pixels; one without is redrawn every frame),
@@ -468,13 +473,16 @@ is not a representation is an error naming the policy and the surface.
 `view.switchBackend` hands a viewport to another renderer and compositor: the new pair is
 prepared (`preparing`), the scene is planned with its capabilities (`validating`), the view is
 rebuilt in it and live content is moved over (`swapping`), and only then does it become active and
-the old pair is released. Any failure on the way puts back what was moved and keeps the old pair;
-a switch that would strand content whose endpoint cannot be detached safely is refused. When the
+the old pair is released. Any failure on the way, a surface the runtime will not move, release or
+hide included, puts back what was moved, released or hidden and keeps the old pair; a switch that
+would strand content whose endpoint cannot be detached safely is refused. When the
 backend in use is unregistered, or loses its resources (a canvas's 2D context, say), the viewport
 falls back through its `backends` in order. When none works it is `presentation-degraded`:
 `showDegraded` puts a status line in its container saying why, the scene keeps taking commands and
 input, and when a preferred backend is registered again (or `view.restore()` is called after a
-loss) the viewport returns to it with whatever was committed meanwhile.
+loss) the viewport returns to it with whatever was committed meanwhile. `view.restore()` answers
+`kept`, with the failure, only when a preferred backend was tried and failed; a viewport already on
+its first backend has nothing to try and answers `switched` with it.
 
 Each live surface gets a slot of its own in each view, laid out at the surface's size
 (`pixelsPerUnit` CSS pixels per world unit, 400 by default) and mapped onto its projected corners
@@ -1105,7 +1113,8 @@ attachments); the model decides each state it passes through and each request it
 | `Swf.Save`           | The snapshot save states (§13.4), which acknowledgements count, and that the saved revision never goes back                                                                                           |
 | `Swf.Migration`      | The steps that bring a snapshot of an older format to the current one, without cycles                                                                                                                 |
 | `Swf.Fallback`       | Each fragment's presentation mode, its fallback report, fidelities and layer, which fragment holds the live handle, and which fallback orders are policies; a whole frame in one call                 |
-| `Swf.Handoff`        | Each backend handoff stage (§13.5), what becomes of every attached surface, and whether a failed handoff keeps the previous backend or degrades the viewport                                          |
+| `Swf.Handoff`        | Each backend handoff stage (§13.5), what becomes of every attached surface, what a failed handoff puts back for each, and whether it switched, kept the previous backend or degraded the viewport     |
+| `Swf.Presenter`      | Which viewport IDs the presenter admits and lists: one viewport per ID, listed once it started, its ID freed when it is disposed or fails to start                                                    |
 | `Swf.ViewMode`       | The reference application's view-mode switch and the view a mode returns to                                                                                                                           |
 | `Swf.Order`          | An order key for doubles, so the models' claims about order (priorities, distances) are proved over integers                                                                                          |
 | `Swf.AppOrbit`       | The reference application's workspace orbit: which group it turns, what a background drag navigates, and the commands of each change                                                                  |

@@ -7,6 +7,7 @@ import Swf.Save
 import Swf.Migration
 import Swf.Fallback
 import Swf.Handoff
+import Swf.Presenter
 import Swf.Gesture
 import Swf.Order
 import Swf.Arbitration

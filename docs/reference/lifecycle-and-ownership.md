@@ -66,8 +66,11 @@ disposing a whole host leave no listener, observer, frame request or timer behin
   arrives after the surface was removed or rebound is discarded by its generation.
 - **Gesture:** pressed → in the arena → started → committed once, or cancelled with a reason and
   everything it previewed restored ([Interaction](../../README.md#interaction)).
+- **Presented viewport:** opening → open → gone; it is listed once open, its ID is refused while it
+  is opening or open, and a viewport that fails to start is disposed, freeing its ID
+  ([Presenting in the browser](../../README.md#presenting-in-the-browser)).
 - **Backend handoff:** `active` → `preparing` → `validating` → `swapping` → `active`; any failure
-  puts back what moved and keeps the previous backend
+  puts back what moved, was released or was hidden, and keeps the previous backend
   ([Presenting in the browser](../../README.md#presenting-in-the-browser)).
 - **Save:** `clean`, `dirty`, `saving`, `failed`; only the store's acknowledgement of the saved
   key and revision makes it `clean` ([Saving layouts](../../README.md#saving-layouts)).

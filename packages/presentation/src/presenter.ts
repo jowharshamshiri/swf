@@ -1,6 +1,6 @@
 import type { Id, SceneState, SwfError, WorkspaceReader } from '@swf/core';
 import { makeError, surfaceEffectiveState, SwfFailure } from '@swf/core';
-import type { PresentationHint, SurfaceRuntime } from '@swf/surfaces';
+import type { PresentationHint, PresentationOutcome, SurfaceRuntime } from '@swf/surfaces';
 import type { SurfaceCondition } from './conditions.js';
 import { surfaceCondition } from './conditions.js';
 import type { CompositorCapabilities, RendererCapabilities } from './capabilities.js';
@@ -20,7 +20,14 @@ import type { PresentationRegistry, Registered, RegistryChange } from './registr
 import type { RepresentationPolicy } from './representation.js';
 import { representationPolicyIssue } from './representation.js';
 import { planFrame } from './stages.js';
-import type { HandoffEvent, ViewportState as LeanViewportState } from '@swf/models';
+import type {
+  HandoffEvent,
+  Slot,
+  SlotEvent,
+  SwapAction,
+  SwapUndo,
+  ViewportState as LeanViewportState,
+} from '@swf/models';
 import { models } from '@swf/models';
 
 /** Calls work at the host's frame boundaries: an animation frame, in a browser. */
@@ -234,7 +241,10 @@ export type SwitchOutcome =
   | {
       /** The viewport is presented with `backend`. */
       readonly status: 'switched';
-      /** The backend now in use: the one the viewport had when no backend tried before it works. */
+      /**
+       * The backend now in use: the first tried that works, or the one the viewport had when it
+       * was asked to switch to it or had nothing ahead of it to try.
+       */
       readonly backend: BackendChoice;
     }
   /** No backend tried worked; the viewport kept the one it had. */
@@ -243,7 +253,7 @@ export type SwitchOutcome =
       readonly status: 'kept';
       /** The backend still in use. */
       readonly backend: BackendChoice;
-      /** Why the last backend tried failed, or that there was none to try. */
+      /** Why the last backend tried failed. */
       readonly error: SwfError;
     }
   /** No backend works and the previous one is gone: the viewport is degraded. */
@@ -386,8 +396,10 @@ export interface PresentedViewport {
   switchBackend(backend: BackendChoice): Promise<SwitchOutcome>;
   /**
    * Tries the backends preferred to the current one again (all of them when degraded),
-   * including those that lost their resources here: for when they are available again. Rejects
-   * with {@link SwfFailure} (`INVALID_TRANSITION`) once the viewport is disposed.
+   * including those that lost their resources here: for when they are available again. A
+   * viewport already on its first preferred backend has nothing to try, and answers `switched`
+   * with that backend. Rejects with {@link SwfFailure} (`INVALID_TRANSITION`) once the viewport
+   * is disposed.
    */
   restore(): Promise<SwitchOutcome>;
   /** The last frame presented, or null. */
@@ -396,7 +408,8 @@ export interface PresentedViewport {
    * Hides its surfaces here (releasing their attachments where the endpoint allows) and releases
    * its backend. Returns the surfaces whose endpoint did not allow release; their content leaves
    * with the backend's resources. Safe to call twice: both calls get the same promise. It never
-   * stops a surface's producer, and afterwards the presenter no longer lists the viewport.
+   * stops a surface's producer, and afterwards the presenter no longer lists the viewport and its
+   * ID can be opened again, even when the host's `showDegraded` cleanup throws (which rejects it).
    */
   dispose(): Promise<{
     /**
@@ -423,7 +436,7 @@ export interface PresenterDiagnostic {
  * is requested.
  */
 export interface PresenterResources {
-  /** Viewports open. */
+  /** Viewports open or still opening. */
   readonly viewports: number;
   /** Renderer and compositor sessions held. */
   readonly sessions: number;
@@ -443,15 +456,25 @@ export interface PresenterResources {
 export interface Presenter {
   /**
    * Starts presenting a viewport with the first of its backends that prepares; with none, the
-   * viewport opens degraded. Rejects with {@link SwfFailure}: `INVALID_INPUT` for invalid options
-   * or a viewport already open, `UNKNOWN_ENTITY` for a viewport not in the scene,
-   * `INVALID_TRANSITION` once the presenter is disposed. The presenter owns the viewport it
-   * resolves to; dispose it, or the presenter, to release its backend.
+   * viewport opens degraded. The viewport is listed once it started. Rejects with
+   * {@link SwfFailure}: `INVALID_INPUT` for invalid options or a viewport already open or still
+   * opening, `UNKNOWN_ENTITY` for a viewport not in the scene, `INVALID_TRANSITION` once the
+   * presenter is disposed. When starting fails (`showDegraded` throws, say), the viewport is
+   * disposed and the open rejects with that failure: nothing of it stays registered, and its ID
+   * can be opened again; when disposing it fails too, the open rejects with an `AggregateError`
+   * of both. The presenter owns the viewport it resolves to; dispose it, or the presenter, to
+   * release its backend.
    */
   open(options: ViewportOptions): Promise<PresentedViewport>;
-  /** The open viewport with this ID, or undefined when none is open (never opened, or disposed). */
+  /**
+   * The open viewport with this ID, or undefined when none is open (never opened, still opening,
+   * failed to open, or disposed).
+   */
   viewport(viewportId: Id): PresentedViewport | undefined;
-  /** Every open viewport, in the order they were opened; a new array on each call. */
+  /**
+   * Every open viewport, in the order they were opened, without those still opening; a new array
+   * on each call.
+   */
   viewports(): PresentedViewport[];
   /**
    * Listens to frames, handoffs, losses and degradation. A listener that throws does not stop
@@ -596,23 +619,40 @@ class PresenterImpl implements Presenter {
       throw new SwfFailure(makeError('INVALID_TRANSITION', 'the presenter is disposed'));
     }
     const checked = checkViewportOptions(options);
-    if (this.#viewports.has(checked.viewportId)) {
-      throw invalid(`viewport "${checked.viewportId}" is already open`);
+    const slot = this.#viewports.get(checked.viewportId)?.slot ?? ABSENT;
+    const opening = models.slotStep(slot, { kind: 'open' });
+    if (opening === null) {
+      throw invalid(`viewport "${checked.viewportId}" is already ${slot.kind}`);
     }
     // Throws UNKNOWN_ENTITY for a viewport the scene does not have.
     viewGeometryOf(this.options.workspace.getState(), checked.viewportId);
-    const viewport = new ViewportImpl(this, checked);
+    const viewport = new ViewportImpl(this, checked, opening);
     this.#viewports.set(checked.viewportId, viewport);
-    await viewport.start();
+    try {
+      await viewport.start();
+    } catch (error) {
+      // A viewport that cannot start is disposed, which frees its ID.
+      try {
+        await viewport.dispose();
+      } catch (cleanup) {
+        throw new AggregateError(
+          [error, cleanup],
+          `viewport "${checked.viewportId}" failed to start (${describe(error)}), and disposing it failed too (${describe(cleanup)})`,
+          { cause: cleanup },
+        );
+      }
+      throw error;
+    }
     return viewport;
   }
 
   viewport(viewportId: Id): PresentedViewport | undefined {
-    return this.#viewports.get(viewportId);
+    const viewport = this.#viewports.get(viewportId);
+    return viewport !== undefined && models.slotListed(viewport.slot) ? viewport : undefined;
   }
 
   viewports(): PresentedViewport[] {
-    return [...this.#viewports.values()];
+    return [...this.#viewports.values()].filter((v) => models.slotListed(v.slot));
   }
 
   subscribe(listener: (event: PresenterEvent) => void): () => void {
@@ -676,8 +716,19 @@ class PresenterImpl implements Presenter {
     }
   }
 
-  forget(viewport: ViewportImpl): void {
-    if (this.#viewports.get(viewport.viewportId) === viewport) {
+  /**
+   * Moves a viewport's ID as the presenter model decides on `event`, and lets go of the viewport
+   * once its ID is free; an event out of order is a defect.
+   */
+  step(viewport: ViewportImpl, event: SlotEvent['kind']): void {
+    const next = models.slotStep(viewport.slot, { kind: event });
+    if (next === null || this.#viewports.get(viewport.viewportId) !== viewport) {
+      throw new Error(
+        `viewport "${viewport.viewportId}" cannot take ${event} while ${viewport.slot.kind}`,
+      );
+    }
+    viewport.slot = next;
+    if (next.kind === 'absent') {
       this.#viewports.delete(viewport.viewportId);
     }
   }
@@ -800,6 +851,8 @@ class ViewportImpl implements PresentedViewport {
   readonly viewportId: Id;
   readonly priority: 'interactive' | 'background';
   skipped = 0;
+  /** Where its ID is in the presenter: opening until it started, then open. */
+  slot: Slot;
   readonly #presenter: PresenterImpl;
   readonly #options: ViewportOptions;
   #state: ViewportState = 'preparing';
@@ -816,7 +869,8 @@ class ViewportImpl implements PresentedViewport {
   #queue: Promise<unknown> = Promise.resolve();
   #disposed: Promise<{ readonly retained: readonly Id[] }> | null = null;
 
-  constructor(presenter: PresenterImpl, options: ViewportOptions) {
+  constructor(presenter: PresenterImpl, options: ViewportOptions, slot: Slot) {
+    this.slot = slot;
     this.#presenter = presenter;
     this.#options = options;
     this.viewportId = options.viewportId;
@@ -845,9 +899,15 @@ class ViewportImpl implements PresentedViewport {
     return this.#degradedBy;
   }
 
-  /** Activates the first preferred backend that works, or opens degraded. */
+  /**
+   * Activates the first preferred backend that works, or opens degraded; then the presenter lists
+   * it. A failure leaves it opening, for the presenter to dispose.
+   */
   async start(): Promise<void> {
-    await this.#serial(() => this.#activate(this.#options.backends, 'opened', false));
+    await this.#serial(async () => {
+      await this.#activate(this.#options.backends, 'opened', false);
+      this.#presenter.step(this, 'started');
+    });
   }
 
   invalidate(): void {
@@ -1313,18 +1373,35 @@ class ViewportImpl implements PresentedViewport {
         error: failure,
       });
     }
-    error ??= this.#noBackend();
-    const settlement = models.settle(false, old !== null && usable);
+    // Every candidate tried set `error`: none is set only when there was nothing to try.
+    const settlement = models.settle(
+      { kind: error === null ? 'untried' : 'failed' },
+      old !== null && usable,
+    );
     const state = STATES[models.settledState(settlement).kind];
-    if (settlement.kind === 'kept' && old !== null) {
-      this.#state = state;
-      return Object.freeze({ status: 'kept', backend: old.choice, error });
+    switch (settlement.kind) {
+      case 'switched':
+        if (old === null) {
+          throw new Error(
+            `the handoff model settled viewport "${this.viewportId}" as switched without a backend`,
+          );
+        }
+        this.#state = state;
+        return Object.freeze({ status: 'switched', backend: old.choice });
+      case 'kept':
+        if (old === null || error === null) {
+          throw new Error(
+            `the handoff model kept viewport "${this.viewportId}" without a backend or a failure`,
+          );
+        }
+        this.#state = state;
+        return Object.freeze({ status: 'kept', backend: old.choice, error });
+      case 'degraded': {
+        const why = error ?? this.#noBackend();
+        await this.#degrade(why, state);
+        return Object.freeze({ status: 'degraded', error: why });
+      }
     }
-    if (settlement.kind !== 'degraded') {
-      throw new Error(`the handoff model settled a failed handoff as ${settlement.kind}`);
-    }
-    await this.#degrade(error, state);
-    return Object.freeze({ status: 'degraded', error });
   }
 
   /**
@@ -1456,44 +1533,38 @@ class ViewportImpl implements PresentedViewport {
       }
       const from = old?.rendererSession.targetOf(surfaceId);
       const action = models.swapSurface(live.includes(surfaceId), stranded.has(surfaceId));
+      let outcome: PresentationOutcome;
       if (action.kind === 'move') {
         const target = candidate.rendererSession.targetOf(surfaceId);
         if (target === undefined) {
           return rollback(fail('swapping', `surface "${surfaceId}" is live without a target`));
         }
-        const outcome = await runtime.move(surfaceId, this.viewportId, target);
-        if (outcome.status === 'rejected') {
-          return rollback(
-            fail(
-              'swapping',
-              `surface "${surfaceId}" could not be moved into it`,
-              outcome.error.message,
-            ),
-          );
-        }
-        if (from !== undefined) {
-          undo.push(() => runtime.move(surfaceId, this.viewportId, from));
-        }
-        continue;
+        outcome = await runtime.move(surfaceId, this.viewportId, target);
+      } else {
+        // A surface kept hidden cannot leave without safe detachment: it stays attached, hidden,
+        // and the host's.
+        outcome = await runtime.hide(surfaceId, this.viewportId, {
+          release: action.kind === 'release',
+        });
       }
-      if (action.kind === 'keepHidden') {
-        // It cannot leave without safe detachment: it stays attached, hidden, and the host's.
-        await runtime.hide(surfaceId, this.viewportId);
-        continue;
-      }
-      const outcome = await runtime.hide(surfaceId, this.viewportId, { release: true });
-      if (outcome.status === 'rejected') {
+      const step = models.swapStep(
+        action,
+        outcome.status === 'ok',
+        here.visible,
+        from !== undefined,
+      );
+      if (step.kind === 'rollback') {
         return rollback(
-          fail('swapping', `surface "${surfaceId}" could not be released`, outcome.error.message),
+          fail(
+            'swapping',
+            `surface "${surfaceId}" could not be ${SWAP_VERBS[action.kind]}`,
+            outcome.status === 'rejected' ? outcome.error.message : undefined,
+          ),
         );
       }
-      if (from !== undefined) {
-        undo.push(async () => {
-          await runtime.present(surfaceId, this.viewportId, from);
-          if (!here.visible) {
-            await runtime.hide(surfaceId, this.viewportId);
-          }
-        });
+      const back = this.#undoStep(step.undo, surfaceId, from, here.visible);
+      if (back !== null) {
+        undo.push(back);
       }
     }
 
@@ -1524,6 +1595,36 @@ class ViewportImpl implements PresentedViewport {
     });
     this.mark('backend');
     return null;
+  }
+
+  /**
+   * What a rollback does for a surface whose swap step was carried out, as the handoff model
+   * decided: move it back into `from`, present it there again (hidden again when it was hidden),
+   * show it again where it stayed attached, or nothing.
+   */
+  #undoStep(
+    undo: SwapUndo,
+    surfaceId: Id,
+    from: unknown,
+    visible: boolean,
+  ): (() => Promise<unknown>) | null {
+    const { runtime } = this.#presenter.options;
+    switch (undo.kind) {
+      case 'nothing':
+        return null;
+      case 'moveBack':
+        return () => runtime.move(surfaceId, this.viewportId, from);
+      case 'represent':
+        return async () => {
+          await runtime.present(surfaceId, this.viewportId, from);
+          if (!visible) {
+            await runtime.hide(surfaceId, this.viewportId);
+          }
+        };
+      case 'reveal':
+        // Still attached: presenting it again shows it where it is.
+        return () => runtime.present(surfaceId, this.viewportId, from);
+    }
   }
 
   /** Moves the viewport as the handoff model decides on `event`; an event out of order is a defect. */
@@ -1636,30 +1737,35 @@ class ViewportImpl implements PresentedViewport {
 
   async #dispose(): Promise<{ readonly retained: readonly Id[] }> {
     const { runtime } = this.#presenter.options;
-    const retained: Id[] = [];
-    for (const presentation of runtime.list()) {
-      if (!presentation.viewports.some((v) => v.viewportId === this.viewportId)) {
-        continue;
-      }
-      const outcome = await runtime.hide(presentation.surfaceId, this.viewportId, {
-        release: true,
-      });
-      const still = attachmentHere(runtime, presentation.surfaceId, this.viewportId);
-      if (outcome.status === 'rejected' || still !== undefined) {
-        retained.push(presentation.surfaceId);
-      }
-    }
     const old = this.#backend;
     this.#backend = null;
     this.#live = new Set();
     this.#advance('dispose');
-    if (old !== null) {
-      old.unwatch();
-      await this.#releaseQuietly(old.choice, old.compositorSession, old.rendererSession);
+    const retained: Id[] = [];
+    try {
+      for (const presentation of runtime.list()) {
+        if (!presentation.viewports.some((v) => v.viewportId === this.viewportId)) {
+          continue;
+        }
+        const outcome = await runtime.hide(presentation.surfaceId, this.viewportId, {
+          release: true,
+        });
+        const still = attachmentHere(runtime, presentation.surfaceId, this.viewportId);
+        if (outcome.status === 'rejected' || still !== undefined) {
+          retained.push(presentation.surfaceId);
+        }
+      }
+      if (old !== null) {
+        old.unwatch();
+        await this.#releaseQuietly(old.choice, old.compositorSession, old.rendererSession);
+      }
+      const hideDegraded = this.#hideDegraded;
+      this.#hideDegraded = null;
+      hideDegraded?.();
+    } finally {
+      // A disposed viewport frees its ID, even when the host's hook threw.
+      this.#presenter.step(this, 'closed');
     }
-    this.#hideDegraded?.();
-    this.#hideDegraded = null;
-    this.#presenter.forget(this);
     return Object.freeze({ retained: Object.freeze(retained) });
   }
 }
@@ -1816,6 +1922,16 @@ const LEAN_STATES: Readonly<Record<ViewportState, LeanViewportState['kind']>> = 
   active: 'active',
   'presentation-degraded': 'degraded',
   disposed: 'disposed',
+});
+
+/** A viewport ID no viewport holds. */
+const ABSENT: Slot = Object.freeze({ kind: 'absent' });
+
+/** What a refused swap step failed to do, by its action. */
+const SWAP_VERBS: Readonly<Record<SwapAction['kind'], string>> = Object.freeze({
+  move: 'moved into it',
+  keepHidden: 'hidden',
+  release: 'released',
 });
 
 const STATES: Readonly<Record<LeanViewportState['kind'], ViewportState>> = Object.freeze({
