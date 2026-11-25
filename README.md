@@ -116,14 +116,19 @@ const world = worldMatrix(workspace.getState().nodes, 'notes');
 
 A transaction applies all of its commands as one revision or none of them. A rejection carries an
 error envelope with a stable `code` (such as `INVALID_INPUT`, `UNKNOWN_ENTITY`, `CONFLICT`,
-`LOCKED` or `CONSTRAINT_REJECTED`), the `path` of the failing input and a readable message.
-Committed state is immutable: every commit produces a new `SceneState`.
+`LOCKED` or `CONSTRAINT_REJECTED`), the `path` of the failing input and a readable message. A
+host callback the transaction calls (a constraint's `appliesTo` or `resolve`, `createId`, a
+geometry or projection check, the workspace's clocks) that throws is a rejection too, naming the
+callback and what it threw. Committed state is immutable: every commit produces a new
+`SceneState`.
 
 Every commit ends with one `transaction.committed` event, and every refusal is announced as
-`transaction.rejected`. Each says how long the transaction took by the workspace's `timer` (its
-`now` clock unless a finer one, such as `performance.now`, is given), and a commit carries the
-commands it committed (none for an undo, a redo or a restore, which name what they reverse or
-replace), so a listener can trace operations without the caller's help.
+`transaction.rejected`, except one for a failing clock, since no event can be stamped without it.
+Each of the two says how long the transaction took by the workspace's `timer` (its `now` clock
+unless a finer one, such as `performance.now`, is given), and a commit carries the commands it
+committed (none for an undo, a redo or a restore, which name what they reverse or replace), so a
+listener can trace operations without the caller's help. Every event of one operation carries the
+same `timestamp`: the workspace's `now` clock as the operation began.
 
 The node commands are `node.create`, `node.patch`, `node.reparent`, `node.reorder`,
 `node.duplicate`, `node.archive`, `node.restoreArchived`, `node.delete`, `node.group`,

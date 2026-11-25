@@ -9,11 +9,11 @@ import { sortConstraints } from './constraints.js';
 import type { PendingEvent } from './diff.js';
 import { diffScenes } from './diff.js';
 import type { SwfError } from './errors.js';
-import { makeError, RejectionSignal, SwfFailure } from './errors.js';
+import { makeError, RejectionSignal, SwfFailure, thrownText } from './errors.js';
 import type { CancelReason, OperationPhase, WorkspaceEvent } from './events.js';
-import { describe } from './json.js';
+import { describe, describeAnswer } from './json.js';
 import type { GeometryLimits, GeometryProvider, ResolvedGeometry } from './geometry.js';
-import { DEFAULT_GEOMETRY_LIMITS, GeometryRegistry } from './geometry.js';
+import { DEFAULT_GEOMETRY_LIMITS, geometryParamsIssue, GeometryRegistry } from './geometry.js';
 import type {
   CameraRecord,
   Id,
@@ -23,7 +23,7 @@ import type {
   ViewportRecord,
 } from './model.js';
 import type { ProjectionKind } from './projection-kinds.js';
-import { ProjectionKindRegistry } from './projection-kinds.js';
+import { projectionConfigIssue, ProjectionKindRegistry } from './projection-kinds.js';
 import type { SceneSnapshot } from './snapshot.js';
 import {
   cameraSnapshot,
@@ -53,18 +53,28 @@ export interface WorkspaceOptions {
   readonly idempotencyCapacity?: number;
   /** How many diagnostics `getDiagnostics` keeps: at least 1. Default 100. */
   readonly diagnosticsCapacity?: number;
-  /** The clock for timestamps, in milliseconds. Default `Date.now`. */
+  /**
+   * The clock for timestamps, in milliseconds. Default `Date.now`. It is read once as each
+   * operation begins, and every event and history entry of that operation carries the reading.
+   * When it throws or reads as anything but a finite number, the operation is rejected with
+   * `INVALID_INPUT` at `options.now`, naming the clock and what it threw or read, the scene is
+   * left unchanged, and no event is sent, since none could be stamped.
+   */
   readonly now?: () => number;
   /**
    * The clock transactions are timed with, in milliseconds: a monotonic one with sub-millisecond
-   * resolution, such as `performance.now`, for useful durations. Default: `now`.
+   * resolution, such as `performance.now`, for useful durations. Default: `now`. It is read as a
+   * transaction, undo, redo or restore begins and once more before it commits or is rejected;
+   * when it fails it is reported as `now` is, at `options.timer`, and a commit it cannot time is
+   * rejected before anything changes.
    */
   readonly timer?: () => number;
   /**
    * Supplies IDs for nodes, surfaces, cameras and viewports created without one; returning an ID
    * already in use rejects the transaction. Default: the next unused of `node-1`, `node-2`, ... in
-   * this workspace, which keeps scenes reproducible. An exception it throws reaches the caller of
-   * the transaction.
+   * this workspace, which keeps scenes reproducible. When it throws, the transaction is rejected
+   * with `INVALID_INPUT` at the generated ID's path (such as `commands[1].node.id (generated)`),
+   * naming `createId` and what it threw, and the scene is left unchanged.
    */
   readonly createId?: () => Id;
   /**
@@ -86,7 +96,9 @@ export interface WorkspaceOptions {
    * it was last delivered), and the workspace calls it with the function that delivers them, to be
    * run at the next boundary (such as an animation frame). Every other event is delivered at once,
    * after any held ones, so the order of events is kept and none is dropped. Without it every
-   * event is delivered as it happens.
+   * event is delivered as it happens. When it throws, the held events are delivered at once with
+   * the operation's other events, a `FRAME_BOUNDARY_THREW` diagnostic records it, and the next
+   * preview event asks for a boundary again.
    */
   readonly frameBoundary?: (flush: () => void) => void;
 }
@@ -169,7 +181,11 @@ export interface Queued<T> {
   readonly status: 'queued';
   /**
    * Settles with the operation's outcome once it has run, after the event delivery in progress
-   * ends. A refusal fulfils it with a rejected outcome; it is not rejected for one.
+   * ends. A refusal, including one caused by a host callback that threw, fulfils it with a
+   * rejected outcome; it is not rejected for one. It is rejected only when the operation itself
+   * throws, as {@link WorkspaceMutator.cancelPreview} does when the clock fails: with the Error
+   * thrown, or an Error carrying a thrown non-Error as its `cause`. Either way the operations
+   * queued after it still run.
    */
   readonly completion: Promise<T>;
 }
@@ -208,7 +224,7 @@ export type PreviewResult = PreviewOutcome | Queued<PreviewOutcome>;
 export interface HistoryEntry {
   /** The transaction as it was first committed. */
   readonly transactionId: string;
-  /** When it was committed, by the workspace's clock, in milliseconds. */
+  /** When it was committed, by the workspace's clock, in milliseconds: its events' time. */
   readonly timestamp: number;
   /** Who originated it. */
   readonly source: EventSource;
@@ -229,13 +245,20 @@ export interface HistoryEntry {
  * Diagnostics are frozen.
  */
 export interface Diagnostic {
-  /** What was noticed: a listener threw while handling an event. */
-  readonly code: 'LISTENER_THREW';
-  /** A human-readable account, naming the event type and what was thrown. */
+  /**
+   * What was noticed: `LISTENER_THREW`, a listener threw while handling an event;
+   * `FRAME_BOUNDARY_THREW`, the workspace's `frameBoundary` threw when asked for a boundary, so the
+   * preview events it held were delivered at once instead of at the boundary.
+   */
+  readonly code: 'LISTENER_THREW' | 'FRAME_BOUNDARY_THREW';
+  /** A human-readable account, naming the event type or callback and what was thrown. */
   readonly message: string;
-  /** When it was recorded, by the workspace's clock, in milliseconds. */
+  /** The `timestamp` of the event concerned: the time of the operation that sent it. */
   readonly timestamp: number;
-  /** For `LISTENER_THREW`, the `eventId` and `eventType` of the event being handled. */
+  /**
+   * The `eventId` and `eventType` of the event concerned: the one being handled for
+   * `LISTENER_THREW`, the one that asked for a boundary for `FRAME_BOUNDARY_THREW`.
+   */
   readonly details: Readonly<Record<string, string>>;
 }
 
@@ -332,8 +355,13 @@ export type RestoreOptions = Pick<TxOptions, 'expectedRevision' | 'source' | 'ca
  * boundary: code running in the host stays under the host's own security model.
  *
  * Every operation runs synchronously and reports a refusal through its result rather than by
- * throwing; only the `register` methods throw for invalid input. Called from inside an event
- * listener, an operation is queued and runs once the delivery in progress ends.
+ * throwing; only the `register` methods throw for invalid input, and `cancelPreview` when the
+ * workspace's clock fails. A host callback an operation calls (a constraint's `appliesTo` or
+ * `resolve`, a geometry provider's `validate`, a projection kind's `configIssue`, the workspace's
+ * `createId`, `now` and `timer`) that throws or answers what it may not rejects the operation,
+ * naming the callback and what it threw or answered, and leaves the workspace unchanged. Called
+ * from inside an event listener, an operation is queued and runs once the delivery in progress
+ * ends.
  */
 export interface WorkspaceMutator {
   /** The workspace's ID. */
@@ -385,7 +413,11 @@ export interface WorkspaceMutator {
   ): PreviewResult;
   /**
    * Ends a preview without committing it, sending `preview.cancelled` with `reason`. Returns false
-   * when there is no such preview or the workspace is disposing or disposed.
+   * when there is no such preview or the workspace is disposing or disposed. Previews opened after
+   * it that no longer apply together without it end too, as `invalidated`.
+   *
+   * @throws {@link SwfFailure} `INVALID_INPUT` at `options.now` when the workspace's clock throws
+   *   or reads as anything but a finite number; the preview stays open.
    */
   cancelPreview(previewId: string, reason: CancelReason): boolean | Queued<boolean>;
   /**
@@ -486,7 +518,10 @@ export interface Workspace extends WorkspaceReader, WorkspaceMutator {
    * is sent and every listener, the history, the idempotency keys and the constraints are
    * released. The returned promise, the same one on every call, resolves once that is done. From
    * the first call on, operations are refused with `WORKSPACE_DISPOSED`. Scene states already
-   * handed out stay readable.
+   * handed out stay readable. The disposal's events carry the time of the first call; when the
+   * workspace's clock throws or reads as anything but a finite number then, the promise returned
+   * is rejected with {@link SwfFailure} (`INVALID_INPUT` at `options.now`), nothing is disposed,
+   * and a later call tries again.
    */
   dispose(): Promise<void>;
 }
@@ -557,16 +592,31 @@ interface PreviewRecord {
   readonly commands: readonly SceneCommand[];
   readonly source: EventSource;
   readonly causeId: string | null;
+  /** When the preview was last applied, by the clock: the time its records are changed at. */
+  timestamp: number;
   state: SceneState;
 }
 
-interface Meta {
-  readonly transactionId: string;
-  readonly source: EventSource;
-  readonly causeId: string | null;
+/** The clocks as an operation read them when it began. */
+interface Clocks {
+  /** When the operation happened, by `now`: every event and record it makes carries it. */
   readonly timestamp: number;
   /** When the operation began, by the timer. */
   readonly started: number;
+}
+
+interface Meta extends Clocks {
+  readonly transactionId: string;
+  readonly source: EventSource;
+  readonly causeId: string | null;
+}
+
+/** How an event is sent: its source, cause, phase and the time of the operation it belongs to. */
+interface EmitHow {
+  readonly source: EventSource;
+  readonly causeId: string | null;
+  readonly phase: OperationPhase;
+  readonly timestamp: number;
 }
 
 class WorkspaceImpl implements Workspace {
@@ -580,6 +630,7 @@ class WorkspaceImpl implements Workspace {
   readonly #diagnosticsCapacity: number;
   readonly #now: () => number;
   readonly #timer: () => number;
+  readonly #timerOption: 'now' | 'timer';
   readonly #createId: (inUse: (id: Id) => boolean) => Id;
   readonly #onDiagnostic: ((d: Diagnostic) => void) | undefined;
   readonly #frameBoundary: ((flush: () => void) => void) | undefined;
@@ -611,6 +662,8 @@ class WorkspaceImpl implements Workspace {
   #idSeq = 0;
   #disposed: Promise<void> | null = null;
   #resolveDisposed: (() => void) | null = null;
+  /** When `dispose` was called, by the clock: the time of the disposal's events. */
+  #disposedAt = 0;
 
   constructor(options: WorkspaceOptions) {
     const record = checkOptions(options);
@@ -619,6 +672,7 @@ class WorkspaceImpl implements Workspace {
     this.#diagnosticsCapacity = record.diagnosticsCapacity;
     this.#now = record.now;
     this.#timer = record.timer;
+    this.#timerOption = record.timerOption;
     const hostCreateId = record.createId;
     this.#createId =
       hostCreateId === undefined
@@ -664,6 +718,63 @@ class WorkspaceImpl implements Workspace {
   /** Whether the workspace admits an operation now. */
   #ready(): boolean {
     return models.admits(this.#ledger.lifecycle);
+  }
+
+  /**
+   * Reads one of the host's clocks. One that throws or reads as anything but a finite number is
+   * reported as the rejection `INVALID_INPUT` at the workspace option it came from.
+   */
+  #read(clock: 'now' | 'timer'): number {
+    const option = clock === 'now' ? 'now' : this.#timerOption;
+    const path = `options.${option}`;
+    let value: unknown;
+    try {
+      value = clock === 'now' ? this.#now() : this.#timer();
+    } catch (error) {
+      throw new RejectionSignal(
+        'INVALID_INPUT',
+        `${path}: the workspace's ${option} clock threw: ${thrownText(error)}`,
+        { path },
+      );
+    }
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      throw new RejectionSignal(
+        'INVALID_INPUT',
+        `${path}: the workspace's ${option} clock returned ${describeAnswer(value)}, not a finite number`,
+        { path },
+      );
+    }
+    return value;
+  }
+
+  /** The clocks read once as an operation begins; every event it sends carries this time. */
+  #clocks(): Clocks {
+    return { started: this.#read('timer'), timestamp: this.#read('now') };
+  }
+
+  /** How long the operation of `meta` has taken so far, by the timer. */
+  #elapsed(meta: Clocks): number {
+    return this.#read('timer') - meta.started;
+  }
+
+  /**
+   * Reads the `now` clock for an operation that reports no rejection: a failing clock is the
+   * {@link SwfFailure} the caller receives.
+   */
+  #readNowOrFail(): number {
+    try {
+      return this.#read('now');
+    } catch (error) {
+      if (!(error instanceof RejectionSignal)) {
+        throw error;
+      }
+      throw new SwfFailure(
+        makeError(error.code, error.message, {
+          workspaceId: this.id,
+          ...(error.path === undefined ? {} : { path: error.path }),
+        }),
+      );
+    }
   }
 
   getState(): SceneState {
@@ -881,6 +992,7 @@ class WorkspaceImpl implements Workspace {
       if (record === undefined || !this.#ready()) {
         return false;
       }
+      const timestamp = this.#readNowOrFail();
       this.#previews.delete(previewId);
       this.#emit(
         'preview.cancelled',
@@ -889,8 +1001,10 @@ class WorkspaceImpl implements Workspace {
           source: record.source,
           causeId: previewId,
           phase: 'cancelled',
+          timestamp,
         },
       );
+      this.#keepCombinable(timestamp);
       return true;
     });
   }
@@ -911,6 +1025,11 @@ class WorkspaceImpl implements Workspace {
     if (this.#disposed !== null) {
       return this.#disposed;
     }
+    try {
+      this.#disposedAt = this.#readNowOrFail();
+    } catch (error) {
+      return Promise.reject(asError(error));
+    }
     this.#disposed = new Promise((resolve) => {
       this.#resolveDisposed = resolve;
     });
@@ -922,8 +1041,13 @@ class WorkspaceImpl implements Workspace {
   // --- internals --------------------------------------------------------------------------
 
   #transaction(commands: unknown, rawOptions: unknown): TxOutcome {
-    const started = this.#timer();
     const transactionId = this.#nextTransactionId();
+    let clocks: Clocks;
+    try {
+      clocks = this.#clocks();
+    } catch (error) {
+      return this.#reject(transactionId, error, null);
+    }
     let options: CheckedTxOptions;
     try {
       options = checkTxOptions(rawOptions);
@@ -932,15 +1056,14 @@ class WorkspaceImpl implements Workspace {
         source: 'host',
         causeId: null,
         commands,
-        started,
+        ...clocks,
       });
     }
     const meta: Meta = {
       transactionId,
       source: options.source,
       causeId: options.causeId,
-      timestamp: this.#now(),
-      started,
+      ...clocks,
     };
     const settle = (outcome: TxOutcome): TxOutcome => {
       if (
@@ -957,8 +1080,14 @@ class WorkspaceImpl implements Workspace {
                 ? 'constraint-rejected'
                 : 'commit-rejected',
           },
-          { source: options.source, causeId: options.previewId, phase: 'cancelled' },
+          {
+            source: options.source,
+            causeId: options.previewId,
+            phase: 'cancelled',
+            timestamp: meta.timestamp,
+          },
         );
+        this.#keepCombinable(meta.timestamp);
       }
       return outcome;
     };
@@ -999,12 +1128,14 @@ class WorkspaceImpl implements Workspace {
         break;
     }
     let outcome: ApplyOutcome;
+    let durationMs: number;
     try {
       outcome = applyCommands(
         this.#state,
         commands,
         this.#applyContext(options.source, meta.timestamp),
       );
+      durationMs = this.#elapsed(meta);
     } catch (error) {
       return settle(this.#reject(transactionId, error, { ...meta, commands }));
     }
@@ -1016,7 +1147,7 @@ class WorkspaceImpl implements Workspace {
       layout: layoutChanged(this.#state, outcome),
       keyed: key !== null,
     });
-    const result = this.#commit(outcome, meta, decision, {
+    const result = this.#commit(outcome, meta, durationMs, decision, {
       idempotencyKey: options.idempotencyKey,
       previewId: options.previewId,
       history: null,
@@ -1039,9 +1170,14 @@ class WorkspaceImpl implements Workspace {
   }
 
   #restore(snapshot: unknown, rawOptions: unknown): TxOutcome {
-    const started = this.#timer();
     const transactionId = this.#nextTransactionId();
     const commands = [{ type: 'scene.restore' }];
+    let clocks: Clocks;
+    try {
+      clocks = this.#clocks();
+    } catch (error) {
+      return this.#reject(transactionId, error, null);
+    }
     let options: CheckedTxOptions;
     try {
       options = checkTxOptions(rawOptions, ['expectedRevision', 'source', 'causeId']);
@@ -1050,7 +1186,7 @@ class WorkspaceImpl implements Workspace {
         source: 'restore',
         causeId: null,
         commands,
-        started,
+        ...clocks,
       });
     }
     const source =
@@ -1059,8 +1195,7 @@ class WorkspaceImpl implements Workspace {
       transactionId,
       source,
       causeId: options.causeId,
-      timestamp: this.#now(),
-      started,
+      ...clocks,
     };
     const gate = models.gate(this.#ledger, {
       known: null,
@@ -1077,9 +1212,11 @@ class WorkspaceImpl implements Workspace {
     }
     const before = this.#state;
     let scene: SceneSnapshot;
+    let durationMs: number;
     try {
       scene = validateSceneSnapshot(snapshot);
       this.#checkUsable(scene, snapshot);
+      durationMs = this.#elapsed(meta);
     } catch (error) {
       const signal =
         error instanceof SwfFailure
@@ -1119,7 +1256,7 @@ class WorkspaceImpl implements Workspace {
       layout: layoutChanged(before, outcome),
       snapshotRevision: BigInt(scene.revision),
     });
-    return this.#commit(outcome, meta, decision, {
+    return this.#commit(outcome, meta, durationMs, decision, {
       idempotencyKey: null,
       previewId: null,
       history: null,
@@ -1148,12 +1285,7 @@ class WorkspaceImpl implements Workspace {
       if (provider === undefined) {
         throw fail(`${path}.kind`, `names geometry kind "${kind}", which is not registered here`);
       }
-      let issue: string | null;
-      try {
-        issue = provider.validate(params, surface.bounds, this.#geometryLimits);
-      } catch (error) {
-        issue = `geometry provider "${kind}" failed: ${error instanceof Error ? error.message : String(error)}`;
-      }
+      const issue = geometryParamsIssue(provider, params, surface.bounds, this.#geometryLimits);
       if (issue !== null) {
         throw fail(`${path}.params`, `is invalid: ${issue}`);
       }
@@ -1165,12 +1297,7 @@ class WorkspaceImpl implements Workspace {
       if (kind === undefined) {
         throw fail(`${path}.id`, `names projection "${id}", which is not registered here`);
       }
-      let issue: string | null;
-      try {
-        issue = kind.configIssue(config);
-      } catch (error) {
-        issue = `projection "${id}" failed: ${error instanceof Error ? error.message : String(error)}`;
-      }
+      const issue = projectionConfigIssue(kind, config);
       if (issue !== null) {
         throw fail(`${path}.config`, `is invalid: ${issue}`);
       }
@@ -1192,6 +1319,8 @@ class WorkspaceImpl implements Workspace {
   #commit(
     outcome: ApplyOutcome,
     meta: Meta,
+    /** How long the operation took, read before anything is changed. */
+    durationMs: number,
     /** What the kernel model decided the commit does to the revision and the history. */
     decision: {
       readonly next: Ledger;
@@ -1241,6 +1370,7 @@ class WorkspaceImpl implements Workspace {
         source: meta.source,
         causeId: meta.transactionId,
         phase: 'committed',
+        timestamp: meta.timestamp,
       });
     }
     this.#emit(
@@ -1256,11 +1386,16 @@ class WorkspaceImpl implements Workspace {
         previewId: extra.previewId,
         history: extra.history,
         commands: extra.commands,
-        durationMs: this.#timer() - meta.started,
+        durationMs,
       },
-      { source: meta.source, causeId: meta.causeId ?? meta.transactionId, phase: 'committed' },
+      {
+        source: meta.source,
+        causeId: meta.causeId ?? meta.transactionId,
+        phase: 'committed',
+        timestamp: meta.timestamp,
+      },
     );
-    this.#refreshPreviews();
+    this.#refreshPreviews(meta.timestamp);
     return Object.freeze({
       status: 'committed',
       transactionId: meta.transactionId,
@@ -1300,8 +1435,13 @@ class WorkspaceImpl implements Workspace {
    * CONFLICT and history is left as it was.
    */
   #travel(action: 'undo' | 'redo', rawOptions: unknown): TxOutcome {
-    const started = this.#timer();
     const transactionId = this.#nextTransactionId();
+    let clocks: Clocks;
+    try {
+      clocks = this.#clocks();
+    } catch (error) {
+      return this.#reject(transactionId, error, null);
+    }
     let options: CheckedTxOptions;
     try {
       options = checkTxOptions(rawOptions, ['source', 'causeId']);
@@ -1310,15 +1450,14 @@ class WorkspaceImpl implements Workspace {
         source: 'host',
         causeId: null,
         commands: [],
-        started,
+        ...clocks,
       });
     }
     const meta: Meta = {
       transactionId,
       source: options.source,
       causeId: options.causeId,
-      timestamp: this.#now(),
-      started,
+      ...clocks,
     };
     const undoing = action === 'undo';
     const stack = undoing ? this.#undo : this.#redo;
@@ -1375,6 +1514,12 @@ class WorkspaceImpl implements Workspace {
     if (record === undefined) {
       throw new Error(`the kernel model took an ${action} the workspace has no record of`);
     }
+    let durationMs: number;
+    try {
+      durationMs = this.#elapsed(meta);
+    } catch (error) {
+      return this.#reject(transactionId, error, { ...meta, commands: [] });
+    }
     const nodesTarget = undoing ? record.nodesBefore : record.nodesAfter;
     const surfacesTarget = undoing ? record.surfacesBefore : record.surfacesAfter;
     const rootsTarget = undoing ? record.rootsBefore : record.rootsAfter;
@@ -1404,6 +1549,7 @@ class WorkspaceImpl implements Workspace {
         createdIds: Object.freeze([]),
       },
       meta,
+      durationMs,
       { next: travel.next, clearRedo: false, push: false, dropOldest: false },
       {
         idempotencyKey: null,
@@ -1416,6 +1562,12 @@ class WorkspaceImpl implements Workspace {
 
   #preview(previewId: unknown, commands: unknown, rawOptions: unknown): PreviewOutcome {
     const transactionId = this.#nextTransactionId();
+    let timestamp: number;
+    try {
+      timestamp = this.#read('now');
+    } catch (error) {
+      return this.#reject(transactionId, error, null);
+    }
     let options: CheckedTxOptions;
     try {
       if (typeof previewId !== 'string' || previewId.trim() === '') {
@@ -1436,7 +1588,7 @@ class WorkspaceImpl implements Workspace {
       changedSurfaceIds: readonly Id[];
     };
     try {
-      preview = this.#previewState(commands, options.source);
+      preview = this.#applyOnto(this.#state, commands, options.source, timestamp);
     } catch (error) {
       return this.#reject(transactionId, error, null);
     }
@@ -1445,6 +1597,7 @@ class WorkspaceImpl implements Workspace {
       commands: commands as readonly SceneCommand[],
       source: options.source,
       causeId: options.causeId,
+      timestamp,
       state: preview.state,
     });
     // Open previews are presented together; one that cannot join the others is refused.
@@ -1469,25 +1622,22 @@ class WorkspaceImpl implements Workspace {
         source: options.source,
         causeId: options.causeId ?? previewId,
         phase: 'preview',
+        timestamp,
       },
     );
     return Object.freeze({ status: 'previewed', previewId, ...changed });
   }
 
-  #previewState(
-    commands: unknown,
-    source: EventSource,
-  ): { state: SceneState; changedNodeIds: readonly Id[]; changedSurfaceIds: readonly Id[] } {
-    return this.#applyOnto(this.#state, commands, source);
-  }
-
-  /** `commands` applied to `base` as a preview: a scene at the committed revision. */
+  /**
+   * `commands` applied to `base` as a preview, at `timestamp`: a scene at the committed revision.
+   */
   #applyOnto(
     base: SceneState,
     commands: unknown,
     source: EventSource,
+    timestamp: number,
   ): { state: SceneState; changedNodeIds: readonly Id[]; changedSurfaceIds: readonly Id[] } {
-    const outcome = applyCommands(base, commands, this.#applyContext(source, this.#now()));
+    const outcome = applyCommands(base, commands, this.#applyContext(source, timestamp));
     const state: SceneState = Object.freeze({
       workspaceId: this.id,
       revision: this.#state.revision,
@@ -1507,12 +1657,16 @@ class WorkspaceImpl implements Workspace {
     };
   }
 
-  /** Re-applies open previews to the newly committed scene, ending those that no longer apply. */
-  #refreshPreviews(): void {
+  /**
+   * Re-applies open previews to the newly committed scene, at the commit's `timestamp`, ending
+   * those that no longer apply.
+   */
+  #refreshPreviews(timestamp: number): void {
     for (const [previewId, record] of [...this.#previews]) {
       try {
-        const preview = this.#previewState(record.commands, record.source);
+        const preview = this.#applyOnto(this.#state, record.commands, record.source, timestamp);
         record.state = preview.state;
+        record.timestamp = timestamp;
         this.#emit(
           'transform.preview',
           {
@@ -1524,6 +1678,7 @@ class WorkspaceImpl implements Workspace {
             source: record.source,
             causeId: record.causeId ?? previewId,
             phase: 'preview',
+            timestamp,
           },
         );
       } catch (error) {
@@ -1540,27 +1695,35 @@ class WorkspaceImpl implements Workspace {
                   ? 'constraint-rejected'
                   : 'invalidated',
           },
-          { source: record.source, causeId: previewId, phase: 'cancelled' },
+          { source: record.source, causeId: previewId, phase: 'cancelled', timestamp },
         );
       }
     }
-    // The previews that still apply each on their own must also apply together: drop the newest
-    // until they do.
+    this.#keepCombinable(timestamp);
+  }
+
+  /**
+   * Keeps the open previews presentable together: while they do not apply together, the newest is
+   * ended as invalidated (at `timestamp`). Run whenever the committed scene or the set of open
+   * previews changes, so presenting them never applies anything.
+   */
+  #keepCombinable(timestamp: number): void {
     for (;;) {
       try {
         this.#combined();
         return;
-      } catch {
+      } catch (error) {
         const newest = [...this.#previews.entries()].at(-1);
         if (newest === undefined) {
-          return;
+          // With no preview open the committed scene itself is presented, which cannot fail.
+          throw new Error('the committed scene failed to present', { cause: error });
         }
         const [previewId, record] = newest;
         this.#previews.delete(previewId);
         this.#emit(
           'preview.cancelled',
           { previewId, reason: 'invalidated' },
-          { source: record.source, causeId: previewId, phase: 'cancelled' },
+          { source: record.source, causeId: previewId, phase: 'cancelled', timestamp },
         );
       }
     }
@@ -1586,12 +1749,18 @@ class WorkspaceImpl implements Workspace {
     }
     let state = this.#state;
     for (const record of records) {
-      state = this.#applyOnto(state, record.commands, record.source).state;
+      state = this.#applyOnto(state, record.commands, record.source, record.timestamp).state;
     }
     this.#presented = { state: this.#state, previews: records, result: state };
     return state;
   }
 
+  /**
+   * Reports `error` as the operation's rejection, sending `transaction.rejected` when `meta` is
+   * given and the workspace is ready. A rejection whose duration cannot be timed, because the
+   * timer fails, is reported as the timer's failure instead, and sent nowhere: no event can be
+   * made without the clock.
+   */
   #reject(
     transactionId: string,
     error: unknown,
@@ -1600,10 +1769,19 @@ class WorkspaceImpl implements Workspace {
       causeId: string | null;
       commands: unknown;
       started: number;
+      timestamp: number;
     } | null,
   ): TxRejected {
     if (!(error instanceof RejectionSignal)) {
       throw error;
+    }
+    let durationMs = 0;
+    if (meta !== null && this.#ready()) {
+      try {
+        durationMs = this.#elapsed(meta);
+      } catch (clockError) {
+        return this.#reject(transactionId, clockError, null);
+      }
     }
     const swfError = makeError(error.code, error.message, {
       workspaceId: this.id,
@@ -1619,9 +1797,14 @@ class WorkspaceImpl implements Workspace {
           transactionId,
           commandTypes: commandTypesOf(meta.commands),
           error: swfError,
-          durationMs: this.#timer() - meta.started,
+          durationMs,
         },
-        { source: meta.source, causeId: meta.causeId ?? transactionId, phase: 'rejected' },
+        {
+          source: meta.source,
+          causeId: meta.causeId ?? transactionId,
+          phase: 'rejected',
+          timestamp: meta.timestamp,
+        },
       );
     }
     return Object.freeze({
@@ -1660,22 +1843,19 @@ class WorkspaceImpl implements Workspace {
   #emit<T extends WorkspaceEvent['type']>(
     type: T,
     payload: Extract<WorkspaceEvent, { type: T }>['payload'],
-    how: { source: EventSource; causeId: string | null; phase: OperationPhase },
+    how: EmitHow,
   ): void {
     this.#emitPending({ type, payload }, how);
   }
 
-  #emitPending(
-    event: PendingEvent,
-    how: { source: EventSource; causeId: string | null; phase: OperationPhase },
-  ): void {
+  #emitPending(event: PendingEvent, how: EmitHow): void {
     this.#eventSeq += 1;
     const built = Object.freeze({
       id: `${this.id}/ev-${String(this.#eventSeq)}`,
       type: event.type,
       workspaceId: this.id,
       revision: this.#state.revision,
-      timestamp: this.#now(),
+      timestamp: how.timestamp,
       source: how.source,
       causationId: how.causeId,
       phase: how.phase,
@@ -1716,13 +1896,25 @@ class WorkspaceImpl implements Workspace {
     }
     if (!this.#flushRequested && this.#frameBoundary !== undefined) {
       this.#flushRequested = true;
-      this.#frameBoundary(() => {
+      try {
+        this.#frameBoundary(() => {
+          this.#flushRequested = false;
+          if (this.#held.size > 0 && models.delivers(this.#ledger.lifecycle)) {
+            this.#releaseHeld();
+            this.#drain();
+          }
+        });
+      } catch (error) {
+        // No boundary will come: what is held goes out with the operation's other events.
         this.#flushRequested = false;
-        if (this.#held.size > 0 && models.delivers(this.#ledger.lifecycle)) {
-          this.#releaseHeld();
-          this.#drain();
-        }
-      });
+        this.#releaseHeld();
+        this.#diagnose({
+          code: 'FRAME_BOUNDARY_THREW',
+          message: `frameBoundary threw: ${thrownText(error)}; the held preview events were delivered at once`,
+          timestamp: event.timestamp,
+          details: { eventId: event.id, eventType: event.type },
+        });
+      }
     }
   }
 
@@ -1740,18 +1932,28 @@ class WorkspaceImpl implements Workspace {
    */
   #schedule<T>(op: () => T): T | Queued<T> {
     if (this.#delivering) {
-      let resolve: (value: T) => void = () => undefined;
-      const completion = new Promise<T>((r) => {
-        resolve = r;
+      let run: () => void = () => undefined;
+      const completion = new Promise<T>((resolve, reject) => {
+        run = () => {
+          let result: T;
+          try {
+            result = op();
+          } catch (error) {
+            // Settled either way: the queue goes on with the next operation.
+            reject(asError(error));
+            return;
+          }
+          resolve(result);
+        };
       });
-      this.#queue.push(() => {
-        resolve(op());
-      });
+      this.#queue.push(run);
       return Object.freeze({ status: 'queued', completion });
     }
-    const result = op();
-    this.#drain();
-    return result;
+    try {
+      return op();
+    } finally {
+      this.#drain();
+    }
   }
 
   #drain(): void {
@@ -1796,8 +1998,8 @@ class WorkspaceImpl implements Workspace {
       } catch (error) {
         this.#diagnose({
           code: 'LISTENER_THREW',
-          message: `a listener threw while handling ${event.type}: ${error instanceof Error ? error.message : String(error)}`,
-          timestamp: this.#now(),
+          message: `a listener threw while handling ${event.type}: ${thrownText(error)}`,
+          timestamp: event.timestamp,
           details: { eventId: event.id, eventType: event.type },
         });
       }
@@ -1825,11 +2027,16 @@ class WorkspaceImpl implements Workspace {
           source: 'system',
           causeId: record.causeId ?? previewId,
           phase: 'cancelled',
+          timestamp: this.#disposedAt,
         },
       );
     }
     this.#previews.clear();
-    this.#emit('workspace.disposed', {}, { source: 'system', causeId: null, phase: 'committed' });
+    this.#emit(
+      'workspace.disposed',
+      {},
+      { source: 'system', causeId: null, phase: 'committed', timestamp: this.#disposedAt },
+    );
   }
 
   #finishDisposal(): void {
@@ -1842,6 +2049,13 @@ class WorkspaceImpl implements Workspace {
     this.#resolveDisposed?.();
     this.#resolveDisposed = null;
   }
+}
+
+/** What was thrown, as an Error: itself when it is one, else an Error carrying it as `cause`. */
+function asError(thrown: unknown): Error {
+  return thrown instanceof Error
+    ? thrown
+    : new Error(`the operation threw ${describeAnswer(thrown)}`, { cause: thrown });
 }
 
 const UNDO: Direction = Object.freeze({ kind: 'undo' });
@@ -1921,6 +2135,8 @@ interface CheckedOptions {
   readonly diagnosticsCapacity: number;
   readonly now: () => number;
   readonly timer: () => number;
+  /** The option the timer is: `timer` when given, else `now` (which defaults to `Date.now`). */
+  readonly timerOption: 'now' | 'timer';
   readonly createId: (() => Id) | undefined;
   readonly constraints: readonly Constraint[];
   readonly geometry: readonly GeometryProvider[];
@@ -1993,6 +2209,7 @@ function checkOptions(options: WorkspaceOptions): CheckedOptions {
     diagnosticsCapacity: integer('diagnosticsCapacity', 100, 1, Number.MAX_SAFE_INTEGER),
     now: options.now ?? Date.now,
     timer: options.timer ?? options.now ?? Date.now,
+    timerOption: options.timer === undefined ? 'now' : 'timer',
     createId: options.createId,
     constraints: options.constraints ?? [],
     geometry: options.geometry ?? [],

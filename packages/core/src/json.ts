@@ -171,3 +171,24 @@ export function describe(value: unknown): string {
   }
   return typeof value;
 }
+
+/**
+ * What a host callback answered, for a rejection's message: a number or boolean as itself, any
+ * other value by its kind.
+ */
+export function describeAnswer(value: unknown): string {
+  switch (typeof value) {
+    case 'number':
+    case 'boolean':
+      return String(value);
+    case 'undefined':
+      return 'undefined';
+    case 'string':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return `a ${typeof value}`;
+    default:
+      return describe(value);
+  }
+}

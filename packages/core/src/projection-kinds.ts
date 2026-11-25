@@ -1,5 +1,6 @@
+import { thrownText } from './errors.js';
 import type { JsonValue } from './json.js';
-import { describe } from './json.js';
+import { describe, describeAnswer } from './json.js';
 import { VERSIONED_ID } from './validate.js';
 
 /**
@@ -12,10 +13,28 @@ export interface ProjectionKind {
   readonly id: string;
   /**
    * Why `config` is invalid for this projection, or null when it is valid. It must be
-   * deterministic and free of side effects; when it throws, the configuration is refused with
-   * `INVALID_INPUT` (or `SNAPSHOT_INVALID` on a restore) quoting what it threw.
+   * deterministic and free of side effects; when it throws or answers anything but text or null,
+   * the configuration is refused with `INVALID_INPUT` (or `SNAPSHOT_INVALID` on a restore), naming
+   * the projection and quoting what it threw or answered.
    */
   configIssue(config: JsonValue): string | null;
+}
+
+/**
+ * What `kind.configIssue` finds wrong with `config`, or null when it is valid. A configIssue that
+ * throws or answers anything but text or null is reported as the issue, naming the projection.
+ */
+export function projectionConfigIssue(kind: ProjectionKind, config: JsonValue): string | null {
+  let issue: unknown;
+  try {
+    issue = kind.configIssue(config);
+  } catch (error) {
+    return `projection "${kind.id}": its configIssue threw: ${thrownText(error)}`;
+  }
+  if (issue === null || typeof issue === 'string') {
+    return issue;
+  }
+  return `projection "${kind.id}": its configIssue returned ${describeAnswer(issue)}, not text or null`;
 }
 
 /** The projection kinds a workspace accepts viewports for. */

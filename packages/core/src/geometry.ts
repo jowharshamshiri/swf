@@ -7,8 +7,9 @@ import {
   normalize,
   sub,
 } from '@swf/math';
+import { thrownText } from './errors.js';
 import type { JsonValue } from './json.js';
-import { describe } from './json.js';
+import { describe, describeAnswer } from './json.js';
 
 /**
  * Describes a surface's presentation geometry, independently of what it shows. `params` is
@@ -83,7 +84,8 @@ export interface GeometryProvider {
   readonly fidelity: GeometryFidelity;
   /**
    * Why `params` are invalid for a surface of `bounds`, or null when they are valid. When it
-   * throws, the params are refused quoting what it threw.
+   * throws or answers anything but text or null, the params are refused with `INVALID_INPUT` (or
+   * `SNAPSHOT_INVALID` on a restore), naming the provider and quoting what it threw or answered.
    */
   validate(params: JsonValue, bounds: Vec3, limits: GeometryLimits): string | null;
   /** The geometry's box in the surface's local frame. */
@@ -378,6 +380,28 @@ export interface WorldHit {
   readonly localPoint: Vec3;
   /** The hit's UV coordinates, as the geometry's provider maps them (origin top-left). */
   readonly uv: readonly [number, number];
+}
+
+/**
+ * What `provider.validate` finds wrong with `params`, or null when they are valid. A validate that
+ * throws or answers anything but text or null is reported as the issue, naming the provider.
+ */
+export function geometryParamsIssue(
+  provider: GeometryProvider,
+  params: JsonValue,
+  bounds: Vec3,
+  limits: GeometryLimits,
+): string | null {
+  let issue: unknown;
+  try {
+    issue = provider.validate(params, bounds, limits);
+  } catch (error) {
+    return `geometry provider "${provider.kind}": its validate threw: ${thrownText(error)}`;
+  }
+  if (issue === null || typeof issue === 'string') {
+    return issue;
+  }
+  return `geometry provider "${provider.kind}": its validate returned ${describeAnswer(issue)}, not text or null`;
 }
 
 /** Places a descriptor in the world through `world`, the surface-local to world matrix. */

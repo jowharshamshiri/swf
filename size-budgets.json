@@ -16,8 +16,8 @@
   "@swf/core": {
     "budget": 24576,
     "recorded": {
-      "minified": 79204,
-      "gzip": 22133
+      "minified": 82529,
+      "gzip": 22958
     }
   },
   "@swf/surfaces": {

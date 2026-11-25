@@ -326,7 +326,11 @@ export type WorkspaceEvent = {
     readonly workspaceId: Id;
     /** The scene revision the event belongs to. */
     readonly revision: number;
-    /** When the event was made, by the workspace's clock, in milliseconds. */
+    /**
+     * When the operation that sent the event happened, by the workspace's clock, in milliseconds:
+     * the clock is read once as an operation begins, so every event of one operation carries the
+     * same time.
+     */
     readonly timestamp: number;
     /** Who originated the operation that caused the event. */
     readonly source: EventSource;

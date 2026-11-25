@@ -556,6 +556,6 @@ describe('surface geometry', () => {
     expect(
       rejected(ws.dispatch(surface('s', 'w', { geometry: { kind: 'host.bad', params: null } })))
         .error.message,
-    ).toMatch(/failed: boom/);
+    ).toMatch(/geometry provider "host\.bad": its validate threw: boom/);
   });
 });

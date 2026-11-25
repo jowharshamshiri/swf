@@ -18,6 +18,8 @@ import {
   transformApproxEquals,
   transformIssue,
 } from '@swf/math';
+import { thrownText } from './errors.js';
+import { describeAnswer } from './json.js';
 import type { NodeRecord } from './model.js';
 import { isSelfOrAncestor, worldMatrix } from './query.js';
 import type { RecordLookup } from './table.js';
@@ -69,12 +71,19 @@ export interface Constraint {
   readonly order: number;
   /** Whether the constraint must hold after every commit, rather than being a preference. */
   readonly required: boolean;
-  /** Which nodes the constraint governs. Omitted: every node. */
+  /**
+   * Which nodes the constraint governs. Omitted: every node. It runs synchronously inside the
+   * transaction and must not change anything. One that throws or answers anything but a boolean
+   * makes the constraint defective, as `resolve` does.
+   */
   appliesTo?(node: NodeRecord): boolean;
   /**
-   * Decides one node's proposed placement. It runs synchronously inside the transaction and must
-   * not change anything. A constraint that throws or accepts an invalid transform is treated as
-   * defective, required or not: the transaction is rejected with `CONSTRAINT_REJECTED`.
+   * Decides one node's proposed placement. It runs synchronously inside the transaction, possibly
+   * more than once for one placement, and must not change anything. A constraint whose `resolve`
+   * or `appliesTo` throws, or answers what it may not (anything but an outcome, or an accepted
+   * transform that is invalid), is treated as defective, required or not: the transaction is
+   * rejected with `CONSTRAINT_REJECTED`, its message naming the constraint, the callback and what
+   * it threw or answered, and the scene is left unchanged.
    */
   resolve(input: ConstraintInput): ConstraintOutcome;
 }
@@ -319,32 +328,94 @@ export type ResolveResult =
   | { readonly ok: true; readonly transform: Transform3D }
   | { readonly ok: false; readonly constraintId: string; readonly reason: string };
 
-type Attempt = { ok: true; outcome: ConstraintOutcome } | { ok: false; reason: string };
+/** A constraint's callback that threw or answered what it may not: why, for the rejection. */
+interface Defect {
+  readonly ok: false;
+  readonly reason: string;
+}
 
+type Attempt = { readonly ok: true; readonly outcome: ConstraintOutcome } | Defect;
+
+/** Why `outcome` is not an outcome `resolve` may return, or null when it is one. */
+function outcomeIssue(outcome: unknown): string | null {
+  if (typeof outcome !== 'object' || outcome === null) {
+    return `returned ${describeAnswer(outcome)}, not an outcome`;
+  }
+  const { kind } = outcome as { kind?: unknown };
+  if (kind === 'reject') {
+    const { reason } = outcome as { reason?: unknown };
+    return typeof reason === 'string'
+      ? null
+      : `returned a rejection whose reason is ${describeAnswer(reason)}, not text`;
+  }
+  if (kind !== 'accept') {
+    return `returned an outcome of kind ${describeAnswer(kind)}, not "accept" or "reject"`;
+  }
+  const { transform } = outcome as { transform?: unknown };
+  if (typeof transform !== 'object' || transform === null) {
+    return `accepted ${describeAnswer(transform)}, not a transform`;
+  }
+  for (const [field, length] of [
+    ['position', 3],
+    ['rotation', 4],
+    ['scale', 3],
+  ] as const) {
+    const value = (transform as Record<string, unknown>)[field];
+    if (!Array.isArray(value) || value.length !== length) {
+      return `produced an invalid transform: ${field} must be an array of ${String(length)} numbers`;
+    }
+  }
+  const issue = transformIssue(transform as Transform3D);
+  return issue === null ? null : `produced an invalid transform: ${issue}`;
+}
+
+/** Runs `constraint.resolve`, reporting a throw or a malformed answer as the constraint's defect. */
 function attempt(constraint: Constraint, input: ConstraintInput): Attempt {
-  let outcome: ConstraintOutcome;
+  let outcome: unknown;
   try {
     outcome = constraint.resolve(input);
   } catch (error) {
+    return { ok: false, reason: `its resolve threw: ${thrownText(error)}` };
+  }
+  const issue = outcomeIssue(outcome);
+  if (issue !== null) {
+    return { ok: false, reason: `its resolve ${issue}` };
+  }
+  return { ok: true, outcome: outcome as ConstraintOutcome };
+}
+
+/**
+ * Whether `constraint` governs `node`: true when it has no `appliesTo`. An `appliesTo` that throws
+ * or answers anything but a boolean is the constraint's defect, with the reason.
+ */
+export function constraintApplies(
+  constraint: Constraint,
+  node: NodeRecord,
+): { readonly ok: true; readonly applies: boolean } | Defect {
+  if (constraint.appliesTo === undefined) {
+    return { ok: true, applies: true };
+  }
+  let applies: unknown;
+  try {
+    applies = constraint.appliesTo(node);
+  } catch (error) {
+    return { ok: false, reason: `its appliesTo threw: ${thrownText(error)}` };
+  }
+  if (typeof applies !== 'boolean') {
     return {
       ok: false,
-      reason: `it threw: ${error instanceof Error ? error.message : String(error)}`,
+      reason: `its appliesTo returned ${describeAnswer(applies)}, not a boolean`,
     };
   }
-  if (outcome.kind === 'accept') {
-    const issue = transformIssue(outcome.transform);
-    if (issue !== null) {
-      return { ok: false, reason: `it produced an invalid transform: ${issue}` };
-    }
-  }
-  return { ok: true, outcome };
+  return { ok: true, applies };
 }
 
 /**
  * Resolves one node's proposed transform through `constraints` (already sorted and filtered to the
  * node). Required constraints adjust or reject; optional ones apply only when the required ones
  * still accept the result unchanged. Finally every required constraint must accept the outcome
- * unchanged, or the placement is rejected as unsatisfiable.
+ * unchanged, or the placement is rejected as unsatisfiable. A constraint whose `resolve` throws
+ * or answers what it may not rejects the placement, naming it, whenever it is called.
  */
 export function resolveConstraints(
   constraints: readonly Constraint[],
@@ -352,20 +423,30 @@ export function resolveConstraints(
   proposal: Transform3D,
 ): ResolveResult {
   const required = constraints.filter((c) => c.required);
-  const holds = (c: Constraint, transform: Transform3D): boolean => {
-    const result = attempt(c, { ...input, transform });
-    return (
-      result.ok &&
-      result.outcome.kind === 'accept' &&
-      transformApproxEquals(result.outcome.transform, transform)
-    );
+  /** The first required constraint that does not accept `transform` unchanged, and why. */
+  const firstBroken = (
+    transform: Transform3D,
+  ): { readonly constraint: Constraint; readonly defect: string | null } | null => {
+    for (const constraint of required) {
+      const result = attempt(constraint, { ...input, transform });
+      if (!result.ok) {
+        return { constraint, defect: result.reason };
+      }
+      if (
+        result.outcome.kind !== 'accept' ||
+        !transformApproxEquals(result.outcome.transform, transform)
+      ) {
+        return { constraint, defect: null };
+      }
+    }
+    return null;
   };
   let transform = proposal;
   for (const constraint of constraints) {
     const result = attempt(constraint, { ...input, transform });
     if (!result.ok) {
-      // A constraint that throws or returns an invalid transform is defective, whether it is
-      // required or optional; the placement is rejected rather than resolved without it.
+      // A constraint that throws or answers what it may not is defective, whether it is required
+      // or optional; the placement is rejected rather than resolved without it.
       return { ok: false, constraintId: constraint.id, reason: result.reason };
     }
     if (result.outcome.kind === 'reject') {
@@ -375,16 +456,24 @@ export function resolveConstraints(
       continue;
     }
     const candidate = result.outcome.transform;
-    if (constraint.required || required.every((c) => holds(c, candidate))) {
+    if (constraint.required) {
+      transform = candidate;
+      continue;
+    }
+    const broken = firstBroken(candidate);
+    if (broken !== null && broken.defect !== null) {
+      return { ok: false, constraintId: broken.constraint.id, reason: broken.defect };
+    }
+    if (broken === null) {
       transform = candidate;
     }
   }
-  const broken = required.find((c) => !holds(c, transform));
-  if (broken !== undefined) {
+  const broken = firstBroken(transform);
+  if (broken !== null) {
     return {
       ok: false,
-      constraintId: broken.id,
-      reason: 'the required constraints cannot all be satisfied together',
+      constraintId: broken.constraint.id,
+      reason: broken.defect ?? 'the required constraints cannot all be satisfied together',
     };
   }
   return { ok: true, transform };

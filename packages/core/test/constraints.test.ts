@@ -173,7 +173,9 @@ describe('constraint resolution', () => {
       },
     };
     const ws = makeWorkspace({ constraints: [throwing] });
-    expect(rejected(ws.dispatch(window('a'))).error.message).toMatch(/"broken".*it threw: boom/);
+    expect(rejected(ws.dispatch(window('a'))).error.message).toMatch(
+      /"broken".*its resolve threw: boom/,
+    );
     const invalid: Constraint = {
       id: 'nan',
       order: 0,

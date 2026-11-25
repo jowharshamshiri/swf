@@ -15,10 +15,10 @@ import {
 import type { EventSource, KeepMode, OperationType, SceneCommandType } from './commands.js';
 import { SCENE_COMMAND_TYPES } from './commands.js';
 import type { Constraint } from './constraints.js';
-import { resolveConstraints } from './constraints.js';
-import { RejectionSignal } from './errors.js';
+import { constraintApplies, resolveConstraints } from './constraints.js';
+import { RejectionSignal, thrownText } from './errors.js';
 import type { GeometryDescriptor, GeometryLimits, GeometryRegistry } from './geometry.js';
-import { jsonByteLength, RECT_GEOMETRY } from './geometry.js';
+import { geometryParamsIssue, jsonByteLength, RECT_GEOMETRY } from './geometry.js';
 import type { Metadata } from './json.js';
 import { checkMetadataKey, copyJson, copyMetadata, describe } from './json.js';
 import type {
@@ -33,6 +33,7 @@ import type {
 } from './model.js';
 import { DEFAULT_FLAGS } from './model.js';
 import type { ProjectionKindRegistry } from './projection-kinds.js';
+import { projectionConfigIssue } from './projection-kinds.js';
 import {
   ancestorIds,
   descendantIds,
@@ -454,12 +455,7 @@ class Draft {
       throw invalid(`${path}.config`, 'is required (null when the projection takes none)');
     }
     const config = copyJson(record['config'], `${path}.config`);
-    let issue: string | null;
-    try {
-      issue = kind.configIssue(config);
-    } catch (error) {
-      issue = `projection "${id}" failed: ${error instanceof Error ? error.message : String(error)}`;
-    }
+    const issue = projectionConfigIssue(kind, config);
     if (issue !== null) {
       throw invalid(`${path}.config`, `is invalid: ${issue}`);
     }
@@ -939,12 +935,7 @@ class Draft {
         `is ${size} bytes, more than the limit of ${this.#ctx.geometryLimits.maxParamsBytes}`,
       );
     }
-    let issue: string | null;
-    try {
-      issue = provider.validate(params, bounds, this.#ctx.geometryLimits);
-    } catch (error) {
-      issue = `geometry provider "${kind}" failed: ${error instanceof Error ? error.message : String(error)}`;
-    }
+    const issue = geometryParamsIssue(provider, params, bounds, this.#ctx.geometryLimits);
     if (issue !== null) {
       throw invalid(`${path}.params`, `is invalid: ${issue}`);
     }
@@ -1100,7 +1091,16 @@ class Draft {
     order.sort((a, b) => depth(a) - depth(b));
     for (const id of order) {
       const node = this.#requireNode(id, `nodes.${id}`);
-      const applicable = constraints.filter((c) => c.appliesTo === undefined || c.appliesTo(node));
+      const applicable: Constraint[] = [];
+      for (const constraint of constraints) {
+        const governs = constraintApplies(constraint, node);
+        if (!governs.ok) {
+          throw this.#defective(constraint.id, id, governs.reason);
+        }
+        if (governs.applies) {
+          applicable.push(constraint);
+        }
+      }
       if (applicable.length === 0) {
         continue;
       }
@@ -1116,16 +1116,21 @@ class Draft {
         node.transform,
       );
       if (!result.ok) {
-        throw new RejectionSignal(
-          'CONSTRAINT_REJECTED',
-          `constraint "${result.constraintId}" rejected the placement of "${id}": ${result.reason}`,
-          { entityId: id, details: { constraintId: result.constraintId } },
-        );
+        throw this.#defective(result.constraintId, id, result.reason);
       }
       if (result.transform !== node.transform) {
         this.#putNode({ ...node, transform: freezeTransform(result.transform) });
       }
     }
+  }
+
+  /** The rejection of node `id`'s placement by constraint `constraintId`, saying why. */
+  #defective(constraintId: string, id: Id, reason: string): RejectionSignal {
+    return new RejectionSignal(
+      'CONSTRAINT_REJECTED',
+      `constraint "${constraintId}" rejected the placement of "${id}": ${reason}`,
+      { entityId: id, details: { constraintId } },
+    );
   }
 
   #assertUnlocked(
@@ -1185,13 +1190,25 @@ class Draft {
     return id;
   }
 
-  /** A generated ID, also avoiding `reserved` (IDs chosen but not yet written). */
+  /**
+   * A generated ID, also avoiding `reserved` (IDs chosen but not yet written). A `createId` that
+   * throws rejects the transaction at the generated ID's path, naming it.
+   */
   #freshId(path: string, reserved: ReadonlySet<Id> = NO_IDS): Id {
-    const id = this.#ctx.createId((candidate) => this.#inUse(candidate) || reserved.has(candidate));
-    if (reserved.has(id)) {
-      throw invalid(`${path} (generated)`, `"${id}" is already in use in this workspace`);
+    let id: unknown;
+    try {
+      id = this.#ctx.createId((candidate) => this.#inUse(candidate) || reserved.has(candidate));
+    } catch (error) {
+      throw invalid(
+        `${path} (generated)`,
+        `could not be made: createId threw: ${thrownText(error)}`,
+      );
     }
-    return this.#unusedId(id, `${path} (generated)`);
+    const fresh = expectId(id, `${path} (generated)`);
+    if (reserved.has(fresh)) {
+      throw invalid(`${path} (generated)`, `"${fresh}" is already in use in this workspace`);
+    }
+    return this.#unusedId(fresh, `${path} (generated)`);
   }
 
   #children(parentId: Id | null): Id[] {

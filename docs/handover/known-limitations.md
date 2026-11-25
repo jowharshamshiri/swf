@@ -42,10 +42,6 @@ What SWF does not do, or does not do yet. Each item says why and what a host can
 
 These were found while documenting the API; the JSDoc states today's behaviour.
 
-- **A throwing host callback escapes a transaction.** If a constraint's `appliesTo` or the
-  workspace's `createId` throws, `transaction()` throws instead of returning a rejection (a
-  throwing `resolve` is a `CONSTRAINT_REJECTED` rejection), and an operation queued from a
-  listener whose run throws leaves its `completion` unsettled.
 - **Restore does not limit surface geometry's size**, which transactions do (`maxParamsBytes`).
 - **`Table.fromMap`** wraps the caller's map without copying it, so that map can still change the
   table.

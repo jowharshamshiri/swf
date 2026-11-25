@@ -124,3 +124,8 @@ export function makeError(
   };
   return Object.freeze(error);
 }
+
+/** What a host callback threw, as text for a rejection's message: an error's message, or the value. */
+export function thrownText(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
