@@ -392,9 +392,11 @@ describe('surface geometry', () => {
         }),
       ),
     );
-    expect(
-      rejected(ws.dispatch({ type: 'surface.patch', id: 's', bounds: [1, 1, 0.01] })).error.path,
-    ).toBe('commands[0].bounds.params');
+    const unfit = rejected(
+      ws.dispatch({ type: 'surface.patch', id: 's', bounds: [1, 1, 0.01] }),
+    ).error;
+    expect(unfit.path).toBe('commands[0].bounds');
+    expect(unfit.message).toMatch(/does not fit the surface's polygon geometry: .*outside/);
   });
 
   it('rejects unregistered kinds, oversized params and non-JSON params', () => {
@@ -412,7 +414,7 @@ describe('surface geometry', () => {
     expect(
       rejected(ws.dispatch(surface('s', 'w', { geometry: { kind: 'polygon', params: huge } })))
         .error.message,
-    ).toMatch(/more than the limit of 64/);
+    ).toMatch(/more than the maxParamsBytes limit of 64/);
     expect(
       rejected(
         ws.dispatch(
@@ -514,6 +516,75 @@ describe('surface geometry', () => {
       kind: 'host.strip',
     });
     expect(fallback?.intersect(ray([0, 0, 1], [0, 0, -1]))).not.toBeNull();
+  });
+
+  it('refuses resizing a surface whose geometry kind is no longer registered, naming its bounds', () => {
+    const strip: GeometryProvider = {
+      kind: 'host.strip',
+      fidelity: 'approximate',
+      validate: (params) => (typeof params === 'number' ? null : 'params must be a number'),
+      localBounds: (_params, bounds) => ({
+        min: [-bounds[0] / 2, -bounds[1] / 2, 0],
+        max: [bounds[0] / 2, bounds[1] / 2, 0],
+      }),
+      normal: () => [0, 0, 1],
+      intersect: () => null,
+    };
+    const ws = makeWorkspace();
+    const remove = ws.registerGeometry(strip);
+    committed(
+      ws.transaction([
+        window('w'),
+        surface('s', 'w', { geometry: { kind: 'host.strip', params: 0.5 } }),
+      ]),
+    );
+    remove();
+    const refused = rejected(
+      ws.dispatch({ type: 'surface.patch', id: 's', bounds: [2, 2, 0.01] }),
+    ).error;
+    expect(refused).toMatchObject({ code: 'INVALID_INPUT', path: 'commands[0].bounds' });
+    expect(refused.message).toMatch(/geometry kind "host\.strip".*not registered/);
+    expect(ws.getState().surfaces.get('s')?.bounds).toEqual([1.6, 0.9, 0.01]);
+    // A new geometry in the same command is checked on its own, so the resize goes through.
+    committed(
+      ws.dispatch({
+        type: 'surface.patch',
+        id: 's',
+        bounds: [2, 2, 0.01],
+        geometry: { kind: 'rect', params: null },
+      }),
+    );
+    expect(ws.getState().surfaces.get('s')).toMatchObject({
+      bounds: [2, 2, 0.01],
+      geometry: { kind: 'rect', params: null },
+    });
+  });
+
+  it('reads a command’s own fields only, never inherited ones', () => {
+    const ws = makeWorkspace();
+    committed(ws.transaction([window('w'), surface('s', 'w')]));
+    const inherited = Object.assign(Object.create({ params: null }) as object, { kind: 'rect' });
+    expect(
+      rejected(ws.dispatch(surface('t', 'w', { geometry: inherited as never }))).error,
+    ).toMatchObject({ code: 'INVALID_INPUT', path: 'commands[0].surface.geometry.params' });
+    const rebind = Object.assign(Object.create({ bindingKey: 'inherited' }) as object, {
+      type: 'surface.rebind',
+      id: 's',
+    });
+    expect(rejected(ws.dispatch(rebind as never)).error).toMatchObject({
+      code: 'INVALID_INPUT',
+      path: 'commands[0].bindingKey',
+    });
+    expect(ws.getState().surfaces.get('s')?.bindingKey).toBe('key-s');
+  });
+
+  it('refuses a geometry limit named after a prototype member', () => {
+    for (const name of ['constructor', 'toString', 'hasOwnProperty', '__proto__']) {
+      const limits = JSON.parse(`{"${name}": 1}`) as Record<string, number>;
+      expect(() => makeWorkspace({ geometryLimits: limits })).toThrow(
+        `geometryLimits.${name} is not a known limit`,
+      );
+    }
   });
 
   it('rejects geometry providers that are not namespaced, taken or malformed', () => {

@@ -20,3 +20,16 @@ diagnostic carries the time of the event it concerns. A `frameBoundary` that thr
 held preview events go out at once and is recorded as the new `FRAME_BOUNDARY_THREW`
 diagnostic. `cancelPreview` throws, and `dispose()` returns a rejected promise without disposing,
 when the workspace's clock fails.
+
+A restored snapshot's surface geometry is held to the workspace's `maxParamsBytes` limit, as a
+transaction's is: params over it are refused with `SNAPSHOT_INVALID` at the geometry's `params`,
+and a transaction's refusal now names the limit (`more than the maxParamsBytes limit of …`).
+Resizing a surface checks its geometry against the new bounds and, when it does not fit, refuses
+with the path of `bounds`; resizing a surface whose geometry kind is no longer registered is
+refused there too, since its geometry cannot be checked, unless the same command gives a new
+geometry. A table never changes once made: a `TableDraft` copies the entries it is given, and
+`Table` has no factory that wraps a caller's map. Presence checks read a value's own fields only:
+a geometry's `params`, a projection's `config` and a rebind's `bindingKey` inherited from a
+prototype count as missing, a snapshot's flag must be the snapshot's own, and a `geometryLimits`
+entry named after a prototype member (`constructor`, `toString`, `__proto__`) is refused as an
+unknown limit.

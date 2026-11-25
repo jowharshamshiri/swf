@@ -42,13 +42,6 @@ What SWF does not do, or does not do yet. Each item says why and what a host can
 
 These were found while documenting the API; the JSDoc states today's behaviour.
 
-- **Restore does not limit surface geometry's size**, which transactions do (`maxParamsBytes`).
-- **`Table.fromMap`** wraps the caller's map without copying it, so that map can still change the
-  table.
-- **Resizing a surface whose geometry kind was unregistered** is refused unless the same command
-  gives a new geometry, with the error's path under `bounds.kind`.
-- **Representation policy IDs** follow a stricter pattern than every other versioned ID (lower
-  case only, no `_`).
 - **A host's `causeId`** reaches the `transaction.*` and `transform.preview` events, not the
   entity events of a commit, which carry the transaction's own ID.
 - **The reference application's models and the arbitration model**: the wrapped cursor accepts a

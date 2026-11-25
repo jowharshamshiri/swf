@@ -13,6 +13,13 @@ export interface RecordLookup<T> {
 }
 
 /**
+ * Makes a table over `map`, which nothing else may hold or change. Private to this module: only
+ * {@link TableDraft.freeze} calls it, handing over the map of a draft that refuses every change
+ * from then on.
+ */
+let tableOver: <T>(map: ReadonlyMap<Id, T>) => Table<T>;
+
+/**
  * An immutable table of records keyed by ID. Iteration follows insertion order. A table never
  * changes once made, so it can be held and shared freely; the records it holds are frozen.
  */
@@ -22,6 +29,10 @@ export class Table<T> implements RecordLookup<T> {
   private constructor(map: ReadonlyMap<Id, T>) {
     this.#map = map;
     Object.freeze(this);
+  }
+
+  static {
+    tableOver = <U>(map: ReadonlyMap<Id, U>) => new Table<U>(map);
   }
 
   /** A table with no records. */
@@ -64,12 +75,7 @@ export class Table<T> implements RecordLookup<T> {
    * affects no workspace, and its {@link TableDraft.freeze} yields a separate table.
    */
   edit(): TableDraft<T> {
-    return new TableDraft(new Map(this.#map));
-  }
-
-  /** @internal Used by {@link TableDraft.freeze}. */
-  static fromMap<T>(map: Map<Id, T>): Table<T> {
-    return new Table(map);
+    return new TableDraft(this.#map);
   }
 }
 
@@ -83,11 +89,11 @@ export class TableDraft<T> implements RecordLookup<T> {
   #frozen = false;
 
   /**
-   * Wraps `map`, which the draft then owns and changes in place: the caller must not keep using
-   * it.
+   * A draft holding a copy of `entries`, in their order: changing what was given afterwards
+   * changes neither the draft nor the table it freezes into.
    */
-  constructor(map: Map<Id, T>) {
-    this.#map = map;
+  constructor(entries: Iterable<readonly [Id, T]> = []) {
+    this.#map = new Map(entries);
   }
 
   /** The record with this ID, or undefined when there is none. */
@@ -132,7 +138,7 @@ export class TableDraft<T> implements RecordLookup<T> {
   freeze(): Table<T> {
     this.#assertOpen();
     this.#frozen = true;
-    return Table.fromMap(this.#map);
+    return tableOver(this.#map);
   }
 
   #assertOpen(): void {

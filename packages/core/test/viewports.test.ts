@@ -34,6 +34,18 @@ const viewport = (id: string, extra: Partial<ViewportSpec> = {}): SceneCommand =
 const workspace = () => makeWorkspace({ projectionKinds: [pano] });
 
 describe('cameras and viewports', () => {
+  it('reads a projection’s own config only, never an inherited one', () => {
+    const ws = workspace();
+    committed(ws.dispatch(camera('cam')));
+    const projection = Object.assign(Object.create({ config: { fov: 90 } }) as object, {
+      id: 'test.pano/1',
+    });
+    expect(
+      rejected(ws.dispatch(viewport('v', { projection: projection as never }))).error,
+    ).toMatchObject({ code: 'INVALID_INPUT', path: 'commands[0].viewport.projection.config' });
+    expect(ws.getState().viewports.size).toBe(0);
+  });
+
   it('creates them with documented defaults and reports each as view-state events', () => {
     const ws = workspace();
     const events = record(ws);

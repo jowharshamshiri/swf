@@ -421,7 +421,7 @@ function checkGeometry(value: unknown, path: string): GeometryDescriptor {
 /** All eight flags, each present. */
 function checkFlags(value: unknown, path: string): EntityFlags {
   const flags = expectFlags(value, path);
-  const missing = FLAG_NAMES.find((name) => !(name in flags));
+  const missing = FLAG_NAMES.find((name) => !Object.hasOwn(flags, name));
   if (missing !== undefined) {
     throw invalid(`${path}.${missing}`, 'is missing');
   }

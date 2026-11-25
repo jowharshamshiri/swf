@@ -193,6 +193,64 @@ describe('restore (FR-002, FR-163, FR-165, FR-167, API-011)', () => {
     });
   });
 
+  it('holds geometry to the workspace’s maxParamsBytes, as a transaction does', () => {
+    const points = Array.from({ length: 12 }, (_, i) => {
+      const a = (2 * Math.PI * i) / 12;
+      return [0.4 * Math.cos(a), 0.4 * Math.sin(a)];
+    });
+    const attach = {
+      type: 'surface.attach',
+      surface: {
+        id: 'p',
+        ownerNodeId: 'a',
+        bindingKey: null,
+        adapterTypeId: 'host.view/1',
+        bounds: [1, 1, 0.01],
+        geometry: { kind: 'polygon', params: { points } },
+      },
+    } as const;
+    const source = fresh();
+    committed(source.transaction([window('a'), attach]));
+    const small = () =>
+      makeWorkspace({ projectionKinds: [pano], geometryLimits: { maxParamsBytes: 64 } });
+    const transacted = rejected(small().transaction([window('a'), attach])).error;
+    expect(transacted).toMatchObject({ path: 'commands[1].surface.geometry.params' });
+    expect(transacted.message).toMatch(/more than the maxParamsBytes limit of 64/);
+    const target = small();
+    const restored = rejected(done(target.restore(source.serialize()))).error;
+    expect(restored).toMatchObject({
+      code: 'SNAPSHOT_INVALID',
+      path: 'surfaces[0].geometry.params',
+    });
+    expect(restored.message).toMatch(/more than the maxParamsBytes limit of 64/);
+    expect(target.getState().revision).toBe(0);
+  });
+
+  it('takes a flag as present only when the snapshot itself holds it', () => {
+    const ws = fresh();
+    committed(ws.dispatch(window('a')));
+    const s = ws.serialize();
+    const node = s.nodes[0];
+    if (node === undefined) {
+      throw new Error('no node');
+    }
+    const flags = Object.fromEntries(
+      Object.entries(node.flags).filter(([name]) => name !== 'visible'),
+    );
+    const snapshot = { ...s, nodes: [{ ...node, flags }] } as unknown as SceneSnapshot;
+    // An inherited flag, as polluting Object.prototype would give every object, is not the
+    // snapshot's own.
+    Object.defineProperty(Object.prototype, 'visible', { value: true, configurable: true });
+    try {
+      expect(rejected(done(fresh().restore(snapshot))).error).toMatchObject({
+        code: 'SNAPSHOT_INVALID',
+        path: 'nodes[0].flags.visible',
+      });
+    } finally {
+      delete (Object.prototype as Record<string, unknown>)['visible'];
+    }
+  });
+
   it('never moves the revision back', () => {
     const snapshot = layout().serialize();
     const ws = fresh();

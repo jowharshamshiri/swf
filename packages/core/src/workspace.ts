@@ -2191,7 +2191,7 @@ function checkOptions(options: WorkspaceOptions): CheckedOptions {
   }
   const limitRecord = limits as Record<string, unknown>;
   for (const key of Object.keys(limitRecord)) {
-    if (!(key in DEFAULT_GEOMETRY_LIMITS)) {
+    if (!Object.hasOwn(DEFAULT_GEOMETRY_LIMITS, key)) {
       throw fail(`geometryLimits.${key}`, 'is not a known limit');
     }
   }

@@ -18,7 +18,7 @@ import type { Constraint } from './constraints.js';
 import { constraintApplies, resolveConstraints } from './constraints.js';
 import { RejectionSignal, thrownText } from './errors.js';
 import type { GeometryDescriptor, GeometryLimits, GeometryRegistry } from './geometry.js';
-import { geometryParamsIssue, jsonByteLength, RECT_GEOMETRY } from './geometry.js';
+import { geometryParamsIssue, RECT_GEOMETRY } from './geometry.js';
 import type { Metadata } from './json.js';
 import { checkMetadataKey, copyJson, copyMetadata, describe } from './json.js';
 import type {
@@ -451,7 +451,7 @@ class Draft {
     if (kind === undefined) {
       throw invalid(`${path}.id`, `names projection "${id}", which is not registered`);
     }
-    if (!('config' in record)) {
+    if (!Object.hasOwn(record, 'config')) {
       throw invalid(`${path}.config`, 'is required (null when the projection takes none)');
     }
     const config = copyJson(record['config'], `${path}.config`);
@@ -846,8 +846,7 @@ class Draft {
     if (command['geometry'] !== undefined) {
       next.geometry = this.#geometry(command['geometry'], next.bounds, `${path}.geometry`);
     } else if (command['bounds'] !== undefined) {
-      // The existing geometry must still fit the new bounds.
-      next.geometry = this.#geometry(surface.geometry, next.bounds, `${path}.bounds`);
+      this.#refit(surface, next.bounds, `${path}.bounds`);
     }
     if (command['interaction'] !== undefined) {
       next.interaction = expectInteraction(command['interaction'], `${path}.interaction`);
@@ -899,7 +898,7 @@ class Draft {
 
   #rebindSurface(command: Record<string, unknown>, path: string): void {
     const surface = this.#requireSurface(command['id'], `${path}.id`);
-    if (!('bindingKey' in command)) {
+    if (!Object.hasOwn(command, 'bindingKey')) {
       throw invalid(`${path}.bindingKey`, 'is required (a key, or null for none)');
     }
     this.#putSurface({
@@ -915,7 +914,7 @@ class Draft {
 
   /**
    * A validated, frozen geometry descriptor. The kind must be registered; its params must be JSON
-   * within the size limit and valid for the provider and the surface's bounds.
+   * within the `maxParamsBytes` limit and valid for the provider and the surface's bounds.
    */
   #geometry(raw: unknown, bounds: Vec3, path: string): GeometryDescriptor {
     const record = expectRecord(raw, path, ['kind', 'params']);
@@ -924,22 +923,35 @@ class Draft {
     if (provider === undefined) {
       throw invalid(`${path}.kind`, `names geometry kind "${kind}", which is not registered`);
     }
-    if (!('params' in record)) {
+    if (!Object.hasOwn(record, 'params')) {
       throw invalid(`${path}.params`, 'is required (null when the kind takes none)');
     }
     const params = copyJson(record['params'], `${path}.params`);
-    const size = jsonByteLength(params);
-    if (size > this.#ctx.geometryLimits.maxParamsBytes) {
-      throw invalid(
-        `${path}.params`,
-        `is ${size} bytes, more than the limit of ${this.#ctx.geometryLimits.maxParamsBytes}`,
-      );
-    }
     const issue = geometryParamsIssue(provider, params, bounds, this.#ctx.geometryLimits);
     if (issue !== null) {
       throw invalid(`${path}.params`, `is invalid: ${issue}`);
     }
     return Object.freeze({ kind, params });
+  }
+
+  /**
+   * Checks that the surface's geometry fits new bounds; `path` names the bounds. A geometry whose
+   * kind is no longer registered cannot be checked, so the bounds are refused: a command that
+   * resizes such a surface must give a new geometry with them.
+   */
+  #refit(surface: SurfaceRecord, bounds: Vec3, path: string): void {
+    const { kind, params } = surface.geometry;
+    const provider = this.#ctx.geometry.get(kind);
+    if (provider === undefined) {
+      throw invalid(
+        path,
+        `cannot change: surface "${surface.id}" has geometry kind "${kind}", which is not registered, so its geometry cannot be checked against new bounds (give a new geometry with them)`,
+      );
+    }
+    const issue = geometryParamsIssue(provider, params, bounds, this.#ctx.geometryLimits);
+    if (issue !== null) {
+      throw invalid(path, `does not fit the surface's ${kind} geometry: ${issue}`);
+    }
   }
 
   // --- helpers ----------------------------------------------------------------------------

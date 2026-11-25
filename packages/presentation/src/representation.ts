@@ -1,5 +1,5 @@
 import type { Id, SceneState } from '@swf/core';
-import { makeError, SwfFailure } from '@swf/core';
+import { makeError, SwfFailure, VERSIONED_ID } from '@swf/core';
 import type { ViewGeometry } from './fragments.js';
 import type { FallbackPolicy } from './negotiation.js';
 import { standInModes } from './negotiation.js';
@@ -37,7 +37,7 @@ export interface RepresentationContext {
  * same answer), so a frame is planned the same way every time.
  */
 export interface RepresentationPolicy {
-  /** A versioned ID, `<name>/<version>`. */
+  /** A versioned ID, `<name>/<version>`, as core's {@link VERSIONED_ID} defines it. */
   readonly id: string;
   /**
    * How the surface is represented. Asked once per surface and frame, whatever its number of
@@ -47,11 +47,10 @@ export interface RepresentationPolicy {
   representationOf(context: RepresentationContext): Representation;
 }
 
-const VERSIONED_ID = /^[a-z0-9][a-z0-9.-]*\/[1-9][0-9]*$/;
-
 /**
  * Why a value is not a representation policy, or null when it is: not an object, an `id` that is
- * not a versioned ID in lower case (`name/1`), or no `representationOf` function. It never throws.
+ * not a versioned ID (`<name>/<version>`, as core's {@link VERSIONED_ID} defines it), or no
+ * `representationOf` function. It never throws.
  */
 export function representationPolicyIssue(value: unknown): string | null {
   if (typeof value !== 'object' || value === null) {
@@ -59,7 +58,7 @@ export function representationPolicyIssue(value: unknown): string | null {
   }
   const policy = value as Partial<RepresentationPolicy>;
   if (typeof policy.id !== 'string' || !VERSIONED_ID.test(policy.id)) {
-    return `a representation policy's ID must look like "name/1" (got ${JSON.stringify(policy.id)})`;
+    return `a representation policy's ID must be a versioned ID "<name>/<version>", such as "host.depth/1" (got ${JSON.stringify(policy.id)})`;
   }
   if (typeof policy.representationOf !== 'function') {
     return `representation policy "${policy.id}" must implement representationOf()`;

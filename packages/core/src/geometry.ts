@@ -383,8 +383,10 @@ export interface WorldHit {
 }
 
 /**
- * What `provider.validate` finds wrong with `params`, or null when they are valid. A validate that
- * throws or answers anything but text or null is reported as the issue, naming the provider.
+ * What is wrong with `params` for a surface of `bounds`, or null when they are valid: params over
+ * the `maxParamsBytes` limit, or what `provider.validate` finds. A validate that throws or answers
+ * anything but text or null is reported as the issue, naming the provider. Transactions and
+ * restore both hold geometry to this one check.
  */
 export function geometryParamsIssue(
   provider: GeometryProvider,
@@ -392,6 +394,10 @@ export function geometryParamsIssue(
   bounds: Vec3,
   limits: GeometryLimits,
 ): string | null {
+  const size = jsonByteLength(params);
+  if (size > limits.maxParamsBytes) {
+    return `their JSON is ${size} bytes, more than the maxParamsBytes limit of ${limits.maxParamsBytes}`;
+  }
   let issue: unknown;
   try {
     issue = provider.validate(params, bounds, limits);
