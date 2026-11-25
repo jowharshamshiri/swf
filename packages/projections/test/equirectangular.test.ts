@@ -13,7 +13,8 @@ import {
 import { createViewOutput } from '@swf/presentation';
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
-import { equirectangular } from '../src/index.js';
+import { EQUIRECTANGULAR_POLE_BAND, equirectangular } from '../src/index.js';
+import type { EquirectangularConfig } from '../src/index.js';
 import type { Placement } from './fixtures.js';
 import { geometryOf, H, placed, setup, W } from './fixtures.js';
 
@@ -26,6 +27,19 @@ const rotation = fc
   )
   .filter((q) => Math.hypot(...q) > 0.1)
   .map((q): Quat => quatNormalize(q));
+
+/** Slack for rounding at the very edge of a pole band, in radians. */
+const BAND_EDGE = 1e-14;
+
+/**
+ * A share of the image's height: anywhere, or within a hair of the top or bottom edge, where the
+ * pole bands of a view reaching the poles lie (a band is about 5e-9 of a 180° image's height).
+ */
+const row = fc.oneof(
+  fc.double({ min: 0, max: 1, noNaN: true }),
+  fc.double({ min: 0, max: 2e-8, noNaN: true }),
+  fc.double({ min: 0, max: 2e-8, noNaN: true }).map((d) => 1 - d),
+);
 
 /** A camera-local direction from longitude (right of -Z) and latitude (up). */
 function local(longitude: number, latitude: number): Vec3 {
@@ -46,6 +60,19 @@ describe('equirectangular configuration', () => {
     expect(domain.verticalCoverage).toBeCloseTo((2 * Math.PI) / 3, 15);
     const poles = equirectangular.create({ horizontal: 360, vertical: 180 }).describeDomain();
     expect(poles).toMatchObject({ poles: true, nonInjective: true });
+    // A view whose top and bottom rows reach into the pole bands shows the poles; one short of
+    // them does not.
+    const band = (EQUIRECTANGULAR_POLE_BAND * 180) / Math.PI;
+    for (const [vertical, reaches] of [
+      [180, true],
+      [180 - band, true],
+      [180 - 1.9 * band, true],
+      [180 - 2.1 * band, false],
+    ] as const) {
+      expect(equirectangular.create({ horizontal: 360, vertical }).describeDomain().poles).toBe(
+        reaches,
+      );
+    }
     expect(equirectangular.create({ horizontal: 90, vertical: 60 }).describeDomain()).toMatchObject(
       { fullCircle: false, seamWrapping: false, poles: false, nonInjective: false },
     );
@@ -106,17 +133,38 @@ describe('equirectangular mapping (QA-002)', () => {
   });
 
   it('round-trips every image point to a ray and back, for any camera and size', () => {
+    // A point 3e-13 of the height below the top edge of a 180° view: its ray's longitude is lost
+    // to rounding through the camera, so it must be the pole.
+    const nearPole: [Quat, number, number, number, number, EquirectangularConfig] = [
+      [0.9998934104654372, 0.014600263963241733, 0, 0],
+      1,
+      1,
+      0,
+      3.1832869673564806e-13,
+      { horizontal: 360, vertical: 180 },
+    ];
+    // A point on the seam just beyond the bottom pole band: rounding moves its ray by a hair of arc
+    // but by 1e-12 of longitude, and it must keep its images on both edges.
+    const onSeamNearPole: [Quat, number, number, number, number, EquirectangularConfig] = [
+      [0, 0, 0.00006103515727318154, -0.9999999981373549],
+      1,
+      1,
+      0,
+      0.999999992500363,
+      { horizontal: 360, vertical: 180 },
+    ];
     fc.assert(
       fc.property(
         rotation,
         fc.integer({ min: 1, max: 4000 }),
         fc.integer({ min: 1, max: 4000 }),
         fc.double({ min: 0, max: 1, noNaN: true }),
-        fc.double({ min: 0, max: 1, noNaN: true }),
-        fc.constantFrom(
+        row,
+        fc.constantFrom<EquirectangularConfig>(
           { horizontal: 360, vertical: 120 },
           { horizontal: 360, vertical: 180 },
           { horizontal: 120, vertical: 90 },
+          { horizontal: 120, vertical: 180 },
         ),
         (r, width, height, u, v, config) => {
           const { projection, view } = setup({ rotation: r, width, height, config });
@@ -127,14 +175,76 @@ describe('equirectangular mapping (QA-002)', () => {
             return false;
           }
           expect(result.error).toBe(0);
+          const horizontal = (config.horizontal * Math.PI) / 180;
+          const vertical = (config.vertical * Math.PI) / 180;
+          // The point's angle from the nearer pole, from its row alone.
+          const colatitude = Math.PI / 2 - Math.abs(0.5 - y / height) * vertical;
           const projected = projection.projectDirection(result.ray.direction, view);
+          if (colatitude < EQUIRECTANGULAR_POLE_BAND - BAND_EDGE) {
+            // Within a pole band the point is the pole, whatever its column: its ray is straight
+            // up or down, its longitude its column's, and the pole's one image its row's centre.
+            const north = y < height / 2;
+            const pole = mat4TransformDirection(view.camera, [0, north ? 1 : -1, 0]);
+            expect(angleBetween(result.ray.direction, pole)).toBeLessThan(1e-12);
+            expect(result.latitude).toBe(north ? Math.PI / 2 : -Math.PI / 2);
+            expect(result.longitude).toBeCloseTo((u - 0.5) * horizontal, 12);
+            expect(projected.singular).toBe(true);
+            expect(projected.images).toEqual([[width / 2, north ? 0 : height]]);
+            return true;
+          }
           if (projected.singular) {
-            // A pole (to within its numeric threshold): the whole edge row is its image.
-            expect(Math.min(y, height - y)).toBeLessThan(1e-9 * height);
+            // Rounding may take a point on the very edge of a band for the pole, and no other.
+            expect(colatitude).toBeLessThan(EQUIRECTANGULAR_POLE_BAND + BAND_EDGE);
             return true;
           }
           const tolerance = 1e-7 * Math.max(width, height);
           return projected.images.some(([px, py]) => Math.hypot(px - x, py - y) <= tolerance);
+        },
+      ),
+      { numRuns: 500, examples: [nearPole, onSeamNearPole] },
+    );
+  });
+
+  it('takes every direction within a pole band for the pole, and round-trips every other', () => {
+    fc.assert(
+      fc.property(
+        rotation,
+        fc.double({ min: -Math.PI, max: Math.PI, noNaN: true }),
+        fc.oneof(
+          fc.double({ min: 0, max: 3 * EQUIRECTANGULAR_POLE_BAND, noNaN: true }),
+          fc.double({ min: 0, max: Math.PI / 2, noNaN: true }),
+        ),
+        fc.boolean(),
+        (r, longitude, colatitude, north) => {
+          const { projection, view } = setup({
+            rotation: r,
+            config: { horizontal: 360, vertical: 180 },
+          });
+          const latitude = (north ? 1 : -1) * (Math.PI / 2 - colatitude);
+          const direction = mat4TransformDirection(view.camera, local(longitude, latitude));
+          const projected = projection.projectDirection(direction, view);
+          if (colatitude < EQUIRECTANGULAR_POLE_BAND - BAND_EDGE) {
+            // The pole's image is its row's centre, and that point is the pole: the direction
+            // comes back to within the band.
+            expect(projected.singular).toBe(true);
+            expect(projected.images).toEqual([[W / 2, north ? 0 : H]]);
+            const back = projection.unprojectPoint(W / 2, north ? 0 : H, view);
+            expect(back.kind === 'ray' && angleBetween(back.ray.direction, direction)).toBeLessThan(
+              EQUIRECTANGULAR_POLE_BAND,
+            );
+            return;
+          }
+          if (projected.singular) {
+            expect(colatitude).toBeLessThan(EQUIRECTANGULAR_POLE_BAND + BAND_EDGE);
+            return;
+          }
+          expect(projected.images.length).toBeGreaterThanOrEqual(1);
+          for (const [x, y] of projected.images) {
+            const back = projection.unprojectPoint(x, y, view);
+            expect(back.kind === 'ray' && angleBetween(back.ray.direction, direction)).toBeLessThan(
+              1e-9,
+            );
+          }
         },
       ),
       { numRuns: 500 },

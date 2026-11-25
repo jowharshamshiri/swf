@@ -22,10 +22,26 @@ import type {
 import { PROJECTION_API_VERSION } from './contract.js';
 
 const TWO_PI = 2 * Math.PI;
-/** Angular slack for edges that are inclusive, in radians. */
+/** Angular slack for edges that are inclusive, in radians of arc. */
 const EPS = 1e-12;
 /** Outline samples per edge of a surface. */
 const SAMPLES_PER_EDGE = 16;
+
+/**
+ * The angular radius of each pole band of the equirectangular projection, in radians: 2⁻²⁶, the
+ * square root of a double's epsilon. A direction this close to straight up or down (in the
+ * camera's frame) has a horizontal part so small that rounding through the camera's transform,
+ * a few parts in 10¹⁶, changes its longitude by up to about 10⁻⁷ radians; within the band its
+ * longitude is noise, and beyond it the longitude holds to that much.
+ *
+ * So the projection takes everything within the band for the pole, both ways: `projectDirection`
+ * reports a direction whose angle from a pole is at most this as `singular`, imaged at the
+ * centre of that pole's edge row; `unprojectPoint` gives a point whose row lies within this of a
+ * pole the ray straight up or down, with latitude ±π/2 and its column's longitude. A view shows
+ * the poles when its top and bottom rows reach their bands, that is when its vertical angle is
+ * at least π − 2 × the band.
+ */
+export const EQUIRECTANGULAR_POLE_BAND = 2 ** -26;
 
 /**
  * Configuration of the equirectangular projection: the horizontal and vertical angles the viewport
@@ -73,7 +89,9 @@ function configIssue(config: JsonValue): string | null {
  * frame has longitude `atan2(x, -z)` (positive to the right) and latitude `atan2(y, √(x² + z²))`
  * (positive up); the viewport spans the configured angles centred on the camera's heading. At
  * 360° the left and right edges meet at a seam behind the camera; at 180° vertically, the top and
- * bottom rows are the poles. Its inverse is exact everywhere in the image.
+ * bottom rows are the poles. Within {@link EQUIRECTANGULAR_POLE_BAND} of a pole, where longitude
+ * is lost to rounding, a direction is the pole and a point unprojects to it. Its inverse is exact
+ * everywhere in the image.
  *
  * Its configuration is an {@link EquirectangularConfig} in degrees; `configIssue` names a missing,
  * out-of-range or unknown setting, and `create` throws a RangeError for one. A surface crossing the
@@ -113,7 +131,7 @@ interface Frame {
 interface Angles {
   readonly longitude: number;
   readonly latitude: number;
-  /** The direction is (numerically) straight up or down, so its longitude is undefined. */
+  /** The direction is within the pole band of straight up or down, so its longitude is noise. */
   readonly singular: boolean;
 }
 
@@ -132,12 +150,17 @@ function frameOf(view: ViewGeometry): Frame {
   return frame;
 }
 
+/** Whether an angle from the nearer pole, in radians, lies within that pole's band. */
+function inPoleBand(colatitude: number): boolean {
+  return colatitude <= EQUIRECTANGULAR_POLE_BAND;
+}
+
 function anglesOf(d: Vec3): Angles {
   const horizontal = Math.hypot(d[0], d[2]);
   return {
     longitude: Math.atan2(d[0], -d[2]),
     latitude: Math.atan2(d[1], horizontal),
-    singular: horizontal <= 1e-12 * Math.abs(d[1]),
+    singular: inPoleBand(Math.atan2(horizontal, Math.abs(d[1]))),
   };
 }
 
@@ -163,7 +186,7 @@ class Equirectangular implements Projection {
     this.#h = horizontal;
     this.#v = vertical;
     this.#fullCircle = horizontal >= TWO_PI - EPS;
-    this.#poles = vertical >= Math.PI - EPS;
+    this.#poles = inPoleBand(Math.PI / 2 - vertical / 2);
   }
 
   describeDomain(): ProjectionDomain {
@@ -187,23 +210,23 @@ class Equirectangular implements Projection {
     const d = mat4TransformDirection(frameOf(view).toCamera, direction);
     const { longitude, latitude, singular } = anglesOf(d);
     const behind = d[2] > 0;
-    if (Math.abs(latitude) > this.#v / 2 + EPS) {
-      return { images: [], singular, behind };
-    }
     if (singular) {
-      // A pole is the whole top or bottom row; its centre stands for it.
+      // A pole is the whole top or bottom row, when the view reaches it; its centre stands for it.
       return {
-        images: [[view.width / 2, latitude > 0 ? 0 : view.height]],
+        images: this.#poles ? [[view.width / 2, latitude > 0 ? 0 : view.height]] : [],
         singular: true,
         behind,
       };
+    }
+    if (Math.abs(latitude) > this.#v / 2 + EPS) {
+      return { images: [], singular: false, behind };
     }
     // Directions within the edge slack land on the edge, so every image is inside the image.
     const y = this.#y(clamp(latitude, this.#v / 2), view);
     const images: ScreenPoint[] = [];
     for (const k of [-1, 0, 1]) {
       const l = longitude + TWO_PI * k;
-      if (Math.abs(l) <= this.#h / 2 + EPS) {
+      if (this.#across(l, latitude)) {
         images.push([this.#x(clamp(l, this.#h / 2), view), y]);
       }
     }
@@ -225,9 +248,14 @@ class Equirectangular implements Projection {
       };
     }
     const longitude = (x / view.width - 0.5) * this.#h;
-    const latitude = (0.5 - y / view.height) * this.#v;
-    const cos = Math.cos(latitude);
-    const local: Vec3 = [cos * Math.sin(longitude), Math.sin(latitude), -cos * Math.cos(longitude)];
+    const row = (0.5 - y / view.height) * this.#v;
+    // A row within a pole band is the pole itself, whatever the column.
+    const pole = inPoleBand(Math.PI / 2 - Math.abs(row));
+    const latitude = pole ? Math.sign(row) * (Math.PI / 2) : row;
+    const cos = Math.cos(row);
+    const local: Vec3 = pole
+      ? [0, Math.sign(row), 0]
+      : [cos * Math.sin(longitude), Math.sin(row), -cos * Math.cos(longitude)];
     return {
       kind: 'ray',
       ray: {
@@ -339,8 +367,7 @@ class Equirectangular implements Projection {
     for (const [l, phi] of outline.samples) {
       const latitudeIn = Math.abs(phi) <= this.#v / 2 + EPS;
       const longitudeIn =
-        outline.encirclesPole ||
-        [-1, 0, 1].some((k) => Math.abs(l + TWO_PI * k) <= this.#h / 2 + EPS);
+        outline.encirclesPole || [-1, 0, 1].some((k) => this.#across(l + TWO_PI * k, phi));
       if (latitudeIn && longitudeIn) {
         inside += 1;
       }
@@ -354,6 +381,16 @@ class Equirectangular implements Projection {
         this.#fullCircle &&
         (outline.encirclesPole || outline.lo < -Math.PI || outline.hi > Math.PI),
     };
+  }
+
+  /**
+   * Whether a direction at this longitude and latitude lies within the image across, its side
+   * edges (the seam, at 360°) included to within EPS of arc. Toward a pole the meridians converge,
+   * so that arc is ever more longitude: rounding moves a direction near a pole by a hair of arc
+   * but by far more longitude, and a direction on a side edge stays on it.
+   */
+  #across(longitude: number, latitude: number): boolean {
+    return Math.abs(longitude) <= this.#h / 2 + EPS / Math.cos(latitude);
   }
 
   #x(longitude: number, view: ViewGeometry): number {

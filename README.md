@@ -285,10 +285,13 @@ checking each configuration with the projection's own rules, and the host can pr
 The equirectangular projection maps longitude across and latitude down. It covers 360° across,
 wrapping at a seam behind the camera, and 120° up and down by default (up to 180°, which reaches
 the poles); narrower angles are configurable. A direction on the seam has two images; a pole is a
-whole edge row. A surface crossing the seam yields one fragment on each side, both referring to
-the same surface, and surfaces behind the camera are kept, not dropped. Its inverse is exact. A
-surface whose bounding sphere lies wholly above, below or (short of the full circle) beside the
-view is ruled out from its bounds alone, without sampling its outline (NFR-017).
+whole edge row. Within `EQUIRECTANGULAR_POLE_BAND` (2⁻²⁶ radians) of a pole, where rounding
+through the camera loses a direction's longitude, a direction is the pole, imaged at the centre of
+its row, and a point unprojects to the pole whatever its column. A surface crossing the seam yields
+one fragment on each side, both referring to the same surface, and surfaces behind the camera are
+kept, not dropped. Its inverse is exact. A surface whose bounding sphere lies wholly above, below
+or (short of the full circle) beside the view is ruled out from its bounds alone, without sampling
+its outline (NFR-017).
 `pickAt` returns every selectable surface under a point, nearest first; given the previous
 longitude of a drag, the longitude is unwrapped so it stays continuous across the seam.
 

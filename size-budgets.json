@@ -37,8 +37,8 @@
   "@swf/projections": {
     "budget": 5888,
     "recorded": {
-      "minified": 12701,
-      "gzip": 5209
+      "minified": 12896,
+      "gzip": 5298
     }
   },
   "@swf/interaction": {
