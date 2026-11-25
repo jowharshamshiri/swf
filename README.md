@@ -5,6 +5,14 @@ attach opaque presentation surfaces to entities in a 3D scene, arrange and manip
 show the same scene through several views. The framework owns spatial presentation state and
 interaction; the host owns whatever is presented.
 
+## Documentation
+
+This README describes each package's behaviour. [`docs/`](docs/README.md) holds the tutorial, the
+integration guide and the other how-to guides, the generated API reference, the lifecycle and
+ownership rules, browser support, versions and compatibility, the security boundary, the
+architecture and its decision records, and the handover pack. [`examples/`](examples/README.md)
+holds small hosts, each run by the tests.
+
 ## Packages
 
 - `@swf/math`: vectors, unit quaternions, position/rotation/scale transforms, affine matrices,
@@ -1138,7 +1146,15 @@ npm run check   # formatting, type checks (svelte-check for the application), li
 npm test        # the test suites only
 npm run build   # compile every package to dist/ (ES modules, declarations, source maps),
                 # then build the reference application
+npm run size    # each package's bundle size against its budget, and that it tree-shakes
+npm run api-reference   # the API reference in api-reference/, failing on an undocumented
+                        # public declaration
 ```
+
+`npm run check` runs `npm run size` after building the packages; a package over its budget in
+`size-budgets.json`, or one that leaves code behind when imported for nothing, fails it, and every
+run reports each package's change from its recorded size. `npm run release` builds a versioned
+release from a commit ([Release the packages](docs/how-to/release.md)).
 
 Tests run against each package's TypeScript source, so they need no build first.
 
