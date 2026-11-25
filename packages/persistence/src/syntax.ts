@@ -110,49 +110,7 @@ export function jsonSyntaxError(text: string): JsonSyntaxError | null {
       at += 1;
     }
   };
-  const value = (): void => {
-    skip();
-    const char = peek();
-    if (char === '{') {
-      at += 1;
-      skip();
-      if (peek() === '}') {
-        at += 1;
-        return;
-      }
-      for (;;) {
-        skip();
-        string();
-        skip();
-        expect(':', 'a colon (:)');
-        value();
-        skip();
-        if (peek() === ',') {
-          at += 1;
-          continue;
-        }
-        expect('}', 'a comma (,) or the end of the object (})');
-        return;
-      }
-    }
-    if (char === '[') {
-      at += 1;
-      skip();
-      if (peek() === ']') {
-        at += 1;
-        return;
-      }
-      for (;;) {
-        value();
-        skip();
-        if (peek() === ',') {
-          at += 1;
-          continue;
-        }
-        expect(']', 'a comma (,) or the end of the array (])');
-        return;
-      }
-    }
+  const scalar = (char: string | undefined) => {
     if (char === '"') {
       string();
     } else if (char === '-' || (char !== undefined && char >= '0' && char <= '9')) {
@@ -165,6 +123,58 @@ export function jsonSyntaxError(text: string): JsonSyntaxError | null {
       literal('null');
     } else {
       throw new Broken(at, 'a value');
+    }
+  };
+  const member = () => {
+    skip();
+    string();
+    skip();
+    expect(':', 'a colon (:)');
+  };
+  // One value, read without recursion: the arrays and objects still open are kept on a stack of
+  // their own, so text nested deeper than the call stack is read like any other.
+  const value = (): void => {
+    const open: ('{' | '[')[] = [];
+    for (;;) {
+      skip();
+      const char = peek();
+      if (char === '{' || char === '[') {
+        const close = char === '{' ? '}' : ']';
+        at += 1;
+        skip();
+        if (peek() === close) {
+          at += 1;
+        } else {
+          open.push(char);
+          if (char === '{') {
+            member();
+          }
+          continue;
+        }
+      } else {
+        scalar(char);
+      }
+      // A value is complete: it ends the containers it closes, or one of them goes on.
+      for (;;) {
+        const container = open.at(-1);
+        if (container === undefined) {
+          return;
+        }
+        skip();
+        if (peek() === ',') {
+          at += 1;
+          if (container === '{') {
+            member();
+          }
+          break;
+        }
+        if (container === '{') {
+          expect('}', 'a comma (,) or the end of the object (})');
+        } else {
+          expect(']', 'a comma (,) or the end of the array (])');
+        }
+        open.pop();
+      }
     }
   };
   try {

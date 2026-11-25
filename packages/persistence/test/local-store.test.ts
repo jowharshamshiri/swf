@@ -13,22 +13,44 @@ class MemoryStorage implements WebStorage {
   quota = Infinity;
   /** A write to a key matching this fails, as if the page died there. */
   failOn: RegExp | null = null;
+  /** A write to a key matching this lands, and then throws all the same. */
+  landThenFail: RegExp | null = null;
+  /**
+   * Calls of each method that throw: every call (true), or those whose key matches or passes.
+   */
+  faults: Partial<
+    Record<'length' | 'key' | 'getItem' | 'removeItem', RegExp | true | ((key: string) => boolean)>
+  > = {};
+
+  #fault(method: keyof MemoryStorage['faults'], key = ''): void {
+    const fault = this.faults[method];
+    if (fault === true || (fault instanceof RegExp ? fault.test(key) : fault?.(key) === true)) {
+      throw new Error(`${method} is refused`);
+    }
+  }
 
   get length(): number {
+    this.#fault('length');
     return this.items.size;
   }
 
   key(index: number): string | null {
+    this.#fault('key');
     return [...this.items.keys()][index] ?? null;
   }
 
   getItem(key: string): string | null {
+    this.#fault('getItem', key);
     return this.items.get(key) ?? null;
   }
 
   setItem(key: string, value: string): void {
     if (this.failOn?.test(key) === true) {
       throw new Error('the page went away');
+    }
+    if (this.landThenFail?.test(key) === true) {
+      this.items.set(key, value);
+      throw new Error('the write landed, then the call failed');
     }
     const used = [...this.items].reduce(
       (n, [k, v]) => n + (k === key ? 0 : k.length + v.length),
@@ -43,6 +65,7 @@ class MemoryStorage implements WebStorage {
   }
 
   removeItem(key: string): void {
+    this.#fault('removeItem', key);
     this.items.delete(key);
   }
 }
@@ -137,6 +160,114 @@ describe('the Web Storage store (ARCH-024, NFR-011)', () => {
     expect(await rejection(store.load('main'))).toMatchObject({ code: 'STORAGE_FAILED' });
     expect(() => createWebStorageStore(storage, { prefix: 'a/b' })).toThrow(/prefix/);
     expect(() => createWebStorageStore({} as WebStorage)).toThrow(/getItem/);
+  });
+
+  it('answers every storage fault with its own rejection, before the commit', async () => {
+    const storage = new MemoryStorage();
+    const store = createWebStorageStore(storage);
+    await store.save(request({ document: '{"good":true}' }));
+    const next = request({ document: '{"newer":1}', revision: 2, expectedRevision: 1 });
+    // The read-back of the candidate fails: nothing is committed and the candidate is let go.
+    storage.faults.getItem = /\/1$/;
+    expect(await rejection(store.save(next))).toMatchObject({
+      code: 'STORAGE_FAILED',
+      message: 'saving "main" failed: getItem is refused',
+    });
+    delete storage.faults.getItem;
+    expect([...storage.items.keys()].sort()).toEqual(['swf/main/0', 'swf/main/commit']);
+    // The commit fails and so does letting go of the candidate: the commit's failure is reported.
+    storage.failOn = /\/commit$/;
+    storage.faults.removeItem = /\/1$/;
+    expect(await rejection(store.save(next))).toMatchObject({
+      code: 'STORAGE_FAILED',
+      message: 'committing "main" failed: the page went away',
+    });
+    storage.failOn = null;
+    delete storage.faults.removeItem;
+    // The commit fails and what the marker holds cannot be read: it is not known to have landed.
+    storage.failOn = /\/commit$/;
+    let reads = 0;
+    storage.faults.getItem = (key) => key.endsWith('/commit') && ++reads > 1;
+    expect(await rejection(store.save(next))).toMatchObject({
+      code: 'STORAGE_FAILED',
+      message: 'committing "main" failed: the page went away',
+    });
+    storage.failOn = null;
+    delete storage.faults.getItem;
+    expect(await store.load('main')).toMatchObject({ revision: 1, document: '{"good":true}' });
+  });
+
+  it('reports a save that committed as committed, whatever fails after', async () => {
+    const storage = new MemoryStorage();
+    const store = createWebStorageStore(storage, { now: () => 3 });
+    await store.save(request({ document: '{"good":true}' }));
+    // Letting go of the old slot fails after the commit: the save stands.
+    storage.faults.removeItem = /\/0$/;
+    expect(
+      await store.save(request({ document: '{"newer":1}', revision: 2, expectedRevision: 1 })),
+    ).toEqual({ key: 'main', revision: 2, savedAt: 3, bytes: 11 });
+    delete storage.faults.removeItem;
+    expect(await store.load('main')).toMatchObject({ revision: 2, document: '{"newer":1}' });
+    // The next save writes over the slot that was not let go.
+    await store.save(request({ document: '{"third":3}', revision: 3, expectedRevision: 2 }));
+    expect([...storage.items.keys()].sort()).toEqual(['swf/main/0', 'swf/main/commit']);
+    // The marker's write lands but its call throws: the save committed, and says so.
+    storage.landThenFail = /\/commit$/;
+    expect(
+      await store.save(request({ document: '{"fourth":4}', revision: 4, expectedRevision: 3 })),
+    ).toMatchObject({ revision: 4 });
+    storage.landThenFail = null;
+    expect(await store.load('main')).toMatchObject({ revision: 4, document: '{"fourth":4}' });
+    expect([...storage.items.keys()].sort()).toEqual(['swf/main/1', 'swf/main/commit']);
+    // A saver hears it as saved.
+    const ws = layout();
+    const saver = createSaver({
+      persistence: persistenceOf(ws),
+      store: createWebStorageStore(storage),
+      key: 'other',
+    });
+    await saver.save();
+    commit(ws, [{ type: 'node.patch', id: 'a', label: 'edited' }]);
+    storage.faults.removeItem = /^swf\/other\//;
+    expect(await saver.save()).toMatchObject({ status: 'saved' });
+    expect(saver.state).toBe('clean');
+  });
+
+  it('deletes and lists with typed failures, and skips items it did not write', async () => {
+    const storage = new MemoryStorage();
+    const store = createWebStorageStore(storage);
+    await store.save(request());
+    await store.save(request({ document: '{"v":2}', revision: 2, expectedRevision: 1 }));
+    // Removing the marker fails: nothing is deleted.
+    storage.faults.removeItem = /\/commit$/;
+    expect(await rejection(store.delete('main'))).toMatchObject({
+      code: 'STORAGE_FAILED',
+      message: 'deleting "main" failed: removeItem is refused',
+    });
+    delete storage.faults.removeItem;
+    expect(await store.load('main')).toMatchObject({ revision: 2 });
+    // Letting go of the committed slot fails once the marker is gone: the snapshot is deleted.
+    storage.faults.removeItem = /\/1$/;
+    expect(await store.delete('main')).toBe(true);
+    delete storage.faults.removeItem;
+    expect(await store.load('main')).toBeNull();
+    // A later save of the key takes that room back in time.
+    await store.save(request());
+    await store.save(request({ document: '{"v":2}', revision: 2, expectedRevision: 1 }));
+    expect([...storage.items.keys()].sort()).toEqual(['swf/main/1', 'swf/main/commit']);
+    // Items under the prefix that this store could not have written are not its own.
+    storage.items.set('swf/%E0%A4%A/commit', '{}');
+    storage.items.set('swf/a/b/commit', '{}');
+    expect((await store.list()).map((e) => e.key)).toEqual(['main']);
+    // The storage refusing to be read is a typed failure.
+    storage.faults.key = true;
+    expect(await rejection(store.list())).toMatchObject({
+      code: 'STORAGE_FAILED',
+      message: 'listing failed: key is refused',
+    });
+    delete storage.faults.key;
+    storage.faults.length = true;
+    expect(await rejection(store.list())).toMatchObject({ code: 'STORAGE_FAILED' });
   });
 });
 

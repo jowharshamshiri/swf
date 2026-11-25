@@ -4,7 +4,12 @@ import { createWorkspace, SwfFailure } from '@swf/core';
 import { createPresentationRegistry, createPresenter } from '@swf/presentation';
 import { createSurfaceRuntime } from '@swf/surfaces';
 import { describe, expect, it } from 'vitest';
-import { createDiagnostics, createOperationTrace, exportDiagnostics } from '../src/index.js';
+import {
+  createDiagnostics,
+  createOperationTrace,
+  disclosureOf,
+  exportDiagnostics,
+} from '../src/index.js';
 
 /** A window with a labelled, bound, tagged surface: everything an export must keep private. */
 const windowCommands = (id: string, key: string): SceneCommand[] => [
@@ -142,6 +147,12 @@ describe('the operation trace (AUD-002)', () => {
     const trace = createOperationTrace({ workspace: ws });
     expect(() => trace.serialize({ pixels: true } as never)).toThrow(/disclosure.pixels/);
     expect(() => trace.serialize({ labels: 'yes' } as never)).toThrow(/disclosure.labels/);
+    // A name every object inherits is not something an export can disclose.
+    for (const name of ['constructor', 'toString', 'hasOwnProperty', '__proto__']) {
+      const disclosure = JSON.parse(`{"${name}": true}`) as never;
+      expect(() => disclosureOf(disclosure)).toThrow(new RegExp(`disclosure.${name} is not`));
+      expect(() => trace.serialize(disclosure)).toThrow(SwfFailure);
+    }
   });
 });
 

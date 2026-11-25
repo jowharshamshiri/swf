@@ -282,7 +282,7 @@ export function disclosureOf(disclosure: Partial<Disclosure>): Disclosure {
     throw new SwfFailure(makeError('INVALID_INPUT', 'a disclosure must be an object'));
   }
   for (const [key, value] of Object.entries(disclosure)) {
-    if (!(key in PRIVATE_DISCLOSURE)) {
+    if (!Object.hasOwn(PRIVATE_DISCLOSURE, key)) {
       throw new SwfFailure(
         makeError(
           'INVALID_INPUT',

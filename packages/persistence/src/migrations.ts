@@ -1,6 +1,7 @@
 import type { SwfError } from '@swf/core';
 import { jsonValue, SwfFailure } from '@swf/core';
 import { models } from '@swf/models';
+import { answeredWithPromise, describeAnswer } from './answers.js';
 import type { SnapshotLimits, WorkspaceDocument } from './document.js';
 import {
   DEFAULT_SNAPSHOT_LIMITS,
@@ -19,8 +20,9 @@ export interface SchemaMigration {
   /** The format it writes; the document it returns must name it in `schema`. */
   readonly to: string;
   /**
-   * Turns a document of format `from` into one of format `to`. The document is a JSON copy of
-   * the step's own, which it may change and return. A throw fails the migration with
+   * Turns a document of format `from` into one of format `to`, synchronously. The document is a
+   * JSON copy of the step's own, which it may change and return. A throw, a promise, an answer
+   * that is not an object or `warnings` that are not a list of strings fail the migration with
    * `MIGRATION_FAILED`.
    */
   migrate(document: Record<string, unknown>): {
@@ -119,34 +121,63 @@ export function migrateDocument(
         ? withSource({ ...error.error, code: 'SNAPSHOT_INVALID' })
         : error;
     }
-    let result: ReturnType<SchemaMigration['migrate']>;
+    const stepFailed = (message: string, path?: string) =>
+      failure('MIGRATION_FAILED', message, path, {
+        sourceVersion,
+        from: step.from,
+        to: step.to,
+      });
+    let result: unknown;
+    let document: unknown;
+    let warnings: unknown;
+    let written: unknown;
     try {
       result = step.migrate(copy);
+      if (typeof result === 'object' && result !== null && !answeredWithPromise(result)) {
+        ({ document, warnings } = result as { document?: unknown; warnings?: unknown });
+        written =
+          typeof document === 'object' && document !== null
+            ? (document as { schema?: unknown }).schema
+            : undefined;
+      }
     } catch (error) {
-      throw failure(
-        'MIGRATION_FAILED',
+      throw stepFailed(
         `migrating from "${step.from}" to "${step.to}" failed: ${error instanceof Error ? error.message : String(error)}`,
-        undefined,
-        { sourceVersion, from: step.from, to: step.to },
       );
     }
-    const written = (result.document as { schema?: unknown } | null)?.schema;
+    if (answeredWithPromise(result)) {
+      throw stepFailed(
+        `the migration from "${step.from}" returned a promise; a step runs synchronously`,
+      );
+    }
+    if (typeof result !== 'object' || result === null) {
+      throw stepFailed(
+        `the migration from "${step.from}" returned ${describeAnswer(result)}, not { document, warnings }`,
+      );
+    }
+    if (
+      warnings !== undefined &&
+      !(Array.isArray(warnings) && warnings.every((w) => typeof w === 'string'))
+    ) {
+      throw stepFailed(
+        `the migration from "${step.from}": warnings must be a list of strings`,
+        'warnings',
+      );
+    }
     if (written !== step.to) {
-      throw failure(
-        'MIGRATION_FAILED',
-        `the migration from "${step.from}" wrote format ${JSON.stringify(written)}, not "${step.to}"`,
+      throw stepFailed(
+        `the migration from "${step.from}" wrote format ${typeof written === 'string' ? JSON.stringify(written) : describeAnswer(written)}, not "${step.to}"`,
         'schema',
-        { sourceVersion, from: step.from, to: step.to },
       );
     }
     steps.push(
       Object.freeze({
         from: step.from,
         to: step.to,
-        warnings: Object.freeze([...(result.warnings ?? [])].map(String)),
+        warnings: Object.freeze([...((warnings as readonly string[] | undefined) ?? [])]),
       }),
     );
-    current = result.document;
+    current = document;
   }
   if (plan.blocked !== null) {
     throw failure(

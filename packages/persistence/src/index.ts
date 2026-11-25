@@ -45,6 +45,7 @@ export type {
   PersistenceDiagnostic,
   PersistenceExtension,
   PersistenceOptions,
+  PolicyContext,
   PolicySource,
   RestoreFailure,
   RestoreOutcome,

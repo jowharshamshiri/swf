@@ -739,7 +739,10 @@ default) and the size limits (1 MiB per namespace and 10 MiB in all by default, 
 `limits`). One that throws, runs out of time or goes over its limit is reported in the capture's
 `failures`, and the snapshot carries its last known state; the layout is always captured.
 `persistence.retain(document)` keeps a loaded snapshot's policy and extension state, so the state
-of namespaces whose owner is not registered goes into later snapshots exactly as it was.
+of namespaces whose owner is not registered goes into later snapshots exactly as it was. A
+policy's or extension's `watch` is started when it registers; one that throws, or does not return
+the function that stops it, fails the registration with `EXTENSION_FAILED` and leaves nothing
+registered, so the owner can register again.
 
 `persistence.restore(input)`, given JSON text or a document, restores in two phases. First, changing
 nothing, it reads the snapshot within the size limits, brings it to the current format on a copy
@@ -747,7 +750,8 @@ and validates it, and has each registered extension migrate its state on a copy 
 holds an older version of it. Then the workspace's scene is replaced in one revision. Its surfaces
 come back as placeholders that keep their binding keys and bind in place as soon as their adapters
 resolve them, in the same window, with the same Surface ID. The policies then take back their
-parameters, and the extensions their state, each extension alone within the hook timeout. A
+parameters, and the extensions their state, each alone within the hook timeout and the caller's
+signal; a policy or extension that throws, rejects or runs out of time is reported. A
 failure in the first phase, or the workspace refusing the scene, returns `rejected` with nothing
 changed and an error naming the failing path where there is one. Text over the size limit or not
 JSON is refused before its format is read; every later refusal also names the format the snapshot
@@ -774,7 +778,7 @@ For browsers there are two stores, both atomic and compare-and-swap. `createWebS
 layouts of a few megabytes in `localStorage`: each key has two slots and a commit marker naming the
 slot with its last good snapshot. A save writes the candidate into the other slot, reads it back,
 and only then rewrites the marker in one write, so a save cut short or refused for lack of room
-never replaces the last good snapshot. `createIndexedDbStore` keeps large layouts in IndexedDB,
+never replaces the last good snapshot, and a save whose marker landed is reported as saved. `createIndexedDbStore` keeps large layouts in IndexedDB,
 checking the stored revision and writing the new snapshot in one transaction, which either
 commits whole or leaves the store as it was. Either one reports a full storage as
 `QUOTA_EXCEEDED` and anything else as `STORAGE_FAILED`, and never acknowledges a save that did not

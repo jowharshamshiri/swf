@@ -106,7 +106,7 @@ const DOCUMENT_FIELDS = [
 export function snapshotLimits(limits: Partial<SnapshotLimits> = {}): SnapshotLimits {
   const out = { ...DEFAULT_SNAPSHOT_LIMITS };
   for (const [key, value] of Object.entries(limits)) {
-    if (!(key in DEFAULT_SNAPSHOT_LIMITS)) {
+    if (!Object.hasOwn(DEFAULT_SNAPSHOT_LIMITS, key)) {
       throw failure('INVALID_INPUT', `limits.${key} is not a limit`, `limits.${key}`);
     }
     if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1) {

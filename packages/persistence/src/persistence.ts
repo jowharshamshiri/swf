@@ -7,6 +7,7 @@ import {
   SwfFailure,
   VERSIONED_ID,
 } from '@swf/core';
+import { answeredWithPromise, describeAnswer } from './answers.js';
 import type { ExtensionEntry, SnapshotLimits, WorkspaceDocument } from './document.js';
 import {
   errorOf,
@@ -63,16 +64,30 @@ export interface PersistenceExtension {
   restore(data: JsonValue, context: HookContext): unknown;
   /**
    * Turns a payload of an older `fromVersion` into one of `version`, synchronously. It gets a copy
-   * of its own; the result must be JSON data within the namespace's size limit. Without it, an
+   * of its own; the result must be JSON data within the namespace's size limit. A throw or a
+   * promise fails the migration (`MIGRATION_FAILED`) and the payload is held. Without it, an
    * older payload cannot be restored and is held.
    */
   migrate?(data: JsonValue, fromVersion: number): unknown;
   /**
    * Calls `changed` whenever the extension's state changes, so the workspace counts as changed;
    * returns what stops it, which is called when the extension is unregistered or the persistence
-   * disposed. Called once, at registration.
+   * disposed. Called once, at registration: a throw, or an answer that is not a function, fails
+   * the registration (`EXTENSION_FAILED`, naming `watch`) and leaves nothing registered.
    */
   watch?(changed: () => void): () => void;
+}
+
+/** What a policy's `restore` is given: its own ID and a signal that ends its time. */
+export interface PolicyContext {
+  /** The ID of the policy that takes back its parameters. */
+  readonly id: string;
+  /**
+   * Aborted when the restore runs out of time (`EXTENSION_FAILED`), the caller's signal aborts
+   * (`CANCELLED`), or the call is over; its `reason` is the {@link SwfFailure} that ended it. A
+   * policy that keeps working after it is aborted is no longer heard.
+   */
+  readonly signal: AbortSignal;
 }
 
 /**
@@ -83,20 +98,21 @@ export interface PolicySource {
   /** The policy's versioned ID, such as `swf.interaction/1`; unique among registered policies. */
   readonly id: string;
   /**
-   * The policy's current parameters, as JSON data, synchronously. A throw or data that is not
-   * JSON fails only this policy's capture, and its last known parameters are kept.
+   * The policy's current parameters, as JSON data, synchronously. A throw, a promise or data that
+   * is not JSON fails only this policy's capture, and its last known parameters are kept.
    */
   capture(): unknown;
   /**
-   * Takes back parameters this policy captured, when a snapshot is restored. It is called
-   * synchronously, without the hook timeout, and its result is not awaited; a throw is reported
-   * in the restore's failures.
+   * Takes back parameters this policy captured, when a snapshot is restored; may return a
+   * promise. It runs alone, within the hook timeout and the caller's signal; a throw, a rejection
+   * or a timeout is reported in the restore's failures, and the layout stays restored.
    */
-  restore?(parameters: JsonValue): unknown;
+  restore?(parameters: JsonValue, context: PolicyContext): unknown;
   /**
    * Calls `changed` whenever the parameters change, so the workspace counts as changed; returns
    * what stops it, which is called when the policy is unregistered or the persistence disposed.
-   * Called once, at registration.
+   * Called once, at registration: a throw, or an answer that is not a function, fails the
+   * registration (`EXTENSION_FAILED`, naming `watch`) and leaves nothing registered.
    */
   watch?(changed: () => void): () => void;
 }
@@ -171,10 +187,11 @@ export interface CaptureFailure {
   /** The extension's namespace or the policy's ID. */
   readonly id: string;
   /**
-   * Why: `EXTENSION_FAILED` for a hook that threw or timed out (`details.reason` `timeout`) or
-   * whose state is held since a restore (`details.reason` `held`), `CANCELLED` when the caller's
-   * signal aborted, `QUOTA_EXCEEDED` for state over a size limit, `INVALID_INPUT` for data that
-   * is not JSON, or `MIGRATION_FAILED` for a migration that threw.
+   * Why: `EXTENSION_FAILED` for a hook that threw, rejected or timed out (`details.reason`
+   * `timeout`) or whose state is held since a restore (`details.reason` `held`), `CANCELLED` when
+   * the caller's signal aborted, `QUOTA_EXCEEDED` for state over a size limit, `INVALID_INPUT`
+   * for data that is not JSON or a policy capture that answered with a promise, or
+   * `MIGRATION_FAILED` for a migration that threw or answered with a promise.
    */
   readonly error: SwfError;
 }
@@ -214,8 +231,10 @@ export interface Persistence {
    *
    * @throws {@link @swf/core!SwfFailure} `INVALID_INPUT` for an extension that is not an object,
    *   a malformed namespace or version, or a missing or non-function hook (naming `namespace`,
-   *   `version` or the hook), or a namespace already registered; `INVALID_TRANSITION` once the
-   *   persistence is disposed.
+   *   `version` or the hook), or a namespace already registered; `EXTENSION_FAILED` (naming
+   *   `watch`) for a `watch` that throws or answers with something other than a function;
+   *   `INVALID_TRANSITION` once the persistence is disposed. A registration that fails leaves
+   *   nothing registered.
    */
   registerExtension(extension: PersistenceExtension): () => void;
   /**
@@ -223,7 +242,9 @@ export interface Persistence {
    *
    * @throws {@link @swf/core!SwfFailure} `INVALID_INPUT` for a source that is not an object, an
    *   `id` that is not a versioned ID, a missing `capture` or a non-function hook (naming the
-   *   field), or an ID already registered; `INVALID_TRANSITION` once the persistence is disposed.
+   *   field), or an ID already registered; `EXTENSION_FAILED` (naming `watch`) for a `watch` that
+   *   throws or answers with something other than a function; `INVALID_TRANSITION` once the
+   *   persistence is disposed. A registration that fails leaves nothing registered.
    */
   registerPolicy(source: PolicySource): () => void;
   /**
@@ -289,8 +310,8 @@ export interface Persistence {
    * `rejected` with nothing changed and an error naming the path and `details.sourceVersion`. A
    * policy or extension that fails to take back its state is reported; the layout stays restored.
    *
-   * Policies take back their parameters synchronously, without the hook timeout; only the
-   * extensions' hooks run within it and `signal`. `expectedRevision` is passed to the workspace,
+   * The policies take back their parameters first, then the extensions their state, each alone
+   * within the hook timeout and `signal`. `expectedRevision` is passed to the workspace,
    * which refuses the scene with `CONFLICT` when its revision is another. The state last known
    * of absent owners is replaced by the snapshot's.
    *
@@ -417,7 +438,7 @@ class PersistenceImpl implements Persistence {
         );
       }
     }
-    return this.#add(this.#extensions, namespace, 'an extension', extension);
+    return this.#add(this.#extensions, namespace, 'extension', extension);
   }
 
   registerPolicy(source: PolicySource): () => void {
@@ -440,7 +461,7 @@ class PersistenceImpl implements Persistence {
         throw failure('INVALID_INPUT', `policy "${source.id}": ${hook} must be a function`, hook);
       }
     }
-    return this.#add(this.#policies, source.id, 'a policy', source);
+    return this.#add(this.#policies, source.id, 'policy', source);
   }
 
   async capture(options: { readonly signal?: AbortSignal } = {}): Promise<Capture> {
@@ -449,7 +470,15 @@ class PersistenceImpl implements Persistence {
     const failures: CaptureFailure[] = [];
     for (const [id, { source }] of this.#policies) {
       try {
-        this.#knownPolicies.set(id, canonicalJson(jsonValue(source.capture(), `policies.${id}`)));
+        const parameters = source.capture();
+        if (answeredWithPromise(parameters)) {
+          throw failure(
+            'INVALID_INPUT',
+            `policy "${id}" could not be captured: capture returned a promise; it gives its parameters synchronously`,
+            `policies.${id}`,
+          );
+        }
+        this.#knownPolicies.set(id, canonicalJson(jsonValue(parameters, `policies.${id}`)));
       } catch (error) {
         failures.push({
           kind: 'policy',
@@ -655,8 +684,14 @@ class PersistenceImpl implements Persistence {
         warnings.push(`policy "${id}" is not registered: its parameters are kept as they were`);
         continue;
       }
+      const restore = source.restore?.bind(source);
+      if (restore === undefined) {
+        continue;
+      }
       try {
-        source.restore?.(parameters);
+        await this.#hook(policyHook(id), options.signal, (signal) =>
+          restore(parameters, { id, signal }),
+        );
       } catch (error) {
         failures.push({
           kind: 'policy',
@@ -671,8 +706,8 @@ class PersistenceImpl implements Persistence {
         continue;
       }
       try {
-        await this.#hook(namespace, 'restore', options.signal, (context) =>
-          owner.restore(entry.data, context),
+        await this.#hook(extensionHook(namespace, 'restore'), options.signal, (signal) =>
+          owner.restore(entry.data, { namespace, signal }),
         );
       } catch (error) {
         this.#held.add(namespace);
@@ -713,6 +748,9 @@ class PersistenceImpl implements Persistence {
     try {
       // Its own copy: the snapshot's data stays as it was.
       migrated = owner.migrate(JSON.parse(JSON.stringify(entry.data)) as JsonValue, entry.version);
+      if (answeredWithPromise(migrated)) {
+        throw new Error('migrate returned a promise; it migrates synchronously');
+      }
     } catch (error) {
       throw failure(
         'MIGRATION_FAILED',
@@ -744,26 +782,47 @@ class PersistenceImpl implements Persistence {
     this.#listeners.clear();
   }
 
+  /**
+   * Registers a policy or an extension and starts its watch. A watch that throws, or answers with
+   * something other than what stops it, fails the registration and leaves nothing registered.
+   */
   #add<T extends { watch?(changed: () => void): () => void }>(
     map: Map<string, Registered<T>>,
     id: string,
-    what: string,
+    kind: 'extension' | 'policy',
     source: T,
   ): () => void {
     if (this.#unsubscribe === null) {
       throw failure('INVALID_TRANSITION', 'the persistence is disposed');
     }
     if (map.has(id)) {
-      throw failure('INVALID_INPUT', `${what} "${id}" is already registered`);
+      throw failure(
+        'INVALID_INPUT',
+        `${kind === 'extension' ? 'an extension' : 'a policy'} "${id}" is already registered`,
+      );
     }
     const registered: Registered<T> = { source, unwatch: () => undefined };
     map.set(id, registered);
-    const stop = source.watch?.(() => {
-      if (map.get(id) === registered) {
-        this.#changed();
+    if (source.watch !== undefined) {
+      try {
+        const stop: unknown = source.watch(() => {
+          if (map.get(id) === registered) {
+            this.#changed();
+          }
+        });
+        if (typeof stop !== 'function') {
+          throw new Error(`watch returned ${describeAnswer(stop)}, not a function that stops it`);
+        }
+        registered.unwatch = stop as () => void;
+      } catch (error) {
+        map.delete(id);
+        throw failure(
+          'EXTENSION_FAILED',
+          `${kind} "${id}" could not start watching its ${kind === 'extension' ? 'state' : 'parameters'}: ${error instanceof Error ? error.message : String(error)}`,
+          'watch',
+        );
       }
-    });
-    registered.unwatch = typeof stop === 'function' ? stop : () => undefined;
+    }
     return () => {
       if (map.get(id) === registered) {
         map.delete(id);
@@ -775,26 +834,29 @@ class PersistenceImpl implements Persistence {
   /** Runs one capture hook alone: its own copy of the result, its own time limit. */
   async #run(extension: PersistenceExtension, outer: AbortSignal | undefined): Promise<JsonValue> {
     const namespace = extension.namespace;
-    const result = await this.#hook(namespace, 'capture', outer, (context) =>
-      extension.capture(context),
+    const result = await this.#hook(extensionHook(namespace, 'capture'), outer, (signal) =>
+      extension.capture({ namespace, signal }),
     );
     return canonicalJson(jsonValue(result, `extensions.${namespace}.data`));
   }
 
   /**
-   * Runs one extension hook alone, within the hook timeout and the caller's signal: a timeout is
-   * `EXTENSION_FAILED`, a cancellation `CANCELLED`, a throw `EXTENSION_FAILED` with its reason.
+   * Runs one hook alone, within the hook timeout and the caller's signal: a timeout is
+   * `EXTENSION_FAILED`, a cancellation `CANCELLED`, a throw or a rejection `EXTENSION_FAILED` with
+   * its reason. The hook is given a signal that aborts when its time is over.
    */
   async #hook(
-    namespace: string,
-    verb: 'capture' | 'restore',
+    run: HookRun,
     outer: AbortSignal | undefined,
-    call: (context: HookContext) => unknown,
+    call: (signal: AbortSignal) => unknown,
   ): Promise<unknown> {
-    const doing = verb === 'capture' ? 'capturing' : 'restoring';
     const controller = new AbortController();
+    const cancel = () => {
+      stop(failure('CANCELLED', `${run.doing} was cancelled`, run.path));
+    };
+    let stop: (error: SwfFailure) => void = () => undefined;
     const ended = new Promise<never>((_, reject) => {
-      const stop = (error: SwfFailure) => {
+      stop = (error: SwfFailure) => {
         controller.abort(error);
         reject(error);
       };
@@ -802,8 +864,8 @@ class PersistenceImpl implements Persistence {
         stop(
           failure(
             'EXTENSION_FAILED',
-            `extension "${namespace}" did not ${verb} its state within ${String(this.#timeout)} ms`,
-            undefined,
+            `${run.who} did not ${run.task} within ${String(this.#timeout)} ms`,
+            run.path,
             { reason: 'timeout' },
           ),
         );
@@ -811,31 +873,27 @@ class PersistenceImpl implements Persistence {
       controller.signal.addEventListener('abort', () => {
         clearTimeout(timer);
       });
-      const cancel = () => {
-        stop(failure('CANCELLED', `${doing} extension "${namespace}" was cancelled`));
-      };
-      if (outer?.aborted === true) {
-        cancel();
-      } else {
-        outer?.addEventListener('abort', cancel, { once: true });
-      }
     });
+    if (outer?.aborted === true) {
+      cancel();
+    } else {
+      outer?.addEventListener('abort', cancel, { once: true });
+    }
     try {
-      return await Promise.race([
-        Promise.resolve().then(() => call({ namespace, signal: controller.signal })),
-        ended,
-      ]);
+      return await Promise.race([Promise.resolve().then(() => call(controller.signal)), ended]);
     } catch (error) {
       if (error instanceof SwfFailure) {
         throw error;
       }
       throw failure(
         'EXTENSION_FAILED',
-        `extension "${namespace}" failed to ${verb} its state: ${error instanceof Error ? error.message : String(error)}`,
+        `${run.who} failed to ${run.task}: ${error instanceof Error ? error.message : String(error)}`,
+        run.path,
       );
     } finally {
+      outer?.removeEventListener('abort', cancel);
       if (!controller.signal.aborted) {
-        controller.abort(failure('CANCELLED', `${doing} extension "${namespace}" is over`));
+        controller.abort(failure('CANCELLED', `${run.doing} is over`, run.path));
       }
       ended.catch(() => undefined);
     }
@@ -868,4 +926,34 @@ function asError(error: unknown, context: string): SwfError {
     'EXTENSION_FAILED',
     `${context}: ${error instanceof Error ? error.message : String(error)}`,
   );
+}
+
+/** A hook as its messages name it. */
+interface HookRun {
+  /** Whose hook it is: `extension "ext.notes"`, `policy "host.snap/1"`. */
+  readonly who: string;
+  /** What it does: `capture its state`, `take back its parameters`. */
+  readonly task: string;
+  /** The same, as it goes on: `capturing extension "ext.notes"`. */
+  readonly doing: string;
+  /** Where its failure is in the snapshot, when its failures name one. */
+  readonly path: string | undefined;
+}
+
+function extensionHook(namespace: string, verb: 'capture' | 'restore'): HookRun {
+  return {
+    who: `extension "${namespace}"`,
+    task: `${verb} its state`,
+    doing: `${verb === 'capture' ? 'capturing' : 'restoring'} extension "${namespace}"`,
+    path: undefined,
+  };
+}
+
+function policyHook(id: string): HookRun {
+  return {
+    who: `policy "${id}"`,
+    task: 'take back its parameters',
+    doing: `restoring policy "${id}"`,
+    path: `policies.${id}`,
+  };
 }

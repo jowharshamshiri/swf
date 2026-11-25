@@ -56,13 +56,19 @@ interface Marker {
  * slots and a commit marker naming the slot that holds its last good snapshot. A save writes the
  * candidate into the other slot, reads it back, and only then rewrites the marker, in one write:
  * until that moment the last good snapshot stays the one that loads, so a save that fails or is
- * cut short (a full storage, a closed tab) never replaces it and never reports success. It is
- * atomic and compare-and-swap.
+ * cut short (a full storage, a closed tab) never replaces it and never reports success. A save
+ * whose marker write landed is committed and resolves, even when the call that wrote it threw. It
+ * is atomic and compare-and-swap.
  *
  * Every operation reads and writes the storage directly, holding nothing open; the storage stays
- * the host's. A damaged commit marker, or a slot that does not hold what its marker describes,
- * makes `load` (and `list`, for a marker) reject with `STORAGE_FAILED`. `delete` removes the
- * marker first, which deletes the snapshot at once, then both slots.
+ * the host's, and any call of it that throws rejects the operation with `STORAGE_FAILED` (or
+ * `QUOTA_EXCEEDED` for a full storage). A damaged commit marker, or a slot that does not hold
+ * what its marker describes, makes `load` (and `list`, for a marker) reject with
+ * `STORAGE_FAILED`. `delete` removes the slot the marker does not name, then the marker, which
+ * deletes the snapshot at once, then the slot it named. Letting go of a slot that no longer holds
+ * the committed snapshot, after a save or a delete has taken effect, never fails it: a slot the
+ * storage refuses to remove takes room until the key's next save writes over it. `list` skips
+ * items under the prefix that the store did not write.
  *
  * @param storage - The storage, such as `localStorage`; it must have `getItem`, `setItem`,
  *   `removeItem` and `key`.
@@ -126,49 +132,72 @@ class WebStorageStore implements SnapshotStore {
       checkExpected(key, marker?.revision ?? null, request.expectedRevision, revision);
       const slot: 0 | 1 = marker === null ? 0 : marker.slot === 0 ? 1 : 0;
       const candidate = this.#slotKey(key, slot);
+      const next: Marker = {
+        slot,
+        revision,
+        savedAt: this.#now(),
+        bytes: utf8Length(document),
+        length: document.length,
+      };
+      const committed = JSON.stringify(next);
       try {
         this.#call(`saving "${key}"`, () => {
           this.#storage.setItem(candidate, document);
+          if (this.#storage.getItem(candidate) !== document) {
+            throw failure(
+              'STORAGE_FAILED',
+              `saving "${key}" failed: the storage did not keep the candidate as written`,
+            );
+          }
         });
-        if (this.#storage.getItem(candidate) !== document) {
-          throw failure(
-            'STORAGE_FAILED',
-            `saving "${key}" failed: the storage did not keep the candidate as written`,
-          );
-        }
-        const next: Marker = {
-          slot,
-          revision,
-          savedAt: this.#now(),
-          bytes: utf8Length(document),
-          length: document.length,
-        };
-        // The commit: one write. Until it lands, the last good snapshot is the one that loads.
-        this.#call(`committing "${key}"`, () => {
-          this.#storage.setItem(this.#markerKey(key), JSON.stringify(next));
-        });
-        if (marker !== null) {
-          this.#storage.removeItem(this.#slotKey(key, marker.slot));
-        }
-        return entryOf(key, next);
       } catch (error) {
         // The candidate never became the committed snapshot; it only takes room.
-        if (this.#marker(key)?.slot !== slot) {
-          this.#storage.removeItem(candidate);
-        }
+        this.#letGo(candidate);
         throw error;
       }
+      // The commit: one write. Until it lands, the last good snapshot is the one that loads.
+      try {
+        this.#call(`committing "${key}"`, () => {
+          this.#storage.setItem(this.#markerKey(key), committed);
+        });
+      } catch (error) {
+        // A write that throws may still have landed: what the marker holds decides. When it
+        // cannot be read, the candidate is kept, since it may be the committed snapshot.
+        let landed: boolean | null;
+        try {
+          landed = this.#storage.getItem(this.#markerKey(key)) === committed;
+        } catch {
+          landed = null;
+        }
+        if (landed !== true) {
+          if (landed === false) {
+            this.#letGo(candidate);
+          }
+          throw error;
+        }
+      }
+      // Committed: letting go of the old slot only frees room, and the next save writes over it.
+      if (marker !== null) {
+        this.#letGo(this.#slotKey(key, marker.slot));
+      }
+      return entryOf(key, next);
     });
   }
 
   list(): Promise<SnapshotEntry[]> {
     return attempt(() => {
+      const names = this.#call('listing', () => {
+        const all: (string | null)[] = [];
+        for (let i = 0; i < this.#storage.length; i++) {
+          all.push(this.#storage.key(i));
+        }
+        return all;
+      });
       const keys: string[] = [];
-      for (let i = 0; i < this.#storage.length; i++) {
-        const name = this.#storage.key(i);
-        const match = name === null ? null : /^(.*)\/commit$/.exec(name);
-        if (match?.[1] !== undefined && name?.startsWith(`${this.#prefix}/`) === true) {
-          keys.push(decodeURIComponent(match[1].slice(this.#prefix.length + 1)));
+      for (const name of names) {
+        const key = name === null ? null : this.#keyOfMarker(name);
+        if (key !== null) {
+          keys.push(key);
         }
       }
       return keys.sort().flatMap((key) => {
@@ -184,12 +213,48 @@ class WebStorageStore implements SnapshotStore {
       if (marker === null) {
         return false;
       }
-      // Removing the marker deletes the snapshot at once; the slots are only room after that.
-      this.#storage.removeItem(this.#markerKey(key));
-      this.#storage.removeItem(this.#slotKey(key, 0));
-      this.#storage.removeItem(this.#slotKey(key, 1));
+      this.#call(`deleting "${key}"`, () => {
+        // The slot the marker does not name holds nothing of the snapshot.
+        this.#storage.removeItem(this.#slotKey(key, marker.slot === 0 ? 1 : 0));
+        // Removing the marker deletes the snapshot at once.
+        this.#storage.removeItem(this.#markerKey(key));
+      });
+      // Deleted: letting go of its slot only frees room, and the key's next saves write over it.
+      this.#letGo(this.#slotKey(key, marker.slot));
       return true;
     });
+  }
+
+  /**
+   * The snapshot key a commit marker's item name stands for, or null for an item this store did
+   * not write: another prefix, not a marker, or a key not encoded as the store encodes it.
+   */
+  #keyOfMarker(name: string): string | null {
+    const encoded = /^(.*)\/commit$/.exec(name)?.[1];
+    if (encoded === undefined || !name.startsWith(`${this.#prefix}/`)) {
+      return null;
+    }
+    const part = encoded.slice(this.#prefix.length + 1);
+    let key: string;
+    try {
+      key = decodeURIComponent(part);
+    } catch {
+      return null;
+    }
+    return encodeURIComponent(key) === part ? key : null;
+  }
+
+  /**
+   * Removes an item that holds no committed snapshot, to free its room. A storage that refuses
+   * leaves it taking room until the key's next save writes over it; what the operation did
+   * stands either way.
+   */
+  #letGo(item: string): void {
+    try {
+      this.#storage.removeItem(item);
+    } catch {
+      // The room stays taken until the slot is written over; nothing the store holds is wrong.
+    }
   }
 
   #marker(key: string): Marker | null {

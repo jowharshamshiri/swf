@@ -72,15 +72,15 @@
   "@swf/diagnostics": {
     "budget": 3840,
     "recorded": {
-      "minified": 9776,
-      "gzip": 3389
+      "minified": 9786,
+      "gzip": 3392
     }
   },
   "@swf/persistence": {
     "budget": 12032,
     "recorded": {
-      "minified": 36750,
-      "gzip": 10799
+      "minified": 38754,
+      "gzip": 11459
     }
   },
   "@swf/benchmark": {
