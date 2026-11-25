@@ -10,3 +10,6 @@ apps/reference/.dev-test-*/
 # Lake's build of the models and lungo's scratch space
 models/.lake/
 .lungo/
+# The generated API reference (npm run api-reference) and release bundles (npm run release)
+api-reference/
+release/

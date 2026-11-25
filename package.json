@@ -1,5 +1,5 @@
 {
-  "version": "0.54.1443",
+  "version": "0.55.1449",
   "name": "swf",
   "private": true,
   "description": "Spatial Workspace Framework: a browser-first TypeScript framework for spatial presentation and window management.",
@@ -38,20 +38,24 @@
     "conformance": "node scripts/conformance.mjs",
     "bench": "node scripts/bench.mjs",
     "test:watch": "vitest",
-    "check": "npm run models:verify && npm run format:check && npm run build:packages && npm run typecheck && npm run lint && npm run test && npm run build",
+    "check": "npm run models:verify && npm run format:check && npm run build:packages && npm run size && npm run typecheck && npm run lint && npm run test && npm run build",
     "dev": "npm run dev -w @swf/reference",
     "models": "lungo generate",
-    "models:verify": "lungo generate --verify"
+    "models:verify": "lungo generate --verify",
+    "size": "node scripts/bundle-size.mjs",
+    "api-reference": "node scripts/api-reference.mjs"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
     "@vitest/browser-playwright": "5.1.0",
-    "ajv": "8.17.1",
+    "ajv": "8.20.0",
     "axe-core": "4.14.0",
     "eslint": "10.14.0",
     "fast-check": "4.10.2",
     "playwright": "1.65.0",
     "prettier": "3.9.10",
+    "rolldown": "1.2.19",
+    "typedoc": "0.28.20",
     "typescript": "6.0.3",
     "typescript-eslint": "8.72.1",
     "vitest": "5.1.0"

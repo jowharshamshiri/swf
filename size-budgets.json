@@ -1,0 +1,93 @@
+{
+  "@swf/math": {
+    "budget": 3840,
+    "recorded": {
+      "minified": 8765,
+      "gzip": 3470
+    }
+  },
+  "@swf/models": {
+    "budget": 43264,
+    "recorded": {
+      "minified": 231402,
+      "gzip": 39308
+    }
+  },
+  "@swf/core": {
+    "budget": 24576,
+    "recorded": {
+      "minified": 79204,
+      "gzip": 22133
+    }
+  },
+  "@swf/surfaces": {
+    "budget": 8704,
+    "recorded": {
+      "minified": 26586,
+      "gzip": 7823
+    }
+  },
+  "@swf/presentation": {
+    "budget": 13824,
+    "recorded": {
+      "minified": 40148,
+      "gzip": 12436
+    }
+  },
+  "@swf/projections": {
+    "budget": 5888,
+    "recorded": {
+      "minified": 12701,
+      "gzip": 5209
+    }
+  },
+  "@swf/interaction": {
+    "budget": 17408,
+    "recorded": {
+      "minified": 48935,
+      "gzip": 15691
+    }
+  },
+  "@swf/backend-dom": {
+    "budget": 7168,
+    "recorded": {
+      "minified": 18099,
+      "gzip": 6469
+    }
+  },
+  "@swf/backend-geometry": {
+    "budget": 7936,
+    "recorded": {
+      "minified": 19013,
+      "gzip": 6991
+    }
+  },
+  "@swf/conformance": {
+    "budget": 10752,
+    "recorded": {
+      "minified": 32228,
+      "gzip": 9774
+    }
+  },
+  "@swf/diagnostics": {
+    "budget": 3840,
+    "recorded": {
+      "minified": 9776,
+      "gzip": 3389
+    }
+  },
+  "@swf/persistence": {
+    "budget": 12032,
+    "recorded": {
+      "minified": 36750,
+      "gzip": 10799
+    }
+  },
+  "@swf/benchmark": {
+    "budget": 6912,
+    "recorded": {
+      "minified": 15574,
+      "gzip": 6133
+    }
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "name": "Spatial Workspace Framework",
+  "entryPointStrategy": "packages",
+  "entryPoints": [
+    "packages/math",
+    "packages/models",
+    "packages/core",
+    "packages/surfaces",
+    "packages/presentation",
+    "packages/projections",
+    "packages/interaction",
+    "packages/backend-dom",
+    "packages/backend-geometry",
+    "packages/conformance",
+    "packages/diagnostics",
+    "packages/persistence",
+    "packages/benchmark"
+  ],
+  "packageOptions": {
+    "entryPoints": ["src/index.ts"],
+    "tsconfig": "tsconfig.json",
+    "validation": {
+      "notExported": true,
+      "invalidLink": true,
+      "invalidPath": true,
+      "notDocumented": true
+    }
+  },
+  "out": "api-reference"
+}
