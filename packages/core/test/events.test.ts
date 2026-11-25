@@ -32,11 +32,49 @@ describe('events', () => {
       phase: 'committed',
       payload: { transactionId: 'ws/tx-1', previousRevision: 0, createdIds: ['a', 'b'] },
     });
-    expect(events[0]).toMatchObject({
-      causationId: 'ws/tx-1',
-      payload: { nodeId: 'a', parentId: null },
-    });
+    expect(events[0]).toMatchObject({ payload: { nodeId: 'a', parentId: null } });
+    // The host's cause is carried on every event of the commit, its entity events included.
+    expect(events.map((e) => e.causationId)).toEqual(events.map(() => 'drag-7'));
     expect(new Set(events.map((e) => e.id)).size).toBe(events.length);
+  });
+
+  it("carries the host's cause on every event of an undo, a redo and a restore", () => {
+    const ws = makeWorkspace();
+    committed(ws.transaction([window('a')]));
+    const snapshot = ws.serialize();
+    committed(ws.transaction([window('b', { parentId: 'a' })]));
+    const events = record(ws);
+    const causes = () => {
+      const seen = events.map((e) => [e.type, e.causationId]);
+      events.length = 0;
+      return seen;
+    };
+    committed(ws.undo({ causeId: 'key-z' }));
+    expect(causes()).toEqual([
+      ['node.deleted', 'key-z'],
+      ['node.childrenChanged', 'key-z'],
+      ['transaction.committed', 'key-z'],
+    ]);
+    committed(ws.redo({ causeId: 'key-y' }));
+    expect(causes()).toEqual([
+      ['node.created', 'key-y'],
+      ['node.childrenChanged', 'key-y'],
+      ['transaction.committed', 'key-y'],
+    ]);
+    committed(ws.restore(snapshot, { causeId: 'reload-1' }));
+    expect(causes()).toEqual([
+      ['node.deleted', 'reload-1'],
+      ['node.childrenChanged', 'reload-1'],
+      ['transaction.committed', 'reload-1'],
+    ]);
+  });
+
+  it("carries the transaction's own ID on every event of a commit given no cause", () => {
+    const ws = makeWorkspace();
+    const events = record(ws);
+    const { transactionId } = committed(ws.transaction([window('a'), window('b')]));
+    expect(events.length).toBe(4);
+    expect(events.map((e) => e.causationId)).toEqual(events.map(() => transactionId));
   });
 
   it('describes moves, reparenting, field updates, archiving and selection', () => {
@@ -279,6 +317,77 @@ describe('previews', () => {
       previewId: 'drag',
       reason: 'target-detached',
     });
+  });
+
+  it("carries a preview's own cause on every event of the preview, however it ends", () => {
+    const ws = makeWorkspace();
+    committed(ws.transaction([window('a'), window('b'), window('c', { flags: { locked: true } })]));
+    const events = record(ws);
+    const causes = () => {
+      const seen = events.map((e) => [e.type, e.causationId]);
+      events.length = 0;
+      return seen;
+    };
+    const nudge = (id: string) => [{ type: 'node.patch', id, transform: at([1, 0, 0]) }] as const;
+
+    ws.preview('drag-a', nudge('a'), { causeId: 'gesture-a' });
+    ws.preview('drag-c', nudge('c'), { causeId: 'gesture-c' });
+    ws.preview('drag-b', nudge('b'));
+    expect(causes()).toEqual([
+      ['transform.preview', 'gesture-a'],
+      ['transform.preview', 'gesture-c'],
+      ['transform.preview', 'drag-b'],
+    ]);
+
+    // A commit's own events carry its cause; the open previews it re-applies or ends carry theirs.
+    committed(
+      ws.dispatch({ type: 'node.delete', id: 'a', mode: 'subtree' }, { causeId: 'key-del' }),
+    );
+    expect(causes()).toEqual([
+      ['node.deleted', 'key-del'],
+      ['node.childrenChanged', 'key-del'],
+      ['transaction.committed', 'key-del'],
+      ['preview.cancelled', 'gesture-a'],
+      ['transform.preview', 'gesture-c'],
+      ['transform.preview', 'drag-b'],
+    ]);
+
+    // A refused commit of a preview: the refusal carries the commit's cause, the ending the preview's.
+    rejected(
+      ws.dispatch(nudge('c')[0], { previewId: 'drag-c', source: 'user', causeId: 'drop-c' }),
+    );
+    expect(causes()).toEqual([
+      ['transaction.rejected', 'drop-c'],
+      ['preview.cancelled', 'gesture-c'],
+    ]);
+
+    ws.preview('drag-c', nudge('b'), { causeId: 'gesture-c2' });
+    events.length = 0;
+    expect(ws.cancelPreview('drag-c', 'escape')).toBe(true);
+    expect(causes()).toEqual([['preview.cancelled', 'gesture-c2']]);
+
+    // Two previews that stop applying together: the newer one ends as invalidated.
+    committed(ws.dispatch(window('v')));
+    ws.preview('remove-b', [{ type: 'node.delete', id: 'b', mode: 'subtree' }], {
+      causeId: 'gesture-r',
+    });
+    ws.preview('move-v', nudge('v'), { causeId: 'gesture-v' });
+    events.length = 0;
+    committed(ws.dispatch({ type: 'node.reparent', id: 'v', parentId: 'b' }));
+    expect(causes().filter(([type]) => type === 'preview.cancelled')).toEqual([
+      ['preview.cancelled', 'gesture-v'],
+    ]);
+
+    ws.preview('drag-last', nudge('c'), { causeId: 'gesture-last' });
+    expect(ws.getPreview('drag-last')).toBeDefined();
+    events.length = 0;
+    void ws.dispose();
+    expect(causes()).toEqual([
+      ['preview.cancelled', 'drag-b'],
+      ['preview.cancelled', 'gesture-r'],
+      ['preview.cancelled', 'gesture-last'],
+      ['workspace.disposed', null],
+    ]);
   });
 });
 

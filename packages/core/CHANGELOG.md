@@ -33,3 +33,9 @@ a geometry's `params`, a projection's `config` and a rebind's `bindingKey` inher
 prototype count as missing, a snapshot's flag must be the snapshot's own, and a `geometryLimits`
 entry named after a prototype member (`constructor`, `toString`, `__proto__`) is refused as an
 unknown limit.
+
+A host's `causeId` is carried as `causationId` on every event of a commit, its entity events
+included, for a transaction, an undo, a redo and a restore alike; before, the entity events
+carried the transaction's own ID, as they still do when no `causeId` is given. A preview's
+`causeId` is carried on the `preview.cancelled` that ends it however it ends, as on its
+`transform.preview` events; before, only the disposal's `preview.cancelled` carried it.

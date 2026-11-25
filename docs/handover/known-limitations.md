@@ -42,8 +42,6 @@ What SWF does not do, or does not do yet. Each item says why and what a host can
 
 These were found while documenting the API; the JSDoc states today's behaviour.
 
-- **A host's `causeId`** reaches the `transaction.*` and `transform.preview` events, not the
-  entity events of a commit, which carry the transaction's own ID.
 - **The reference application's models and the arbitration model**: the wrapped cursor accepts a
   pointer position that is not finite and wraps it to one that is not a number; a disposed
   workspaces machine still answers a save or an adoption; moving a window's last surface out plans

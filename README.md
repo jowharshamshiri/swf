@@ -130,6 +130,13 @@ committed (none for an undo, a redo or a restore, which name what they reverse o
 listener can trace operations without the caller's help. Every event of one operation carries the
 same `timestamp`: the workspace's `now` clock as the operation began.
 
+A host ties events to its own actions with `causeId`, which an event carries as its
+`causationId`. Given to a transaction, an undo, a redo or a restore, it is on every event of the
+commit, its entity events and `transaction.committed` alike, or on the refusal's
+`transaction.rejected`; given to a preview, it is on the preview's `transform.preview` events
+and on the `preview.cancelled` that ends it, even when a commit re-applies or ends the preview.
+Without one, those events carry the transaction's or the preview's own ID.
+
 The node commands are `node.create`, `node.patch`, `node.reparent`, `node.reorder`,
 `node.duplicate`, `node.archive`, `node.restoreArchived`, `node.delete`, `node.group`,
 `node.ungroup`, `selection.set` and `focus.set`. The surface commands are `surface.attach`,

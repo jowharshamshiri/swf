@@ -127,9 +127,13 @@ export interface TxOptions {
   /** Default `host`. */
   readonly source?: EventSource;
   /**
-   * A host correlation ID: a non-blank string. It is the causation ID of the transaction's
-   * `transaction.committed` or `transaction.rejected` event, and of a preview's
-   * `transform.preview` events; the entity events of a commit carry the transaction's own ID.
+   * A host correlation ID: a non-blank string, carried as `causationId` on every event of the
+   * operation it is given to. For a transaction, an undo, a redo or a restore, those are the
+   * commit's entity events and its `transaction.committed`, or the refusal's
+   * `transaction.rejected`; without one they carry the transaction's own ID. For a preview,
+   * they are its `transform.preview` events and the `preview.cancelled` that ends it, however
+   * it ends; without one they carry the preview's ID. A commit re-applying or ending open
+   * previews sends their events with each preview's cause, not its own.
    */
   readonly causeId?: string;
   /**
@@ -999,7 +1003,7 @@ class WorkspaceImpl implements Workspace {
         { previewId, reason },
         {
           source: record.source,
-          causeId: previewId,
+          causeId: record.causeId ?? previewId,
           phase: 'cancelled',
           timestamp,
         },
@@ -1066,15 +1070,17 @@ class WorkspaceImpl implements Workspace {
       ...clocks,
     };
     const settle = (outcome: TxOutcome): TxOutcome => {
-      if (
-        options.previewId !== null &&
-        this.#previews.delete(options.previewId) &&
-        outcome.status === 'rejected'
-      ) {
+      const previewId = options.previewId;
+      const committing = previewId === null ? undefined : this.#previews.get(previewId);
+      if (previewId === null || committing === undefined) {
+        return outcome;
+      }
+      this.#previews.delete(previewId);
+      if (outcome.status === 'rejected') {
         this.#emit(
           'preview.cancelled',
           {
-            previewId: options.previewId,
+            previewId,
             reason:
               outcome.error.code === 'CONSTRAINT_REJECTED'
                 ? 'constraint-rejected'
@@ -1082,7 +1088,7 @@ class WorkspaceImpl implements Workspace {
           },
           {
             source: options.source,
-            causeId: options.previewId,
+            causeId: committing.causeId ?? previewId,
             phase: 'cancelled',
             timestamp: meta.timestamp,
           },
@@ -1360,18 +1366,21 @@ class WorkspaceImpl implements Workspace {
     if (decision.dropOldest) {
       this.#undo.shift();
     }
+    // Every event of the commit, its entity events and its transaction.committed, carries the
+    // host's cause, or the transaction's own ID when the host gave none.
+    const how: EmitHow = {
+      source: meta.source,
+      causeId: meta.causeId ?? meta.transactionId,
+      phase: 'committed',
+      timestamp: meta.timestamp,
+    };
     for (const event of diffScenes(before, after, {
       nodes: outcome.touched,
       surfaces: outcome.touchedSurfaces,
       cameras: outcome.touchedCameras,
       viewports: outcome.touchedViewports,
     })) {
-      this.#emitPending(event, {
-        source: meta.source,
-        causeId: meta.transactionId,
-        phase: 'committed',
-        timestamp: meta.timestamp,
-      });
+      this.#emitPending(event, how);
     }
     this.#emit(
       'transaction.committed',
@@ -1388,12 +1397,7 @@ class WorkspaceImpl implements Workspace {
         commands: extra.commands,
         durationMs,
       },
-      {
-        source: meta.source,
-        causeId: meta.causeId ?? meta.transactionId,
-        phase: 'committed',
-        timestamp: meta.timestamp,
-      },
+      how,
     );
     this.#refreshPreviews(meta.timestamp);
     return Object.freeze({
@@ -1695,7 +1699,12 @@ class WorkspaceImpl implements Workspace {
                   ? 'constraint-rejected'
                   : 'invalidated',
           },
-          { source: record.source, causeId: previewId, phase: 'cancelled', timestamp },
+          {
+            source: record.source,
+            causeId: record.causeId ?? previewId,
+            phase: 'cancelled',
+            timestamp,
+          },
         );
       }
     }
@@ -1723,7 +1732,12 @@ class WorkspaceImpl implements Workspace {
         this.#emit(
           'preview.cancelled',
           { previewId, reason: 'invalidated' },
-          { source: record.source, causeId: previewId, phase: 'cancelled', timestamp },
+          {
+            source: record.source,
+            causeId: record.causeId ?? previewId,
+            phase: 'cancelled',
+            timestamp,
+          },
         );
       }
     }

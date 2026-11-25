@@ -334,7 +334,13 @@ export type WorkspaceEvent = {
     readonly timestamp: number;
     /** Who originated the operation that caused the event. */
     readonly source: EventSource;
-    /** The transaction or operation that caused the event. */
+    /**
+     * What caused the event: the host's `causeId` for the operation, or the operation's own ID
+     * without one. Every event of a commit (its entity events and `transaction.committed`) and a
+     * refusal's `transaction.rejected` carry the transaction's cause or ID; every
+     * `transform.preview` and `preview.cancelled` carries its preview's cause or ID, even when
+     * a commit or the disposal sends it. `workspace.disposed` carries null.
+     */
     readonly causationId: string | null;
     /** Where the operation stood when the event was made. */
     readonly phase: OperationPhase;
