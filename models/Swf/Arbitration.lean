@@ -7,8 +7,10 @@ hits a ray makes are merged (a window's frame counts inside it only where none o
 covers it, except along its resize band), marked occluded when a nearer occluding hit lies in front,
 and ordered by presentation priority, occlusion, depth, region and identity; the first is the
 target, ambiguous when the next is another window that ties with it. Among the gestures the
-policies bid for a press, the highest priority wins, then the lower policy ID. The interaction
-layer intersects the geometry; this model decides.
+policies bid for a press, the highest priority wins, then the lower policy ID. Priorities, distances
+and the depth tolerance are compared by order keys (`Swf.Order`), so a number that is not finite is
+refused before anything is ordered. The interaction layer intersects the geometry; this model
+decides.
 -/
 namespace Swf.Arbitration
 
@@ -109,15 +111,16 @@ def bidKey (b : Bid) : SortKey := ⟨-floatKey b.priority, 0, 0, 0, b.policy⟩
 def eligibleBid (bids : Array Bid) (kind : BidKind) (pointers : Nat) (i : Nat) : Bool :=
   (bids[i]!).kind = kind && (bids[i]!).pointers = pointers
 
-/-- The winning bid of a kind for a pointer count, or none when no bid is of that kind and count. -/
-def bestBid (bids : Array Bid) (kind : BidKind) (pointers : Nat) : Option Nat :=
+/-- The first-ranked bid of a kind for a pointer count, by order key of priority, then policy ID,
+or none when no bid is of that kind and count. The keys order priorities only when they are
+finite: `bestBid` checks them first. -/
+def rankedBid (bids : Array Bid) (kind : BidKind) (pointers : Nat) : Option Nat :=
   (sortBy (fun i => bidKey bids[i]!)
     ((List.range bids.size).filter (eligibleBid bids kind pointers))).head?
 
-/-- The winner is a bid of the kind and pointer count asked for. -/
-@[lungo_claim "lungo.law" subject bestBid]
-theorem winner_eligible (bids : Array Bid) (kind : BidKind) (pointers : Nat) (i : Nat)
-    (h : bestBid bids kind pointers = some i) :
+/-- The first-ranked bid is of the kind and pointer count asked for. -/
+theorem ranked_eligible (bids : Array Bid) (kind : BidKind) (pointers : Nat) (i : Nat)
+    (h : rankedBid bids kind pointers = some i) :
     i < bids.size ∧ (bids[i]!).kind = kind ∧ (bids[i]!).pointers = pointers := by
   have hmem : i ∈ (List.range bids.size).filter (eligibleBid bids kind pointers) := by
     have hperm := List.mergeSort_perm ((List.range bids.size).filter (eligibleBid bids kind pointers))
@@ -128,21 +131,18 @@ theorem winner_eligible (bids : Array Bid) (kind : BidKind) (pointers : Nat) (i 
   simp [eligibleBid] at hmem
   exact ⟨hmem.1, hmem.2.1, hmem.2.2⟩
 
-/-- No eligible bid outranks the winner: it has the highest priority among them, and the lowest
-policy ID among those of that priority. -/
-@[lungo_claim "lungo.law" subject bestBid]
-theorem winner_ranks_first (bids : Array Bid) (kind : BidKind) (pointers : Nat) (i : Nat)
-    (h : bestBid bids kind pointers = some i) (j : Nat) (hj : j < bids.size)
+/-- No eligible bid ranks before the first-ranked one. -/
+theorem ranked_first (bids : Array Bid) (kind : BidKind) (pointers : Nat) (i : Nat)
+    (h : rankedBid bids kind pointers = some i) (j : Nat) (hj : j < bids.size)
     (he : eligibleBid bids kind pointers j = true) :
     keyLe (bidKey bids[i]!) (bidKey bids[j]!) = true :=
   sortBy_head_first _ _ i h j (by simp [hj, he])
 
-/-- There is a winner exactly when some bid is eligible. -/
-@[lungo_claim "lungo.law" subject bestBid]
-theorem winner_exists_iff (bids : Array Bid) (kind : BidKind) (pointers : Nat) :
-    (bestBid bids kind pointers).isSome = true ↔
+/-- There is a first-ranked bid exactly when some bid is eligible. -/
+theorem ranked_exists_iff (bids : Array Bid) (kind : BidKind) (pointers : Nat) :
+    (rankedBid bids kind pointers).isSome = true ↔
       ∃ j, j < bids.size ∧ eligibleBid bids kind pointers j = true := by
-  simp only [bestBid, sortBy, Option.isSome_iff_exists]
+  simp only [rankedBid, sortBy, Option.isSome_iff_exists]
   constructor
   · rintro ⟨i, hi⟩
     have hperm := List.mergeSort_perm ((List.range bids.size).filter (eligibleBid bids kind pointers))
@@ -161,6 +161,123 @@ theorem winner_exists_iff (bids : Array Bid) (kind : BidKind) (pointers : Nat) :
         (fun i j => keyLe (bidKey bids[i]!) (bidKey bids[j]!)) with
     | nil => exact absurd hl hne
     | cons x _ => exact ⟨x, rfl⟩
+
+/-- What the arena decides for a press. -/
+inductive BidOutcome where
+  /-- The bid at `bid` wins. -/
+  | winner (bid : Nat)
+  /-- No bid is of the kind and pointer count asked for. -/
+  | noBid
+  /-- The bid at `bid`, the first whose priority is not finite, cannot be ranked: the press is
+  refused, whatever the other bids. -/
+  | invalidPriority (bid : Nat)
+
+/-- The first bid whose priority is not finite, if any. -/
+def firstNonFiniteBid (bids : Array Bid) : Option Nat :=
+  (List.range bids.size).find? (fun i => !(bids[i]!).priority.isFinite)
+
+/-- The winning bid of a kind for a pointer count. Priorities are compared by their order keys,
+which order only finite numbers (`Swf.Order`): a bid whose priority is not finite, of any kind
+and count, is refused (`invalidPriority`, naming the first). Otherwise the highest priority
+wins, then the lower policy ID; `noBid` when no bid is of that kind and count. -/
+def bestBid (bids : Array Bid) (kind : BidKind) (pointers : Nat) : BidOutcome :=
+  match firstNonFiniteBid bids with
+  | some i => .invalidPriority i
+  | none =>
+    match rankedBid bids kind pointers with
+    | some i => .winner i
+    | none => .noBid
+
+theorem firstNonFiniteBid_none (bids : Array Bid) :
+    firstNonFiniteBid bids = none ↔ ∀ j < bids.size, (bids[j]!).priority.isFinite = true := by
+  simp [firstNonFiniteBid]
+
+theorem bestBid_winner {bids : Array Bid} {kind : BidKind} {pointers i : Nat}
+    (h : bestBid bids kind pointers = .winner i) :
+    rankedBid bids kind pointers = some i ∧ firstNonFiniteBid bids = none := by
+  unfold bestBid at h
+  split at h
+  · cases h
+  · rename_i hn
+    split at h
+    · cases h; exact ⟨by assumption, hn⟩
+    · cases h
+
+/-- The winner is a bid of the kind and pointer count asked for, and every bid's priority is
+finite. -/
+@[lungo_claim "lungo.law" subject bestBid]
+theorem winner_eligible (bids : Array Bid) (kind : BidKind) (pointers : Nat) (i : Nat)
+    (h : bestBid bids kind pointers = .winner i) :
+    i < bids.size ∧ (bids[i]!).kind = kind ∧ (bids[i]!).pointers = pointers ∧
+      ∀ j < bids.size, (bids[j]!).priority.isFinite = true := by
+  obtain ⟨hr, hn⟩ := bestBid_winner h
+  exact ⟨(ranked_eligible _ _ _ _ hr).1, (ranked_eligible _ _ _ _ hr).2.1,
+    (ranked_eligible _ _ _ _ hr).2.2, (firstNonFiniteBid_none bids).mp hn⟩
+
+/-- No eligible bid outranks the winner: it has the highest priority among them, and the lowest
+policy ID among those of that priority. -/
+@[lungo_claim "lungo.law" subject bestBid]
+theorem winner_ranks_first (bids : Array Bid) (kind : BidKind) (pointers : Nat) (i : Nat)
+    (h : bestBid bids kind pointers = .winner i) (j : Nat) (hj : j < bids.size)
+    (he : eligibleBid bids kind pointers j = true) :
+    keyLe (bidKey bids[i]!) (bidKey bids[j]!) = true :=
+  ranked_first bids kind pointers i (bestBid_winner h).1 j hj he
+
+/-- There is a winner exactly when every bid's priority is finite and some bid is eligible. -/
+@[lungo_claim "lungo.law" subject bestBid]
+theorem winner_exists_iff (bids : Array Bid) (kind : BidKind) (pointers : Nat) :
+    (∃ i, bestBid bids kind pointers = .winner i) ↔
+      (∀ j < bids.size, (bids[j]!).priority.isFinite = true) ∧
+        ∃ j, j < bids.size ∧ eligibleBid bids kind pointers j = true := by
+  constructor
+  · rintro ⟨i, h⟩
+    obtain ⟨hr, hn⟩ := bestBid_winner h
+    exact ⟨(firstNonFiniteBid_none bids).mp hn,
+      (ranked_exists_iff bids kind pointers).mp (by simp [hr])⟩
+  · rintro ⟨hf, he⟩
+    have hn := (firstNonFiniteBid_none bids).mpr hf
+    obtain ⟨i, hi⟩ := Option.isSome_iff_exists.mp ((ranked_exists_iff bids kind pointers).mpr he)
+    exact ⟨i, by simp [bestBid, hn, hi]⟩
+
+/-- A press is refused exactly when some bid's priority, of any kind and count, is not finite;
+the refusal names the first such bid. -/
+@[lungo_claim "lungo.law" subject bestBid]
+theorem nonfinite_priority_refused (bids : Array Bid) (kind : BidKind) (pointers : Nat) (i : Nat) :
+    bestBid bids kind pointers = .invalidPriority i ↔
+      i < bids.size ∧ (bids[i]!).priority.isFinite = false ∧
+        ∀ j < i, (bids[j]!).priority.isFinite = true := by
+  have hf : firstNonFiniteBid bids = some i ↔ i < bids.size ∧
+      (bids[i]!).priority.isFinite = false ∧ ∀ j < i, (bids[j]!).priority.isFinite = true := by
+    simp only [firstNonFiniteBid, List.find?_range_eq_some, List.mem_range, Bool.not_eq_true',
+      Bool.not_not]
+    constructor
+    · rintro ⟨a, b, c⟩; exact ⟨b, a, c⟩
+    · rintro ⟨a, b, c⟩; exact ⟨b, a, c⟩
+  rw [← hf]
+  unfold bestBid
+  split
+  · rename_i k hk
+    simp [hk]
+  · rename_i hn
+    simp only [hn, reduceCtorEq, iff_false]
+    split <;> exact fun h => nomatch h
+
+/-- Some bid is refused exactly when some bid's priority is not finite. -/
+@[lungo_claim "lungo.law" subject bestBid]
+theorem refused_iff_nonfinite (bids : Array Bid) (kind : BidKind) (pointers : Nat) :
+    (∃ i, bestBid bids kind pointers = .invalidPriority i) ↔
+      ∃ j < bids.size, (bids[j]!).priority.isFinite = false := by
+  cases hf : firstNonFiniteBid bids with
+  | none =>
+    have := (firstNonFiniteBid_none bids).mp hf
+    simp only [bestBid, hf]
+    constructor
+    · rintro ⟨i, h⟩; split at h <;> cases h
+    · rintro ⟨j, hj, hnf⟩; simp_all
+  | some k =>
+    simp only [bestBid, hf]
+    have hk := (nonfinite_priority_refused bids kind pointers k).mp (by simp [bestBid, hf])
+    exact ⟨fun _ => ⟨k, hk.1, hk.2.1⟩, fun _ => ⟨k, rfl⟩⟩
 
 /-! ## Picking -/
 
@@ -230,13 +347,14 @@ structure PickOrder where
   the tolerance, depth: the target was chosen by identity. -/
   ambiguous : Bool
 
-/-- Orders the hits a ray makes, with `tolerance` the depth difference (world units) that counts as
+/-- Orders hits whose distances and priorities, and the tolerance, are finite (`pickOrder` checks
+them): the order keys compare only finite numbers. With `tolerance` the depth difference (world units) that counts as
 a tie. A node's frame counts only where none of the node's surfaces is hit, except along its
 resize band, and a surface only where the node's resize band is not hit; every hit that counts is
 ordered once, and nothing else. A hit is occluded when another occluding hit that counts lies nearer by more than the
 tolerance. The order is by higher priority, then not occluded, nearer, region (resize band, then
 content, then frame) and node and surface ID; the target ranks first. -/
-def pickOrder (hits : Array Hit) (tolerance : Float) : PickOrder :=
+def orderHits (hits : Array Hit) (tolerance : Float) : PickOrder :=
   let kept := (List.range hits.size).filter (keeps hits)
   let order := sortBy (hitKey hits kept tolerance) kept
   let occ := fun i => occludedAt hits kept tolerance i
@@ -249,16 +367,14 @@ def pickOrder (hits : Array Hit) (tolerance : Float) : PickOrder :=
   { order, occluded := order.map occ, ambiguous }
 
 /-- Every hit that counts is ordered, once, and nothing else. -/
-@[lungo_claim "lungo.law" subject pickOrder]
-theorem order_is_kept (hits : Array Hit) (tolerance : Float) :
-    (pickOrder hits tolerance).order.Perm ((List.range hits.size).filter (keeps hits)) := by
-  simp only [pickOrder, sortBy]
+theorem orderHits_kept (hits : Array Hit) (tolerance : Float) :
+    (orderHits hits tolerance).order.Perm ((List.range hits.size).filter (keeps hits)) := by
+  simp only [orderHits, sortBy]
   exact List.mergeSort_perm _ _
 
 /-- The target sorts first: no hit that counts outranks it. -/
-@[lungo_claim "lungo.law" subject pickOrder]
-theorem target_ranks_first (hits : Array Hit) (tolerance : Float) (t : Nat)
-    (h : (pickOrder hits tolerance).order.head? = some t) (j : Nat) (hj : j < hits.size)
+theorem orderHits_target_first (hits : Array Hit) (tolerance : Float) (t : Nat)
+    (h : (orderHits hits tolerance).order.head? = some t) (j : Nat) (hj : j < hits.size)
     (hk : keeps hits j = true) :
     keyLe (hitKey hits ((List.range hits.size).filter (keeps hits)) tolerance t)
       (hitKey hits ((List.range hits.size).filter (keeps hits)) tolerance j) = true :=
@@ -288,20 +404,151 @@ theorem covered_frames_dropped (hits : Array Hit) (i j : Nat) (hi : i < hits.siz
 
 /-- A hit is occluded exactly when another kept, occluding hit lies nearer than it by more than the
 tolerance. -/
-@[lungo_claim "lungo.law" subject pickOrder]
-theorem occluded_by_nearer (hits : Array Hit) (tolerance : Float) (k : Nat)
-    (hk : k < (pickOrder hits tolerance).order.length) :
-    (pickOrder hits tolerance).occluded[k]! = true ↔
+theorem orderHits_occluded (hits : Array Hit) (tolerance : Float) (k : Nat)
+    (hk : k < (orderHits hits tolerance).order.length) :
+    (orderHits hits tolerance).occluded[k]! = true ↔
       ∃ j ∈ (List.range hits.size).filter (keeps hits),
-        j ≠ (pickOrder hits tolerance).order[k]! ∧ (hits[j]!).occluding = true ∧
+        j ≠ (orderHits hits tolerance).order[k]! ∧ (hits[j]!).occluding = true ∧
         floatKey ((hits[j]!).distance + tolerance) <
-          floatKey (hits[(pickOrder hits tolerance).order[k]!]!).distance := by
-  simp only [pickOrder] at hk ⊢
+          floatKey (hits[(orderHits hits tolerance).order[k]!]!).distance := by
+  simp only [orderHits] at hk ⊢
   rw [List.getElem!_eq_getElem?_getD, List.getElem?_map, List.getElem?_eq_getElem hk]
   simp only [Option.map_some, Option.getD_some, occludedAt, List.any_eq_true, Bool.and_eq_true,
     bne_iff_ne, ne_eq, decide_eq_true_eq, List.getElem!_eq_getElem?_getD, List.getElem?_eq_getElem hk]
   constructor
   · rintro ⟨j, hj, ⟨hne, ho⟩, hlt⟩; exact ⟨j, hj, hne, ho, hlt⟩
   · rintro ⟨j, hj, hne, ho, hlt⟩; exact ⟨j, hj, ⟨hne, ho⟩, hlt⟩
+
+
+/-- What picking decides for the hits a ray makes. -/
+inductive PickOutcome where
+  /-- The hits that count, ordered. -/
+  | ordered (pick : PickOrder)
+  /-- The depth tolerance is not a finite number at least zero: nothing is ordered. -/
+  | invalidTolerance
+  /-- The hit at `hit`, the first with a number that is not finite, cannot be ordered: `field`
+  (`distance`, or else `priority`) is not finite. Nothing is ordered. -/
+  | invalidHit (hit : Nat) (field : String)
+
+/-- The field of a hit that is not finite, if any: its distance first, then its priority. -/
+def hitIssue (h : Hit) : Option String :=
+  if !h.distance.isFinite then some "distance"
+  else if !h.priority.isFinite then some "priority"
+  else none
+
+/-- The first hit with a field that is not finite, and that field, if any. -/
+def firstInvalidHit (hits : Array Hit) : Option (Nat × String) :=
+  (List.range hits.size).findSome? fun i => (hitIssue hits[i]!).map (i, ·)
+
+/-- Orders the hits a ray makes, with `tolerance` the depth difference (world units) that counts as
+a tie, as `orderHits` does. Distances and priorities are compared by their order keys, which order
+only finite numbers (`Swf.Order`): a tolerance that is not finite and at least zero is refused
+first (`invalidTolerance`), then the first hit whose distance or priority is not finite
+(`invalidHit`, naming it and the field). -/
+def pickOrder (hits : Array Hit) (tolerance : Float) : PickOutcome :=
+  if !tolerance.isFinite || !decide (0 ≤ tolerance) then .invalidTolerance
+  else
+    match firstInvalidHit hits with
+    | some (i, field) => .invalidHit i field
+    | none => .ordered (orderHits hits tolerance)
+
+theorem hitIssue_none (h : Hit) :
+    hitIssue h = none ↔ h.distance.isFinite = true ∧ h.priority.isFinite = true := by
+  unfold hitIssue
+  cases h.distance.isFinite <;> cases h.priority.isFinite <;> simp
+
+theorem firstInvalidHit_none (hits : Array Hit) :
+    firstInvalidHit hits = none ↔
+      ∀ i < hits.size, (hits[i]!).distance.isFinite = true ∧ (hits[i]!).priority.isFinite = true := by
+  simp only [firstInvalidHit, List.findSome?_eq_none_iff, List.mem_range, Option.map_eq_none_iff]
+  exact forall_congr' fun i => imp_congr_right fun _ => hitIssue_none _
+
+theorem pickOrder_ordered {hits : Array Hit} {tolerance : Float} {po : PickOrder}
+    (h : pickOrder hits tolerance = .ordered po) : po = orderHits hits tolerance := by
+  unfold pickOrder at h
+  split at h
+  · cases h
+  · split at h
+    · cases h
+    · cases h; rfl
+
+/-- Every hit that counts is ordered, once, and nothing else. -/
+@[lungo_claim "lungo.law" subject pickOrder]
+theorem order_is_kept (hits : Array Hit) (tolerance : Float) (po : PickOrder)
+    (h : pickOrder hits tolerance = .ordered po) :
+    po.order.Perm ((List.range hits.size).filter (keeps hits)) := by
+  rw [pickOrder_ordered h]
+  exact orderHits_kept hits tolerance
+
+/-- The target sorts first: no hit that counts outranks it. -/
+@[lungo_claim "lungo.law" subject pickOrder]
+theorem target_ranks_first (hits : Array Hit) (tolerance : Float) (po : PickOrder)
+    (h : pickOrder hits tolerance = .ordered po) (t : Nat) (ht : po.order.head? = some t) (j : Nat)
+    (hj : j < hits.size) (hk : keeps hits j = true) :
+    keyLe (hitKey hits ((List.range hits.size).filter (keeps hits)) tolerance t)
+      (hitKey hits ((List.range hits.size).filter (keeps hits)) tolerance j) = true := by
+  rw [pickOrder_ordered h] at ht
+  exact orderHits_target_first hits tolerance t ht j hj hk
+
+/-- A hit is occluded exactly when another kept, occluding hit lies nearer than it by more than the
+tolerance. -/
+@[lungo_claim "lungo.law" subject pickOrder]
+theorem occluded_by_nearer (hits : Array Hit) (tolerance : Float) (po : PickOrder)
+    (h : pickOrder hits tolerance = .ordered po) (k : Nat) (hk : k < po.order.length) :
+    po.occluded[k]! = true ↔
+      ∃ j ∈ (List.range hits.size).filter (keeps hits),
+        j ≠ po.order[k]! ∧ (hits[j]!).occluding = true ∧
+        floatKey ((hits[j]!).distance + tolerance) < floatKey (hits[po.order[k]!]!).distance := by
+  rw [pickOrder_ordered h] at hk ⊢
+  exact orderHits_occluded hits tolerance k hk
+
+/-- The hits are ordered exactly when the tolerance is finite and at least zero and every hit's
+distance and priority are finite: the order keys are compared only for finite numbers. -/
+@[lungo_claim "lungo.law" subject pickOrder]
+theorem ordered_iff_finite (hits : Array Hit) (tolerance : Float) :
+    (∃ po, pickOrder hits tolerance = .ordered po) ↔
+      (tolerance.isFinite = true ∧ 0 ≤ tolerance) ∧
+        ∀ i < hits.size, (hits[i]!).distance.isFinite = true ∧ (hits[i]!).priority.isFinite = true := by
+  unfold pickOrder
+  by_cases ht : tolerance.isFinite = true ∧ 0 ≤ tolerance
+  · have hc : (!tolerance.isFinite || !decide (0 ≤ tolerance)) = false := by simp [ht.1, ht.2]
+    rw [hc]
+    simp only [Bool.false_eq_true, ite_false, ht, true_and]
+    rw [← firstInvalidHit_none]
+    cases firstInvalidHit hits with
+    | none => simp
+    | some p => simp
+  · have hc : (!tolerance.isFinite || !decide (0 ≤ tolerance)) = true := by
+      by_cases h1 : tolerance.isFinite = true
+      · have : ¬ 0 ≤ tolerance := fun h2 => ht ⟨h1, h2⟩
+        simp [this]
+      · simp_all
+    simp only [hc, ite_true, reduceCtorEq, exists_false, false_iff]
+    exact fun h => ht h.1
+
+/-- A refused hit is one that is given, and the field named is not finite: its distance, or its
+priority when its distance is finite. -/
+@[lungo_claim "lungo.law" subject pickOrder]
+theorem invalid_hit_named (hits : Array Hit) (tolerance : Float) (i : Nat) (field : String)
+    (h : pickOrder hits tolerance = .invalidHit i field) :
+    i < hits.size ∧
+      ((field = "distance" ∧ (hits[i]!).distance.isFinite = false) ∨
+        (field = "priority" ∧ (hits[i]!).distance.isFinite = true ∧
+          (hits[i]!).priority.isFinite = false)) := by
+  unfold pickOrder at h
+  split at h
+  · cases h
+  · split at h
+    · rename_i i' f' hf
+      simp only [PickOutcome.invalidHit.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h
+      obtain ⟨j, hj, hm⟩ := List.exists_of_findSome?_eq_some hf
+      simp only [Option.map_eq_some_iff, Prod.mk.injEq] at hm
+      obtain ⟨f, hf', rfl, rfl⟩ := hm
+      refine ⟨by simpa using hj, ?_⟩
+      unfold hitIssue at hf'
+      cases hd : (hits[j]!).distance.isFinite <;> cases hp : (hits[j]!).priority.isFinite <;>
+        simp_all
+    · cases h
 
 end Swf.Arbitration

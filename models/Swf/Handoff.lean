@@ -4,9 +4,11 @@ import Lungo
 A viewport's backend handoff (spec §13.5): `active → preparing → validating → swapping →
 active(new)`; a failure before the swap leaves the previous backend as it was, a failure during it
 rolls back with the retained old resources, and when no backend works and the previous one is gone
-the viewport is `presentation-degraded` while the scene stays usable. The presenter prepares,
-plans, renders and moves; this model decides each state, what happens to each attached surface,
-what a rollback does for each surface step carried out, and how a handoff ends.
+the viewport is `presentation-degraded` while the scene stays usable. A handoff is begun only from
+a settled viewport, so the next candidate is tried once the failure of the one in hand returned it
+to the previous backend. The presenter prepares, plans, renders and moves; this model decides each
+state, what happens to each attached surface, what a rollback does for each surface step carried
+out, and how a handoff ends.
 -/
 namespace Swf.Handoff
 
@@ -20,8 +22,8 @@ inductive ViewportState where
   | swapping
   /-- A backend is active: frames are planned and presented. -/
   | active
-  /-- No backend works and the previous one is gone (`presentation-degraded`): nothing is
-  presented, while the scene stays usable. -/
+  /-- No backend works (`presentation-degraded`): the previous one is gone, or the viewport has had
+  none since it opened. Nothing is presented, while the scene stays usable. -/
   | degraded
   /-- The viewport is disposed and takes no event. -/
   | disposed
@@ -37,19 +39,36 @@ inductive HandoffEvent where
   | validated
   /-- The view is rebuilt in the candidate and the live content moved into it. -/
   | swapped
+  /-- The candidate in hand failed and everything it did was undone: the viewport is back on the
+  previous backend, active when that still works (`oldUsable`), degraded otherwise. -/
+  | failed (oldUsable : Bool)
   /-- The viewport is disposed. -/
   | dispose
 
-/-- The state after an event, or none when the event does not follow from the state: the stages go
-in order, and a disposed viewport takes no event. -/
+/-- A handoff is under way: a candidate is being prepared, validated or swapped in. -/
+def ViewportState.handingOff : ViewportState → Bool
+  | .preparing | .validating | .swapping => true
+  | _ => false
+
+/-- The state a viewport opens in: it has no backend yet, so none works, and its first handoff
+begins from there. -/
+def viewportOpened : ViewportState := .degraded
+
+/-- The state after an event, or none when the event does not follow from the state (spec §13.5).
+A handoff begins only from a settled viewport, active or degraded: one under way is never begun
+again, so trying the next candidate follows the failure of the one in hand. The stages go in
+order; a failure at any stage returns to the previous backend, active when it still works and
+degraded otherwise; and a disposed viewport takes no event. -/
 def handoffStep (s : ViewportState) (e : HandoffEvent) : Option ViewportState :=
   match s, e with
   | .disposed, _ => none
   | _, .dispose => some .disposed
+  | .active, .begin | .degraded, .begin => some .preparing
   | .preparing, .prepared => some .validating
   | .validating, .validated => some .swapping
   | .swapping, .swapped => some .active
-  | _, .begin => some .preparing
+  | .preparing, .failed u | .validating, .failed u | .swapping, .failed u =>
+    some (if u then .active else .degraded)
   | _, _ => none
 
 /-- What validating decides for a surface attached in the viewport, from whether the previous
@@ -172,20 +191,49 @@ def viewportDegraded (s : ViewportState) (hasBackend : Bool) : Bool := s = .degr
 /-! ## Invariants -/
 
 /-- The stages go in order: a viewport is validating only after preparing, swapping only after
-validating, and active by a handoff only after swapping. -/
+validating, and active by a handoff only after swapping, or by a failure that returned it to a
+previous backend that still works. -/
 @[lungo_claim "lungo.law" subject handoffStep]
 theorem stage_order (s : ViewportState) (e : HandoffEvent) :
     (handoffStep s e = some .validating → s = .preparing ∧ e = .prepared) ∧
       (handoffStep s e = some .swapping → s = .validating ∧ e = .validated) ∧
-      (handoffStep s e = some .active → s = .swapping ∧ e = .swapped) := by
-  cases s <;> cases e <;> simp [handoffStep]
+      (handoffStep s e = some .active →
+        (s = .swapping ∧ e = .swapped) ∨ (s.handingOff = true ∧ e = .failed true)) := by
+  cases s <;> cases e <;> (try (rename_i u; cases u)) <;> simp [handoffStep, ViewportState.handingOff]
 
-/-- A disposed viewport takes no event, and any other can be disposed or start a handoff. -/
+/-- A disposed viewport takes no event, and any other can be disposed. -/
 @[lungo_claim "lungo.law" subject handoffStep]
 theorem disposed_final (s : ViewportState) (e : HandoffEvent) :
     handoffStep .disposed e = none ∧
-      (s ≠ .disposed → handoffStep s .dispose = some .disposed ∧ handoffStep s .begin = some .preparing) := by
+      (s ≠ .disposed → handoffStep s .dispose = some .disposed) := by
   cases s <;> cases e <;> simp [handoffStep]
+
+/-- A handoff begins exactly from a settled viewport, active or degraded: one under way (preparing,
+validating or swapping) is never begun again, so a handoff is never restarted; the next candidate
+is tried only once the failure of the one in hand returned the viewport to the previous backend. -/
+@[lungo_claim "lungo.law" subject handoffStep]
+theorem begins_only_when_settled (s : ViewportState) :
+    (handoffStep s .begin = some .preparing ↔ s = .active ∨ s = .degraded) ∧
+      (handoffStep s .begin = none ↔ s.handingOff = true ∨ s = .disposed) := by
+  cases s <;> simp [handoffStep, ViewportState.handingOff]
+
+/-- A failure is taken only while a handoff is under way, and returns the viewport to the previous
+backend: active when it still works, degraded otherwise, the state the handoff settles in when
+every candidate failed. -/
+@[lungo_claim "lungo.law" subject handoffStep]
+theorem failure_returns_to_previous (s : ViewportState) (oldUsable restored : Bool) :
+    handoffStep s (.failed oldUsable) =
+      if s.handingOff then some (settle (.failed restored) oldUsable).state else none := by
+  cases s <;> cases oldUsable <;> simp [handoffStep, ViewportState.handingOff, settle,
+    Settlement.state]
+
+/-- A viewport opens with no backend, so degraded, presenting nothing, and can begin its first
+handoff. -/
+@[lungo_claim "lungo.law" subject viewportOpened]
+theorem opens_ready_to_begin :
+    handoffStep viewportOpened .begin = some .preparing ∧ viewportPresents viewportOpened = false ∧
+      viewportAdmits viewportOpened = true := by
+  simp [viewportOpened, handoffStep, viewportPresents, viewportAdmits]
 
 /-- While the previous backend works, a surface that cannot be detached safely refuses the handoff
 rather than being stranded; it is stranded only when the previous backend is gone. -/

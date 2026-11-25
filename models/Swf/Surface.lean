@@ -86,13 +86,18 @@ inductive SurfaceEvent where
   /-- The association's binding changed, the surface showing `reason` now. -/
   | rebound (reason : UnboundReason)
 
+/-- Whether an event reports a failure of the handle. -/
+def SurfaceEvent.isFailure : SurfaceEvent → Bool
+  | .fails => true
+  | _ => false
+
 /-- The state after an event, and whether the change is announced (`presentation.stateChanged`). -/
 structure SurfaceStep where
   /-- The state after the event. -/
   next : Presentation
-  /-- Whether `presentation.stateChanged` is emitted: whenever the state changes, and also when a
-  released surface starts binding, a release ends or the handle fails, even if the state is
-  unchanged. -/
+  /-- Whether `presentation.stateChanged` is emitted: exactly when the state changes, or when the
+  handle fails (each failure reports its own error, so a failure while already in `error` is
+  announced too). -/
   announce : Bool
 
 /-- The state a surface moves to on an event, and whether the change is announced. Binding a
@@ -105,10 +110,11 @@ to `presented` when one is visible, `hidden` when one remains, `ready` otherwise
 
 The model proves that a surface becomes `presented` only from a bound state, enters `error` only
 on a failed resolution or handle, enters `detaching` only from a state holding or acquiring a
-binding, and that every change of state is announced. -/
+binding, and that a step is announced exactly when it changes the state or reports a handle
+failure (spec §13.2: each transition has its response, and an error reports its code). -/
 def surfaceStep (p : Presentation) (e : SurfaceEvent) : SurfaceStep :=
   match e with
-  | .bindingStarts .released => ⟨.binding, true⟩
+  | .bindingStarts .released => ⟨.binding, p ≠ .binding⟩
   | .bindingStarts r => ⟨.unbound r, p ≠ .unbound r⟩
   | .resolved r =>
     if p = .binding then
@@ -118,8 +124,8 @@ def surfaceStep (p : Presentation) (e : SurfaceEvent) : SurfaceStep :=
       | .failed => ⟨.error, true⟩
     else ⟨p, false⟩
   | .releaseStarts => if p.active then ⟨.detaching, true⟩ else ⟨p, false⟩
-  | .releaseEnds (.unbound r) => ⟨.unbound r, true⟩
-  | .releaseEnds .detached => ⟨.detached, true⟩
+  | .releaseEnds (.unbound r) => ⟨.unbound r, p ≠ .unbound r⟩
+  | .releaseEnds .detached => ⟨.detached, p ≠ .detached⟩
   | .fails => ⟨.error, true⟩
   | .attachmentsChanged visible attached =>
     if p.bound then
@@ -300,12 +306,15 @@ theorem detaching_only_from_active (p : Presentation) (e : SurfaceEvent)
   cases p <;> cases e <;> (try (rename_i a b; cases a <;> cases b)) <;> (try (rename_i a; cases a)) <;>
     simp_all [surfaceStep, Presentation.bound, Presentation.active]
 
-/-- Every change of state is announced. (A step that keeps its state may announce too.) -/
+/-- A step is announced exactly when it changes the state or the handle fails: every change of
+state is announced, and a step that keeps its state is announced only when it reports a new
+failure. Binding again while binding, a release that ends where the surface already was, and an
+answer or a change of attachments that moves nothing are not announced. -/
 @[lungo_claim "lungo.law" subject surfaceStep]
-theorem announces_changes (p : Presentation) (e : SurfaceEvent)
-    (h : (surfaceStep p e).next ≠ p) : (surfaceStep p e).announce = true := by
+theorem announces_exactly (p : Presentation) (e : SurfaceEvent) :
+    (surfaceStep p e).announce = true ↔ (surfaceStep p e).next ≠ p ∨ e.isFailure = true := by
   cases p <;> cases e <;> (try (rename_i a b; cases a <;> cases b)) <;> (try (rename_i a; cases a)) <;>
-    simp_all [surfaceStep, Presentation.bound, Presentation.active]
+    simp_all [surfaceStep, Presentation.bound, Presentation.active, SurfaceEvent.isFailure]
 
 /-- Binding (and retrying after an error) is admitted exactly from `unbound` and `error`, on a
 runtime that is not disposed. -/

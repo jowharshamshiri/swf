@@ -35,16 +35,16 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "551198d6ad91532a7e4bb7d64440ecbcffab43403bdf68fb8bce2fb6a7d86f87",
+      "fingerprint": "43e1ce920f72d9c8d3a300bfe3e1e28e97d7d86cf32aff2f88ffcccb6dadc99f",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppComposition.lean",
         "start": {
-          "line": 317,
+          "line": 324,
           "column": 1
         },
         "end": {
-          "line": 338,
+          "line": 345,
           "column": 39
         }
       }
@@ -68,17 +68,50 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "75d4590044e903cd39b29647bf9e27755ecdce01208869af615d6d46d10fba41",
+      "fingerprint": "62ed39a0e0f90f708a07c827ea099ee8fb5f7d8208dd17a4aab3c7e5c000e7c9",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppComposition.lean",
         "start": {
-          "line": 431,
+          "line": 487,
           "column": 1
         },
         "end": {
-          "line": 472,
+          "line": 528,
           "column": 17
+        }
+      }
+    },
+    {
+      "name": "Swf.AppComposition.emptying_refused_alike",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppComposition.compositionPlan"
+      ],
+      "specifications": [],
+      "statement": "∀ (s : Swf.AppComposition.CompScene) (r t : Swf.AppComposition.CompRef) (sf : Swf.AppComposition.CompSurface)\n  (source : Swf.AppComposition.CompNode),\n  r.id.bind s.surface? = some sf →\n    s.window? (some sf.owner) = some source →\n      (∃ target, s.window? t.id = some target ∧ target.id ≠ sf.owner) →\n        (Array.filter (fun x => x != sf.id) source.surfaceIds).size = 0 →\n          source.childIds.size > 0 →\n            Swf.AppComposition.compositionPlan s (Swf.AppComposition.CompStep.move r t) =\n                Swf.AppComposition.CompPlan.refused \"surfaceId\" (Swf.AppComposition.holdsNodes source) ∧\n              ∀ (t' : Swf.AppComposition.CompRef) (target' : Swf.AppComposition.CompNode),\n                s.window? t'.id = some target' →\n                  target'.id ≠ source.id →\n                    Swf.AppComposition.compositionPlan s\n                        (Swf.AppComposition.CompStep.merge { id := some source.id, shown := source.id } t') =\n                      Swf.AppComposition.CompPlan.refused \"windowId\" (Swf.AppComposition.holdsNodes source)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "2dc1692a460ae3bd27a995e84e5955d7f01143280f0397b033962281741cbfe4",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppComposition.lean",
+        "start": {
+          "line": 430,
+          "column": 1
+        },
+        "end": {
+          "line": 447,
+          "column": 20
         }
       }
     },
@@ -106,11 +139,11 @@
         "package": "swf_models",
         "file": "Swf/AppComposition.lean",
         "start": {
-          "line": 282,
+          "line": 289,
           "column": 1
         },
         "end": {
-          "line": 291,
+          "line": 298,
           "column": 16
         }
       }
@@ -139,11 +172,11 @@
         "package": "swf_models",
         "file": "Swf/AppComposition.lean",
         "start": {
-          "line": 275,
+          "line": 282,
           "column": 1
         },
         "end": {
-          "line": 280,
+          "line": 287,
           "column": 36
         }
       }
@@ -167,16 +200,16 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "e3e05fd912cd1245ee71268464ad746c0b5475b73616c1741c195ca561998e54",
+      "fingerprint": "a62d908a3d53fedbcdbfa67eae71d0038e55ad7fc5645d6bf8aff71e06670634",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppComposition.lean",
         "start": {
-          "line": 340,
+          "line": 347,
           "column": 1
         },
         "end": {
-          "line": 362,
+          "line": 369,
           "column": 86
         }
       }
@@ -188,7 +221,7 @@
         "Swf.AppComposition.compositionPlan"
       ],
       "specifications": [],
-      "statement": "∀ (s : Swf.AppComposition.CompScene) (r t : Swf.AppComposition.CompRef) (sf target source : String)\n  (laidOut left : Array String),\n  Swf.AppComposition.compositionPlan s (Swf.AppComposition.CompStep.move r t) =\n      Swf.AppComposition.CompPlan.move sf target laidOut source left →\n    ∃ nt ns,\n      s.window? t.id = some nt ∧\n        nt.id = target ∧\n          ns.id = source ∧\n            target ≠ source ∧ laidOut = nt.surfaceIds.push sf ∧ left = Array.filter (fun x => x != sf) ns.surfaceIds",
+      "statement": "∀ (s : Swf.AppComposition.CompScene) (r t : Swf.AppComposition.CompRef) (sf target source : String)\n  (laidOut left : Array String),\n  Swf.AppComposition.compositionPlan s (Swf.AppComposition.CompStep.move r t) =\n      Swf.AppComposition.CompPlan.move sf target laidOut source left →\n    ∃ nt ns,\n      s.window? t.id = some nt ∧\n        s.window? (some source) = some ns ∧\n          nt.id = target ∧\n            ns.id = source ∧\n              target ≠ source ∧\n                laidOut = nt.surfaceIds.push sf ∧\n                  left = Array.filter (fun x => x != sf) ns.surfaceIds ∧ (left.size = 0 → ns.childIds.size = 0)",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -200,17 +233,17 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "b42c35e6ac62dcdcc6229ea88d3557778aa341a7f53f4fea7307dbac2b26b37c",
+      "fingerprint": "fbe12e2ff471fa9a92cb355b797d66634f3b3a9ae2c9d9cc2c4ee71539f5a26b",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppComposition.lean",
         "start": {
-          "line": 364,
+          "line": 371,
           "column": 1
         },
         "end": {
-          "line": 391,
-          "column": 23
+          "line": 404,
+          "column": 26
         }
       }
     },
@@ -233,17 +266,50 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "7ab23a1e2201a446c7f68a7d6fcc861e25678ce6077b585b217466cc98879789",
+      "fingerprint": "1cca8508eb4d609b1249dd3a207ef01e938b2fd93aacdfae88e1e603cefec68b",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppComposition.lean",
         "start": {
-          "line": 393,
+          "line": 449,
           "column": 1
         },
         "end": {
-          "line": 429,
+          "line": 485,
           "column": 16
+        }
+      }
+    },
+    {
+      "name": "Swf.AppComposition.window_with_nodes_never_emptied",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppComposition.compositionPlan"
+      ],
+      "specifications": [],
+      "statement": "∀ (s : Swf.AppComposition.CompScene) (w : Swf.AppComposition.CompNode),\n  s.window? (some w.id) = some w →\n    w.childIds.size > 0 →\n      (∀ (r t : Swf.AppComposition.CompRef) (sf target : String) (laidOut left : Array String),\n          Swf.AppComposition.compositionPlan s (Swf.AppComposition.CompStep.move r t) =\n              Swf.AppComposition.CompPlan.move sf target laidOut w.id left →\n            left.size ≠ 0) ∧\n        ∀ (r t : Swf.AppComposition.CompRef) (target : String) (moved laidOut : Array String),\n          Swf.AppComposition.compositionPlan s (Swf.AppComposition.CompStep.merge r t) ≠\n            Swf.AppComposition.CompPlan.merge w.id target moved laidOut",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "68c77bbb56a667d2f4d344358165ec788fd12d57e443f4ea4f42e00efe6130f9",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppComposition.lean",
+        "start": {
+          "line": 406,
+          "column": 1
+        },
+        "end": {
+          "line": 428,
+          "column": 10
         }
       }
     },
@@ -266,17 +332,17 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "2f968d996b1eeca4edc70b3e31a8af4d010392f24bd7db1a8cceed442720113f",
+      "fingerprint": "c4316888c8e5b0104c8a7dd695e824cf4cfb5a64742e31a909bcea22aeab0670",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppCursor.lean",
         "start": {
-          "line": 85,
+          "line": 98,
           "column": 1
         },
         "end": {
-          "line": 100,
-          "column": 36
+          "line": 115,
+          "column": 38
         }
       }
     },
@@ -299,17 +365,50 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "1e070bb4821587f8cd2ecc28565ae471511b1909f851c889aa736a6791557096",
+      "fingerprint": "571d79cfb5b87698a44875e60c8b2476418e036791b12454dc3ed1f630b97376",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppCursor.lean",
         "start": {
-          "line": 102,
+          "line": 117,
           "column": 1
         },
         "end": {
-          "line": 107,
+          "line": 122,
           "column": 28
+        }
+      }
+    },
+    {
+      "name": "Swf.AppCursor.nonfinite_x_refused",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppCursor.wrapPointerStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (taken : List String) (key : String) (phase : Swf.AppCursor.WrapPhase) (x width : Float) (wraps : Bool),\n  (!decide (width > 0) || !width.isFinite) = false →\n    (Swf.AppCursor.wrapPointerStep taken key phase x width wraps = Swf.AppCursor.WrapOutcome.invalidX ↔\n      x.isFinite = false)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "8c76b8255bdc5d8d299bc5ea13f730069e88e59c250acae695800d4842522b24",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppCursor.lean",
+        "start": {
+          "line": 124,
+          "column": 1
+        },
+        "end": {
+          "line": 137,
+          "column": 41
         }
       }
     },
@@ -336,11 +435,11 @@
         "package": "swf_models",
         "file": "Swf/AppCursor.lean",
         "start": {
-          "line": 122,
+          "line": 152,
           "column": 1
         },
         "end": {
-          "line": 128,
+          "line": 158,
           "column": 60
         }
       }
@@ -367,11 +466,11 @@
         "package": "swf_models",
         "file": "Swf/AppCursor.lean",
         "start": {
-          "line": 109,
+          "line": 139,
           "column": 1
         },
         "end": {
-          "line": 120,
+          "line": 150,
           "column": 13
         }
       }
@@ -399,11 +498,11 @@
         "package": "swf_models",
         "file": "Swf/AppCursor.lean",
         "start": {
-          "line": 130,
+          "line": 160,
           "column": 1
         },
         "end": {
-          "line": 141,
+          "line": 171,
           "column": 22
         }
       }
@@ -415,7 +514,7 @@
         "Swf.AppCursor.wrapPointerStep"
       ],
       "specifications": [],
-      "statement": "∀ (taken : List String) (key : String) (phase : Swf.AppCursor.WrapPhase) (x width : Float) (wraps : Bool),\n  ¬key ∈ taken →\n    Swf.AppCursor.wrapPointerStep taken key phase x width wraps = Swf.AppCursor.WrapOutcome.pass ∨\n      Swf.AppCursor.wrapPointerStep taken key phase x width wraps = Swf.AppCursor.WrapOutcome.invalidWidth",
+      "statement": "∀ (taken : List String) (key : String) (phase : Swf.AppCursor.WrapPhase) (x width : Float) (wraps : Bool),\n  ¬key ∈ taken →\n    Swf.AppCursor.wrapPointerStep taken key phase x width wraps = Swf.AppCursor.WrapOutcome.pass ∨\n      Swf.AppCursor.wrapPointerStep taken key phase x width wraps = Swf.AppCursor.WrapOutcome.invalidWidth ∨\n        Swf.AppCursor.wrapPointerStep taken key phase x width wraps = Swf.AppCursor.WrapOutcome.invalidX",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -427,17 +526,17 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "07b72cd1f97dfc0c0cac297023fac8f1a7443ffae2cceba4d4b6d799647f1e5e",
+      "fingerprint": "6fc79058c384f7759480b89b301b87b69a55c5cd7490e6ba2cd1210c09c82fe4",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppCursor.lean",
         "start": {
-          "line": 61,
+          "line": 66,
           "column": 1
         },
         "end": {
-          "line": 70,
-          "column": 13
+          "line": 79,
+          "column": 15
         }
       }
     },
@@ -448,7 +547,7 @@
         "Swf.AppCursor.wrapPointerStep"
       ],
       "specifications": [],
-      "statement": "∀ (taken : List String) (key : String) (phase : Swf.AppCursor.WrapPhase) (x width y : Float) (wraps cursor : Bool),\n  Swf.AppCursor.wrapPointerStep taken key phase x width wraps = Swf.AppCursor.WrapOutcome.wrapped y cursor →\n    wraps = true ∧ phase ≠ Swf.AppCursor.WrapPhase.down ∧ key ∈ taken",
+      "statement": "∀ (taken : List String) (key : String) (phase : Swf.AppCursor.WrapPhase) (x width y : Float) (wraps cursor : Bool),\n  Swf.AppCursor.wrapPointerStep taken key phase x width wraps = Swf.AppCursor.WrapOutcome.wrapped y cursor →\n    wraps = true ∧ phase ≠ Swf.AppCursor.WrapPhase.down ∧ key ∈ taken ∧ x.isFinite = true",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -460,17 +559,17 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "613eb1c4386ff7e582481626649df634dc6e0264221715dea1e413656fad0500",
+      "fingerprint": "66f6eed178d54f13b06b7bcb899008e83195f2e45e77a695115e778716e6446a",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppCursor.lean",
         "start": {
-          "line": 72,
+          "line": 81,
           "column": 1
         },
         "end": {
-          "line": 83,
-          "column": 15
+          "line": 96,
+          "column": 17
         }
       }
     },
@@ -1368,17 +1467,48 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "8971a1d5fe07692663af6936ad53bc0c818418c15910e100f5159f7bd7820c51",
+      "fingerprint": "e51a8a2639e63126dd483aa3cafbe5c5be671f9d2d330952686d2329b7b596a9",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 275,
+          "line": 291,
           "column": 1
         },
         "end": {
-          "line": 281,
-          "column": 101
+          "line": 297,
+          "column": 111
+        }
+      }
+    },
+    {
+      "name": "Swf.AppWorkspaces.disposed_refuses_events",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppWorkspaces.workspacesStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (m : Swf.AppWorkspaces.WorkspacesMachine) (e : Swf.AppWorkspaces.WorkspacesEvent),\n  m.disposed = true →\n    Swf.AppWorkspaces.workspacesStep m e =\n      match e with\n      | Swf.AppWorkspaces.WorkspacesEvent.dispose => Swf.AppWorkspaces.WorkspacesStep.quiet m\n      | x =>\n        have __src := Swf.AppWorkspaces.WorkspacesStep.quiet m;\n        { next := __src.next, cancelTimer := __src.cancelTimer, startTimer := __src.startTimer, save := __src.save,\n          adopt := __src.adopt, announce := __src.announce, refusal := some Swf.AppWorkspaces.disposedRefusal }",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "afbb02c4d51fac97f6c542726bc2b403b37862793fbdd39ff2f392fe65ba7f07",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppWorkspaces.lean",
+        "start": {
+          "line": 325,
+          "column": 1
+        },
+        "end": {
+          "line": 335,
+          "column": 40
         }
       }
     },
@@ -1389,7 +1519,7 @@
         "Swf.AppWorkspaces.workspacesStep"
       ],
       "specifications": [],
-      "statement": "∀ (m : Swf.AppWorkspaces.WorkspacesMachine) (e : Swf.AppWorkspaces.WorkspacesEvent),\n  m.disposed = true → (Swf.AppWorkspaces.workspacesStep m e).startTimer = false",
+      "statement": "∀ (m : Swf.AppWorkspaces.WorkspacesMachine) (e : Swf.AppWorkspaces.WorkspacesEvent),\n  m.disposed = true →\n    (Swf.AppWorkspaces.workspacesStep m e).startTimer = false ∧\n      (Swf.AppWorkspaces.workspacesStep m e).save = false ∧ (Swf.AppWorkspaces.workspacesStep m e).adopt = false",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -1399,17 +1529,17 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "a9aab423cdb75bbceefc8c3d611a840319b99546a43e38458c53b8ebc4077b44",
+      "fingerprint": "04d70fc8b382ed0f44c0df050c7d2396843d3b66a29f1466e8d8b79f0d53ebc7",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 307,
+          "line": 337,
           "column": 1
         },
         "end": {
-          "line": 318,
-          "column": 64
+          "line": 344,
+          "column": 42
         }
       }
     },
@@ -1437,11 +1567,11 @@
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 452,
+          "line": 478,
           "column": 1
         },
         "end": {
-          "line": 460,
+          "line": 486,
           "column": 83
         }
       }
@@ -1470,11 +1600,11 @@
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 230,
+          "line": 243,
           "column": 1
         },
         "end": {
-          "line": 241,
+          "line": 254,
           "column": 36
         }
       }
@@ -1503,11 +1633,11 @@
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 369,
+          "line": 395,
           "column": 1
         },
         "end": {
-          "line": 379,
+          "line": 405,
           "column": 40
         }
       }
@@ -1519,7 +1649,7 @@
         "Swf.AppWorkspaces.workspacesStep"
       ],
       "specifications": [],
-      "statement": "∀ (m : Swf.AppWorkspaces.WorkspacesMachine) (saver : Swf.AppWorkspaces.SaverState),\n  m.autosave = true →\n    (Swf.AppWorkspaces.workspacesStep m (Swf.AppWorkspaces.WorkspacesEvent.setAutosave false saver)).next.pending =\n        false ∧\n      (Swf.AppWorkspaces.workspacesStep m (Swf.AppWorkspaces.WorkspacesEvent.setAutosave false saver)).cancelTimer =\n        m.pending",
+      "statement": "∀ (m : Swf.AppWorkspaces.WorkspacesMachine) (saver : Swf.AppWorkspaces.SaverState),\n  m.autosave = true →\n    m.disposed = false →\n      (Swf.AppWorkspaces.workspacesStep m (Swf.AppWorkspaces.WorkspacesEvent.setAutosave false saver)).next.pending =\n          false ∧\n        (Swf.AppWorkspaces.workspacesStep m (Swf.AppWorkspaces.WorkspacesEvent.setAutosave false saver)).cancelTimer =\n          m.pending",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -1529,17 +1659,17 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "f55ebc2e2db9e5f409113c79eb6c3530abef3e4cda509473797a13d0f2712202",
+      "fingerprint": "67c2ada9bde866d73390b66d3cfec8d45404d7c4d332e856409e9cf77d3b4fea",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 283,
+          "line": 299,
           "column": 1
         },
         "end": {
-          "line": 289,
-          "column": 50
+          "line": 305,
+          "column": 64
         }
       }
     },
@@ -1550,7 +1680,7 @@
         "Swf.AppWorkspaces.workspacesStep"
       ],
       "specifications": [],
-      "statement": "∀ (m : Swf.AppWorkspaces.WorkspacesMachine),\n  Swf.AppWorkspaces.workspacesStep m (Swf.AppWorkspaces.WorkspacesEvent.restored false) =\n      Swf.AppWorkspaces.WorkspacesStep.quiet m ∧\n    (Swf.AppWorkspaces.workspacesStep m (Swf.AppWorkspaces.WorkspacesEvent.restored true)).adopt = true ∧\n      (Swf.AppWorkspaces.workspacesStep m (Swf.AppWorkspaces.WorkspacesEvent.restored true)).next = m",
+      "statement": "∀ (m : Swf.AppWorkspaces.WorkspacesMachine),\n  m.disposed = false →\n    Swf.AppWorkspaces.workspacesStep m (Swf.AppWorkspaces.WorkspacesEvent.restored false) =\n        Swf.AppWorkspaces.WorkspacesStep.quiet m ∧\n      (Swf.AppWorkspaces.workspacesStep m (Swf.AppWorkspaces.WorkspacesEvent.restored true)).adopt = true ∧\n        (Swf.AppWorkspaces.workspacesStep m (Swf.AppWorkspaces.WorkspacesEvent.restored true)).next = m",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -1560,17 +1690,17 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "0da922f11e5c1c8f46ac617bca7f14ed9349f4b748af3ed7991e4c0fbf0473cd",
+      "fingerprint": "72cb8229c3ff9e08346f55805654e165a23ad48459bfdb2e1f9c0ec65912e024",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 298,
+          "line": 315,
           "column": 1
         },
         "end": {
-          "line": 305,
-          "column": 46
+          "line": 323,
+          "column": 60
         }
       }
     },
@@ -1597,11 +1727,11 @@
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 381,
+          "line": 407,
           "column": 1
         },
         "end": {
-          "line": 405,
+          "line": 431,
           "column": 14
         }
       }
@@ -1613,7 +1743,7 @@
         "Swf.AppWorkspaces.workspacesStep"
       ],
       "specifications": [],
-      "statement": "∀ (m : Swf.AppWorkspaces.WorkspacesMachine),\n  m.autosave = false →\n    (Swf.AppWorkspaces.workspacesStep m Swf.AppWorkspaces.WorkspacesEvent.saveNow).refusal = some \"saving is off\" ∧\n      (Swf.AppWorkspaces.workspacesStep m Swf.AppWorkspaces.WorkspacesEvent.saveNow).save = false",
+      "statement": "∀ (m : Swf.AppWorkspaces.WorkspacesMachine),\n  m.autosave = false →\n    m.disposed = false →\n      (Swf.AppWorkspaces.workspacesStep m Swf.AppWorkspaces.WorkspacesEvent.saveNow).refusal = some \"saving is off\" ∧\n        (Swf.AppWorkspaces.workspacesStep m Swf.AppWorkspaces.WorkspacesEvent.saveNow).save = false",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -1623,17 +1753,17 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "a8f14b79a0dfa65012898a6500f1f901123587ff9772426ac5a55ced3dc5388e",
+      "fingerprint": "c5306b7d13b9eb741483007789a115a044a239b87b51f969777b7faef3581966",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 291,
+          "line": 307,
           "column": 1
         },
         "end": {
-          "line": 296,
-          "column": 50
+          "line": 313,
+          "column": 64
         }
       }
     },
@@ -1661,11 +1791,11 @@
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 444,
+          "line": 470,
           "column": 1
         },
         "end": {
-          "line": 450,
+          "line": 476,
           "column": 32
         }
       }
@@ -1693,11 +1823,11 @@
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 407,
+          "line": 433,
           "column": 1
         },
         "end": {
-          "line": 411,
+          "line": 437,
           "column": 25
         }
       }
@@ -1719,17 +1849,17 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "c493f4ca2fbf873b06d0267e9f1ab0897d5b32779916b4ef77d114b3c1b2d030",
+      "fingerprint": "ac05cca1d75a47fd76f52bf8f22f812af2df9100c4f1c18b9140d14bff98f822",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 247,
+          "line": 260,
           "column": 1
         },
         "end": {
-          "line": 273,
-          "column": 59
+          "line": 289,
+          "column": 64
         }
       }
     },
@@ -1756,12 +1886,78 @@
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 267,
+          "line": 383,
           "column": 1
         },
         "end": {
-          "line": 287,
+          "line": 403,
           "column": 33
+        }
+      }
+    },
+    {
+      "name": "Swf.Arbitration.invalid_hit_named",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Arbitration.pickOrder"
+      ],
+      "specifications": [],
+      "statement": "∀ (hits : Array Swf.Arbitration.Hit) (tolerance : Float) (i : Nat) (field : String),\n  Swf.Arbitration.pickOrder hits tolerance = Swf.Arbitration.PickOutcome.invalidHit i field →\n    i < hits.size ∧\n      (field = \"distance\" ∧ hits[i]!.distance.isFinite = false ∨\n        field = \"priority\" ∧ hits[i]!.distance.isFinite = true ∧ hits[i]!.priority.isFinite = false)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "9f466a0c22a48108891eaf2dfb7612dc859ae8e507a31138b08bb43c2eebf04d",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Arbitration.lean",
+        "start": {
+          "line": 529,
+          "column": 1
+        },
+        "end": {
+          "line": 552,
+          "column": 14
+        }
+      }
+    },
+    {
+      "name": "Swf.Arbitration.nonfinite_priority_refused",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Arbitration.bestBid"
+      ],
+      "specifications": [],
+      "statement": "∀ (bids : Array Swf.Arbitration.Bid) (kind : Swf.Arbitration.BidKind) (pointers i : Nat),\n  Swf.Arbitration.bestBid bids kind pointers = Swf.Arbitration.BidOutcome.invalidPriority i ↔\n    i < bids.size ∧ bids[i]!.priority.isFinite = false ∧ ∀ (j : Nat), j < i → bids[j]!.priority.isFinite = true",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "a043ca7ce58cf094bde3b1d6e64c0bde45f0a73fd0deb599b1a1d2dc5e98e20c",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Arbitration.lean",
+        "start": {
+          "line": 242,
+          "column": 1
+        },
+        "end": {
+          "line": 263,
+          "column": 39
         }
       }
     },
@@ -1772,7 +1968,7 @@
         "Swf.Arbitration.pickOrder"
       ],
       "specifications": [],
-      "statement": "∀ (hits : Array Swf.Arbitration.Hit) (tolerance : Float) (k : Nat),\n  k < (Swf.Arbitration.pickOrder hits tolerance).order.length →\n    ((Swf.Arbitration.pickOrder hits tolerance).occluded[k]! = true ↔\n      ∃ j,\n        j ∈ List.filter (Swf.Arbitration.keeps hits) (List.range hits.size) ∧\n          j ≠ (Swf.Arbitration.pickOrder hits tolerance).order[k]! ∧\n            hits[j]!.occluding = true ∧\n              Swf.Order.floatKey (hits[j]!.distance + tolerance) <\n                Swf.Order.floatKey hits[(Swf.Arbitration.pickOrder hits tolerance).order[k]!]!.distance)",
+      "statement": "∀ (hits : Array Swf.Arbitration.Hit) (tolerance : Float) (po : Swf.Arbitration.PickOrder),\n  Swf.Arbitration.pickOrder hits tolerance = Swf.Arbitration.PickOutcome.ordered po →\n    ∀ (k : Nat),\n      k < po.order.length →\n        (po.occluded[k]! = true ↔\n          ∃ j,\n            j ∈ List.filter (Swf.Arbitration.keeps hits) (List.range hits.size) ∧\n              j ≠ po.order[k]! ∧\n                hits[j]!.occluding = true ∧\n                  Swf.Order.floatKey (hits[j]!.distance + tolerance) < Swf.Order.floatKey hits[po.order[k]!]!.distance)",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -1784,17 +1980,17 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "777c7fc0c4937bef368c4b276be0c18c37377268a937d30fcada637bc83ab4c0",
+      "fingerprint": "7a4feb124efceb441addfae59dc9ac104abd63e53f99c7768018bfd6e5880374",
       "source": {
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 289,
+          "line": 493,
           "column": 1
         },
         "end": {
-          "line": 305,
-          "column": 64
+          "line": 503,
+          "column": 47
         }
       }
     },
@@ -1805,7 +2001,7 @@
         "Swf.Arbitration.pickOrder"
       ],
       "specifications": [],
-      "statement": "∀ (hits : Array Swf.Arbitration.Hit) (tolerance : Float),\n  (Swf.Arbitration.pickOrder hits tolerance).order.Perm\n    (List.filter (Swf.Arbitration.keeps hits) (List.range hits.size))",
+      "statement": "∀ (hits : Array Swf.Arbitration.Hit) (tolerance : Float) (po : Swf.Arbitration.PickOrder),\n  Swf.Arbitration.pickOrder hits tolerance = Swf.Arbitration.PickOutcome.ordered po →\n    po.order.Perm (List.filter (Swf.Arbitration.keeps hits) (List.range hits.size))",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -1817,17 +2013,83 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "a9e2c3fabab0dce55b794a586f825e8de9d4abe09e95bbf9334d5b2d24dc6095",
+      "fingerprint": "a04a5c3b886215c4a7375b493601294d8beeb83e23b985e2c7b03e5c58179cf9",
       "source": {
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 251,
+          "line": 475,
           "column": 1
         },
         "end": {
-          "line": 256,
-          "column": 32
+          "line": 481,
+          "column": 38
+        }
+      }
+    },
+    {
+      "name": "Swf.Arbitration.ordered_iff_finite",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Arbitration.pickOrder"
+      ],
+      "specifications": [],
+      "statement": "∀ (hits : Array Swf.Arbitration.Hit) (tolerance : Float),\n  (∃ po, Swf.Arbitration.pickOrder hits tolerance = Swf.Arbitration.PickOutcome.ordered po) ↔\n    (tolerance.isFinite = true ∧ 0 ≤ tolerance) ∧\n      ∀ (i : Nat), i < hits.size → hits[i]!.distance.isFinite = true ∧ hits[i]!.priority.isFinite = true",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "77e97baba86115139152e7893cbe50e9a1e9ecef6fb8b89bad861107ab7ff4b7",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Arbitration.lean",
+        "start": {
+          "line": 505,
+          "column": 1
+        },
+        "end": {
+          "line": 527,
+          "column": 26
+        }
+      }
+    },
+    {
+      "name": "Swf.Arbitration.refused_iff_nonfinite",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Arbitration.bestBid"
+      ],
+      "specifications": [],
+      "statement": "∀ (bids : Array Swf.Arbitration.Bid) (kind : Swf.Arbitration.BidKind) (pointers : Nat),\n  (∃ i, Swf.Arbitration.bestBid bids kind pointers = Swf.Arbitration.BidOutcome.invalidPriority i) ↔\n    ∃ j, j < bids.size ∧ bids[j]!.priority.isFinite = false",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "a1283abacbe361104e9ab0b1855e08728439ed3d7fafb8ceafbd5d2b0e8c0d3b",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Arbitration.lean",
+        "start": {
+          "line": 265,
+          "column": 1
+        },
+        "end": {
+          "line": 280,
+          "column": 58
         }
       }
     },
@@ -1838,7 +2100,7 @@
         "Swf.Arbitration.pickOrder"
       ],
       "specifications": [],
-      "statement": "∀ (hits : Array Swf.Arbitration.Hit) (tolerance : Float) (t : Nat),\n  (Swf.Arbitration.pickOrder hits tolerance).order.head? = some t →\n    ∀ (j : Nat),\n      j < hits.size →\n        Swf.Arbitration.keeps hits j = true →\n          Swf.Arbitration.keyLe\n              (Swf.Arbitration.hitKey hits (List.filter (Swf.Arbitration.keeps hits) (List.range hits.size)) tolerance\n                t)\n              (Swf.Arbitration.hitKey hits (List.filter (Swf.Arbitration.keeps hits) (List.range hits.size)) tolerance\n                j) =\n            true",
+      "statement": "∀ (hits : Array Swf.Arbitration.Hit) (tolerance : Float) (po : Swf.Arbitration.PickOrder),\n  Swf.Arbitration.pickOrder hits tolerance = Swf.Arbitration.PickOutcome.ordered po →\n    ∀ (t : Nat),\n      po.order.head? = some t →\n        ∀ (j : Nat),\n          j < hits.size →\n            Swf.Arbitration.keeps hits j = true →\n              Swf.Arbitration.keyLe\n                  (Swf.Arbitration.hitKey hits (List.filter (Swf.Arbitration.keeps hits) (List.range hits.size))\n                    tolerance t)\n                  (Swf.Arbitration.hitKey hits (List.filter (Swf.Arbitration.keeps hits) (List.range hits.size))\n                    tolerance j) =\n                true",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -1850,17 +2112,17 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "a9b580c2fc39336de2435a801637f9c9ee181702bbd86be8cc2bf653fbd323d7",
+      "fingerprint": "8219d1f02ae2e995a92c000147725342ba792ab665e9e8c0f8963451cfa517cc",
       "source": {
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 258,
+          "line": 483,
           "column": 1
         },
         "end": {
-          "line": 265,
-          "column": 49
+          "line": 491,
+          "column": 59
         }
       }
     },
@@ -1871,7 +2133,7 @@
         "Swf.Arbitration.bestBid"
       ],
       "specifications": [],
-      "statement": "∀ (bids : Array Swf.Arbitration.Bid) (kind : Swf.Arbitration.BidKind) (pointers i : Nat),\n  Swf.Arbitration.bestBid bids kind pointers = some i →\n    i < bids.size ∧ bids[i]!.kind = kind ∧ bids[i]!.pointers = pointers",
+      "statement": "∀ (bids : Array Swf.Arbitration.Bid) (kind : Swf.Arbitration.BidKind) (pointers i : Nat),\n  Swf.Arbitration.bestBid bids kind pointers = Swf.Arbitration.BidOutcome.winner i →\n    i < bids.size ∧\n      bids[i]!.kind = kind ∧\n        bids[i]!.pointers = pointers ∧ ∀ (j : Nat), j < bids.size → bids[j]!.priority.isFinite = true",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -1883,17 +2145,17 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "961180e0607e9b8d24d8cdbe946b2a8bd3cd9506d43df0234aaa001ed3f9e8d6",
+      "fingerprint": "ae5289c886b1286ba61de1d7c8c6dbba6662062683d720d8425d55f0875b56ef",
       "source": {
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 117,
+          "line": 206,
           "column": 1
         },
         "end": {
-          "line": 129,
-          "column": 37
+          "line": 215,
+          "column": 75
         }
       }
     },
@@ -1904,7 +2166,7 @@
         "Swf.Arbitration.bestBid"
       ],
       "specifications": [],
-      "statement": "∀ (bids : Array Swf.Arbitration.Bid) (kind : Swf.Arbitration.BidKind) (pointers : Nat),\n  (Swf.Arbitration.bestBid bids kind pointers).isSome = true ↔\n    ∃ j, j < bids.size ∧ Swf.Arbitration.eligibleBid bids kind pointers j = true",
+      "statement": "∀ (bids : Array Swf.Arbitration.Bid) (kind : Swf.Arbitration.BidKind) (pointers : Nat),\n  (∃ i, Swf.Arbitration.bestBid bids kind pointers = Swf.Arbitration.BidOutcome.winner i) ↔\n    (∀ (j : Nat), j < bids.size → bids[j]!.priority.isFinite = true) ∧\n      ∃ j, j < bids.size ∧ Swf.Arbitration.eligibleBid bids kind pointers j = true",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -1916,17 +2178,17 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "8c5d221ada46d1cbe11ed7b0faeefcb76f5508c0afa2ddb56fe34e65839885d2",
+      "fingerprint": "a2769f294e0bb05c61884d3f906e5552f53e47560b5ac46efbb7bd8a1192127c",
       "source": {
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 140,
+          "line": 226,
           "column": 1
         },
         "end": {
-          "line": 163,
-          "column": 33
+          "line": 240,
+          "column": 41
         }
       }
     },
@@ -1937,7 +2199,7 @@
         "Swf.Arbitration.bestBid"
       ],
       "specifications": [],
-      "statement": "∀ (bids : Array Swf.Arbitration.Bid) (kind : Swf.Arbitration.BidKind) (pointers i : Nat),\n  Swf.Arbitration.bestBid bids kind pointers = some i →\n    ∀ (j : Nat),\n      j < bids.size →\n        Swf.Arbitration.eligibleBid bids kind pointers j = true →\n          Swf.Arbitration.keyLe (Swf.Arbitration.bidKey bids[i]!) (Swf.Arbitration.bidKey bids[j]!) = true",
+      "statement": "∀ (bids : Array Swf.Arbitration.Bid) (kind : Swf.Arbitration.BidKind) (pointers i : Nat),\n  Swf.Arbitration.bestBid bids kind pointers = Swf.Arbitration.BidOutcome.winner i →\n    ∀ (j : Nat),\n      j < bids.size →\n        Swf.Arbitration.eligibleBid bids kind pointers j = true →\n          Swf.Arbitration.keyLe (Swf.Arbitration.bidKey bids[i]!) (Swf.Arbitration.bidKey bids[j]!) = true",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -1949,17 +2211,17 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "108ec85c3419aab7a56f8a3cd5d2184e40ccbeed5cd31b6e58fdee6d34d03c08",
+      "fingerprint": "a8b337126f3f3b52b6ace94438770bed622d4183750da29f70ce19c2890e9ce1",
       "source": {
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 131,
+          "line": 217,
           "column": 1
         },
         "end": {
-          "line": 138,
-          "column": 49
+          "line": 224,
+          "column": 65
         }
       }
     },
@@ -2553,12 +2815,43 @@
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 256,
+          "line": 304,
           "column": 1
         },
         "end": {
-          "line": 258,
+          "line": 306,
           "column": 24
+        }
+      }
+    },
+    {
+      "name": "Swf.Handoff.begins_only_when_settled",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Handoff.handoffStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (s : Swf.Handoff.ViewportState),\n  (Swf.Handoff.handoffStep s Swf.Handoff.HandoffEvent.begin = some Swf.Handoff.ViewportState.preparing ↔\n      s = Swf.Handoff.ViewportState.active ∨ s = Swf.Handoff.ViewportState.degraded) ∧\n    (Swf.Handoff.handoffStep s Swf.Handoff.HandoffEvent.begin = none ↔\n      s.handingOff = true ∨ s = Swf.Handoff.ViewportState.disposed)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "f3c54a1bacc734cb0d156c94d044fc1b9feb649a2668d08d38033e23cc57d8ff",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Handoff.lean",
+        "start": {
+          "line": 211,
+          "column": 1
+        },
+        "end": {
+          "line": 218,
+          "column": 59
         }
       }
     },
@@ -2584,11 +2877,11 @@
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 213,
+          "line": 261,
           "column": 1
         },
         "end": {
-          "line": 225,
+          "line": 273,
           "column": 56
         }
       }
@@ -2615,11 +2908,11 @@
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 260,
+          "line": 308,
           "column": 1
         },
         "end": {
-          "line": 263,
+          "line": 311,
           "column": 47
         }
       }
@@ -2631,7 +2924,7 @@
         "Swf.Handoff.handoffStep"
       ],
       "specifications": [],
-      "statement": "∀ (s : Swf.Handoff.ViewportState) (e : Swf.Handoff.HandoffEvent),\n  Swf.Handoff.handoffStep Swf.Handoff.ViewportState.disposed e = none ∧\n    (s ≠ Swf.Handoff.ViewportState.disposed →\n      Swf.Handoff.handoffStep s Swf.Handoff.HandoffEvent.dispose = some Swf.Handoff.ViewportState.disposed ∧\n        Swf.Handoff.handoffStep s Swf.Handoff.HandoffEvent.begin = some Swf.Handoff.ViewportState.preparing)",
+      "statement": "∀ (s : Swf.Handoff.ViewportState) (e : Swf.Handoff.HandoffEvent),\n  Swf.Handoff.handoffStep Swf.Handoff.ViewportState.disposed e = none ∧\n    (s ≠ Swf.Handoff.ViewportState.disposed →\n      Swf.Handoff.handoffStep s Swf.Handoff.HandoffEvent.dispose = some Swf.Handoff.ViewportState.disposed)",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -2641,16 +2934,16 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "d14280bfcd0f31ec458587394069cd62595374da1ce53de3c0bab949ce257df5",
+      "fingerprint": "1d27d3e6ec12aaaf4b523c5807ad7e9c878c072b8a095859dd1d84d78ab533b4",
       "source": {
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 183,
+          "line": 204,
           "column": 1
         },
         "end": {
-          "line": 188,
+          "line": 209,
           "column": 45
         }
       }
@@ -2677,12 +2970,74 @@
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 240,
+          "line": 288,
           "column": 1
         },
         "end": {
-          "line": 250,
+          "line": 298,
           "column": 55
+        }
+      }
+    },
+    {
+      "name": "Swf.Handoff.failure_returns_to_previous",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Handoff.handoffStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (s : Swf.Handoff.ViewportState) (oldUsable restored : Bool),\n  Swf.Handoff.handoffStep s (Swf.Handoff.HandoffEvent.failed oldUsable) =\n    if s.handingOff = true then some (Swf.Handoff.settle (Swf.Handoff.Attempt.failed restored) oldUsable).state\n    else none",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "9653b56ce6c561362919b05a6d3a4fce395fc95ce8a5a8abe232f99f2d48dbcf",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Handoff.lean",
+        "start": {
+          "line": 220,
+          "column": 1
+        },
+        "end": {
+          "line": 228,
+          "column": 22
+        }
+      }
+    },
+    {
+      "name": "Swf.Handoff.opens_ready_to_begin",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Handoff.viewportOpened"
+      ],
+      "specifications": [],
+      "statement": "Swf.Handoff.handoffStep Swf.Handoff.viewportOpened Swf.Handoff.HandoffEvent.begin =\n    some Swf.Handoff.ViewportState.preparing ∧\n  Swf.Handoff.viewportPresents Swf.Handoff.viewportOpened = false ∧\n    Swf.Handoff.viewportAdmits Swf.Handoff.viewportOpened = true",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "4a952fd39624f3959002a676f477a9f089f460c7395e18b2c39b7b0fc995fcca",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Handoff.lean",
+        "start": {
+          "line": 230,
+          "column": 1
+        },
+        "end": {
+          "line": 236,
+          "column": 71
         }
       }
     },
@@ -2708,11 +3063,11 @@
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 252,
+          "line": 300,
           "column": 1
         },
         "end": {
-          "line": 254,
+          "line": 302,
           "column": 26
         }
       }
@@ -2739,11 +3094,11 @@
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 207,
+          "line": 255,
           "column": 1
         },
         "end": {
-          "line": 211,
+          "line": 259,
           "column": 18
         }
       }
@@ -2770,11 +3125,11 @@
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 265,
+          "line": 313,
           "column": 1
         },
         "end": {
-          "line": 268,
+          "line": 316,
           "column": 52
         }
       }
@@ -2802,11 +3157,11 @@
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 227,
+          "line": 275,
           "column": 1
         },
         "end": {
-          "line": 238,
+          "line": 286,
           "column": 72
         }
       }
@@ -2818,7 +3173,7 @@
         "Swf.Handoff.handoffStep"
       ],
       "specifications": [],
-      "statement": "∀ (s : Swf.Handoff.ViewportState) (e : Swf.Handoff.HandoffEvent),\n  (Swf.Handoff.handoffStep s e = some Swf.Handoff.ViewportState.validating →\n      s = Swf.Handoff.ViewportState.preparing ∧ e = Swf.Handoff.HandoffEvent.prepared) ∧\n    (Swf.Handoff.handoffStep s e = some Swf.Handoff.ViewportState.swapping →\n        s = Swf.Handoff.ViewportState.validating ∧ e = Swf.Handoff.HandoffEvent.validated) ∧\n      (Swf.Handoff.handoffStep s e = some Swf.Handoff.ViewportState.active →\n        s = Swf.Handoff.ViewportState.swapping ∧ e = Swf.Handoff.HandoffEvent.swapped)",
+      "statement": "∀ (s : Swf.Handoff.ViewportState) (e : Swf.Handoff.HandoffEvent),\n  (Swf.Handoff.handoffStep s e = some Swf.Handoff.ViewportState.validating →\n      s = Swf.Handoff.ViewportState.preparing ∧ e = Swf.Handoff.HandoffEvent.prepared) ∧\n    (Swf.Handoff.handoffStep s e = some Swf.Handoff.ViewportState.swapping →\n        s = Swf.Handoff.ViewportState.validating ∧ e = Swf.Handoff.HandoffEvent.validated) ∧\n      (Swf.Handoff.handoffStep s e = some Swf.Handoff.ViewportState.active →\n        s = Swf.Handoff.ViewportState.swapping ∧ e = Swf.Handoff.HandoffEvent.swapped ∨\n          s.handingOff = true ∧ e = Swf.Handoff.HandoffEvent.failed true)",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -2828,17 +3183,17 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "64e1748a17fe793d748cbac5461d035182dc59c5f36d9a98984a8dbadf856b1e",
+      "fingerprint": "e197490e32c47039a0f40a1b93f31f89f6ee2c86f8a5ed9892ab0f8d5b518e11",
       "source": {
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 174,
+          "line": 193,
           "column": 1
         },
         "end": {
-          "line": 181,
-          "column": 45
+          "line": 202,
+          "column": 103
         }
       }
     },
@@ -2864,11 +3219,11 @@
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 190,
+          "line": 238,
           "column": 1
         },
         "end": {
-          "line": 196,
+          "line": 244,
           "column": 66
         }
       }
@@ -2895,11 +3250,11 @@
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 198,
+          "line": 246,
           "column": 1
         },
         "end": {
-          "line": 205,
+          "line": 253,
           "column": 55
         }
       }
@@ -4010,13 +4365,13 @@
       }
     },
     {
-      "name": "Swf.Surface.announces_changes",
+      "name": "Swf.Surface.announces_exactly",
       "relation": "lungo.law",
       "subjects": [
         "Swf.Surface.surfaceStep"
       ],
       "specifications": [],
-      "statement": "∀ (p : Swf.Surface.Presentation) (e : Swf.Surface.SurfaceEvent),\n  (Swf.Surface.surfaceStep p e).next ≠ p → (Swf.Surface.surfaceStep p e).announce = true",
+      "statement": "∀ (p : Swf.Surface.Presentation) (e : Swf.Surface.SurfaceEvent),\n  (Swf.Surface.surfaceStep p e).announce = true ↔ (Swf.Surface.surfaceStep p e).next ≠ p ∨ e.isFailure = true",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -4026,17 +4381,17 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "c350c447e5b98cd1e09c4a29cb7a20722a630b7d3eedbc3b6f766f885de7e4c5",
+      "fingerprint": "f517bbaca977c8024ef66c811683776e7dc8924bdfaaff53c5bb9cdc82895c39",
       "source": {
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 303,
+          "line": 309,
           "column": 1
         },
         "end": {
-          "line": 308,
-          "column": 68
+          "line": 317,
+          "column": 92
         }
       }
     },
@@ -4063,11 +4418,11 @@
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 310,
+          "line": 319,
           "column": 1
         },
         "end": {
-          "line": 316,
+          "line": 325,
           "column": 30
         }
       }
@@ -4094,11 +4449,11 @@
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 384,
+          "line": 393,
           "column": 1
         },
         "end": {
-          "line": 387,
+          "line": 396,
           "column": 24
         }
       }
@@ -4120,16 +4475,16 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "ff324681ea928d2a42e6064a2f255885279cf62a916527deaba2f9200af2e630",
+      "fingerprint": "96e32d8f6a2442ce4e7b3fcaf4557b1e7114d2bc07b5c5eedc8863cfb0818c40",
       "source": {
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 296,
+          "line": 302,
           "column": 1
         },
         "end": {
-          "line": 301,
+          "line": 307,
           "column": 68
         }
       }
@@ -4151,16 +4506,16 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "4cfcfb34d40742e6015dda18a563fb83c2159aa106837979b115dc8cf7967baf",
+      "fingerprint": "bd0eba4d1a5d335b8cfd9cb37c64a009561fdc2669cfacce3fd8e4adc54f21e6",
       "source": {
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 288,
+          "line": 294,
           "column": 1
         },
         "end": {
-          "line": 294,
+          "line": 300,
           "column": 68
         }
       }
@@ -4187,11 +4542,11 @@
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 333,
+          "line": 342,
           "column": 1
         },
         "end": {
-          "line": 340,
+          "line": 349,
           "column": 61
         }
       }
@@ -4218,11 +4573,11 @@
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 342,
+          "line": 351,
           "column": 1
         },
         "end": {
-          "line": 346,
+          "line": 355,
           "column": 22
         }
       }
@@ -4249,11 +4604,11 @@
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 379,
+          "line": 388,
           "column": 1
         },
         "end": {
-          "line": 382,
+          "line": 391,
           "column": 55
         }
       }
@@ -4281,11 +4636,11 @@
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 371,
+          "line": 380,
           "column": 1
         },
         "end": {
-          "line": 377,
+          "line": 386,
           "column": 86
         }
       }
@@ -4312,11 +4667,11 @@
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 318,
+          "line": 327,
           "column": 1
         },
         "end": {
-          "line": 331,
+          "line": 340,
           "column": 65
         }
       }
@@ -4338,16 +4693,16 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "704a5e756c92adf7714149a6176b82e39942bd86fd34bb915e14dafe16aeec97",
+      "fingerprint": "4557b1773d71dd21a29f65e0dfc132c78ac87bb300be225bf2833a1d4da27b43",
       "source": {
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 281,
+          "line": 287,
           "column": 1
         },
         "end": {
-          "line": 286,
+          "line": 292,
           "column": 68
         }
       }
@@ -4374,11 +4729,11 @@
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 348,
+          "line": 357,
           "column": 1
         },
         "end": {
-          "line": 357,
+          "line": 366,
           "column": 11
         }
       }
@@ -4405,11 +4760,11 @@
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 359,
+          "line": 368,
           "column": 1
         },
         "end": {
-          "line": 369,
+          "line": 378,
           "column": 57
         }
       }
@@ -4680,11 +5035,11 @@
         "package": "swf_models",
         "file": "Swf/AppComposition.lean",
         "start": {
-          "line": 168,
+          "line": 169,
           "column": 1
         },
         "end": {
-          "line": 170,
+          "line": 171,
           "column": 98
         }
       }
@@ -4738,9 +5093,11 @@
       "claims": [
         "Swf.AppComposition.detach_needs_two_surfaces",
         "Swf.AppComposition.emptied_group_removed_only",
+        "Swf.AppComposition.emptying_refused_alike",
         "Swf.AppComposition.merge_keeps_every_surface",
         "Swf.AppComposition.move_keeps_every_surface",
-        "Swf.AppComposition.regroup_into_other_group"
+        "Swf.AppComposition.regroup_into_other_group",
+        "Swf.AppComposition.window_with_nodes_never_emptied"
       ],
       "assumptions": [],
       "facilities": [],
@@ -4749,11 +5106,11 @@
         "package": "swf_models",
         "file": "Swf/AppComposition.lean",
         "start": {
-          "line": 261,
+          "line": 268,
           "column": 1
         },
         "end": {
-          "line": 267,
+          "line": 274,
           "column": 38
         }
       }
@@ -4783,11 +5140,11 @@
         "package": "swf_models",
         "file": "Swf/AppCursor.lean",
         "start": {
-          "line": 50,
+          "line": 55,
           "column": 1
         },
         "end": {
-          "line": 57,
+          "line": 62,
           "column": 18
         }
       }
@@ -4847,6 +5204,7 @@
       "claims": [
         "Swf.AppCursor.cursor_only_while_moving",
         "Swf.AppCursor.invalid_width_refused",
+        "Swf.AppCursor.nonfinite_x_refused",
         "Swf.AppCursor.untaken_passes_unchanged",
         "Swf.AppCursor.wraps_only_held_pointers_in_wrapping_views"
       ],
@@ -4857,11 +5215,11 @@
         "package": "swf_models",
         "file": "Swf/AppCursor.lean",
         "start": {
-          "line": 39,
+          "line": 41,
           "column": 1
         },
         "end": {
-          "line": 48,
+          "line": 53,
           "column": 69
         }
       }
@@ -5310,11 +5668,11 @@
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 192,
+          "line": 205,
           "column": 1
         },
         "end": {
-          "line": 197,
+          "line": 210,
           "column": 26
         }
       }
@@ -5385,11 +5743,11 @@
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 159,
+          "line": 172,
           "column": 1
         },
         "end": {
-          "line": 165,
+          "line": 178,
           "column": 70
         }
       }
@@ -5420,11 +5778,11 @@
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 171,
+          "line": 184,
           "column": 1
         },
         "end": {
-          "line": 174,
+          "line": 187,
           "column": 65
         }
       }
@@ -5463,11 +5821,11 @@
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 167,
+          "line": 180,
           "column": 1
         },
         "end": {
-          "line": 169,
+          "line": 182,
           "column": 31
         }
       }
@@ -5477,7 +5835,9 @@
       "module": "Swf.AppWorkspaces",
       "async": false,
       "trust": {
-        "axioms": [],
+        "axioms": [
+          "propext"
+        ],
         "depends_on_sorry": false,
         "unsafe_dependencies": [],
         "partial_dependencies": [],
@@ -5487,6 +5847,7 @@
       },
       "claims": [
         "Swf.AppWorkspaces.autosave_only_when_dirty",
+        "Swf.AppWorkspaces.disposed_refuses_events",
         "Swf.AppWorkspaces.disposed_schedules_nothing",
         "Swf.AppWorkspaces.off_cancels_scheduled_save",
         "Swf.AppWorkspaces.restore_atomic",
@@ -5500,12 +5861,12 @@
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 123,
+          "line": 159,
           "column": 1
         },
         "end": {
-          "line": 155,
-          "column": 107
+          "line": 168,
+          "column": 20
         }
       }
     },
@@ -5525,6 +5886,7 @@
         "extern_dependencies": [
           "lean_array_get_borrowed",
           "lean_array_get_size",
+          "lean_float_isfinite",
           "lean_float_to_bits",
           "lean_int_dec_eq",
           "lean_int_dec_lt",
@@ -5544,6 +5906,8 @@
         ]
       },
       "claims": [
+        "Swf.Arbitration.nonfinite_priority_refused",
+        "Swf.Arbitration.refused_iff_nonfinite",
         "Swf.Arbitration.winner_eligible",
         "Swf.Arbitration.winner_exists_iff",
         "Swf.Arbitration.winner_ranks_first"
@@ -5555,12 +5919,12 @@
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 112,
+          "line": 179,
           "column": 1
         },
         "end": {
-          "line": 115,
-          "column": 76
+          "line": 189,
+          "column": 21
         }
       }
     },
@@ -5579,18 +5943,38 @@
         "partial_dependencies": [],
         "extern_dependencies": [
           "fabs",
+          "lean_array_fget_borrowed",
           "lean_array_get_borrowed",
           "lean_array_get_size",
+          "lean_array_push",
           "lean_float_add",
           "lean_float_decLe",
+          "lean_float_div",
+          "lean_float_isfinite",
+          "lean_float_mul",
+          "lean_float_of_bits",
           "lean_float_sub",
           "lean_float_to_bits",
+          "lean_int_add",
           "lean_int_dec_eq",
+          "lean_int_dec_le",
           "lean_int_dec_lt",
           "lean_int_neg",
+          "lean_int_neg_succ_of_nat",
+          "lean_int_sub",
+          "lean_mk_empty_array_with_capacity",
+          "lean_nat_abs",
           "lean_nat_add",
           "lean_nat_dec_eq",
+          "lean_nat_dec_le",
           "lean_nat_dec_lt",
+          "lean_nat_div",
+          "lean_nat_log2",
+          "lean_nat_lor",
+          "lean_nat_mod",
+          "lean_nat_mul",
+          "lean_nat_pow",
+          "lean_nat_shiftl",
           "lean_nat_shiftr",
           "lean_nat_sub",
           "lean_nat_to_int",
@@ -5600,13 +5984,17 @@
           "lean_uint64_complement",
           "lean_uint64_dec_eq",
           "lean_uint64_land",
+          "lean_uint64_of_nat",
+          "lean_uint64_of_nat_mk",
           "lean_uint64_to_float",
           "lean_uint64_to_nat"
         ]
       },
       "claims": [
+        "Swf.Arbitration.invalid_hit_named",
         "Swf.Arbitration.occluded_by_nearer",
         "Swf.Arbitration.order_is_kept",
+        "Swf.Arbitration.ordered_iff_finite",
         "Swf.Arbitration.target_ranks_first"
       ],
       "assumptions": [],
@@ -5616,11 +6004,11 @@
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 233,
+          "line": 443,
           "column": 1
         },
         "end": {
-          "line": 249,
+          "line": 453,
           "column": 50
         }
       }
@@ -5988,7 +6376,9 @@
         "extern_dependencies": []
       },
       "claims": [
+        "Swf.Handoff.begins_only_when_settled",
         "Swf.Handoff.disposed_final",
+        "Swf.Handoff.failure_returns_to_previous",
         "Swf.Handoff.stage_order"
       ],
       "assumptions": [],
@@ -5998,11 +6388,11 @@
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 43,
+          "line": 57,
           "column": 1
         },
         "end": {
-          "line": 53,
+          "line": 72,
           "column": 17
         }
       }
@@ -6029,11 +6419,11 @@
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 144,
+          "line": 163,
           "column": 1
         },
         "end": {
-          "line": 153,
+          "line": 172,
           "column": 72
         }
       }
@@ -6059,11 +6449,11 @@
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 160,
+          "line": 179,
           "column": 1
         },
         "end": {
-          "line": 161,
+          "line": 180,
           "column": 61
         }
       }
@@ -6090,11 +6480,11 @@
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 106,
+          "line": 125,
           "column": 1
         },
         "end": {
-          "line": 117,
+          "line": 136,
           "column": 69
         }
       }
@@ -6120,11 +6510,11 @@
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 80,
+          "line": 99,
           "column": 1
         },
         "end": {
-          "line": 83,
+          "line": 102,
           "column": 69
         }
       }
@@ -6150,11 +6540,11 @@
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 65,
+          "line": 84,
           "column": 1
         },
         "end": {
-          "line": 69,
+          "line": 88,
           "column": 74
         }
       }
@@ -6182,11 +6572,11 @@
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 166,
+          "line": 185,
           "column": 1
         },
         "end": {
-          "line": 167,
+          "line": 186,
           "column": 63
         }
       }
@@ -6214,12 +6604,42 @@
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 169,
+          "line": 188,
           "column": 1
         },
         "end": {
-          "line": 170,
+          "line": 189,
           "column": 100
+        }
+      }
+    },
+    {
+      "name": "Swf.Handoff.viewportOpened",
+      "module": "Swf.Handoff",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": []
+      },
+      "claims": [
+        "Swf.Handoff.opens_ready_to_begin"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Handoff.lean",
+        "start": {
+          "line": 53,
+          "column": 1
+        },
+        "end": {
+          "line": 55,
+          "column": 48
         }
       }
     },
@@ -6246,11 +6666,11 @@
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 163,
+          "line": 182,
           "column": 1
         },
         "end": {
-          "line": 164,
+          "line": 183,
           "column": 63
         }
       }
@@ -6951,11 +7371,11 @@
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 156,
+          "line": 162,
           "column": 1
         },
         "end": {
-          "line": 163,
+          "line": 169,
           "column": 36
         }
       }
@@ -6983,11 +7403,11 @@
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 276,
+          "line": 282,
           "column": 1
         },
         "end": {
-          "line": 277,
+          "line": 283,
           "column": 81
         }
       }
@@ -7013,11 +7433,11 @@
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 243,
+          "line": 249,
           "column": 1
         },
         "end": {
-          "line": 252,
+          "line": 258,
           "column": 12
         }
       }
@@ -7043,11 +7463,11 @@
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 262,
+          "line": 268,
           "column": 1
         },
         "end": {
-          "line": 266,
+          "line": 272,
           "column": 12
         }
       }
@@ -7073,11 +7493,11 @@
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 268,
+          "line": 274,
           "column": 1
         },
         "end": {
-          "line": 270,
+          "line": 276,
           "column": 81
         }
       }
@@ -7105,11 +7525,11 @@
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 272,
+          "line": 278,
           "column": 1
         },
         "end": {
-          "line": 274,
+          "line": 280,
           "column": 55
         }
       }
@@ -7135,11 +7555,11 @@
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 254,
+          "line": 260,
           "column": 1
         },
         "end": {
-          "line": 260,
+          "line": 266,
           "column": 12
         }
       }
@@ -7167,11 +7587,11 @@
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 205,
+          "line": 211,
           "column": 1
         },
         "end": {
-          "line": 222,
+          "line": 228,
           "column": 12
         }
       }
@@ -7199,11 +7619,11 @@
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 224,
+          "line": 230,
           "column": 1
         },
         "end": {
-          "line": 231,
+          "line": 237,
           "column": 12
         }
       }
@@ -7224,7 +7644,7 @@
         ]
       },
       "claims": [
-        "Swf.Surface.announces_changes",
+        "Swf.Surface.announces_exactly",
         "Swf.Surface.detaching_only_from_active",
         "Swf.Surface.error_only_on_failure",
         "Swf.Surface.presented_needs_binding"
@@ -7236,11 +7656,11 @@
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 98,
+          "line": 103,
           "column": 1
         },
         "end": {
-          "line": 129,
+          "line": 135,
           "column": 47
         }
       }
@@ -7268,11 +7688,11 @@
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 174,
+          "line": 180,
           "column": 1
         },
         "end": {
-          "line": 182,
+          "line": 188,
           "column": 20
         }
       }

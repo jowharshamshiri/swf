@@ -259,7 +259,8 @@ export function detachSurface(
 /**
  * Moves a surface into another window, after its surfaces; both windows are laid out again round
  * what they hold. A window left with no surface is removed from the workspace (undo brings it
- * back), so recombining a detached surface leaves nothing behind.
+ * back), so recombining a detached surface leaves nothing behind. The last surface of a window that
+ * holds other nodes is not moved: the window cannot be emptied, as it cannot be merged.
  */
 export function moveSurface(
   state: SceneState,
@@ -276,7 +277,8 @@ export function moveSurface(
 
 /**
  * Moves every surface of a window into another, after its own, and removes the emptied window
- * from the workspace: one window holding both windows' surfaces, side by side.
+ * from the workspace: one window holding both windows' surfaces, side by side. A window that holds
+ * other nodes is not merged: it cannot be emptied.
  */
 export function mergeWindow(
   state: SceneState,

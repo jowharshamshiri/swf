@@ -15,3 +15,7 @@ that declares the parameter as `AbortSignal` compiles as before.
 
 A replacement's binding context carries the generation the handoff commits as, and
 `replaceBinding` refuses a single-owner endpoint another surface presents, as `present` does.
+
+`presentation.stateChanged` is emitted exactly when a surface's state changes, or when its handle
+fails again while in `error`: starting to bind while already binding, and a release that ends in
+the state the surface was already in, are no longer announced.

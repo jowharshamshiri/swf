@@ -1029,6 +1029,43 @@ describe('fallback, loss and degradation (§27, NFR-013, §33.2 scenario 6)', ()
     expect(v.backend).toEqual(MAIN);
   });
 
+  it('returns to the previous backend as each candidate fails, before the next is begun', async () => {
+    const h = await harness();
+    h.renderer.failPrepare = 'no context';
+    const v = await h.open();
+    expect(v.backend).toEqual(SPARE);
+    // Each failure is sent once the viewport is back where it was: on the spare backend, active.
+    const seen: string[] = [];
+    h.presenter.subscribe((event) => {
+      if (event.type === 'backend.failed') {
+        seen.push(v.state);
+      }
+    });
+    expect(await v.restore()).toMatchObject({ status: 'kept', backend: SPARE });
+    expect(seen).toEqual(['active']);
+    expect(v.state).toBe('active');
+  });
+
+  it('is degraded when a candidate fails after the backend in use was lost', async () => {
+    const h = await harness();
+    const v = await h.open();
+    await h.frames.flush();
+    expect(v.backend).toEqual(MAIN);
+    const seen: string[] = [];
+    h.presenter.subscribe((event) => {
+      if (event.type === 'backend.failed') {
+        seen.push(v.state);
+      }
+    });
+    h.spare.failPrepare = 'no';
+    first(h.compositor.sessions).lose('the GPU went away');
+    await settle();
+    // The lost backend does not work: the failed candidate returned the viewport to degraded.
+    expect(seen).toEqual(['presentation-degraded']);
+    expect(v.state).toBe('presentation-degraded');
+    expect(v.backend).toBeNull();
+  });
+
   it('opens degraded when no backend works, and recovers on restore', async () => {
     const h = await harness();
     h.renderer.failPrepare = 'no';

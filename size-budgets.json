@@ -9,8 +9,8 @@
   "@swf/models": {
     "budget": 43264,
     "recorded": {
-      "minified": 243319,
-      "gzip": 41251
+      "minified": 257208,
+      "gzip": 43234
     }
   },
   "@swf/core": {
@@ -30,8 +30,8 @@
   "@swf/presentation": {
     "budget": 13824,
     "recorded": {
-      "minified": 43122,
-      "gzip": 13337
+      "minified": 43217,
+      "gzip": 13368
     }
   },
   "@swf/projections": {
@@ -44,8 +44,8 @@
   "@swf/interaction": {
     "budget": 17408,
     "recorded": {
-      "minified": 49261,
-      "gzip": 15759
+      "minified": 49761,
+      "gzip": 15907
     }
   },
   "@swf/backend-dom": {

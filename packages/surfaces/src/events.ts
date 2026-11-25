@@ -33,7 +33,11 @@ export type UnboundReason =
  * listener: listeners read it and must not change it.
  */
 export interface RuntimeEventPayloads {
-  /** The surface moved from one presentation state to another. */
+  /**
+   * The surface moved from one presentation state to another, or its handle failed again while in
+   * `error` (`from` and `to` both `error`, with the new failure). Besides the first, when the
+   * runtime starts tracking the surface (`from` null), nothing else is announced.
+   */
   'presentation.stateChanged': {
     /** The surface whose state changed. */
     readonly surfaceId: Id;

@@ -51,7 +51,8 @@ export interface BackendChoice {
  * Where a viewport's presentation is. A handoff goes `preparing → validating → swapping →
  * active`; any failure returns to the previous backend, or, when there is none that works, to
  * `presentation-degraded`, where the viewport shows that it presents nothing while the scene stays
- * fully usable.
+ * fully usable. A handoff begins only from `active` or `presentation-degraded`, never while one is
+ * under way: each candidate tried after a failure begins from where that failure returned to.
  */
 export type ViewportState =
   'preparing' | 'validating' | 'swapping' | 'active' | 'presentation-degraded' | 'disposed';
@@ -915,7 +916,7 @@ class ViewportImpl implements PresentedViewport {
   slot: Slot;
   readonly #presenter: PresenterImpl;
   readonly #options: ViewportOptions;
-  #state: ViewportState = 'preparing';
+  #state: ViewportState = STATES[models.viewportOpened().kind];
   #backend: Backend | null = null;
   #degradedBy: SwfError | null = null;
   #hideDegraded: (() => void) | null = null;
@@ -1459,6 +1460,9 @@ class ViewportImpl implements PresentedViewport {
       if (failure === null) {
         return Object.freeze({ status: 'switched', backend: choice });
       }
+      // Everything the candidate did is undone: the viewport is back on the previous backend,
+      // active when it still works and degraded otherwise, before the next candidate is begun.
+      this.#advance({ kind: 'failed', oldUsable: old !== null && usable });
       error = failure;
       this.#presenter.emit({
         type: 'backend.failed',
@@ -1541,7 +1545,7 @@ class ViewportImpl implements PresentedViewport {
           },
         },
       );
-    this.#advance('begin');
+    this.#advance({ kind: 'begin' });
     const renderer = registry.renderer(choice.renderer);
     const compositor = registry.compositor(choice.compositor);
     if (renderer === undefined) {
@@ -1582,7 +1586,7 @@ class ViewportImpl implements PresentedViewport {
     };
 
     // Validating: the scene negotiated with the new capabilities, and the live content movable.
-    this.#advance('prepared');
+    this.#advance({ kind: 'prepared' });
     const stranded = new Set<Id>();
     for (const presentation of runtime.list()) {
       const surfaceId = presentation.surfaceId;
@@ -1616,7 +1620,7 @@ class ViewportImpl implements PresentedViewport {
     }
 
     // Swapping: rebuild the view in the new resources and move the live content into them.
-    this.#advance('validated');
+    this.#advance({ kind: 'validated' });
     let live: Id[];
     try {
       const rendered = candidate.rendererSession.render(frame);
@@ -1697,7 +1701,7 @@ class ViewportImpl implements PresentedViewport {
     this.#live = new Set(
       live.filter((id) => attachmentHere(runtime, id, this.viewportId)?.visible === true),
     );
-    this.#advance('swapped');
+    this.#advance({ kind: 'swapped' });
     this.#degradedBy = null;
     this.#takeDegradedAway();
     if (old !== null) {
@@ -1751,10 +1755,12 @@ class ViewportImpl implements PresentedViewport {
   }
 
   /** Moves the viewport as the handoff model decides on `event`; an event out of order is a defect. */
-  #advance(event: HandoffEvent['kind']): void {
-    const next = models.handoffStep(leanState(this.#state), { kind: event });
+  #advance(event: HandoffEvent): void {
+    const next = models.handoffStep(leanState(this.#state), event);
     if (next === null) {
-      throw new Error(`viewport "${this.viewportId}" cannot take ${event} while ${this.#state}`);
+      throw new Error(
+        `viewport "${this.viewportId}" cannot take ${event.kind} while ${this.#state}`,
+      );
     }
     this.#state = STATES[next.kind];
   }
@@ -1934,7 +1940,7 @@ class ViewportImpl implements PresentedViewport {
     const old = this.#backend;
     this.#backend = null;
     this.#live = new Set();
-    this.#advance('dispose');
+    this.#advance({ kind: 'dispose' });
     const retained: Id[] = [];
     try {
       for (const presentation of runtime.list()) {

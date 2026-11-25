@@ -14,3 +14,7 @@ Keyboard step sizes are no longer a router setting, where changing them alone ch
 creation must bind only commands the router has, as `configure` requires. An input adapter's
 dispatch refuses intents once the device is disconnected, or when its registration failed, and
 `subscribe` refuses a listener once the router is disposed.
+
+Picking refuses a number it cannot order: `pick` throws a `RangeError` when the depth tolerance is
+not finite and at least zero, or when a hit's distance or presentation priority is not finite,
+naming the hit and the field, where before such a hit was ordered by a meaningless key.

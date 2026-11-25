@@ -90,7 +90,8 @@ inductive CompPlan where
   `label`, in the same group (`parentId`), beside the window it left. -/
   | detach (surface window created label : String) (parentId : Option String) (kept : Array String)
   /-- `surface` moves into `target`, laid out again round `laidOut`; `source`, the window it left,
-  is laid out round `left`, or removed when `left` is empty. -/
+  is laid out round `left`, or removed when `left` is empty, which it never is for a window that
+  holds child nodes. -/
   | move (surface target : String) (laidOut : Array String) (source : String) (left : Array String)
   /-- `moved`, the surfaces of `source`, move into `target`, laid out again round `laidOut`, and
   `source` is removed. -/
@@ -198,6 +199,11 @@ def compDetach (s : CompScene) (r : CompRef) : CompPlan :=
         let id := windowIdFor s sf.id
         .detach sf.id w.id id (sf.label.getD id) w.parentId (w.surfaceIds.filter (· != sf.id))
 
+/-- Why a window that holds child nodes cannot be emptied: emptying a window removes it, and its
+child nodes would go with it. Moving its last surface out and merging it are refused alike. -/
+def holdsNodes (w : CompNode) : String :=
+  s!"{nameOf w.id w.label} holds other nodes and cannot be emptied"
+
 def compMove (s : CompScene) (r : CompRef) (t : CompRef) : CompPlan :=
   match r.id.bind s.surface? with
   | none => .refused "surfaceId" s!"no surface \"{r.shown}\""
@@ -211,8 +217,10 @@ def compMove (s : CompScene) (r : CompRef) (t : CompRef) : CompPlan :=
         match s.window? (some sf.owner) with
         | none => .refused "surfaceId" s!"surface {nameOf sf.id sf.label} is not in a window"
         | some source =>
-          .move sf.id target.id (target.surfaceIds.push sf.id) source.id
-            (source.surfaceIds.filter (· != sf.id))
+          let left := source.surfaceIds.filter (· != sf.id)
+          if left.size = 0 ∧ source.childIds.size > 0 then
+            .refused "surfaceId" (holdsNodes source)
+          else .move sf.id target.id (target.surfaceIds.push sf.id) source.id left
 
 def compMerge (s : CompScene) (r : CompRef) (t : CompRef) : CompPlan :=
   match s.window? r.id with
@@ -222,8 +230,7 @@ def compMerge (s : CompScene) (r : CompRef) (t : CompRef) : CompPlan :=
     | none => .refused "targetId" s!"no window \"{t.shown}\""
     | some target =>
       if target.id = source.id then .refused "targetId" "a window cannot be merged into itself"
-      else if source.childIds.size > 0 then
-        .refused "windowId" s!"{nameOf source.id source.label} holds other nodes and cannot be emptied"
+      else if source.childIds.size > 0 then .refused "windowId" (holdsNodes source)
       else .merge source.id target.id source.surfaceIds (target.surfaceIds ++ source.surfaceIds)
 
 /-- The group a window leaves empty, which goes with it: not the group workspace orbit turns, and
@@ -362,13 +369,15 @@ theorem merge_keeps_every_surface (s : CompScene) (r t : CompRef) (source target
           exact ⟨ns, nt, hns, hnt, rfl, rfl, fun e => hne e.symm, by omega, rfl, rfl⟩
 
 /-- Moving a surface puts it after the target's surfaces, in another window than its own, and
-leaves the window it left with the rest; that window is removed exactly when nothing is left. -/
+leaves the window it left with the rest; that window is removed exactly when nothing is left,
+which happens only when it holds no child node. -/
 @[lungo_claim "lungo.law" subject compositionPlan]
 theorem move_keeps_every_surface (s : CompScene) (r t : CompRef) (sf target source : String)
     (laidOut left : Array String)
     (h : compositionPlan s (.move r t) = .move sf target laidOut source left) :
-    ∃ nt ns : CompNode, s.window? t.id = some nt ∧ nt.id = target ∧ ns.id = source ∧
-      target ≠ source ∧ laidOut = nt.surfaceIds.push sf ∧ left = ns.surfaceIds.filter (· != sf) := by
+    ∃ nt ns : CompNode, s.window? t.id = some nt ∧ s.window? (some source) = some ns ∧
+      nt.id = target ∧ ns.id = source ∧ target ≠ source ∧ laidOut = nt.surfaceIds.push sf ∧
+      left = ns.surfaceIds.filter (· != sf) ∧ (left.size = 0 → ns.childIds.size = 0) := by
   simp only [compositionPlan, compMove] at h
   split at h
   · cases h
@@ -382,13 +391,60 @@ theorem move_keeps_every_surface (s : CompScene) (r t : CompRef) (sf target sour
         split at h
         · cases h
         · rename_i ns hns
-          cases h
-          refine ⟨nt, ns, hnt, rfl, rfl, ?_, rfl, rfl⟩
-          intro e
-          apply hne
-          have := (window?_some hns).1
-          simp only [Option.some.injEq] at this
-          rw [e, this]
+          split at h
+          · cases h
+          · rename_i hkeep
+            cases h
+            have hid := (window?_some hns).1
+            simp only [Option.some.injEq] at hid
+            refine ⟨nt, ns, hnt, ?_, rfl, rfl, ?_, rfl, rfl, fun h0 => by omega⟩
+            · rw [← hid]; exact hns
+            · intro e
+              apply hne
+              rw [e, hid]
+
+/-- Composition decides a window that holds child nodes the same way whichever step would empty
+it: emptying a window removes it, so neither moving its last surface out nor merging it into
+another empties it. Both are refused for the same reason, `holdsNodes`. -/
+@[lungo_claim "lungo.law" subject compositionPlan]
+theorem window_with_nodes_never_emptied (s : CompScene) (w : CompNode)
+    (hw : s.window? (some w.id) = some w) (hn : w.childIds.size > 0) :
+    (∀ r t sf target laidOut left,
+      compositionPlan s (.move r t) = .move sf target laidOut w.id left → left.size ≠ 0) ∧
+    (∀ r t target moved laidOut,
+      compositionPlan s (.merge r t) ≠ .merge w.id target moved laidOut) := by
+  constructor
+  · intro r t sf target laidOut left h h0
+    obtain ⟨-, ns, -, hns, -, -, -, -, -, hc⟩ := move_keeps_every_surface s r t sf target w.id laidOut left h
+    rw [hw] at hns
+    cases hns
+    have := hc h0
+    omega
+  · intro r t target moved laidOut h
+    obtain ⟨ns, -, hns, -, hid, -, -, hc, -, -⟩ := merge_keeps_every_surface s r t w.id target moved laidOut h
+    have hs := (window?_some hns).2
+    rw [hid, hw] at hs
+    cases hs
+    omega
+
+/-- Moving the last surface out of a window that holds child nodes is refused on the surface, and
+merging that window is refused on the window, both for the same reason. -/
+@[lungo_claim "lungo.law" subject compositionPlan]
+theorem emptying_refused_alike (s : CompScene) (r t : CompRef) (sf : CompSurface) (source : CompNode)
+    (hsf : r.id.bind s.surface? = some sf) (hs : s.window? (some sf.owner) = some source)
+    (ht : ∃ target, s.window? t.id = some target ∧ target.id ≠ sf.owner)
+    (hlast : (source.surfaceIds.filter (· != sf.id)).size = 0) (hn : source.childIds.size > 0) :
+    compositionPlan s (.move r t) = .refused "surfaceId" (holdsNodes source) ∧
+      ∀ t' target', s.window? t'.id = some target' → target'.id ≠ source.id →
+        compositionPlan s (.merge ⟨some source.id, source.id⟩ t') = .refused "windowId" (holdsNodes source) := by
+  obtain ⟨target, htw, hne⟩ := ht
+  have hsrc := window?_some hs
+  constructor
+  · simp only [compositionPlan, compMove, hsf, htw, hs]
+    simp [hne, hlast, hn]
+  · intro t' target' ht' hne'
+    simp only [compositionPlan, compMerge, hsrc.2, ht']
+    simp [hne', hn]
 
 /-- A window goes only into another active group, or a new group under an ID nothing holds. -/
 @[lungo_claim "lungo.law" subject compositionPlan]

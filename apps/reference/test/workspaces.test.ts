@@ -145,6 +145,26 @@ describe('workspaces in local storage (FR-127, FR-168, UX-016)', () => {
     expect(windows(after)).toBe(5);
   });
 
+  it('refuses to save or change saving once disposed, and takes a second disposal as done', async () => {
+    const ws = seeded('sparse');
+    const { workspaces, store } = rig(ws);
+    workspaces.setAutosave(true);
+    await settle();
+    workspaces.dispose();
+    workspaces.dispose();
+    ws.dispatch({ type: 'node.delete', id: 'window-01', mode: 'subtree' });
+    await expect(workspaces.saveNow()).rejects.toThrow(
+      new WorkspaceRefusal('save', 'the workspaces are disposed'),
+    );
+    expect(() => {
+      workspaces.setAutosave(false);
+    }).toThrow(new WorkspaceRefusal('save', 'the workspaces are disposed'));
+    await settle();
+    // Nothing more was stored for the change made after disposal.
+    expect(await visits(store)).toEqual(['session/1000']);
+    expect((await store.load('session/1000'))?.revision).toBe(ws.getState().revision - 1);
+  });
+
   it('restores nothing when nothing is saved, and keeps the workspace when the saved one is broken', async () => {
     const ws = seeded('sparse');
     const store = createMemoryStore();

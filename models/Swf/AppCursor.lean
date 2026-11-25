@@ -32,16 +32,21 @@ inductive WrapOutcome where
   | wrapped (x : Float) (cursor : Bool)
   /-- The view's width is not one a pointer can wrap across: it is not finite and above zero. -/
   | invalidWidth
+  /-- The sample's horizontal place is not a finite number: it lies nowhere in the view. -/
+  | invalidX
 
 /-- Where a horizontal place lands in a view `width` wide whose edges meet: in `[0, width)`. -/
 def wrapAcross (x width : Float) : Float := x - width * (x / width).floor
 
 /-- A pointer sample, wrapped across the seam when the framework took the pointer (its key is in
-`taken`) and the view wraps. A press is never wrapped: it is where the pointer is taken. -/
+`taken`) and the view wraps. A press is never wrapped: it is where the pointer is taken. A width
+that is not finite and above zero is refused first, then a place that is not finite, whether or not
+the pointer is taken: neither lies anywhere in the view. -/
 def wrapPointerStep (taken : List String) (key : String) (phase : WrapPhase) (x width : Float)
     (wraps : Bool) : WrapOutcome :=
   if !(width > 0) || !width.isFinite then
     .invalidWidth
+  else if !x.isFinite then .invalidX
   else if !wraps || phase = .down || !taken.contains key then .pass
   else
     let wrapped := wrapAcross x width
@@ -58,29 +63,37 @@ def wrapAfterDispatch (taken : List String) (key : String) (phase : WrapPhase) (
 
 /-! ## Invariants -/
 
-/-- A pointer the framework did not take passes unchanged, whatever the view. -/
+/-- A pointer the framework did not take passes unchanged, whatever the view, unless the sample is
+refused: a width or a place that is not finite is refused whether or not the pointer is taken. -/
 @[lungo_claim "lungo.law" subject wrapPointerStep]
 theorem untaken_passes_unchanged (taken : List String) (key : String) (phase : WrapPhase)
     (x width : Float) (wraps : Bool) (h : key ∉ taken) :
     wrapPointerStep taken key phase x width wraps = .pass ∨
-      wrapPointerStep taken key phase x width wraps = .invalidWidth := by
+      wrapPointerStep taken key phase x width wraps = .invalidWidth ∨
+      wrapPointerStep taken key phase x width wraps = .invalidX := by
   unfold wrapPointerStep
   split
-  · exact .inr rfl
-  · simp [h]
+  · exact .inr (.inl rfl)
+  · split
+    · exact .inr (.inr rfl)
+    · simp [h]
 
-/-- No pointer wraps while the view does not show the whole circle, and no press ever wraps. -/
+/-- No pointer wraps while the view does not show the whole circle, no press ever wraps, and only
+a sample at a finite place wraps. -/
 @[lungo_claim "lungo.law" subject wrapPointerStep]
 theorem wraps_only_held_pointers_in_wrapping_views (taken : List String) (key : String)
     (phase : WrapPhase) (x width y : Float) (wraps cursor : Bool)
     (h : wrapPointerStep taken key phase x width wraps = .wrapped y cursor) :
-    wraps = true ∧ phase ≠ .down ∧ key ∈ taken := by
+    wraps = true ∧ phase ≠ .down ∧ key ∈ taken ∧ x.isFinite = true := by
   unfold wrapPointerStep at h
   split at h
   · cases h
   · split at h
     · cases h
-    · simp_all
+    · rename_i hx
+      split at h
+      · cases h
+      · simp_all
 
 /-- The virtual cursor is drawn only for a held pointer that moves: a release or cancellation
 lands wrapped with no cursor left drawn. -/
@@ -93,11 +106,13 @@ theorem cursor_only_while_moving (taken : List String) (key : String) (phase : W
   · cases h
   · split at h
     · cases h
-    · simp only at h
-      split at h
+    · split at h
       · cases h
-      · simp only [WrapOutcome.wrapped.injEq] at h
-        exact of_decide_eq_true h.2
+      · simp only at h
+        split at h
+        · cases h
+        · simp only [WrapOutcome.wrapped.injEq] at h
+          exact of_decide_eq_true h.2
 
 /-- A width that is not finite and above zero is refused. -/
 @[lungo_claim "lungo.law" subject wrapPointerStep]
@@ -105,6 +120,21 @@ theorem invalid_width_refused (taken : List String) (key : String) (phase : Wrap
     (x width : Float) (wraps : Bool) (h : !(width > 0) || !width.isFinite) :
     wrapPointerStep taken key phase x width wraps = .invalidWidth := by
   simp [wrapPointerStep, h]
+
+/-- In a view of a valid width, a sample is refused as `invalidX` exactly when its horizontal place
+is not finite (NaN or an infinity), whether or not its pointer is taken and whatever its phase. -/
+@[lungo_claim "lungo.law" subject wrapPointerStep]
+theorem nonfinite_x_refused (taken : List String) (key : String) (phase : WrapPhase)
+    (x width : Float) (wraps : Bool) (hw : (!(width > 0) || !width.isFinite) = false) :
+    wrapPointerStep taken key phase x width wraps = .invalidX ↔ x.isFinite = false := by
+  unfold wrapPointerStep
+  simp only [hw, Bool.false_eq_true, ite_false]
+  cases hx : x.isFinite
+  · simp
+  · simp only [Bool.not_true, Bool.false_eq_true, ite_false, reduceCtorEq, iff_false]
+    split
+    · exact fun h => nomatch h
+    · split <;> exact fun h => nomatch h
 
 /-- A pointer is taken only by a press the framework consumed. -/
 @[lungo_claim "lungo.law" subject wrapAfterDispatch]

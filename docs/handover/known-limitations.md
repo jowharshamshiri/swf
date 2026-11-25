@@ -37,14 +37,3 @@ What SWF does not do, or does not do yet. Each item says why and what a host can
   in its folder because the kit is linked from a checkout, never part of what a host installs). The
   tools are taken at the fixed versions once those are two weeks old; nothing a host installs is
   affected.
-
-## Defects found, to be fixed
-
-These were found while documenting the API; the JSDoc states today's behaviour.
-
-- **The reference application's models and the arbitration model**: the wrapped cursor accepts a
-  pointer position that is not finite and wraps it to one that is not a number; a disposed
-  workspaces machine still answers a save or an adoption; moving a window's last surface out plans
-  to remove the window even when it holds other nodes, which a merge refuses; gesture bids and hits
-  are ordered by priority and distance without checking those numbers are finite; and a backend
-  handoff may be begun again while one is under way, restarting it.

@@ -119,7 +119,8 @@ export interface Workspaces {
   restoreLast(): Promise<RestoreOutcome | null>;
   /**
    * Saves the workspace now, as the save after a change would, without waiting for it (and
-   * instead of it). Throws {@link WorkspaceRefusal} when saving is off or the store refuses it.
+   * instead of it). Throws {@link WorkspaceRefusal} when saving is off, the workspaces are disposed
+   * or the store refuses it.
    */
   saveNow(): Promise<void>;
   /** The named workspaces, by name. */
@@ -151,6 +152,11 @@ export interface Workspaces {
   /** Replaces the workspace with an imported one, after its preview was confirmed. */
   importText(fileName: string, text: string): Promise<RestoreOutcome>;
   measures(): PersistenceMeasures;
+  /**
+   * Stops saving and lets go of the store and the workspace's events. Disposing again does nothing;
+   * once disposed, turning saving on or off, saving now, clearing and adopting a restored visit
+   * throw {@link WorkspaceRefusal}.
+   */
   dispose(): void;
 }
 

@@ -1034,7 +1034,8 @@ lists the selected window's surfaces and rearranges them, each change one undoab
 while that window closes up round the rest; **move** a surface into another window, after its own
 surfaces; **merge** a window's surfaces into another window; or move the window into another group,
 or a new one, keeping its place in the world. A window left with no surface is removed with the
-step that emptied it, and so is a group left empty. Only associations and placements change: a
+step that emptied it, and so is a group left empty; a window that holds other nodes is never emptied,
+so neither its last surface moves out nor is it merged. Only associations and placements change: a
 surface is always moved whole, its binding and content untouched, and a window's only surface
 offers nothing to detach, since a surface's own content is never split.
 

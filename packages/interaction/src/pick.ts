@@ -144,7 +144,10 @@ export type OcclusionLookup = (candidate: {
   readonly surfaceId: Id | null;
 }) => 'occluding' | 'transparent';
 
-/** How {@link pick} decides what is hit. The values are used as given, not checked. */
+/**
+ * How {@link pick} decides what is hit. The values are used as given, but a depth tolerance that is
+ * not finite and at least zero is refused.
+ */
 export interface PickOptions {
   /**
    * Width of the resize band along a window's edges, in CSS pixels, converted to a world width at
@@ -200,6 +203,9 @@ const HIT_REGIONS: Readonly<Record<PickCandidate['region'], HitRegion['kind']>> 
  * @param continuity The previous longitude of a drag in progress, so a ray across a panorama's
  *   seam is unwrapped rather than jumping.
  * @throws Error when `context.index` was not brought up to date with `context.scene`.
+ * @throws RangeError when `options.depthTolerance` is not finite and at least zero, or a hit's
+ *   distance or presentation priority is not finite: the arbitration model orders only finite
+ *   numbers.
  */
 export function pick(
   context: PickContext,
@@ -238,8 +244,9 @@ export function pick(
   }
   // The arbitration model (`Swf.Arbitration`) merges the hits (a window's frame counts inside it
   // only where no surface of its own covers it, except along its resize band), marks the occluded
-  // ones and orders them.
-  const decided = models.pickOrder(
+  // ones and orders them. It refuses a number it cannot order: a depth tolerance that is not finite
+  // and at least zero, or a hit whose distance or priority is not finite.
+  const outcome = models.pickOrder(
     raw.map((hit) => ({
       node: hit.nodeId,
       surface: hit.surfaceId,
@@ -251,6 +258,25 @@ export function pick(
     })),
     options.depthTolerance,
   );
+  if (outcome.kind === 'invalidTolerance') {
+    throw new RangeError(
+      `the depth tolerance is finite and at least zero (got ${String(options.depthTolerance)})`,
+    );
+  }
+  if (outcome.kind === 'invalidHit') {
+    const hit = raw[Number(outcome.hit)];
+    if (hit === undefined) {
+      throw new Error(
+        `the arbitration model refused hit ${String(outcome.hit)}, which is not given`,
+      );
+    }
+    const value = outcome.field === 'distance' ? hit.distance : hit.priority;
+    const on = hit.surfaceId === null ? `node "${hit.nodeId}"` : `surface "${hit.surfaceId}"`;
+    throw new RangeError(
+      `the ${outcome.field} of the hit on ${on} is not finite (got ${String(value)})`,
+    );
+  }
+  const decided = outcome.pick;
   const candidates: PickCandidate[] = decided.order.map((index, k) => {
     const hit = raw[Number(index)];
     const occluded = decided.occluded[k];

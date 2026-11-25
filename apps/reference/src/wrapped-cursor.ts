@@ -52,6 +52,8 @@ export function wrapPointer(state: WrapState, intent: PointerIntent, frame: Wrap
   switch (outcome.kind) {
     case 'invalidWidth':
       throw new RangeError(`a view's width is finite and above zero (got ${String(frame.width)})`);
+    case 'invalidX':
+      throw new RangeError(`a pointer's horizontal place is finite (got ${String(intent.x)})`);
     case 'pass':
       return { intent, cursor: null };
     case 'wrapped': {

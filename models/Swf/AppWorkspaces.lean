@@ -113,22 +113,24 @@ def WorkspacesStep.quiet (m : WorkspacesMachine) : WorkspacesStep :=
   { next := m, cancelTimer := false, startTimer := false, save := false, adopt := false,
     announce := false, refusal := none }
 
-/-- A save scheduled afresh, while saving is on and the workspaces are not disposed. -/
+/-- A save scheduled afresh, while saving is on. -/
 def schedule (m : WorkspacesMachine) : WorkspacesStep :=
-  if m.autosave && !m.disposed then
+  if m.autosave then
     { next := { m with pending := true }, cancelTimer := m.pending, startTimer := true, save := false,
       adopt := false, announce := false, refusal := none }
   else WorkspacesStep.quiet m
 
-/-- What the application does for an event. Turning saving on announces it and schedules a save
-when the saver is not clean; turning it off announces it and stops a scheduled save. A change
-schedules a save afresh, restarting the timer. The scheduled time saves once. Saving now is
-refused while saving is off (`saving is off`), and otherwise saves at once, stopping a scheduled
-save. Clearing every saved layout announces it and schedules a save. A restore that restored the
-visit adopts its key and announces it; one that did not changes nothing. Disposal stops a scheduled
-save. A save is scheduled, and the timer started, only while saving is on and the workspaces are
-not disposed. -/
-def workspacesStep (m : WorkspacesMachine) (e : WorkspacesEvent) : WorkspacesStep :=
+/-- Why disposed workspaces refuse an event. -/
+def disposedRefusal : String := "the workspaces are disposed"
+
+/-- What the application does for an event while the workspaces are not disposed. Turning saving
+on announces it and schedules a save when the saver is not clean; turning it off announces it and
+stops a scheduled save. A change schedules a save afresh, restarting the timer. The scheduled time
+saves once. Saving now is refused while saving is off (`saving is off`), and otherwise saves at
+once, stopping a scheduled save. Clearing every saved layout announces it and schedules a save. A
+restore that restored the visit adopts its key and announces it; one that did not changes nothing.
+Disposal stops a scheduled save. -/
+def liveStep (m : WorkspacesMachine) (e : WorkspacesEvent) : WorkspacesStep :=
   match e with
   | .setAutosave on saver =>
     if m.autosave = on then WorkspacesStep.quiet m
@@ -153,6 +155,17 @@ def workspacesStep (m : WorkspacesMachine) (e : WorkspacesEvent) : WorkspacesSte
     else WorkspacesStep.quiet m
   | .dispose =>
     { (WorkspacesStep.quiet { m with pending := false, disposed := true }) with cancelTimer := m.pending }
+
+/-- What the application does for an event: as `liveStep` decides until the workspaces are
+disposed. Disposed workspaces refuse every event (`the workspaces are disposed`) and do nothing for
+it: nothing is scheduled, saved, adopted or announced. Disposing them again is done already, and
+changes nothing. -/
+def workspacesStep (m : WorkspacesMachine) (e : WorkspacesEvent) : WorkspacesStep :=
+  if m.disposed then
+    match e with
+    | .dispose => WorkspacesStep.quiet m
+    | _ => { (WorkspacesStep.quiet m) with refusal := some disposedRefusal }
+  else liveStep m e
 
 /-! ## Stored visits and named saves -/
 
@@ -255,22 +268,25 @@ theorem timer_only_while_saving (m : WorkspacesMachine) (e : WorkspacesEvent) (h
   cases e with
   | setAutosave on saver =>
     cases ha : m.autosave <;> cases on <;> cases hd : m.disposed <;> cases hp : m.pending <;>
-      cases saver <;> simp_all [workspacesStep, schedule, WorkspacesStep.quiet]
+      cases saver <;> simp_all [workspacesStep, liveStep, schedule, WorkspacesStep.quiet]
   | changed =>
     cases ha : m.autosave <;> cases hd : m.disposed <;> cases hp : m.pending <;>
-      simp_all [workspacesStep, schedule, WorkspacesStep.quiet]
+      simp_all [workspacesStep, liveStep, schedule, WorkspacesStep.quiet]
   | fired =>
     cases ha : m.autosave <;> cases hd : m.disposed <;> cases hp : m.pending <;>
-      simp_all [workspacesStep, WorkspacesStep.quiet]
+      simp_all [workspacesStep, liveStep, WorkspacesStep.quiet]
   | saveNow =>
     cases ha : m.autosave <;> cases hd : m.disposed <;> cases hp : m.pending <;>
-      simp_all [workspacesStep, WorkspacesStep.quiet]
+      simp_all [workspacesStep, liveStep, WorkspacesStep.quiet]
   | cleared =>
     cases ha : m.autosave <;> cases hd : m.disposed <;> cases hp : m.pending <;>
-      simp_all [workspacesStep, schedule, WorkspacesStep.quiet]
+      simp_all [workspacesStep, liveStep, schedule, WorkspacesStep.quiet]
   | restored ok =>
-    cases ok <;> simp_all [workspacesStep, WorkspacesStep.quiet]
-  | dispose => simp [workspacesStep, WorkspacesStep.quiet]
+    cases ok <;> cases hd : m.disposed <;> cases hp : m.pending <;>
+      simp_all [workspacesStep, liveStep, WorkspacesStep.quiet]
+  | dispose =>
+    cases hd : m.disposed <;> cases hp : m.pending <;>
+      simp_all [workspacesStep, liveStep, WorkspacesStep.quiet]
 
 /-- Turning saving on schedules a save only when there is something unsaved; turned on with the
 workspace saved, nothing is saved until it changes. -/
@@ -278,44 +294,54 @@ workspace saved, nothing is saved until it changes. -/
 theorem autosave_only_when_dirty (m : WorkspacesMachine) (saver : SaverState)
     (ho : m.autosave = false) (hd : m.disposed = false) :
     (workspacesStep m (.setAutosave true saver)).startTimer = true ↔ saver ≠ .clean := by
-  by_cases hs : saver = .clean <;> simp [workspacesStep, schedule, WorkspacesStep.quiet, ho, hd, hs]
+  by_cases hs : saver = .clean <;> simp [workspacesStep, liveStep, schedule, WorkspacesStep.quiet, ho, hd, hs]
 
 /-- Turning saving off stops a scheduled save. -/
 @[lungo_claim "lungo.law" subject workspacesStep]
 theorem off_cancels_scheduled_save (m : WorkspacesMachine) (saver : SaverState)
-    (ho : m.autosave = true) :
+    (ho : m.autosave = true) (hd : m.disposed = false) :
     (workspacesStep m (.setAutosave false saver)).next.pending = false ∧
       (workspacesStep m (.setAutosave false saver)).cancelTimer = m.pending := by
-  simp [workspacesStep, WorkspacesStep.quiet, ho]
+  simp [workspacesStep, liveStep, WorkspacesStep.quiet, ho, hd]
 
 /-- Saving on request is refused while saving is off, and saves nothing. -/
 @[lungo_claim "lungo.law" subject workspacesStep]
-theorem save_now_needs_autosave (m : WorkspacesMachine) (ho : m.autosave = false) :
+theorem save_now_needs_autosave (m : WorkspacesMachine) (ho : m.autosave = false)
+    (hd : m.disposed = false) :
     (workspacesStep m .saveNow).refusal = some "saving is off" ∧
       (workspacesStep m .saveNow).save = false := by
-  simp [workspacesStep, WorkspacesStep.quiet, ho]
+  simp [workspacesStep, liveStep, WorkspacesStep.quiet, ho, hd]
 
 /-- A restore that did not restore changes nothing of saving: the visit goes on under its own
-key, as it was. Only a restored visit is saved under the restored one's key. -/
+key, as it was. Only a restored visit is saved under the restored one's key, and only while the
+workspaces are not disposed. -/
 @[lungo_claim "lungo.law" subject workspacesStep]
-theorem restore_atomic (m : WorkspacesMachine) :
+theorem restore_atomic (m : WorkspacesMachine) (hd : m.disposed = false) :
     workspacesStep m (.restored false) = WorkspacesStep.quiet m ∧
       (workspacesStep m (.restored true)).adopt = true ∧
       (workspacesStep m (.restored true)).next = m := by
-  simp [workspacesStep, WorkspacesStep.quiet]
+  simp [workspacesStep, liveStep, WorkspacesStep.quiet, hd]
 
-/-- Disposed workspaces schedule nothing and save nothing in the background. -/
+/-- Disposed workspaces refuse every event but disposal, which is done already: each leaves the
+machine as it is, and nothing is scheduled, stopped, saved, adopted or announced. So a disposed
+machine never saves on request nor adopts a restored visit. -/
+@[lungo_claim "lungo.law" subject workspacesStep]
+theorem disposed_refuses_events (m : WorkspacesMachine) (e : WorkspacesEvent)
+    (hd : m.disposed = true) :
+    workspacesStep m e =
+      match e with
+      | .dispose => WorkspacesStep.quiet m
+      | _ => { (WorkspacesStep.quiet m) with refusal := some disposedRefusal } := by
+  cases e <;> simp [workspacesStep, hd]
+
+/-- Disposed workspaces schedule nothing and save nothing, in the background or on request. -/
 @[lungo_claim "lungo.law" subject workspacesStep]
 theorem disposed_schedules_nothing (m : WorkspacesMachine) (e : WorkspacesEvent)
-    (hd : m.disposed = true) : (workspacesStep m e).startTimer = false := by
-  cases e with
-  | setAutosave on saver =>
-    cases ha : m.autosave <;> cases on <;> cases saver <;>
-      simp_all [workspacesStep, schedule, WorkspacesStep.quiet]
-  | restored ok => cases ok <;> simp_all [workspacesStep, WorkspacesStep.quiet]
-  | _ =>
-    cases ha : m.autosave <;> cases hp : m.pending <;>
-      simp_all [workspacesStep, schedule, WorkspacesStep.quiet]
+    (hd : m.disposed = true) :
+    (workspacesStep m e).startTimer = false ∧ (workspacesStep m e).save = false ∧
+      (workspacesStep m e).adopt = false := by
+  rw [disposed_refuses_events m e hd]
+  cases e <;> simp [WorkspacesStep.quiet]
 
 theorem foldl_newest (vs : List (String × Int)) (init : Option (String × Int)) (r : String × Int)
     (h : vs.foldl (fun best v =>

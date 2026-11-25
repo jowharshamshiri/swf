@@ -42,6 +42,7 @@ export type WrapOutcome =
   | { readonly kind: "pass" }
   | { readonly kind: "wrapped"; readonly x: number; readonly cursor: boolean }
   | { readonly kind: "invalidWidth" }
+  | { readonly kind: "invalidX" }
 ;
 export function wrapOutcomeType(): L.Type<WrapOutcome>;
 
@@ -213,6 +214,14 @@ export type BidKind =
 ;
 export function bidKindType(): L.Type<BidKind>;
 
+/** Lean's Swf.Arbitration.BidOutcome. */
+export type BidOutcome =
+  | { readonly kind: "winner"; readonly bid: bigint }
+  | { readonly kind: "noBid" }
+  | { readonly kind: "invalidPriority"; readonly bid: bigint }
+;
+export function bidOutcomeType(): L.Type<BidOutcome>;
+
 /** Lean's Swf.Arbitration.Hit. */
 export interface Hit {
   readonly node: string;
@@ -224,13 +233,13 @@ export interface Hit {
 }
 export function hitType(): L.Type<Hit>;
 
-/** Lean's Swf.Arbitration.PickOrder. */
-export interface PickOrder {
-  readonly order: Array<bigint>;
-  readonly occluded: Array<boolean>;
-  readonly ambiguous: boolean;
-}
-export function pickOrderType(): L.Type<PickOrder>;
+/** Lean's Swf.Arbitration.PickOutcome. */
+export type PickOutcome =
+  | { readonly kind: "ordered"; readonly pick: PickOrder }
+  | { readonly kind: "invalidTolerance" }
+  | { readonly kind: "invalidHit"; readonly hit: bigint; readonly field: string }
+;
+export function pickOutcomeType(): L.Type<PickOutcome>;
 
 /** Lean's Swf.Fallback.NegotiationContext. */
 export interface NegotiationContext {
@@ -394,6 +403,7 @@ export type HandoffEvent =
   | { readonly kind: "prepared" }
   | { readonly kind: "validated" }
   | { readonly kind: "swapped" }
+  | { readonly kind: "failed"; readonly oldUsable: boolean }
   | { readonly kind: "dispose" }
 ;
 export function handoffEventType(): L.Type<HandoffEvent>;
@@ -794,6 +804,14 @@ export type HitRegion =
 ;
 export function hitRegionType(): L.Type<HitRegion>;
 
+/** Lean's Swf.Arbitration.PickOrder. */
+export interface PickOrder {
+  readonly order: Array<bigint>;
+  readonly occluded: Array<boolean>;
+  readonly ambiguous: boolean;
+}
+export function pickOrderType(): L.Type<PickOrder>;
+
 /** Lean's Swf.Fallback.RendererCapabilities. */
 export interface RendererCapabilities {
   readonly handleKinds: Array<[Strategy, Fidelity]>;
@@ -1066,10 +1084,10 @@ export class SwfModels {
   workspacesStale(current: string, visits: Array<string>): Array<string>;
   /** Lean's Swf.AppWorkspaces.workspacesStep : Swf.AppWorkspaces.WorkspacesMachine → Swf.AppWorkspaces.WorkspacesEvent → Swf.AppWorkspaces.WorkspacesStep */
   workspacesStep(m: WorkspacesMachine, e: WorkspacesEvent): WorkspacesStep;
-  /** Lean's Swf.Arbitration.bestBid : Array Swf.Arbitration.Bid → Swf.Arbitration.BidKind → Nat → Option Nat */
-  bestBid(bids: Array<Bid>, kind: BidKind, pointers: bigint): L.Option<bigint>;
-  /** Lean's Swf.Arbitration.pickOrder : Array Swf.Arbitration.Hit → Float → Swf.Arbitration.PickOrder */
-  pickOrder(hits: Array<Hit>, tolerance: number): PickOrder;
+  /** Lean's Swf.Arbitration.bestBid : Array Swf.Arbitration.Bid → Swf.Arbitration.BidKind → Nat → Swf.Arbitration.BidOutcome */
+  bestBid(bids: Array<Bid>, kind: BidKind, pointers: bigint): BidOutcome;
+  /** Lean's Swf.Arbitration.pickOrder : Array Swf.Arbitration.Hit → Float → Swf.Arbitration.PickOutcome */
+  pickOrder(hits: Array<Hit>, tolerance: number): PickOutcome;
   /** Lean's Swf.Fallback.negotiateFrame : Swf.Fallback.NegotiationContext → Array Swf.Fallback.FragmentFacts → Array (Option Swf.Fallback.Negotiated) */
   negotiateFrame(c: NegotiationContext, fs: Array<FragmentFacts>): Array<L.Option<Negotiated>>;
   /** Lean's Swf.Fallback.negotiateOne : Swf.Fallback.NegotiationContext → Swf.Fallback.FragmentFacts → Option Swf.Fallback.Negotiated */
@@ -1106,6 +1124,8 @@ export class SwfModels {
   viewportAdmits(s: ViewportState): boolean;
   /** Lean's Swf.Handoff.viewportDegraded : Swf.Handoff.ViewportState → Bool → Bool */
   viewportDegraded(s: ViewportState, hasBackend: boolean): boolean;
+  /** Lean's Swf.Handoff.viewportOpened : Swf.Handoff.ViewportState */
+  viewportOpened(): ViewportState;
   /** Lean's Swf.Handoff.viewportPresents : Swf.Handoff.ViewportState → Bool */
   viewportPresents(s: ViewportState): boolean;
   /** Lean's Swf.Hierarchy.lockRefuses : Bool → Bool → Bool */

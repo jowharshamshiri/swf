@@ -22,3 +22,8 @@ preferred backend registered again) that fails is kept as a `BACKGROUND_FAILED` 
 an unhandled rejection, and a function `showDegraded` returned that throws is kept as `HOST_THREW`
 and never called again. Degrading releases the previous backend even when hiding a surface is
 refused or `showDegraded` throws.
+
+A viewport's handoff state follows the handoff model through every candidate: when a candidate
+fails, the viewport is back on the previous backend (`active`, or `presentation-degraded` when that
+no longer works) before `backend.failed` is sent and the next candidate is begun, where before it
+stayed in the stage that failed. A handoff is never begun while one is under way.

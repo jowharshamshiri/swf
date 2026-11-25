@@ -40,6 +40,7 @@ exports = [
   "Swf.Fallback.policyIssue",
   "Swf.Fallback.representedModes",
   "Swf.Handoff.handoffStep",
+  "Swf.Handoff.viewportOpened",
   "Swf.Handoff.validateSurface",
   "Swf.Handoff.swapSurface",
   "Swf.Handoff.swapStep",

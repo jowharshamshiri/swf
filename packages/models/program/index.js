@@ -188,6 +188,9 @@ export function wrapOutcomeType() {
         case "invalidWidth":
           w.u32(2);
           return;
+        case "invalidX":
+          w.u32(3);
+          return;
         default:
           throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.AppCursor.WrapOutcome`);
       }
@@ -198,6 +201,7 @@ export function wrapOutcomeType() {
         case 0: return ({ kind: "pass" });
         case 1: return ({ kind: "wrapped", x: L.FLOAT.decode(r), cursor: L.BOOL.decode(r) });
         case 2: return ({ kind: "invalidWidth" });
+        case 3: return ({ kind: "invalidX" });
         default: throw new L.MalformedError(`constructor index ${c} of Swf.AppCursor.WrapOutcome`);
       }
     },
@@ -757,10 +761,44 @@ export function bidKindType() {
   );
 }
 
+/** Describes Swf.Arbitration.BidOutcome for polymorphic functions. */
+export function bidOutcomeType() {
+  return new L.Type(
+    L.inductiveExpr(25),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Arbitration.BidOutcome");
+      switch (v.kind) {
+        case "winner":
+          w.u32(0);
+          L.NAT.encode(w, v.bid);
+          return;
+        case "noBid":
+          w.u32(1);
+          return;
+        case "invalidPriority":
+          w.u32(2);
+          L.NAT.encode(w, v.bid);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.Arbitration.BidOutcome`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "winner", bid: L.NAT.decode(r) });
+        case 1: return ({ kind: "noBid" });
+        case 2: return ({ kind: "invalidPriority", bid: L.NAT.decode(r) });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.Arbitration.BidOutcome`);
+      }
+    },
+  );
+}
+
 /** Describes Swf.Arbitration.Hit for polymorphic functions. */
 export function hitType() {
   return new L.Type(
-    L.inductiveExpr(25),
+    L.inductiveExpr(26),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Arbitration.Hit");
       w.u32(0);
@@ -779,21 +817,37 @@ export function hitType() {
   );
 }
 
-/** Describes Swf.Arbitration.PickOrder for polymorphic functions. */
-export function pickOrderType() {
+/** Describes Swf.Arbitration.PickOutcome for polymorphic functions. */
+export function pickOutcomeType() {
   return new L.Type(
-    L.inductiveExpr(26),
+    L.inductiveExpr(27),
     (w, v) => {
-      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Arbitration.PickOrder");
-      w.u32(0);
-      L.list(L.NAT).encode(w, v.order);
-      L.list(L.BOOL).encode(w, v.occluded);
-      L.BOOL.encode(w, v.ambiguous);
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Arbitration.PickOutcome");
+      switch (v.kind) {
+        case "ordered":
+          w.u32(0);
+          pickOrderType().encode(w, v.pick);
+          return;
+        case "invalidTolerance":
+          w.u32(1);
+          return;
+        case "invalidHit":
+          w.u32(2);
+          L.NAT.encode(w, v.hit);
+          L.STRING.encode(w, v.field);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.Arbitration.PickOutcome`);
+      }
     },
     (r) => {
       const c = r.u32();
-      if (c !== 0) throw new L.MalformedError(`constructor index ${c} of Swf.Arbitration.PickOrder`);
-      return ({ order: L.list(L.NAT).decode(r), occluded: L.list(L.BOOL).decode(r), ambiguous: L.BOOL.decode(r) });
+      switch (c) {
+        case 0: return ({ kind: "ordered", pick: pickOrderType().decode(r) });
+        case 1: return ({ kind: "invalidTolerance" });
+        case 2: return ({ kind: "invalidHit", hit: L.NAT.decode(r), field: L.STRING.decode(r) });
+        default: throw new L.MalformedError(`constructor index ${c} of Swf.Arbitration.PickOutcome`);
+      }
     },
   );
 }
@@ -801,7 +855,7 @@ export function pickOrderType() {
 /** Describes Swf.Fallback.NegotiationContext for polymorphic functions. */
 export function negotiationContextType() {
   return new L.Type(
-    L.inductiveExpr(27),
+    L.inductiveExpr(28),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.NegotiationContext");
       w.u32(0);
@@ -820,7 +874,7 @@ export function negotiationContextType() {
 /** Describes Swf.Fallback.FragmentFacts for polymorphic functions. */
 export function fragmentFactsType() {
   return new L.Type(
-    L.inductiveExpr(28),
+    L.inductiveExpr(29),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.FragmentFacts");
       w.u32(0);
@@ -845,7 +899,7 @@ export function fragmentFactsType() {
 /** Describes Swf.Fallback.Negotiated for polymorphic functions. */
 export function negotiatedType() {
   return new L.Type(
-    L.inductiveExpr(29),
+    L.inductiveExpr(30),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.Negotiated");
       w.u32(0);
@@ -867,7 +921,7 @@ export function negotiatedType() {
 /** Describes Swf.Fallback.PolicyIssue for polymorphic functions. */
 export function policyIssueType() {
   return new L.Type(
-    L.inductiveExpr(30),
+    L.inductiveExpr(31),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.PolicyIssue");
       switch (v.kind) {
@@ -905,7 +959,7 @@ export function policyIssueType() {
 /** Describes Swf.Fallback.Mode for polymorphic functions. */
 export function modeType() {
   return new L.Type(
-    L.inductiveExpr(31),
+    L.inductiveExpr(32),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.Mode");
       switch (v.kind) {
@@ -945,7 +999,7 @@ export function modeType() {
 /** Describes Swf.Gesture.GesturePhase for polymorphic functions. */
 export function gesturePhaseType() {
   return new L.Type(
-    L.inductiveExpr(32),
+    L.inductiveExpr(33),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Gesture.GesturePhase");
       switch (v.kind) {
@@ -985,7 +1039,7 @@ export function gesturePhaseType() {
 /** Describes Swf.Gesture.GestureEvent for polymorphic functions. */
 export function gestureEventType() {
   return new L.Type(
-    L.inductiveExpr(33),
+    L.inductiveExpr(34),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Gesture.GestureEvent");
       switch (v.kind) {
@@ -1036,7 +1090,7 @@ export function gestureEventType() {
 /** Describes Swf.Gesture.HoldGate for polymorphic functions. */
 export function holdGateType() {
   return new L.Type(
-    L.inductiveExpr(34),
+    L.inductiveExpr(35),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Gesture.HoldGate");
       switch (v.kind) {
@@ -1076,7 +1130,7 @@ export function holdGateType() {
 /** Describes Swf.Gesture.KeyFacts for polymorphic functions. */
 export function keyFactsType() {
   return new L.Type(
-    L.inductiveExpr(35),
+    L.inductiveExpr(36),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Gesture.KeyFacts");
       w.u32(0);
@@ -1098,7 +1152,7 @@ export function keyFactsType() {
 /** Describes Swf.Gesture.KeyRoute for polymorphic functions. */
 export function keyRouteType() {
   return new L.Type(
-    L.inductiveExpr(36),
+    L.inductiveExpr(37),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Gesture.KeyRoute");
       switch (v.kind) {
@@ -1138,7 +1192,7 @@ export function keyRouteType() {
 /** Describes Swf.Gesture.PointerPhase for polymorphic functions. */
 export function pointerPhaseType() {
   return new L.Type(
-    L.inductiveExpr(37),
+    L.inductiveExpr(38),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Gesture.PointerPhase");
       switch (v.kind) {
@@ -1174,7 +1228,7 @@ export function pointerPhaseType() {
 /** Describes Swf.Gesture.PointerRoute for polymorphic functions. */
 export function pointerRouteType() {
   return new L.Type(
-    L.inductiveExpr(38),
+    L.inductiveExpr(39),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Gesture.PointerRoute");
       switch (v.kind) {
@@ -1218,7 +1272,7 @@ export function pointerRouteType() {
 /** Describes Swf.Gesture.PressFacts for polymorphic functions. */
 export function pressFactsType() {
   return new L.Type(
-    L.inductiveExpr(39),
+    L.inductiveExpr(40),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Gesture.PressFacts");
       w.u32(0);
@@ -1239,7 +1293,7 @@ export function pressFactsType() {
 /** Describes Swf.Gesture.PressRoute for polymorphic functions. */
 export function pressRouteType() {
   return new L.Type(
-    L.inductiveExpr(40),
+    L.inductiveExpr(41),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Gesture.PressRoute");
       switch (v.kind) {
@@ -1279,7 +1333,7 @@ export function pressRouteType() {
 /** Describes Swf.Handoff.ViewportState for polymorphic functions. */
 export function viewportStateType() {
   return new L.Type(
-    L.inductiveExpr(41),
+    L.inductiveExpr(42),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Handoff.ViewportState");
       switch (v.kind) {
@@ -1323,7 +1377,7 @@ export function viewportStateType() {
 /** Describes Swf.Handoff.HandoffEvent for polymorphic functions. */
 export function handoffEventType() {
   return new L.Type(
-    L.inductiveExpr(42),
+    L.inductiveExpr(43),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Handoff.HandoffEvent");
       switch (v.kind) {
@@ -1339,8 +1393,12 @@ export function handoffEventType() {
         case "swapped":
           w.u32(3);
           return;
-        case "dispose":
+        case "failed":
           w.u32(4);
+          L.BOOL.encode(w, v.oldUsable);
+          return;
+        case "dispose":
+          w.u32(5);
           return;
         default:
           throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.Handoff.HandoffEvent`);
@@ -1353,7 +1411,8 @@ export function handoffEventType() {
         case 1: return ({ kind: "prepared" });
         case 2: return ({ kind: "validated" });
         case 3: return ({ kind: "swapped" });
-        case 4: return ({ kind: "dispose" });
+        case 4: return ({ kind: "failed", oldUsable: L.BOOL.decode(r) });
+        case 5: return ({ kind: "dispose" });
         default: throw new L.MalformedError(`constructor index ${c} of Swf.Handoff.HandoffEvent`);
       }
     },
@@ -1363,7 +1422,7 @@ export function handoffEventType() {
 /** Describes Swf.Handoff.Attempt for polymorphic functions. */
 export function attemptType() {
   return new L.Type(
-    L.inductiveExpr(43),
+    L.inductiveExpr(44),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Handoff.Attempt");
       switch (v.kind) {
@@ -1396,7 +1455,7 @@ export function attemptType() {
 /** Describes Swf.Handoff.Settlement for polymorphic functions. */
 export function settlementType() {
   return new L.Type(
-    L.inductiveExpr(44),
+    L.inductiveExpr(45),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Handoff.Settlement");
       switch (v.kind) {
@@ -1429,7 +1488,7 @@ export function settlementType() {
 /** Describes Swf.Handoff.SwapAction for polymorphic functions. */
 export function swapActionType() {
   return new L.Type(
-    L.inductiveExpr(45),
+    L.inductiveExpr(46),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Handoff.SwapAction");
       switch (v.kind) {
@@ -1461,7 +1520,7 @@ export function swapActionType() {
 /** Describes Swf.Handoff.SwapStep for polymorphic functions. */
 export function swapStepType() {
   return new L.Type(
-    L.inductiveExpr(46),
+    L.inductiveExpr(47),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Handoff.SwapStep");
       switch (v.kind) {
@@ -1490,7 +1549,7 @@ export function swapStepType() {
 /** Describes Swf.Handoff.Validation for polymorphic functions. */
 export function validationType() {
   return new L.Type(
-    L.inductiveExpr(47),
+    L.inductiveExpr(48),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Handoff.Validation");
       switch (v.kind) {
@@ -1522,7 +1581,7 @@ export function validationType() {
 /** Describes Swf.Kernel.Lifecycle for polymorphic functions. */
 export function lifecycleType() {
   return new L.Type(
-    L.inductiveExpr(48),
+    L.inductiveExpr(49),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.Lifecycle");
       switch (v.kind) {
@@ -1555,7 +1614,7 @@ export function lifecycleType() {
 /** Describes Swf.Kernel.Ledger for polymorphic functions. */
 export function ledgerType() {
   return new L.Type(
-    L.inductiveExpr(49),
+    L.inductiveExpr(50),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.Ledger");
       w.u32(0);
@@ -1578,7 +1637,7 @@ export function ledgerType() {
 /** Describes Swf.Kernel.Direction for polymorphic functions. */
 export function directionType() {
   return new L.Type(
-    L.inductiveExpr(50),
+    L.inductiveExpr(51),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.Direction");
       switch (v.kind) {
@@ -1606,7 +1665,7 @@ export function directionType() {
 /** Describes Swf.Kernel.Change for polymorphic functions. */
 export function changeType() {
   return new L.Type(
-    L.inductiveExpr(51),
+    L.inductiveExpr(52),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.Change");
       switch (v.kind) {
@@ -1638,7 +1697,7 @@ export function changeType() {
 /** Describes Swf.Kernel.Commit for polymorphic functions. */
 export function commitType() {
   return new L.Type(
-    L.inductiveExpr(52),
+    L.inductiveExpr(53),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.Commit");
       w.u32(0);
@@ -1659,7 +1718,7 @@ export function commitType() {
 /** Describes Swf.Kernel.TxRequest for polymorphic functions. */
 export function txRequestType() {
   return new L.Type(
-    L.inductiveExpr(53),
+    L.inductiveExpr(54),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.TxRequest");
       w.u32(0);
@@ -1677,7 +1736,7 @@ export function txRequestType() {
 /** Describes Swf.Kernel.TxGate for polymorphic functions. */
 export function txGateType() {
   return new L.Type(
-    L.inductiveExpr(54),
+    L.inductiveExpr(55),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.TxGate");
       switch (v.kind) {
@@ -1717,7 +1776,7 @@ export function txGateType() {
 /** Describes Swf.Kernel.IdleStep for polymorphic functions. */
 export function idleStepType() {
   return new L.Type(
-    L.inductiveExpr(55),
+    L.inductiveExpr(56),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.IdleStep");
       switch (v.kind) {
@@ -1751,7 +1810,7 @@ export function idleStepType() {
 /** Describes Swf.Kernel.Travel for polymorphic functions. */
 export function travelType() {
   return new L.Type(
-    L.inductiveExpr(56),
+    L.inductiveExpr(57),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.Travel");
       switch (v.kind) {
@@ -1788,7 +1847,7 @@ export function travelType() {
 /** Describes Swf.Migration.MigrationPlan for polymorphic functions. */
 export function migrationPlanType() {
   return new L.Type(
-    L.inductiveExpr(57),
+    L.inductiveExpr(58),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Migration.MigrationPlan");
       w.u32(0);
@@ -1806,7 +1865,7 @@ export function migrationPlanType() {
 /** Describes Swf.Presenter.Slot for polymorphic functions. */
 export function slotType() {
   return new L.Type(
-    L.inductiveExpr(58),
+    L.inductiveExpr(59),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Presenter.Slot");
       switch (v.kind) {
@@ -1838,7 +1897,7 @@ export function slotType() {
 /** Describes Swf.Presenter.SlotEvent for polymorphic functions. */
 export function slotEventType() {
   return new L.Type(
-    L.inductiveExpr(59),
+    L.inductiveExpr(60),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Presenter.SlotEvent");
       switch (v.kind) {
@@ -1870,7 +1929,7 @@ export function slotEventType() {
 /** Describes Swf.Save.SaveMachine for polymorphic functions. */
 export function saveMachineType() {
   return new L.Type(
-    L.inductiveExpr(60),
+    L.inductiveExpr(61),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Save.SaveMachine");
       w.u32(0);
@@ -1890,7 +1949,7 @@ export function saveMachineType() {
 /** Describes Swf.Save.SaveAnswer for polymorphic functions. */
 export function saveAnswerType() {
   return new L.Type(
-    L.inductiveExpr(61),
+    L.inductiveExpr(62),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Save.SaveAnswer");
       switch (v.kind) {
@@ -1920,7 +1979,7 @@ export function saveAnswerType() {
 /** Describes Swf.Save.SaveEnd for polymorphic functions. */
 export function saveEndType() {
   return new L.Type(
-    L.inductiveExpr(62),
+    L.inductiveExpr(63),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Save.SaveEnd");
       w.u32(0);
@@ -1938,7 +1997,7 @@ export function saveEndType() {
 /** Describes Swf.Surface.Presentation for polymorphic functions. */
 export function presentationType() {
   return new L.Type(
-    L.inductiveExpr(63),
+    L.inductiveExpr(64),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.Presentation");
       switch (v.kind) {
@@ -1991,7 +2050,7 @@ export function presentationType() {
 /** Describes Swf.Surface.SurfaceRefusal for polymorphic functions. */
 export function surfaceRefusalType() {
   return new L.Type(
-    L.inductiveExpr(64),
+    L.inductiveExpr(65),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.SurfaceRefusal");
       switch (v.kind) {
@@ -2051,7 +2110,7 @@ export function surfaceRefusalType() {
 /** Describes Swf.Surface.HandoverFacts for polymorphic functions. */
 export function handoverFactsType() {
   return new L.Type(
-    L.inductiveExpr(65),
+    L.inductiveExpr(66),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.HandoverFacts");
       w.u32(0);
@@ -2070,7 +2129,7 @@ export function handoverFactsType() {
 /** Describes Swf.Surface.PresentFacts for polymorphic functions. */
 export function presentFactsType() {
   return new L.Type(
-    L.inductiveExpr(66),
+    L.inductiveExpr(67),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.PresentFacts");
       w.u32(0);
@@ -2095,7 +2154,7 @@ export function presentFactsType() {
 /** Describes Swf.Surface.SurfaceEvent for polymorphic functions. */
 export function surfaceEventType() {
   return new L.Type(
-    L.inductiveExpr(67),
+    L.inductiveExpr(68),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.SurfaceEvent");
       switch (v.kind) {
@@ -2149,7 +2208,7 @@ export function surfaceEventType() {
 /** Describes Swf.Surface.SurfaceStep for polymorphic functions. */
 export function surfaceStepType() {
   return new L.Type(
-    L.inductiveExpr(68),
+    L.inductiveExpr(69),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.SurfaceStep");
       w.u32(0);
@@ -2167,7 +2226,7 @@ export function surfaceStepType() {
 /** Describes Swf.Surface.UnbindGate for polymorphic functions. */
 export function unbindGateType() {
   return new L.Type(
-    L.inductiveExpr(69),
+    L.inductiveExpr(70),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.UnbindGate");
       switch (v.kind) {
@@ -2200,7 +2259,7 @@ export function unbindGateType() {
 /** Describes Swf.ViewMode.ModeMachine for polymorphic functions. */
 export function modeMachineType() {
   return new L.Type(
-    L.inductiveExpr(70),
+    L.inductiveExpr(71),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.ViewMode.ModeMachine");
       w.u32(0);
@@ -2218,7 +2277,7 @@ export function modeMachineType() {
 /** Describes Swf.ViewMode.ModeEvent for polymorphic functions. */
 export function modeEventType() {
   return new L.Type(
-    L.inductiveExpr(71),
+    L.inductiveExpr(72),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.ViewMode.ModeEvent");
       switch (v.kind) {
@@ -2247,7 +2306,7 @@ export function modeEventType() {
 /** Describes Swf.ViewMode.ViewSettings for polymorphic functions. */
 export function viewSettingsType() {
   return new L.Type(
-    L.inductiveExpr(72),
+    L.inductiveExpr(73),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.ViewMode.ViewSettings");
       w.u32(0);
@@ -2266,7 +2325,7 @@ export function viewSettingsType() {
 /** Describes Swf.ViewMode.ModeTransition for polymorphic functions. */
 export function modeTransitionType() {
   return new L.Type(
-    L.inductiveExpr(73),
+    L.inductiveExpr(74),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.ViewMode.ModeTransition");
       switch (v.kind) {
@@ -2299,7 +2358,7 @@ export function modeTransitionType() {
 /** Describes Swf.AppComposition.CompNode for polymorphic functions. */
 export function compNodeType() {
   return new L.Type(
-    L.inductiveExpr(74),
+    L.inductiveExpr(75),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppComposition.CompNode");
       w.u32(0);
@@ -2322,7 +2381,7 @@ export function compNodeType() {
 /** Describes Swf.AppComposition.CompSurface for polymorphic functions. */
 export function compSurfaceType() {
   return new L.Type(
-    L.inductiveExpr(75),
+    L.inductiveExpr(76),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppComposition.CompSurface");
       w.u32(0);
@@ -2341,7 +2400,7 @@ export function compSurfaceType() {
 /** Describes Swf.AppComposition.CompRef for polymorphic functions. */
 export function compRefType() {
   return new L.Type(
-    L.inductiveExpr(76),
+    L.inductiveExpr(77),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppComposition.CompRef");
       w.u32(0);
@@ -2359,7 +2418,7 @@ export function compRefType() {
 /** Describes Swf.AppComposition.CompTarget for polymorphic functions. */
 export function compTargetType() {
   return new L.Type(
-    L.inductiveExpr(77),
+    L.inductiveExpr(78),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppComposition.CompTarget");
       switch (v.kind) {
@@ -2390,7 +2449,7 @@ export function compTargetType() {
 /** Describes Swf.AppComposition.CompInto for polymorphic functions. */
 export function compIntoType() {
   return new L.Type(
-    L.inductiveExpr(78),
+    L.inductiveExpr(79),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppComposition.CompInto");
       switch (v.kind) {
@@ -2422,7 +2481,7 @@ export function compIntoType() {
 /** Describes Swf.AppFeatures.DepthBands for polymorphic functions. */
 export function depthBandsType() {
   return new L.Type(
-    L.inductiveExpr(79),
+    L.inductiveExpr(80),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppFeatures.DepthBands");
       w.u32(0);
@@ -2440,7 +2499,7 @@ export function depthBandsType() {
 /** Describes Swf.AppDepth.DepthBand for polymorphic functions. */
 export function depthBandType() {
   return new L.Type(
-    L.inductiveExpr(80),
+    L.inductiveExpr(81),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppDepth.DepthBand");
       switch (v.kind) {
@@ -2472,7 +2531,7 @@ export function depthBandType() {
 /** Describes Swf.AppFeatures.FeatureFlags for polymorphic functions. */
 export function featureFlagsType() {
   return new L.Type(
-    L.inductiveExpr(81),
+    L.inductiveExpr(82),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppFeatures.FeatureFlags");
       w.u32(0);
@@ -2496,7 +2555,7 @@ export function featureFlagsType() {
 /** Describes Swf.AppFeatures.FeatureFault for polymorphic functions. */
 export function featureFaultType() {
   return new L.Type(
-    L.inductiveExpr(82),
+    L.inductiveExpr(83),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppFeatures.FeatureFault");
       switch (v.kind) {
@@ -2548,7 +2607,7 @@ export function featureFaultType() {
 /** Describes Swf.AppOrbit.OrbitNavigation for polymorphic functions. */
 export function orbitNavigationType() {
   return new L.Type(
-    L.inductiveExpr(83),
+    L.inductiveExpr(84),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppOrbit.OrbitNavigation");
       switch (v.kind) {
@@ -2576,7 +2635,7 @@ export function orbitNavigationType() {
 /** Describes Swf.AppOrbit.OrbitNode for polymorphic functions. */
 export function orbitNodeType() {
   return new L.Type(
-    L.inductiveExpr(84),
+    L.inductiveExpr(85),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppOrbit.OrbitNode");
       w.u32(0);
@@ -2595,7 +2654,7 @@ export function orbitNodeType() {
 /** Describes Swf.AppOrbit.OrbitCommand for polymorphic functions. */
 export function orbitCommandType() {
   return new L.Type(
-    L.inductiveExpr(85),
+    L.inductiveExpr(86),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppOrbit.OrbitCommand");
       switch (v.kind) {
@@ -2625,7 +2684,7 @@ export function orbitCommandType() {
 /** Describes Swf.AppSnap.SnapCandidate for polymorphic functions. */
 export function snapCandidateType() {
   return new L.Type(
-    L.inductiveExpr(86),
+    L.inductiveExpr(87),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppSnap.SnapCandidate");
       w.u32(0);
@@ -2643,7 +2702,7 @@ export function snapCandidateType() {
 /** Describes Swf.AppWorkspaces.SaverState for polymorphic functions. */
 export function saverStateType() {
   return new L.Type(
-    L.inductiveExpr(87),
+    L.inductiveExpr(88),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppWorkspaces.SaverState");
       switch (v.kind) {
@@ -2679,7 +2738,7 @@ export function saverStateType() {
 /** Describes Swf.Arbitration.HitRegion for polymorphic functions. */
 export function hitRegionType() {
   return new L.Type(
-    L.inductiveExpr(88),
+    L.inductiveExpr(89),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Arbitration.HitRegion");
       switch (v.kind) {
@@ -2708,10 +2767,29 @@ export function hitRegionType() {
   );
 }
 
+/** Describes Swf.Arbitration.PickOrder for polymorphic functions. */
+export function pickOrderType() {
+  return new L.Type(
+    L.inductiveExpr(90),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Arbitration.PickOrder");
+      w.u32(0);
+      L.list(L.NAT).encode(w, v.order);
+      L.list(L.BOOL).encode(w, v.occluded);
+      L.BOOL.encode(w, v.ambiguous);
+    },
+    (r) => {
+      const c = r.u32();
+      if (c !== 0) throw new L.MalformedError(`constructor index ${c} of Swf.Arbitration.PickOrder`);
+      return ({ order: L.list(L.NAT).decode(r), occluded: L.list(L.BOOL).decode(r), ambiguous: L.BOOL.decode(r) });
+    },
+  );
+}
+
 /** Describes Swf.Fallback.RendererCapabilities for polymorphic functions. */
 export function rendererCapabilitiesType() {
   return new L.Type(
-    L.inductiveExpr(89),
+    L.inductiveExpr(91),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.RendererCapabilities");
       w.u32(0);
@@ -2730,7 +2808,7 @@ export function rendererCapabilitiesType() {
 /** Describes Swf.Fallback.CompositorCapabilities for polymorphic functions. */
 export function compositorCapabilitiesType() {
   return new L.Type(
-    L.inductiveExpr(90),
+    L.inductiveExpr(92),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.CompositorCapabilities");
       w.u32(0);
@@ -2750,7 +2828,7 @@ export function compositorCapabilitiesType() {
 /** Describes Swf.Fallback.HandleCapabilities for polymorphic functions. */
 export function handleCapabilitiesType() {
   return new L.Type(
-    L.inductiveExpr(91),
+    L.inductiveExpr(93),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.HandleCapabilities");
       w.u32(0);
@@ -2771,7 +2849,7 @@ export function handleCapabilitiesType() {
 /** Describes Swf.Fallback.Gap for polymorphic functions. */
 export function gapType() {
   return new L.Type(
-    L.inductiveExpr(92),
+    L.inductiveExpr(94),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.Gap");
       w.u32(0);
@@ -2790,7 +2868,7 @@ export function gapType() {
 /** Describes Swf.Fallback.ShapeFidelity for polymorphic functions. */
 export function shapeFidelityType() {
   return new L.Type(
-    L.inductiveExpr(93),
+    L.inductiveExpr(95),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.ShapeFidelity");
       switch (v.kind) {
@@ -2822,7 +2900,7 @@ export function shapeFidelityType() {
 /** Describes Swf.Fallback.Fidelity for polymorphic functions. */
 export function fidelityType() {
   return new L.Type(
-    L.inductiveExpr(94),
+    L.inductiveExpr(96),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.Fidelity");
       switch (v.kind) {
@@ -2862,7 +2940,7 @@ export function fidelityType() {
 /** Describes Swf.Fallback.Interaction for polymorphic functions. */
 export function interactionType() {
   return new L.Type(
-    L.inductiveExpr(95),
+    L.inductiveExpr(97),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.Interaction");
       switch (v.kind) {
@@ -2894,7 +2972,7 @@ export function interactionType() {
 /** Describes Swf.Fallback.LayerCategory for polymorphic functions. */
 export function layerCategoryType() {
   return new L.Type(
-    L.inductiveExpr(96),
+    L.inductiveExpr(98),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.LayerCategory");
       switch (v.kind) {
@@ -2938,7 +3016,7 @@ export function layerCategoryType() {
 /** Describes Swf.Gesture.Finish for polymorphic functions. */
 export function finishType() {
   return new L.Type(
-    L.inductiveExpr(97),
+    L.inductiveExpr(99),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Gesture.Finish");
       switch (v.kind) {
@@ -2970,7 +3048,7 @@ export function finishType() {
 /** Describes Swf.Gesture.KeyPhase for polymorphic functions. */
 export function keyPhaseType() {
   return new L.Type(
-    L.inductiveExpr(98),
+    L.inductiveExpr(100),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Gesture.KeyPhase");
       switch (v.kind) {
@@ -2998,7 +3076,7 @@ export function keyPhaseType() {
 /** Describes Swf.Gesture.PressPick for polymorphic functions. */
 export function pressPickType() {
   return new L.Type(
-    L.inductiveExpr(99),
+    L.inductiveExpr(101),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Gesture.PressPick");
       switch (v.kind) {
@@ -3030,7 +3108,7 @@ export function pressPickType() {
 /** Describes Swf.Gesture.Region for polymorphic functions. */
 export function regionType() {
   return new L.Type(
-    L.inductiveExpr(100),
+    L.inductiveExpr(102),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Gesture.Region");
       switch (v.kind) {
@@ -3070,7 +3148,7 @@ export function regionType() {
 /** Describes Swf.Handoff.SwapUndo for polymorphic functions. */
 export function swapUndoType() {
   return new L.Type(
-    L.inductiveExpr(101),
+    L.inductiveExpr(103),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Handoff.SwapUndo");
       switch (v.kind) {
@@ -3106,7 +3184,7 @@ export function swapUndoType() {
 /** Describes Swf.Save.SaveState for polymorphic functions. */
 export function saveStateType() {
   return new L.Type(
-    L.inductiveExpr(102),
+    L.inductiveExpr(104),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Save.SaveState");
       switch (v.kind) {
@@ -3142,7 +3220,7 @@ export function saveStateType() {
 /** Describes Swf.Save.AckRefusal for polymorphic functions. */
 export function ackRefusalType() {
   return new L.Type(
-    L.inductiveExpr(103),
+    L.inductiveExpr(105),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Save.AckRefusal");
       switch (v.kind) {
@@ -3170,7 +3248,7 @@ export function ackRefusalType() {
 /** Describes Swf.Surface.UnboundReason for polymorphic functions. */
 export function unboundReasonType() {
   return new L.Type(
-    L.inductiveExpr(104),
+    L.inductiveExpr(106),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.UnboundReason");
       switch (v.kind) {
@@ -3206,7 +3284,7 @@ export function unboundReasonType() {
 /** Describes Swf.Surface.Resolution for polymorphic functions. */
 export function resolutionType() {
   return new L.Type(
-    L.inductiveExpr(105),
+    L.inductiveExpr(107),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.Resolution");
       switch (v.kind) {
@@ -3238,7 +3316,7 @@ export function resolutionType() {
 /** Describes Swf.Surface.Release for polymorphic functions. */
 export function releaseType() {
   return new L.Type(
-    L.inductiveExpr(106),
+    L.inductiveExpr(108),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Surface.Release");
       switch (v.kind) {
@@ -3267,7 +3345,7 @@ export function releaseType() {
 /** Describes Swf.ViewMode.ProjectionSetting for polymorphic functions. */
 export function projectionSettingType() {
   return new L.Type(
-    L.inductiveExpr(107),
+    L.inductiveExpr(109),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.ViewMode.ProjectionSetting");
       w.u32(0);
@@ -3285,7 +3363,7 @@ export function projectionSettingType() {
 /** Describes Swf.ViewMode.Quat for polymorphic functions. */
 export function quatType() {
   return new L.Type(
-    L.inductiveExpr(108),
+    L.inductiveExpr(110),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.ViewMode.Quat");
       w.u32(0);
@@ -3305,7 +3383,7 @@ export function quatType() {
 /** Describes Swf.AppSnap.SnapConstraint for polymorphic functions. */
 export function snapConstraintType() {
   return new L.Type(
-    L.inductiveExpr(109),
+    L.inductiveExpr(111),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppSnap.SnapConstraint");
       switch (v.kind) {
@@ -3341,7 +3419,7 @@ export function snapConstraintType() {
 /** Describes Swf.Fallback.Strategy for polymorphic functions. */
 export function strategyType() {
   return new L.Type(
-    L.inductiveExpr(110),
+    L.inductiveExpr(112),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.Strategy");
       switch (v.kind) {
@@ -3373,7 +3451,7 @@ export function strategyType() {
 /** Describes Swf.Fallback.TransformMode for polymorphic functions. */
 export function transformModeType() {
   return new L.Type(
-    L.inductiveExpr(111),
+    L.inductiveExpr(113),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.TransformMode");
       switch (v.kind) {
@@ -3409,7 +3487,7 @@ export function transformModeType() {
 /** Describes Swf.Fallback.Clip for polymorphic functions. */
 export function clipType() {
   return new L.Type(
-    L.inductiveExpr(112),
+    L.inductiveExpr(114),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.Clip");
       switch (v.kind) {
@@ -3441,7 +3519,7 @@ export function clipType() {
 /** Describes Swf.Fallback.Requirement for polymorphic functions. */
 export function requirementType() {
   return new L.Type(
-    L.inductiveExpr(113),
+    L.inductiveExpr(115),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Fallback.Requirement");
       switch (v.kind) {
@@ -3485,7 +3563,7 @@ export function requirementType() {
 /** Describes Swf.AppSnap.SnapSide for polymorphic functions. */
 export function snapSideType() {
   return new L.Type(
-    L.inductiveExpr(114),
+    L.inductiveExpr(116),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppSnap.SnapSide");
       switch (v.kind) {
@@ -3521,7 +3599,7 @@ export function snapSideType() {
 /** Describes Swf.AppSnap.SnapLine for polymorphic functions. */
 export function snapLineType() {
   return new L.Type(
-    L.inductiveExpr(115),
+    L.inductiveExpr(117),
     (w, v) => {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.AppSnap.SnapLine");
       switch (v.kind) {
@@ -3585,16 +3663,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "551198d6ad91532a7e4bb7d64440ecbcffab43403bdf68fb8bce2fb6a7d86f87",
+      "fingerprint": "43e1ce920f72d9c8d3a300bfe3e1e28e97d7d86cf32aff2f88ffcccb6dadc99f",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppComposition.lean",
         "start": {
-          "line": 317,
+          "line": 324,
           "column": 1
         },
         "end": {
-          "line": 338,
+          "line": 345,
           "column": 39
         }
       }
@@ -3618,17 +3696,50 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "75d4590044e903cd39b29647bf9e27755ecdce01208869af615d6d46d10fba41",
+      "fingerprint": "62ed39a0e0f90f708a07c827ea099ee8fb5f7d8208dd17a4aab3c7e5c000e7c9",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppComposition.lean",
         "start": {
-          "line": 431,
+          "line": 487,
           "column": 1
         },
         "end": {
-          "line": 472,
+          "line": 528,
           "column": 17
+        }
+      }
+    },
+    {
+      "name": "Swf.AppComposition.emptying_refused_alike",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppComposition.compositionPlan"
+      ],
+      "specifications": [],
+      "statement": "∀ (s : Swf.AppComposition.CompScene) (r t : Swf.AppComposition.CompRef) (sf : Swf.AppComposition.CompSurface)\n  (source : Swf.AppComposition.CompNode),\n  r.id.bind s.surface? = some sf →\n    s.window? (some sf.owner) = some source →\n      (∃ target, s.window? t.id = some target ∧ target.id ≠ sf.owner) →\n        (Array.filter (fun x => x != sf.id) source.surfaceIds).size = 0 →\n          source.childIds.size > 0 →\n            Swf.AppComposition.compositionPlan s (Swf.AppComposition.CompStep.move r t) =\n                Swf.AppComposition.CompPlan.refused \"surfaceId\" (Swf.AppComposition.holdsNodes source) ∧\n              ∀ (t' : Swf.AppComposition.CompRef) (target' : Swf.AppComposition.CompNode),\n                s.window? t'.id = some target' →\n                  target'.id ≠ source.id →\n                    Swf.AppComposition.compositionPlan s\n                        (Swf.AppComposition.CompStep.merge { id := some source.id, shown := source.id } t') =\n                      Swf.AppComposition.CompPlan.refused \"windowId\" (Swf.AppComposition.holdsNodes source)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "2dc1692a460ae3bd27a995e84e5955d7f01143280f0397b033962281741cbfe4",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppComposition.lean",
+        "start": {
+          "line": 430,
+          "column": 1
+        },
+        "end": {
+          "line": 447,
+          "column": 20
         }
       }
     },
@@ -3656,11 +3767,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppComposition.lean",
         "start": {
-          "line": 282,
+          "line": 289,
           "column": 1
         },
         "end": {
-          "line": 291,
+          "line": 298,
           "column": 16
         }
       }
@@ -3689,11 +3800,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppComposition.lean",
         "start": {
-          "line": 275,
+          "line": 282,
           "column": 1
         },
         "end": {
-          "line": 280,
+          "line": 287,
           "column": 36
         }
       }
@@ -3717,16 +3828,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "e3e05fd912cd1245ee71268464ad746c0b5475b73616c1741c195ca561998e54",
+      "fingerprint": "a62d908a3d53fedbcdbfa67eae71d0038e55ad7fc5645d6bf8aff71e06670634",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppComposition.lean",
         "start": {
-          "line": 340,
+          "line": 347,
           "column": 1
         },
         "end": {
-          "line": 362,
+          "line": 369,
           "column": 86
         }
       }
@@ -3738,7 +3849,7 @@ export const ASSURANCE = L.parseAssurance({
         "Swf.AppComposition.compositionPlan"
       ],
       "specifications": [],
-      "statement": "∀ (s : Swf.AppComposition.CompScene) (r t : Swf.AppComposition.CompRef) (sf target source : String)\n  (laidOut left : Array String),\n  Swf.AppComposition.compositionPlan s (Swf.AppComposition.CompStep.move r t) =\n      Swf.AppComposition.CompPlan.move sf target laidOut source left →\n    ∃ nt ns,\n      s.window? t.id = some nt ∧\n        nt.id = target ∧\n          ns.id = source ∧\n            target ≠ source ∧ laidOut = nt.surfaceIds.push sf ∧ left = Array.filter (fun x => x != sf) ns.surfaceIds",
+      "statement": "∀ (s : Swf.AppComposition.CompScene) (r t : Swf.AppComposition.CompRef) (sf target source : String)\n  (laidOut left : Array String),\n  Swf.AppComposition.compositionPlan s (Swf.AppComposition.CompStep.move r t) =\n      Swf.AppComposition.CompPlan.move sf target laidOut source left →\n    ∃ nt ns,\n      s.window? t.id = some nt ∧\n        s.window? (some source) = some ns ∧\n          nt.id = target ∧\n            ns.id = source ∧\n              target ≠ source ∧\n                laidOut = nt.surfaceIds.push sf ∧\n                  left = Array.filter (fun x => x != sf) ns.surfaceIds ∧ (left.size = 0 → ns.childIds.size = 0)",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -3750,17 +3861,17 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "b42c35e6ac62dcdcc6229ea88d3557778aa341a7f53f4fea7307dbac2b26b37c",
+      "fingerprint": "fbe12e2ff471fa9a92cb355b797d66634f3b3a9ae2c9d9cc2c4ee71539f5a26b",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppComposition.lean",
         "start": {
-          "line": 364,
+          "line": 371,
           "column": 1
         },
         "end": {
-          "line": 391,
-          "column": 23
+          "line": 404,
+          "column": 26
         }
       }
     },
@@ -3783,17 +3894,50 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "7ab23a1e2201a446c7f68a7d6fcc861e25678ce6077b585b217466cc98879789",
+      "fingerprint": "1cca8508eb4d609b1249dd3a207ef01e938b2fd93aacdfae88e1e603cefec68b",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppComposition.lean",
         "start": {
-          "line": 393,
+          "line": 449,
           "column": 1
         },
         "end": {
-          "line": 429,
+          "line": 485,
           "column": 16
+        }
+      }
+    },
+    {
+      "name": "Swf.AppComposition.window_with_nodes_never_emptied",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppComposition.compositionPlan"
+      ],
+      "specifications": [],
+      "statement": "∀ (s : Swf.AppComposition.CompScene) (w : Swf.AppComposition.CompNode),\n  s.window? (some w.id) = some w →\n    w.childIds.size > 0 →\n      (∀ (r t : Swf.AppComposition.CompRef) (sf target : String) (laidOut left : Array String),\n          Swf.AppComposition.compositionPlan s (Swf.AppComposition.CompStep.move r t) =\n              Swf.AppComposition.CompPlan.move sf target laidOut w.id left →\n            left.size ≠ 0) ∧\n        ∀ (r t : Swf.AppComposition.CompRef) (target : String) (moved laidOut : Array String),\n          Swf.AppComposition.compositionPlan s (Swf.AppComposition.CompStep.merge r t) ≠\n            Swf.AppComposition.CompPlan.merge w.id target moved laidOut",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "68c77bbb56a667d2f4d344358165ec788fd12d57e443f4ea4f42e00efe6130f9",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppComposition.lean",
+        "start": {
+          "line": 406,
+          "column": 1
+        },
+        "end": {
+          "line": 428,
+          "column": 10
         }
       }
     },
@@ -3816,17 +3960,17 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "2f968d996b1eeca4edc70b3e31a8af4d010392f24bd7db1a8cceed442720113f",
+      "fingerprint": "c4316888c8e5b0104c8a7dd695e824cf4cfb5a64742e31a909bcea22aeab0670",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppCursor.lean",
         "start": {
-          "line": 85,
+          "line": 98,
           "column": 1
         },
         "end": {
-          "line": 100,
-          "column": 36
+          "line": 115,
+          "column": 38
         }
       }
     },
@@ -3849,17 +3993,50 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "1e070bb4821587f8cd2ecc28565ae471511b1909f851c889aa736a6791557096",
+      "fingerprint": "571d79cfb5b87698a44875e60c8b2476418e036791b12454dc3ed1f630b97376",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppCursor.lean",
         "start": {
-          "line": 102,
+          "line": 117,
           "column": 1
         },
         "end": {
-          "line": 107,
+          "line": 122,
           "column": 28
+        }
+      }
+    },
+    {
+      "name": "Swf.AppCursor.nonfinite_x_refused",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppCursor.wrapPointerStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (taken : List String) (key : String) (phase : Swf.AppCursor.WrapPhase) (x width : Float) (wraps : Bool),\n  (!decide (width > 0) || !width.isFinite) = false →\n    (Swf.AppCursor.wrapPointerStep taken key phase x width wraps = Swf.AppCursor.WrapOutcome.invalidX ↔\n      x.isFinite = false)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "8c76b8255bdc5d8d299bc5ea13f730069e88e59c250acae695800d4842522b24",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppCursor.lean",
+        "start": {
+          "line": 124,
+          "column": 1
+        },
+        "end": {
+          "line": 137,
+          "column": 41
         }
       }
     },
@@ -3886,11 +4063,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppCursor.lean",
         "start": {
-          "line": 122,
+          "line": 152,
           "column": 1
         },
         "end": {
-          "line": 128,
+          "line": 158,
           "column": 60
         }
       }
@@ -3917,11 +4094,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppCursor.lean",
         "start": {
-          "line": 109,
+          "line": 139,
           "column": 1
         },
         "end": {
-          "line": 120,
+          "line": 150,
           "column": 13
         }
       }
@@ -3949,11 +4126,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppCursor.lean",
         "start": {
-          "line": 130,
+          "line": 160,
           "column": 1
         },
         "end": {
-          "line": 141,
+          "line": 171,
           "column": 22
         }
       }
@@ -3965,7 +4142,7 @@ export const ASSURANCE = L.parseAssurance({
         "Swf.AppCursor.wrapPointerStep"
       ],
       "specifications": [],
-      "statement": "∀ (taken : List String) (key : String) (phase : Swf.AppCursor.WrapPhase) (x width : Float) (wraps : Bool),\n  ¬key ∈ taken →\n    Swf.AppCursor.wrapPointerStep taken key phase x width wraps = Swf.AppCursor.WrapOutcome.pass ∨\n      Swf.AppCursor.wrapPointerStep taken key phase x width wraps = Swf.AppCursor.WrapOutcome.invalidWidth",
+      "statement": "∀ (taken : List String) (key : String) (phase : Swf.AppCursor.WrapPhase) (x width : Float) (wraps : Bool),\n  ¬key ∈ taken →\n    Swf.AppCursor.wrapPointerStep taken key phase x width wraps = Swf.AppCursor.WrapOutcome.pass ∨\n      Swf.AppCursor.wrapPointerStep taken key phase x width wraps = Swf.AppCursor.WrapOutcome.invalidWidth ∨\n        Swf.AppCursor.wrapPointerStep taken key phase x width wraps = Swf.AppCursor.WrapOutcome.invalidX",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -3977,17 +4154,17 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "07b72cd1f97dfc0c0cac297023fac8f1a7443ffae2cceba4d4b6d799647f1e5e",
+      "fingerprint": "6fc79058c384f7759480b89b301b87b69a55c5cd7490e6ba2cd1210c09c82fe4",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppCursor.lean",
         "start": {
-          "line": 61,
+          "line": 66,
           "column": 1
         },
         "end": {
-          "line": 70,
-          "column": 13
+          "line": 79,
+          "column": 15
         }
       }
     },
@@ -3998,7 +4175,7 @@ export const ASSURANCE = L.parseAssurance({
         "Swf.AppCursor.wrapPointerStep"
       ],
       "specifications": [],
-      "statement": "∀ (taken : List String) (key : String) (phase : Swf.AppCursor.WrapPhase) (x width y : Float) (wraps cursor : Bool),\n  Swf.AppCursor.wrapPointerStep taken key phase x width wraps = Swf.AppCursor.WrapOutcome.wrapped y cursor →\n    wraps = true ∧ phase ≠ Swf.AppCursor.WrapPhase.down ∧ key ∈ taken",
+      "statement": "∀ (taken : List String) (key : String) (phase : Swf.AppCursor.WrapPhase) (x width y : Float) (wraps cursor : Bool),\n  Swf.AppCursor.wrapPointerStep taken key phase x width wraps = Swf.AppCursor.WrapOutcome.wrapped y cursor →\n    wraps = true ∧ phase ≠ Swf.AppCursor.WrapPhase.down ∧ key ∈ taken ∧ x.isFinite = true",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -4010,17 +4187,17 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "613eb1c4386ff7e582481626649df634dc6e0264221715dea1e413656fad0500",
+      "fingerprint": "66f6eed178d54f13b06b7bcb899008e83195f2e45e77a695115e778716e6446a",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppCursor.lean",
         "start": {
-          "line": 72,
+          "line": 81,
           "column": 1
         },
         "end": {
-          "line": 83,
-          "column": 15
+          "line": 96,
+          "column": 17
         }
       }
     },
@@ -4918,17 +5095,48 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "8971a1d5fe07692663af6936ad53bc0c818418c15910e100f5159f7bd7820c51",
+      "fingerprint": "e51a8a2639e63126dd483aa3cafbe5c5be671f9d2d330952686d2329b7b596a9",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 275,
+          "line": 291,
           "column": 1
         },
         "end": {
-          "line": 281,
-          "column": 101
+          "line": 297,
+          "column": 111
+        }
+      }
+    },
+    {
+      "name": "Swf.AppWorkspaces.disposed_refuses_events",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppWorkspaces.workspacesStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (m : Swf.AppWorkspaces.WorkspacesMachine) (e : Swf.AppWorkspaces.WorkspacesEvent),\n  m.disposed = true →\n    Swf.AppWorkspaces.workspacesStep m e =\n      match e with\n      | Swf.AppWorkspaces.WorkspacesEvent.dispose => Swf.AppWorkspaces.WorkspacesStep.quiet m\n      | x =>\n        have __src := Swf.AppWorkspaces.WorkspacesStep.quiet m;\n        { next := __src.next, cancelTimer := __src.cancelTimer, startTimer := __src.startTimer, save := __src.save,\n          adopt := __src.adopt, announce := __src.announce, refusal := some Swf.AppWorkspaces.disposedRefusal }",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "afbb02c4d51fac97f6c542726bc2b403b37862793fbdd39ff2f392fe65ba7f07",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppWorkspaces.lean",
+        "start": {
+          "line": 325,
+          "column": 1
+        },
+        "end": {
+          "line": 335,
+          "column": 40
         }
       }
     },
@@ -4939,7 +5147,7 @@ export const ASSURANCE = L.parseAssurance({
         "Swf.AppWorkspaces.workspacesStep"
       ],
       "specifications": [],
-      "statement": "∀ (m : Swf.AppWorkspaces.WorkspacesMachine) (e : Swf.AppWorkspaces.WorkspacesEvent),\n  m.disposed = true → (Swf.AppWorkspaces.workspacesStep m e).startTimer = false",
+      "statement": "∀ (m : Swf.AppWorkspaces.WorkspacesMachine) (e : Swf.AppWorkspaces.WorkspacesEvent),\n  m.disposed = true →\n    (Swf.AppWorkspaces.workspacesStep m e).startTimer = false ∧\n      (Swf.AppWorkspaces.workspacesStep m e).save = false ∧ (Swf.AppWorkspaces.workspacesStep m e).adopt = false",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -4949,17 +5157,17 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "a9aab423cdb75bbceefc8c3d611a840319b99546a43e38458c53b8ebc4077b44",
+      "fingerprint": "04d70fc8b382ed0f44c0df050c7d2396843d3b66a29f1466e8d8b79f0d53ebc7",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 307,
+          "line": 337,
           "column": 1
         },
         "end": {
-          "line": 318,
-          "column": 64
+          "line": 344,
+          "column": 42
         }
       }
     },
@@ -4987,11 +5195,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 452,
+          "line": 478,
           "column": 1
         },
         "end": {
-          "line": 460,
+          "line": 486,
           "column": 83
         }
       }
@@ -5020,11 +5228,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 230,
+          "line": 243,
           "column": 1
         },
         "end": {
-          "line": 241,
+          "line": 254,
           "column": 36
         }
       }
@@ -5053,11 +5261,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 369,
+          "line": 395,
           "column": 1
         },
         "end": {
-          "line": 379,
+          "line": 405,
           "column": 40
         }
       }
@@ -5069,7 +5277,7 @@ export const ASSURANCE = L.parseAssurance({
         "Swf.AppWorkspaces.workspacesStep"
       ],
       "specifications": [],
-      "statement": "∀ (m : Swf.AppWorkspaces.WorkspacesMachine) (saver : Swf.AppWorkspaces.SaverState),\n  m.autosave = true →\n    (Swf.AppWorkspaces.workspacesStep m (Swf.AppWorkspaces.WorkspacesEvent.setAutosave false saver)).next.pending =\n        false ∧\n      (Swf.AppWorkspaces.workspacesStep m (Swf.AppWorkspaces.WorkspacesEvent.setAutosave false saver)).cancelTimer =\n        m.pending",
+      "statement": "∀ (m : Swf.AppWorkspaces.WorkspacesMachine) (saver : Swf.AppWorkspaces.SaverState),\n  m.autosave = true →\n    m.disposed = false →\n      (Swf.AppWorkspaces.workspacesStep m (Swf.AppWorkspaces.WorkspacesEvent.setAutosave false saver)).next.pending =\n          false ∧\n        (Swf.AppWorkspaces.workspacesStep m (Swf.AppWorkspaces.WorkspacesEvent.setAutosave false saver)).cancelTimer =\n          m.pending",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -5079,17 +5287,17 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "f55ebc2e2db9e5f409113c79eb6c3530abef3e4cda509473797a13d0f2712202",
+      "fingerprint": "67c2ada9bde866d73390b66d3cfec8d45404d7c4d332e856409e9cf77d3b4fea",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 283,
+          "line": 299,
           "column": 1
         },
         "end": {
-          "line": 289,
-          "column": 50
+          "line": 305,
+          "column": 64
         }
       }
     },
@@ -5100,7 +5308,7 @@ export const ASSURANCE = L.parseAssurance({
         "Swf.AppWorkspaces.workspacesStep"
       ],
       "specifications": [],
-      "statement": "∀ (m : Swf.AppWorkspaces.WorkspacesMachine),\n  Swf.AppWorkspaces.workspacesStep m (Swf.AppWorkspaces.WorkspacesEvent.restored false) =\n      Swf.AppWorkspaces.WorkspacesStep.quiet m ∧\n    (Swf.AppWorkspaces.workspacesStep m (Swf.AppWorkspaces.WorkspacesEvent.restored true)).adopt = true ∧\n      (Swf.AppWorkspaces.workspacesStep m (Swf.AppWorkspaces.WorkspacesEvent.restored true)).next = m",
+      "statement": "∀ (m : Swf.AppWorkspaces.WorkspacesMachine),\n  m.disposed = false →\n    Swf.AppWorkspaces.workspacesStep m (Swf.AppWorkspaces.WorkspacesEvent.restored false) =\n        Swf.AppWorkspaces.WorkspacesStep.quiet m ∧\n      (Swf.AppWorkspaces.workspacesStep m (Swf.AppWorkspaces.WorkspacesEvent.restored true)).adopt = true ∧\n        (Swf.AppWorkspaces.workspacesStep m (Swf.AppWorkspaces.WorkspacesEvent.restored true)).next = m",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -5110,17 +5318,17 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "0da922f11e5c1c8f46ac617bca7f14ed9349f4b748af3ed7991e4c0fbf0473cd",
+      "fingerprint": "72cb8229c3ff9e08346f55805654e165a23ad48459bfdb2e1f9c0ec65912e024",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 298,
+          "line": 315,
           "column": 1
         },
         "end": {
-          "line": 305,
-          "column": 46
+          "line": 323,
+          "column": 60
         }
       }
     },
@@ -5147,11 +5355,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 381,
+          "line": 407,
           "column": 1
         },
         "end": {
-          "line": 405,
+          "line": 431,
           "column": 14
         }
       }
@@ -5163,7 +5371,7 @@ export const ASSURANCE = L.parseAssurance({
         "Swf.AppWorkspaces.workspacesStep"
       ],
       "specifications": [],
-      "statement": "∀ (m : Swf.AppWorkspaces.WorkspacesMachine),\n  m.autosave = false →\n    (Swf.AppWorkspaces.workspacesStep m Swf.AppWorkspaces.WorkspacesEvent.saveNow).refusal = some \"saving is off\" ∧\n      (Swf.AppWorkspaces.workspacesStep m Swf.AppWorkspaces.WorkspacesEvent.saveNow).save = false",
+      "statement": "∀ (m : Swf.AppWorkspaces.WorkspacesMachine),\n  m.autosave = false →\n    m.disposed = false →\n      (Swf.AppWorkspaces.workspacesStep m Swf.AppWorkspaces.WorkspacesEvent.saveNow).refusal = some \"saving is off\" ∧\n        (Swf.AppWorkspaces.workspacesStep m Swf.AppWorkspaces.WorkspacesEvent.saveNow).save = false",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -5173,17 +5381,17 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "a8f14b79a0dfa65012898a6500f1f901123587ff9772426ac5a55ced3dc5388e",
+      "fingerprint": "c5306b7d13b9eb741483007789a115a044a239b87b51f969777b7faef3581966",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 291,
+          "line": 307,
           "column": 1
         },
         "end": {
-          "line": 296,
-          "column": 50
+          "line": 313,
+          "column": 64
         }
       }
     },
@@ -5211,11 +5419,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 444,
+          "line": 470,
           "column": 1
         },
         "end": {
-          "line": 450,
+          "line": 476,
           "column": 32
         }
       }
@@ -5243,11 +5451,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 407,
+          "line": 433,
           "column": 1
         },
         "end": {
-          "line": 411,
+          "line": 437,
           "column": 25
         }
       }
@@ -5269,17 +5477,17 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "c493f4ca2fbf873b06d0267e9f1ab0897d5b32779916b4ef77d114b3c1b2d030",
+      "fingerprint": "ac05cca1d75a47fd76f52bf8f22f812af2df9100c4f1c18b9140d14bff98f822",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 247,
+          "line": 260,
           "column": 1
         },
         "end": {
-          "line": 273,
-          "column": 59
+          "line": 289,
+          "column": 64
         }
       }
     },
@@ -5306,12 +5514,78 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 267,
+          "line": 383,
           "column": 1
         },
         "end": {
-          "line": 287,
+          "line": 403,
           "column": 33
+        }
+      }
+    },
+    {
+      "name": "Swf.Arbitration.invalid_hit_named",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Arbitration.pickOrder"
+      ],
+      "specifications": [],
+      "statement": "∀ (hits : Array Swf.Arbitration.Hit) (tolerance : Float) (i : Nat) (field : String),\n  Swf.Arbitration.pickOrder hits tolerance = Swf.Arbitration.PickOutcome.invalidHit i field →\n    i < hits.size ∧\n      (field = \"distance\" ∧ hits[i]!.distance.isFinite = false ∨\n        field = \"priority\" ∧ hits[i]!.distance.isFinite = true ∧ hits[i]!.priority.isFinite = false)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "9f466a0c22a48108891eaf2dfb7612dc859ae8e507a31138b08bb43c2eebf04d",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Arbitration.lean",
+        "start": {
+          "line": 529,
+          "column": 1
+        },
+        "end": {
+          "line": 552,
+          "column": 14
+        }
+      }
+    },
+    {
+      "name": "Swf.Arbitration.nonfinite_priority_refused",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Arbitration.bestBid"
+      ],
+      "specifications": [],
+      "statement": "∀ (bids : Array Swf.Arbitration.Bid) (kind : Swf.Arbitration.BidKind) (pointers i : Nat),\n  Swf.Arbitration.bestBid bids kind pointers = Swf.Arbitration.BidOutcome.invalidPriority i ↔\n    i < bids.size ∧ bids[i]!.priority.isFinite = false ∧ ∀ (j : Nat), j < i → bids[j]!.priority.isFinite = true",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "a043ca7ce58cf094bde3b1d6e64c0bde45f0a73fd0deb599b1a1d2dc5e98e20c",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Arbitration.lean",
+        "start": {
+          "line": 242,
+          "column": 1
+        },
+        "end": {
+          "line": 263,
+          "column": 39
         }
       }
     },
@@ -5322,7 +5596,7 @@ export const ASSURANCE = L.parseAssurance({
         "Swf.Arbitration.pickOrder"
       ],
       "specifications": [],
-      "statement": "∀ (hits : Array Swf.Arbitration.Hit) (tolerance : Float) (k : Nat),\n  k < (Swf.Arbitration.pickOrder hits tolerance).order.length →\n    ((Swf.Arbitration.pickOrder hits tolerance).occluded[k]! = true ↔\n      ∃ j,\n        j ∈ List.filter (Swf.Arbitration.keeps hits) (List.range hits.size) ∧\n          j ≠ (Swf.Arbitration.pickOrder hits tolerance).order[k]! ∧\n            hits[j]!.occluding = true ∧\n              Swf.Order.floatKey (hits[j]!.distance + tolerance) <\n                Swf.Order.floatKey hits[(Swf.Arbitration.pickOrder hits tolerance).order[k]!]!.distance)",
+      "statement": "∀ (hits : Array Swf.Arbitration.Hit) (tolerance : Float) (po : Swf.Arbitration.PickOrder),\n  Swf.Arbitration.pickOrder hits tolerance = Swf.Arbitration.PickOutcome.ordered po →\n    ∀ (k : Nat),\n      k < po.order.length →\n        (po.occluded[k]! = true ↔\n          ∃ j,\n            j ∈ List.filter (Swf.Arbitration.keeps hits) (List.range hits.size) ∧\n              j ≠ po.order[k]! ∧\n                hits[j]!.occluding = true ∧\n                  Swf.Order.floatKey (hits[j]!.distance + tolerance) < Swf.Order.floatKey hits[po.order[k]!]!.distance)",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -5334,17 +5608,17 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "777c7fc0c4937bef368c4b276be0c18c37377268a937d30fcada637bc83ab4c0",
+      "fingerprint": "7a4feb124efceb441addfae59dc9ac104abd63e53f99c7768018bfd6e5880374",
       "source": {
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 289,
+          "line": 493,
           "column": 1
         },
         "end": {
-          "line": 305,
-          "column": 64
+          "line": 503,
+          "column": 47
         }
       }
     },
@@ -5355,7 +5629,7 @@ export const ASSURANCE = L.parseAssurance({
         "Swf.Arbitration.pickOrder"
       ],
       "specifications": [],
-      "statement": "∀ (hits : Array Swf.Arbitration.Hit) (tolerance : Float),\n  (Swf.Arbitration.pickOrder hits tolerance).order.Perm\n    (List.filter (Swf.Arbitration.keeps hits) (List.range hits.size))",
+      "statement": "∀ (hits : Array Swf.Arbitration.Hit) (tolerance : Float) (po : Swf.Arbitration.PickOrder),\n  Swf.Arbitration.pickOrder hits tolerance = Swf.Arbitration.PickOutcome.ordered po →\n    po.order.Perm (List.filter (Swf.Arbitration.keeps hits) (List.range hits.size))",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -5367,17 +5641,83 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "a9e2c3fabab0dce55b794a586f825e8de9d4abe09e95bbf9334d5b2d24dc6095",
+      "fingerprint": "a04a5c3b886215c4a7375b493601294d8beeb83e23b985e2c7b03e5c58179cf9",
       "source": {
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 251,
+          "line": 475,
           "column": 1
         },
         "end": {
-          "line": 256,
-          "column": 32
+          "line": 481,
+          "column": 38
+        }
+      }
+    },
+    {
+      "name": "Swf.Arbitration.ordered_iff_finite",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Arbitration.pickOrder"
+      ],
+      "specifications": [],
+      "statement": "∀ (hits : Array Swf.Arbitration.Hit) (tolerance : Float),\n  (∃ po, Swf.Arbitration.pickOrder hits tolerance = Swf.Arbitration.PickOutcome.ordered po) ↔\n    (tolerance.isFinite = true ∧ 0 ≤ tolerance) ∧\n      ∀ (i : Nat), i < hits.size → hits[i]!.distance.isFinite = true ∧ hits[i]!.priority.isFinite = true",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "77e97baba86115139152e7893cbe50e9a1e9ecef6fb8b89bad861107ab7ff4b7",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Arbitration.lean",
+        "start": {
+          "line": 505,
+          "column": 1
+        },
+        "end": {
+          "line": 527,
+          "column": 26
+        }
+      }
+    },
+    {
+      "name": "Swf.Arbitration.refused_iff_nonfinite",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Arbitration.bestBid"
+      ],
+      "specifications": [],
+      "statement": "∀ (bids : Array Swf.Arbitration.Bid) (kind : Swf.Arbitration.BidKind) (pointers : Nat),\n  (∃ i, Swf.Arbitration.bestBid bids kind pointers = Swf.Arbitration.BidOutcome.invalidPriority i) ↔\n    ∃ j, j < bids.size ∧ bids[j]!.priority.isFinite = false",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "a1283abacbe361104e9ab0b1855e08728439ed3d7fafb8ceafbd5d2b0e8c0d3b",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Arbitration.lean",
+        "start": {
+          "line": 265,
+          "column": 1
+        },
+        "end": {
+          "line": 280,
+          "column": 58
         }
       }
     },
@@ -5388,7 +5728,7 @@ export const ASSURANCE = L.parseAssurance({
         "Swf.Arbitration.pickOrder"
       ],
       "specifications": [],
-      "statement": "∀ (hits : Array Swf.Arbitration.Hit) (tolerance : Float) (t : Nat),\n  (Swf.Arbitration.pickOrder hits tolerance).order.head? = some t →\n    ∀ (j : Nat),\n      j < hits.size →\n        Swf.Arbitration.keeps hits j = true →\n          Swf.Arbitration.keyLe\n              (Swf.Arbitration.hitKey hits (List.filter (Swf.Arbitration.keeps hits) (List.range hits.size)) tolerance\n                t)\n              (Swf.Arbitration.hitKey hits (List.filter (Swf.Arbitration.keeps hits) (List.range hits.size)) tolerance\n                j) =\n            true",
+      "statement": "∀ (hits : Array Swf.Arbitration.Hit) (tolerance : Float) (po : Swf.Arbitration.PickOrder),\n  Swf.Arbitration.pickOrder hits tolerance = Swf.Arbitration.PickOutcome.ordered po →\n    ∀ (t : Nat),\n      po.order.head? = some t →\n        ∀ (j : Nat),\n          j < hits.size →\n            Swf.Arbitration.keeps hits j = true →\n              Swf.Arbitration.keyLe\n                  (Swf.Arbitration.hitKey hits (List.filter (Swf.Arbitration.keeps hits) (List.range hits.size))\n                    tolerance t)\n                  (Swf.Arbitration.hitKey hits (List.filter (Swf.Arbitration.keeps hits) (List.range hits.size))\n                    tolerance j) =\n                true",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -5400,17 +5740,17 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "a9b580c2fc39336de2435a801637f9c9ee181702bbd86be8cc2bf653fbd323d7",
+      "fingerprint": "8219d1f02ae2e995a92c000147725342ba792ab665e9e8c0f8963451cfa517cc",
       "source": {
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 258,
+          "line": 483,
           "column": 1
         },
         "end": {
-          "line": 265,
-          "column": 49
+          "line": 491,
+          "column": 59
         }
       }
     },
@@ -5421,7 +5761,7 @@ export const ASSURANCE = L.parseAssurance({
         "Swf.Arbitration.bestBid"
       ],
       "specifications": [],
-      "statement": "∀ (bids : Array Swf.Arbitration.Bid) (kind : Swf.Arbitration.BidKind) (pointers i : Nat),\n  Swf.Arbitration.bestBid bids kind pointers = some i →\n    i < bids.size ∧ bids[i]!.kind = kind ∧ bids[i]!.pointers = pointers",
+      "statement": "∀ (bids : Array Swf.Arbitration.Bid) (kind : Swf.Arbitration.BidKind) (pointers i : Nat),\n  Swf.Arbitration.bestBid bids kind pointers = Swf.Arbitration.BidOutcome.winner i →\n    i < bids.size ∧\n      bids[i]!.kind = kind ∧\n        bids[i]!.pointers = pointers ∧ ∀ (j : Nat), j < bids.size → bids[j]!.priority.isFinite = true",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -5433,17 +5773,17 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "961180e0607e9b8d24d8cdbe946b2a8bd3cd9506d43df0234aaa001ed3f9e8d6",
+      "fingerprint": "ae5289c886b1286ba61de1d7c8c6dbba6662062683d720d8425d55f0875b56ef",
       "source": {
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 117,
+          "line": 206,
           "column": 1
         },
         "end": {
-          "line": 129,
-          "column": 37
+          "line": 215,
+          "column": 75
         }
       }
     },
@@ -5454,7 +5794,7 @@ export const ASSURANCE = L.parseAssurance({
         "Swf.Arbitration.bestBid"
       ],
       "specifications": [],
-      "statement": "∀ (bids : Array Swf.Arbitration.Bid) (kind : Swf.Arbitration.BidKind) (pointers : Nat),\n  (Swf.Arbitration.bestBid bids kind pointers).isSome = true ↔\n    ∃ j, j < bids.size ∧ Swf.Arbitration.eligibleBid bids kind pointers j = true",
+      "statement": "∀ (bids : Array Swf.Arbitration.Bid) (kind : Swf.Arbitration.BidKind) (pointers : Nat),\n  (∃ i, Swf.Arbitration.bestBid bids kind pointers = Swf.Arbitration.BidOutcome.winner i) ↔\n    (∀ (j : Nat), j < bids.size → bids[j]!.priority.isFinite = true) ∧\n      ∃ j, j < bids.size ∧ Swf.Arbitration.eligibleBid bids kind pointers j = true",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -5466,17 +5806,17 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "8c5d221ada46d1cbe11ed7b0faeefcb76f5508c0afa2ddb56fe34e65839885d2",
+      "fingerprint": "a2769f294e0bb05c61884d3f906e5552f53e47560b5ac46efbb7bd8a1192127c",
       "source": {
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 140,
+          "line": 226,
           "column": 1
         },
         "end": {
-          "line": 163,
-          "column": 33
+          "line": 240,
+          "column": 41
         }
       }
     },
@@ -5487,7 +5827,7 @@ export const ASSURANCE = L.parseAssurance({
         "Swf.Arbitration.bestBid"
       ],
       "specifications": [],
-      "statement": "∀ (bids : Array Swf.Arbitration.Bid) (kind : Swf.Arbitration.BidKind) (pointers i : Nat),\n  Swf.Arbitration.bestBid bids kind pointers = some i →\n    ∀ (j : Nat),\n      j < bids.size →\n        Swf.Arbitration.eligibleBid bids kind pointers j = true →\n          Swf.Arbitration.keyLe (Swf.Arbitration.bidKey bids[i]!) (Swf.Arbitration.bidKey bids[j]!) = true",
+      "statement": "∀ (bids : Array Swf.Arbitration.Bid) (kind : Swf.Arbitration.BidKind) (pointers i : Nat),\n  Swf.Arbitration.bestBid bids kind pointers = Swf.Arbitration.BidOutcome.winner i →\n    ∀ (j : Nat),\n      j < bids.size →\n        Swf.Arbitration.eligibleBid bids kind pointers j = true →\n          Swf.Arbitration.keyLe (Swf.Arbitration.bidKey bids[i]!) (Swf.Arbitration.bidKey bids[j]!) = true",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -5499,17 +5839,17 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "108ec85c3419aab7a56f8a3cd5d2184e40ccbeed5cd31b6e58fdee6d34d03c08",
+      "fingerprint": "a8b337126f3f3b52b6ace94438770bed622d4183750da29f70ce19c2890e9ce1",
       "source": {
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 131,
+          "line": 217,
           "column": 1
         },
         "end": {
-          "line": 138,
-          "column": 49
+          "line": 224,
+          "column": 65
         }
       }
     },
@@ -6103,12 +6443,43 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 256,
+          "line": 304,
           "column": 1
         },
         "end": {
-          "line": 258,
+          "line": 306,
           "column": 24
+        }
+      }
+    },
+    {
+      "name": "Swf.Handoff.begins_only_when_settled",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Handoff.handoffStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (s : Swf.Handoff.ViewportState),\n  (Swf.Handoff.handoffStep s Swf.Handoff.HandoffEvent.begin = some Swf.Handoff.ViewportState.preparing ↔\n      s = Swf.Handoff.ViewportState.active ∨ s = Swf.Handoff.ViewportState.degraded) ∧\n    (Swf.Handoff.handoffStep s Swf.Handoff.HandoffEvent.begin = none ↔\n      s.handingOff = true ∨ s = Swf.Handoff.ViewportState.disposed)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "f3c54a1bacc734cb0d156c94d044fc1b9feb649a2668d08d38033e23cc57d8ff",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Handoff.lean",
+        "start": {
+          "line": 211,
+          "column": 1
+        },
+        "end": {
+          "line": 218,
+          "column": 59
         }
       }
     },
@@ -6134,11 +6505,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 213,
+          "line": 261,
           "column": 1
         },
         "end": {
-          "line": 225,
+          "line": 273,
           "column": 56
         }
       }
@@ -6165,11 +6536,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 260,
+          "line": 308,
           "column": 1
         },
         "end": {
-          "line": 263,
+          "line": 311,
           "column": 47
         }
       }
@@ -6181,7 +6552,7 @@ export const ASSURANCE = L.parseAssurance({
         "Swf.Handoff.handoffStep"
       ],
       "specifications": [],
-      "statement": "∀ (s : Swf.Handoff.ViewportState) (e : Swf.Handoff.HandoffEvent),\n  Swf.Handoff.handoffStep Swf.Handoff.ViewportState.disposed e = none ∧\n    (s ≠ Swf.Handoff.ViewportState.disposed →\n      Swf.Handoff.handoffStep s Swf.Handoff.HandoffEvent.dispose = some Swf.Handoff.ViewportState.disposed ∧\n        Swf.Handoff.handoffStep s Swf.Handoff.HandoffEvent.begin = some Swf.Handoff.ViewportState.preparing)",
+      "statement": "∀ (s : Swf.Handoff.ViewportState) (e : Swf.Handoff.HandoffEvent),\n  Swf.Handoff.handoffStep Swf.Handoff.ViewportState.disposed e = none ∧\n    (s ≠ Swf.Handoff.ViewportState.disposed →\n      Swf.Handoff.handoffStep s Swf.Handoff.HandoffEvent.dispose = some Swf.Handoff.ViewportState.disposed)",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -6191,16 +6562,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "d14280bfcd0f31ec458587394069cd62595374da1ce53de3c0bab949ce257df5",
+      "fingerprint": "1d27d3e6ec12aaaf4b523c5807ad7e9c878c072b8a095859dd1d84d78ab533b4",
       "source": {
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 183,
+          "line": 204,
           "column": 1
         },
         "end": {
-          "line": 188,
+          "line": 209,
           "column": 45
         }
       }
@@ -6227,12 +6598,74 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 240,
+          "line": 288,
           "column": 1
         },
         "end": {
-          "line": 250,
+          "line": 298,
           "column": 55
+        }
+      }
+    },
+    {
+      "name": "Swf.Handoff.failure_returns_to_previous",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Handoff.handoffStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (s : Swf.Handoff.ViewportState) (oldUsable restored : Bool),\n  Swf.Handoff.handoffStep s (Swf.Handoff.HandoffEvent.failed oldUsable) =\n    if s.handingOff = true then some (Swf.Handoff.settle (Swf.Handoff.Attempt.failed restored) oldUsable).state\n    else none",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "9653b56ce6c561362919b05a6d3a4fce395fc95ce8a5a8abe232f99f2d48dbcf",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Handoff.lean",
+        "start": {
+          "line": 220,
+          "column": 1
+        },
+        "end": {
+          "line": 228,
+          "column": 22
+        }
+      }
+    },
+    {
+      "name": "Swf.Handoff.opens_ready_to_begin",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Handoff.viewportOpened"
+      ],
+      "specifications": [],
+      "statement": "Swf.Handoff.handoffStep Swf.Handoff.viewportOpened Swf.Handoff.HandoffEvent.begin =\n    some Swf.Handoff.ViewportState.preparing ∧\n  Swf.Handoff.viewportPresents Swf.Handoff.viewportOpened = false ∧\n    Swf.Handoff.viewportAdmits Swf.Handoff.viewportOpened = true",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "4a952fd39624f3959002a676f477a9f089f460c7395e18b2c39b7b0fc995fcca",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Handoff.lean",
+        "start": {
+          "line": 230,
+          "column": 1
+        },
+        "end": {
+          "line": 236,
+          "column": 71
         }
       }
     },
@@ -6258,11 +6691,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 252,
+          "line": 300,
           "column": 1
         },
         "end": {
-          "line": 254,
+          "line": 302,
           "column": 26
         }
       }
@@ -6289,11 +6722,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 207,
+          "line": 255,
           "column": 1
         },
         "end": {
-          "line": 211,
+          "line": 259,
           "column": 18
         }
       }
@@ -6320,11 +6753,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 265,
+          "line": 313,
           "column": 1
         },
         "end": {
-          "line": 268,
+          "line": 316,
           "column": 52
         }
       }
@@ -6352,11 +6785,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 227,
+          "line": 275,
           "column": 1
         },
         "end": {
-          "line": 238,
+          "line": 286,
           "column": 72
         }
       }
@@ -6368,7 +6801,7 @@ export const ASSURANCE = L.parseAssurance({
         "Swf.Handoff.handoffStep"
       ],
       "specifications": [],
-      "statement": "∀ (s : Swf.Handoff.ViewportState) (e : Swf.Handoff.HandoffEvent),\n  (Swf.Handoff.handoffStep s e = some Swf.Handoff.ViewportState.validating →\n      s = Swf.Handoff.ViewportState.preparing ∧ e = Swf.Handoff.HandoffEvent.prepared) ∧\n    (Swf.Handoff.handoffStep s e = some Swf.Handoff.ViewportState.swapping →\n        s = Swf.Handoff.ViewportState.validating ∧ e = Swf.Handoff.HandoffEvent.validated) ∧\n      (Swf.Handoff.handoffStep s e = some Swf.Handoff.ViewportState.active →\n        s = Swf.Handoff.ViewportState.swapping ∧ e = Swf.Handoff.HandoffEvent.swapped)",
+      "statement": "∀ (s : Swf.Handoff.ViewportState) (e : Swf.Handoff.HandoffEvent),\n  (Swf.Handoff.handoffStep s e = some Swf.Handoff.ViewportState.validating →\n      s = Swf.Handoff.ViewportState.preparing ∧ e = Swf.Handoff.HandoffEvent.prepared) ∧\n    (Swf.Handoff.handoffStep s e = some Swf.Handoff.ViewportState.swapping →\n        s = Swf.Handoff.ViewportState.validating ∧ e = Swf.Handoff.HandoffEvent.validated) ∧\n      (Swf.Handoff.handoffStep s e = some Swf.Handoff.ViewportState.active →\n        s = Swf.Handoff.ViewportState.swapping ∧ e = Swf.Handoff.HandoffEvent.swapped ∨\n          s.handingOff = true ∧ e = Swf.Handoff.HandoffEvent.failed true)",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -6378,17 +6811,17 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "64e1748a17fe793d748cbac5461d035182dc59c5f36d9a98984a8dbadf856b1e",
+      "fingerprint": "e197490e32c47039a0f40a1b93f31f89f6ee2c86f8a5ed9892ab0f8d5b518e11",
       "source": {
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 174,
+          "line": 193,
           "column": 1
         },
         "end": {
-          "line": 181,
-          "column": 45
+          "line": 202,
+          "column": 103
         }
       }
     },
@@ -6414,11 +6847,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 190,
+          "line": 238,
           "column": 1
         },
         "end": {
-          "line": 196,
+          "line": 244,
           "column": 66
         }
       }
@@ -6445,11 +6878,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 198,
+          "line": 246,
           "column": 1
         },
         "end": {
-          "line": 205,
+          "line": 253,
           "column": 55
         }
       }
@@ -7560,13 +7993,13 @@ export const ASSURANCE = L.parseAssurance({
       }
     },
     {
-      "name": "Swf.Surface.announces_changes",
+      "name": "Swf.Surface.announces_exactly",
       "relation": "lungo.law",
       "subjects": [
         "Swf.Surface.surfaceStep"
       ],
       "specifications": [],
-      "statement": "∀ (p : Swf.Surface.Presentation) (e : Swf.Surface.SurfaceEvent),\n  (Swf.Surface.surfaceStep p e).next ≠ p → (Swf.Surface.surfaceStep p e).announce = true",
+      "statement": "∀ (p : Swf.Surface.Presentation) (e : Swf.Surface.SurfaceEvent),\n  (Swf.Surface.surfaceStep p e).announce = true ↔ (Swf.Surface.surfaceStep p e).next ≠ p ∨ e.isFailure = true",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -7576,17 +8009,17 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "c350c447e5b98cd1e09c4a29cb7a20722a630b7d3eedbc3b6f766f885de7e4c5",
+      "fingerprint": "f517bbaca977c8024ef66c811683776e7dc8924bdfaaff53c5bb9cdc82895c39",
       "source": {
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 303,
+          "line": 309,
           "column": 1
         },
         "end": {
-          "line": 308,
-          "column": 68
+          "line": 317,
+          "column": 92
         }
       }
     },
@@ -7613,11 +8046,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 310,
+          "line": 319,
           "column": 1
         },
         "end": {
-          "line": 316,
+          "line": 325,
           "column": 30
         }
       }
@@ -7644,11 +8077,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 384,
+          "line": 393,
           "column": 1
         },
         "end": {
-          "line": 387,
+          "line": 396,
           "column": 24
         }
       }
@@ -7670,16 +8103,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "ff324681ea928d2a42e6064a2f255885279cf62a916527deaba2f9200af2e630",
+      "fingerprint": "96e32d8f6a2442ce4e7b3fcaf4557b1e7114d2bc07b5c5eedc8863cfb0818c40",
       "source": {
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 296,
+          "line": 302,
           "column": 1
         },
         "end": {
-          "line": 301,
+          "line": 307,
           "column": 68
         }
       }
@@ -7701,16 +8134,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "4cfcfb34d40742e6015dda18a563fb83c2159aa106837979b115dc8cf7967baf",
+      "fingerprint": "bd0eba4d1a5d335b8cfd9cb37c64a009561fdc2669cfacce3fd8e4adc54f21e6",
       "source": {
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 288,
+          "line": 294,
           "column": 1
         },
         "end": {
-          "line": 294,
+          "line": 300,
           "column": 68
         }
       }
@@ -7737,11 +8170,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 333,
+          "line": 342,
           "column": 1
         },
         "end": {
-          "line": 340,
+          "line": 349,
           "column": 61
         }
       }
@@ -7768,11 +8201,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 342,
+          "line": 351,
           "column": 1
         },
         "end": {
-          "line": 346,
+          "line": 355,
           "column": 22
         }
       }
@@ -7799,11 +8232,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 379,
+          "line": 388,
           "column": 1
         },
         "end": {
-          "line": 382,
+          "line": 391,
           "column": 55
         }
       }
@@ -7831,11 +8264,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 371,
+          "line": 380,
           "column": 1
         },
         "end": {
-          "line": 377,
+          "line": 386,
           "column": 86
         }
       }
@@ -7862,11 +8295,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 318,
+          "line": 327,
           "column": 1
         },
         "end": {
-          "line": 331,
+          "line": 340,
           "column": 65
         }
       }
@@ -7888,16 +8321,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "704a5e756c92adf7714149a6176b82e39942bd86fd34bb915e14dafe16aeec97",
+      "fingerprint": "4557b1773d71dd21a29f65e0dfc132c78ac87bb300be225bf2833a1d4da27b43",
       "source": {
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 281,
+          "line": 287,
           "column": 1
         },
         "end": {
-          "line": 286,
+          "line": 292,
           "column": 68
         }
       }
@@ -7924,11 +8357,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 348,
+          "line": 357,
           "column": 1
         },
         "end": {
-          "line": 357,
+          "line": 366,
           "column": 11
         }
       }
@@ -7955,11 +8388,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 359,
+          "line": 368,
           "column": 1
         },
         "end": {
-          "line": 369,
+          "line": 378,
           "column": 57
         }
       }
@@ -8230,11 +8663,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppComposition.lean",
         "start": {
-          "line": 168,
+          "line": 169,
           "column": 1
         },
         "end": {
-          "line": 170,
+          "line": 171,
           "column": 98
         }
       }
@@ -8288,9 +8721,11 @@ export const ASSURANCE = L.parseAssurance({
       "claims": [
         "Swf.AppComposition.detach_needs_two_surfaces",
         "Swf.AppComposition.emptied_group_removed_only",
+        "Swf.AppComposition.emptying_refused_alike",
         "Swf.AppComposition.merge_keeps_every_surface",
         "Swf.AppComposition.move_keeps_every_surface",
-        "Swf.AppComposition.regroup_into_other_group"
+        "Swf.AppComposition.regroup_into_other_group",
+        "Swf.AppComposition.window_with_nodes_never_emptied"
       ],
       "assumptions": [],
       "facilities": [],
@@ -8299,11 +8734,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppComposition.lean",
         "start": {
-          "line": 261,
+          "line": 268,
           "column": 1
         },
         "end": {
-          "line": 267,
+          "line": 274,
           "column": 38
         }
       }
@@ -8333,11 +8768,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppCursor.lean",
         "start": {
-          "line": 50,
+          "line": 55,
           "column": 1
         },
         "end": {
-          "line": 57,
+          "line": 62,
           "column": 18
         }
       }
@@ -8397,6 +8832,7 @@ export const ASSURANCE = L.parseAssurance({
       "claims": [
         "Swf.AppCursor.cursor_only_while_moving",
         "Swf.AppCursor.invalid_width_refused",
+        "Swf.AppCursor.nonfinite_x_refused",
         "Swf.AppCursor.untaken_passes_unchanged",
         "Swf.AppCursor.wraps_only_held_pointers_in_wrapping_views"
       ],
@@ -8407,11 +8843,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppCursor.lean",
         "start": {
-          "line": 39,
+          "line": 41,
           "column": 1
         },
         "end": {
-          "line": 48,
+          "line": 53,
           "column": 69
         }
       }
@@ -8860,11 +9296,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 192,
+          "line": 205,
           "column": 1
         },
         "end": {
-          "line": 197,
+          "line": 210,
           "column": 26
         }
       }
@@ -8935,11 +9371,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 159,
+          "line": 172,
           "column": 1
         },
         "end": {
-          "line": 165,
+          "line": 178,
           "column": 70
         }
       }
@@ -8970,11 +9406,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 171,
+          "line": 184,
           "column": 1
         },
         "end": {
-          "line": 174,
+          "line": 187,
           "column": 65
         }
       }
@@ -9013,11 +9449,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 167,
+          "line": 180,
           "column": 1
         },
         "end": {
-          "line": 169,
+          "line": 182,
           "column": 31
         }
       }
@@ -9027,7 +9463,9 @@ export const ASSURANCE = L.parseAssurance({
       "module": "Swf.AppWorkspaces",
       "async": false,
       "trust": {
-        "axioms": [],
+        "axioms": [
+          "propext"
+        ],
         "depends_on_sorry": false,
         "unsafe_dependencies": [],
         "partial_dependencies": [],
@@ -9037,6 +9475,7 @@ export const ASSURANCE = L.parseAssurance({
       },
       "claims": [
         "Swf.AppWorkspaces.autosave_only_when_dirty",
+        "Swf.AppWorkspaces.disposed_refuses_events",
         "Swf.AppWorkspaces.disposed_schedules_nothing",
         "Swf.AppWorkspaces.off_cancels_scheduled_save",
         "Swf.AppWorkspaces.restore_atomic",
@@ -9050,12 +9489,12 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 123,
+          "line": 159,
           "column": 1
         },
         "end": {
-          "line": 155,
-          "column": 107
+          "line": 168,
+          "column": 20
         }
       }
     },
@@ -9075,6 +9514,7 @@ export const ASSURANCE = L.parseAssurance({
         "extern_dependencies": [
           "lean_array_get_borrowed",
           "lean_array_get_size",
+          "lean_float_isfinite",
           "lean_float_to_bits",
           "lean_int_dec_eq",
           "lean_int_dec_lt",
@@ -9094,6 +9534,8 @@ export const ASSURANCE = L.parseAssurance({
         ]
       },
       "claims": [
+        "Swf.Arbitration.nonfinite_priority_refused",
+        "Swf.Arbitration.refused_iff_nonfinite",
         "Swf.Arbitration.winner_eligible",
         "Swf.Arbitration.winner_exists_iff",
         "Swf.Arbitration.winner_ranks_first"
@@ -9105,12 +9547,12 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 112,
+          "line": 179,
           "column": 1
         },
         "end": {
-          "line": 115,
-          "column": 76
+          "line": 189,
+          "column": 21
         }
       }
     },
@@ -9129,18 +9571,38 @@ export const ASSURANCE = L.parseAssurance({
         "partial_dependencies": [],
         "extern_dependencies": [
           "fabs",
+          "lean_array_fget_borrowed",
           "lean_array_get_borrowed",
           "lean_array_get_size",
+          "lean_array_push",
           "lean_float_add",
           "lean_float_decLe",
+          "lean_float_div",
+          "lean_float_isfinite",
+          "lean_float_mul",
+          "lean_float_of_bits",
           "lean_float_sub",
           "lean_float_to_bits",
+          "lean_int_add",
           "lean_int_dec_eq",
+          "lean_int_dec_le",
           "lean_int_dec_lt",
           "lean_int_neg",
+          "lean_int_neg_succ_of_nat",
+          "lean_int_sub",
+          "lean_mk_empty_array_with_capacity",
+          "lean_nat_abs",
           "lean_nat_add",
           "lean_nat_dec_eq",
+          "lean_nat_dec_le",
           "lean_nat_dec_lt",
+          "lean_nat_div",
+          "lean_nat_log2",
+          "lean_nat_lor",
+          "lean_nat_mod",
+          "lean_nat_mul",
+          "lean_nat_pow",
+          "lean_nat_shiftl",
           "lean_nat_shiftr",
           "lean_nat_sub",
           "lean_nat_to_int",
@@ -9150,13 +9612,17 @@ export const ASSURANCE = L.parseAssurance({
           "lean_uint64_complement",
           "lean_uint64_dec_eq",
           "lean_uint64_land",
+          "lean_uint64_of_nat",
+          "lean_uint64_of_nat_mk",
           "lean_uint64_to_float",
           "lean_uint64_to_nat"
         ]
       },
       "claims": [
+        "Swf.Arbitration.invalid_hit_named",
         "Swf.Arbitration.occluded_by_nearer",
         "Swf.Arbitration.order_is_kept",
+        "Swf.Arbitration.ordered_iff_finite",
         "Swf.Arbitration.target_ranks_first"
       ],
       "assumptions": [],
@@ -9166,11 +9632,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 233,
+          "line": 443,
           "column": 1
         },
         "end": {
-          "line": 249,
+          "line": 453,
           "column": 50
         }
       }
@@ -9538,7 +10004,9 @@ export const ASSURANCE = L.parseAssurance({
         "extern_dependencies": []
       },
       "claims": [
+        "Swf.Handoff.begins_only_when_settled",
         "Swf.Handoff.disposed_final",
+        "Swf.Handoff.failure_returns_to_previous",
         "Swf.Handoff.stage_order"
       ],
       "assumptions": [],
@@ -9548,11 +10016,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 43,
+          "line": 57,
           "column": 1
         },
         "end": {
-          "line": 53,
+          "line": 72,
           "column": 17
         }
       }
@@ -9579,11 +10047,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 144,
+          "line": 163,
           "column": 1
         },
         "end": {
-          "line": 153,
+          "line": 172,
           "column": 72
         }
       }
@@ -9609,11 +10077,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 160,
+          "line": 179,
           "column": 1
         },
         "end": {
-          "line": 161,
+          "line": 180,
           "column": 61
         }
       }
@@ -9640,11 +10108,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 106,
+          "line": 125,
           "column": 1
         },
         "end": {
-          "line": 117,
+          "line": 136,
           "column": 69
         }
       }
@@ -9670,11 +10138,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 80,
+          "line": 99,
           "column": 1
         },
         "end": {
-          "line": 83,
+          "line": 102,
           "column": 69
         }
       }
@@ -9700,11 +10168,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 65,
+          "line": 84,
           "column": 1
         },
         "end": {
-          "line": 69,
+          "line": 88,
           "column": 74
         }
       }
@@ -9732,11 +10200,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 166,
+          "line": 185,
           "column": 1
         },
         "end": {
-          "line": 167,
+          "line": 186,
           "column": 63
         }
       }
@@ -9764,12 +10232,42 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 169,
+          "line": 188,
           "column": 1
         },
         "end": {
-          "line": 170,
+          "line": 189,
           "column": 100
+        }
+      }
+    },
+    {
+      "name": "Swf.Handoff.viewportOpened",
+      "module": "Swf.Handoff",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": []
+      },
+      "claims": [
+        "Swf.Handoff.opens_ready_to_begin"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Handoff.lean",
+        "start": {
+          "line": 53,
+          "column": 1
+        },
+        "end": {
+          "line": 55,
+          "column": 48
         }
       }
     },
@@ -9796,11 +10294,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 163,
+          "line": 182,
           "column": 1
         },
         "end": {
-          "line": 164,
+          "line": 183,
           "column": 63
         }
       }
@@ -10501,11 +10999,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 156,
+          "line": 162,
           "column": 1
         },
         "end": {
-          "line": 163,
+          "line": 169,
           "column": 36
         }
       }
@@ -10533,11 +11031,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 276,
+          "line": 282,
           "column": 1
         },
         "end": {
-          "line": 277,
+          "line": 283,
           "column": 81
         }
       }
@@ -10563,11 +11061,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 243,
+          "line": 249,
           "column": 1
         },
         "end": {
-          "line": 252,
+          "line": 258,
           "column": 12
         }
       }
@@ -10593,11 +11091,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 262,
+          "line": 268,
           "column": 1
         },
         "end": {
-          "line": 266,
+          "line": 272,
           "column": 12
         }
       }
@@ -10623,11 +11121,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 268,
+          "line": 274,
           "column": 1
         },
         "end": {
-          "line": 270,
+          "line": 276,
           "column": 81
         }
       }
@@ -10655,11 +11153,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 272,
+          "line": 278,
           "column": 1
         },
         "end": {
-          "line": 274,
+          "line": 280,
           "column": 55
         }
       }
@@ -10685,11 +11183,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 254,
+          "line": 260,
           "column": 1
         },
         "end": {
-          "line": 260,
+          "line": 266,
           "column": 12
         }
       }
@@ -10717,11 +11215,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 205,
+          "line": 211,
           "column": 1
         },
         "end": {
-          "line": 222,
+          "line": 228,
           "column": 12
         }
       }
@@ -10749,11 +11247,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 224,
+          "line": 230,
           "column": 1
         },
         "end": {
-          "line": 231,
+          "line": 237,
           "column": 12
         }
       }
@@ -10774,7 +11272,7 @@ export const ASSURANCE = L.parseAssurance({
         ]
       },
       "claims": [
-        "Swf.Surface.announces_changes",
+        "Swf.Surface.announces_exactly",
         "Swf.Surface.detaching_only_from_active",
         "Swf.Surface.error_only_on_failure",
         "Swf.Surface.presented_needs_binding"
@@ -10786,11 +11284,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 98,
+          "line": 103,
           "column": 1
         },
         "end": {
-          "line": 129,
+          "line": 135,
           "column": 47
         }
       }
@@ -10818,11 +11316,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 174,
+          "line": 180,
           "column": 1
         },
         "end": {
-          "line": 182,
+          "line": 188,
           "column": 20
         }
       }
@@ -10908,7 +11406,7 @@ export const leanTypes = Object.freeze({
   "Swf.AppComposition.CompStep": Object.freeze({ fingerprint: "8a8f799713465216f361a173463ca8ce438630acf0b70535e315d9ddb004f804", type: compStepType }),
   "Swf.AppComposition.CompPlan": Object.freeze({ fingerprint: "585109bb5719168fb8f5ee7b9feec0a2f7edf5099ba26a755b7eb2153106c676", type: compPlanType }),
   "Swf.AppCursor.WrapPhase": Object.freeze({ fingerprint: "a39b66c42b89ee2ea9e6a7f154af4ab10494385ad579d2bee046369b80671c52", type: wrapPhaseType }),
-  "Swf.AppCursor.WrapOutcome": Object.freeze({ fingerprint: "f6ec803404f8f0a20630c28779ed619cf44c0e449f000573f03a871d98e7883f", type: wrapOutcomeType }),
+  "Swf.AppCursor.WrapOutcome": Object.freeze({ fingerprint: "a234a4daab6e873a9822b6838345cc4ef7b0b26879e4a32d25b91b750aa77a8e", type: wrapOutcomeType }),
   "Swf.AppDepth.DepthQuery": Object.freeze({ fingerprint: "c0a4fd17fa88fb5d52a00b7108f6fd22a9906f0e6bf12e281e59ac9e87a82bfb", type: depthQueryType }),
   "Swf.AppDepth.DepthAnswer": Object.freeze({ fingerprint: "989cb3c1acd36cbed2e785c4bc15e761c6955cd7b7fb792d04676ab9de87f244", type: depthAnswerType }),
   "Swf.AppFeatures.FeatureSettings": Object.freeze({ fingerprint: "5ade7e9be6242dde4bc0d521bbf3b7afce6078a24d71cbc3cae19517cf6788a0", type: featureSettingsType }),
@@ -10929,8 +11427,9 @@ export const leanTypes = Object.freeze({
   "Swf.AppWorkspaces.WorkspacesStep": Object.freeze({ fingerprint: "2322cd7bcdb9473d7ae97cff304468101e4821aacc2aaa72fc2ab8d7cce68f82", type: workspacesStepType }),
   "Swf.Arbitration.Bid": Object.freeze({ fingerprint: "ddbeedade876221719b0ee1aa1fad0b1e5c104a8b3fe06c661628df04e02346f", type: bidType }),
   "Swf.Arbitration.BidKind": Object.freeze({ fingerprint: "5f0d5191f18c37447a5584ef118f036eb8327d158b455c24e5e5262e0685ed07", type: bidKindType }),
+  "Swf.Arbitration.BidOutcome": Object.freeze({ fingerprint: "76161e5d5a85091dc2d6199d0fd9ce594b233a0e5ccbf6268b15dfa1497a2a57", type: bidOutcomeType }),
   "Swf.Arbitration.Hit": Object.freeze({ fingerprint: "e3bdfebc4c9ca80b74bf779c208410ef330ca230d31d53c550c2b23c52e5fdc5", type: hitType }),
-  "Swf.Arbitration.PickOrder": Object.freeze({ fingerprint: "8db19d07cf29fa1ba79bd58480805532a5e9f258293c76d26c6e0f61d178b579", type: pickOrderType }),
+  "Swf.Arbitration.PickOutcome": Object.freeze({ fingerprint: "c6b2b4632ca32ec83658f11f653d2815e91f43076e37999537d7d610a5f8f0b9", type: pickOutcomeType }),
   "Swf.Fallback.NegotiationContext": Object.freeze({ fingerprint: "b3f6a9eb4ad8fa17637d26e83501ebf78a6d86840df53c7a3297209b93abda7c", type: negotiationContextType }),
   "Swf.Fallback.FragmentFacts": Object.freeze({ fingerprint: "c24eecba8b238681c16656957f2f215d0f97ca9973d0eae1978ca6bf46af7bf0", type: fragmentFactsType }),
   "Swf.Fallback.Negotiated": Object.freeze({ fingerprint: "d83fa9d7293315e8dda49ffe7c35e6da48716e56ea775fc4d330682179de4536", type: negotiatedType }),
@@ -10946,7 +11445,7 @@ export const leanTypes = Object.freeze({
   "Swf.Gesture.PressFacts": Object.freeze({ fingerprint: "87da0836af15447b4bf0d6813c39b7ab487d201ea55c5961a9c6d3a8397decfe", type: pressFactsType }),
   "Swf.Gesture.PressRoute": Object.freeze({ fingerprint: "601b56817c509f3faa4fee1acdca2048593e347b08b499b2639cc71e5e1fe7dc", type: pressRouteType }),
   "Swf.Handoff.ViewportState": Object.freeze({ fingerprint: "d48034198877ad49b1509eb60cee794fd46e222a1b8d66a43bc44948b1d0d7ba", type: viewportStateType }),
-  "Swf.Handoff.HandoffEvent": Object.freeze({ fingerprint: "f78447ab58433ef66d970681edb52c20e7f8a7c3d665dd1e2ef1ef9773410343", type: handoffEventType }),
+  "Swf.Handoff.HandoffEvent": Object.freeze({ fingerprint: "1003345b43c4439a0986800a75279cc5e04f9b1f5cff95ffadf57abf0f0823e3", type: handoffEventType }),
   "Swf.Handoff.Attempt": Object.freeze({ fingerprint: "0326a95ed685352ab2175ba71daf148aabf052c5fe989569d05587caffca9d9f", type: attemptType }),
   "Swf.Handoff.Settlement": Object.freeze({ fingerprint: "d9f324daec9c12357c88783ce895c3ba861090268c014f1d9c2e0f271dba984d", type: settlementType }),
   "Swf.Handoff.SwapAction": Object.freeze({ fingerprint: "9cf7062d32231479d0bfa2d0abb6dbc23d62276a0662d22b1015366de87d024e", type: swapActionType }),
@@ -10993,6 +11492,7 @@ export const leanTypes = Object.freeze({
   "Swf.AppSnap.SnapCandidate": Object.freeze({ fingerprint: "e68ee7b099602577e099f0df94df36ecac682ec5949967f59999075ae2fbf614", type: snapCandidateType }),
   "Swf.AppWorkspaces.SaverState": Object.freeze({ fingerprint: "90da128eb07d95b58a31059160a872149140b50684da7b090f4c44806ec20de4", type: saverStateType }),
   "Swf.Arbitration.HitRegion": Object.freeze({ fingerprint: "630e6511912da7ad8ebe5ae5914ade664c8515454874900bb0821d78cc9e0bd8", type: hitRegionType }),
+  "Swf.Arbitration.PickOrder": Object.freeze({ fingerprint: "8db19d07cf29fa1ba79bd58480805532a5e9f258293c76d26c6e0f61d178b579", type: pickOrderType }),
   "Swf.Fallback.RendererCapabilities": Object.freeze({ fingerprint: "bbead800f5d4b28c524b28c072460acd75ceed866bfc53ff139ee0928a1d33e0", type: rendererCapabilitiesType }),
   "Swf.Fallback.CompositorCapabilities": Object.freeze({ fingerprint: "cd77db5a55cb60c9dc739837f27d4bc41d09c713f3f612fee95354749407a5e1", type: compositorCapabilitiesType }),
   "Swf.Fallback.HandleCapabilities": Object.freeze({ fingerprint: "75c8c4ab237c2bb359996036eb2a6c826d529d9e46e5be78208f892177a74f66", type: handleCapabilitiesType }),
@@ -11080,10 +11580,10 @@ export class SwfModels {
     return this.#program.invoke("swf_models__call_l_Swf_dAppWorkspaces_dworkspacesStep", [], [[workspacesMachineType(), m], [workspacesEventType(), e]], L.value(workspacesStepType()));
   }
   bestBid(bids, kind, pointers) {
-    return this.#program.invoke("swf_models__call_l_Swf_dArbitration_dbestBid", [], [[L.array(bidType()), bids], [bidKindType(), kind], [L.NAT, pointers]], L.value(L.option(L.NAT)));
+    return this.#program.invoke("swf_models__call_l_Swf_dArbitration_dbestBid", [], [[L.array(bidType()), bids], [bidKindType(), kind], [L.NAT, pointers]], L.value(bidOutcomeType()));
   }
   pickOrder(hits, tolerance) {
-    return this.#program.invoke("swf_models__call_l_Swf_dArbitration_dpickOrder", [], [[L.array(hitType()), hits], [L.FLOAT, tolerance]], L.value(pickOrderType()));
+    return this.#program.invoke("swf_models__call_l_Swf_dArbitration_dpickOrder", [], [[L.array(hitType()), hits], [L.FLOAT, tolerance]], L.value(pickOutcomeType()));
   }
   negotiateFrame(c, fs) {
     return this.#program.invoke("swf_models__call_l_Swf_dFallback_dnegotiateFrame", [], [[negotiationContextType(), c], [L.array(fragmentFactsType()), fs]], L.value(L.array(L.option(negotiatedType()))));
@@ -11138,6 +11638,9 @@ export class SwfModels {
   }
   viewportDegraded(s, hasBackend) {
     return this.#program.invoke("swf_models__call_l_Swf_dHandoff_dviewportDegraded", [], [[viewportStateType(), s], [L.BOOL, hasBackend]], L.value(L.BOOL));
+  }
+  viewportOpened() {
+    return this.#program.invoke("swf_models__call_l_Swf_dHandoff_dviewportOpened", [], [], L.value(viewportStateType()));
   }
   viewportPresents(s) {
     return this.#program.invoke("swf_models__call_l_Swf_dHandoff_dviewportPresents", [], [[viewportStateType(), s]], L.value(L.BOOL));
