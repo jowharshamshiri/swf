@@ -9,6 +9,9 @@ export default defineConfig(
       '**/node_modules/**',
       '.scrap/**',
       '.vitest/**',
+      // The generated API reference and the release folders.
+      'api-reference/**',
+      'release/**',
       // The program lungo generates from models/: never edited by hand.
       'packages/models/program/**',
       // Lake's build of the models and the sources of their dependencies.
