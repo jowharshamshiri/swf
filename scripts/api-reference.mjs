@@ -21,20 +21,12 @@ import {
  *   npm run api-reference            # check, then write api-reference/
  *   npm run api-reference -- --check # check only
  *
- * The declaration files are read from each package's `dist/`, so the packages are built first
- * (`npm run build:packages`).
- *
- * One exception is declared, and reported on every run: the declarations of the program lungo
- * generates into `packages/models/program/` carry no JSDoc for their descriptor functions and
- * fields, and type `leanTypes` with `any`, because lungo's TypeScript generator writes them so.
- * The Lean models' own docstrings are where they are documented; they reach the generated
- * declarations once lungo carries them across, and this exception is then removed.
+ * The declaration files checked for `any` are every `.d.ts` a package publishes (the folders its
+ * `files` lists: `dist/`, and the program lungo generates for `@swf/models`), so the packages
+ * are built first (`npm run build:packages`).
  */
 
 const ROOT = path.resolve(import.meta.dirname, '..');
-const GENERATED = '@swf/models/program/';
-const GENERATED_FILE = path.join(ROOT, 'packages/models/program/index.d.ts');
-const GENERATED_ANY = 'leanTypes';
 
 const checkOnly = process.argv.slice(2).includes('--check');
 for (const argument of process.argv.slice(2)) {
@@ -65,20 +57,7 @@ logger.level = LogLevel.Warn;
 const project = await app.convert();
 if (project) app.validate(project);
 
-const failures = [];
-let excepted = 0;
-for (const { level, text } of logger.messages) {
-  if (level < LogLevel.Warn) continue;
-  if (
-    level === LogLevel.Warn &&
-    text.includes(`defined in ${GENERATED}`) &&
-    /does not have any documentation/.test(text)
-  ) {
-    excepted += 1;
-    continue;
-  }
-  failures.push(text);
-}
+const failures = logger.messages.filter((m) => m.level >= LogLevel.Warn).map((m) => m.text);
 if (!project) failures.push('typedoc could not convert the packages');
 
 failures.push(...(await anyInDeclarations()));
@@ -93,53 +72,44 @@ if (!checkOnly) await app.generateOutputs(project);
 console.log(
   `Public API: every declaration documented and typed without any${checkOnly ? '' : '; reference written to api-reference/'}.`,
 );
-console.log(
-  `Declared exception: ${String(excepted)} undocumented declarations and the any in ${GENERATED_ANY}, in the program lungo generates (packages/models/program/).`,
-);
 
-/**
- * Every `any` a published declaration file states: each package's `dist/**\/*.d.ts`, and the
- * generated program's declarations outside `leanTypes`.
- */
+/** Every `any` a published declaration file states: each `.d.ts` in the folders a package ships. */
 async function anyInDeclarations() {
   const require = createRequire(path.join(ROOT, 'package.json'));
   const ts = require('typescript');
   const { workspaces } = JSON.parse(await readFile(path.join(ROOT, 'package.json'), 'utf8'));
   const files = [];
   for (const workspace of workspaces.filter((w) => w.startsWith('packages/'))) {
-    const dist = path.join(ROOT, workspace, 'dist');
-    let entries;
-    try {
-      entries = await readdir(dist, { recursive: true });
-    } catch (error) {
-      return [
-        `${workspace} has no dist/ (${String(error.code)}): run npm run build:packages first`,
-      ];
+    const manifest = JSON.parse(await readFile(path.join(ROOT, workspace, 'package.json'), 'utf8'));
+    for (const shipped of manifest.files) {
+      const folder = path.join(ROOT, workspace, shipped);
+      let entries;
+      try {
+        entries = await readdir(folder, { recursive: true });
+      } catch (error) {
+        if (error.code === 'ENOTDIR') continue;
+        return [
+          `${workspace} has no ${shipped}/ (${String(error.code)}): run npm run build:packages first`,
+        ];
+      }
+      files.push(...entries.filter((f) => f.endsWith('.d.ts')).map((f) => path.join(folder, f)));
     }
-    files.push(...entries.filter((f) => f.endsWith('.d.ts')).map((f) => path.join(dist, f)));
   }
-  files.push(GENERATED_FILE);
 
   const found = [];
   for (const file of files) {
     const text = await readFile(file, 'utf8');
     const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
-    const visit = (node, within) => {
-      const name =
-        ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) ? node.name.text : within;
+    const visit = (node) => {
       if (node.kind === ts.SyntaxKind.AnyKeyword) {
-        if (!(file === GENERATED_FILE && name === GENERATED_ANY)) {
-          const { line, character } = source.getLineAndCharacterOfPosition(node.getStart());
-          found.push(
-            `${path.relative(ROOT, file)}:${String(line + 1)}:${String(character + 1)} states any`,
-          );
-        }
+        const { line, character } = source.getLineAndCharacterOfPosition(node.getStart());
+        found.push(
+          `${path.relative(ROOT, file)}:${String(line + 1)}:${String(character + 1)} states any`,
+        );
       }
-      ts.forEachChild(node, (child) => {
-        visit(child, name);
-      });
+      ts.forEachChild(node, visit);
     };
-    visit(source, undefined);
+    visit(source);
   }
   return found;
 }

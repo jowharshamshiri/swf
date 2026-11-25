@@ -32,9 +32,9 @@ packages call rests only on Lean's standard axioms. A defect in a decision is fi
 ## Consequences
 
 `@swf/models` is about 40 kB compressed and declared side-effectful (it loads its program). Its
-generated declarations are as lungo writes them, which today documents them less than the rest of
-the API (0012). Changing a decision requires lungo and Lean (README, "Building and changing the
-models").
+generated declarations carry the Lean models' docstrings as JSDoc, so the API reference check (0012)
+holds the models to the same documentation as the rest of the API. Changing a decision requires
+lungo and Lean (README, "Building and changing the models").
 
 ## Migration impact
 

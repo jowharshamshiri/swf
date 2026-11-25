@@ -10,7 +10,7 @@ static page, and the quality records it was released on. The
 ## Before: the machine
 
 - Node.js 24 and npm 11 (`.nvmrc`, `packageManager`), with `npm ci` run.
-- lungo 1.127.0 and Lean 4.35.0, for `npm run models:verify`
+- lungo 1.131.83 and Lean 4.35.0, for `npm run models:verify`
   ([Building and changing the models](../../README.md#building-and-changing-the-models)).
 - Playwright's browsers: `npx playwright install --with-deps chromium firefox webkit`.
 - Network access to the npm registry, for the vulnerability audits.

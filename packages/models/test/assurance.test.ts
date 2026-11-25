@@ -12,7 +12,7 @@ describe('the models program', () => {
   it('is the one lungo generated from the Lean models', () => {
     expect(ASSURANCE.program).toBe('swf-models');
     expect(ASSURANCE.provenance.lean_version).toBe('4.35.0');
-    expect(ASSURANCE.provenance.lungo_version).toBe('1.127.0');
+    expect(ASSURANCE.provenance.lungo_version).toBe('1.131.83');
   });
 
   it('has a proved claim for every export, resting on nothing but Lean', () => {

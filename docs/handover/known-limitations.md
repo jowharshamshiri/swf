@@ -25,10 +25,6 @@ What SWF does not do, or does not do yet. Each item says why and what a host can
 - **Firefox's performance on Windows.** The Windows test guests run Firefox without a desktop
   session, so it composites in software and has no system focus there; its verdicts come from a
   Linux desktop.
-- **The models' generated declarations are documented less than the rest of the API.** lungo
-  does not yet carry the Lean models' docstrings into the TypeScript it generates, writes no
-  documentation for the descriptor functions and fields, and types `leanTypes` with `any`. The API
-  reference check exempts exactly that generated file, and reports how much on every run.
 - **Development tools with moderate advisories.** `npm audit` reports moderate advisories in the
   linting tools (minimatch through `eslint` 10.14.0 and `typescript-eslint` 8.72.1, fixed by
   `eslint` 10.15.0 and `typescript-eslint` 8.73.0; the documentation generator `typedoc` 0.28.20

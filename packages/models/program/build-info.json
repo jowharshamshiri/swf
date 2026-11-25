@@ -1,12 +1,12 @@
 {
-  "build_key": "9069a980e9fea02543b8a8fb8f87a6d17c6867772e438bbd56e53a9db8e6ff64",
+  "build_key": "f6143474f884b373ddbd8f21aea9bc44e94285d9a0507b74b09bb9c105de8440",
   "lean_version": "4.35.0",
   "lean_githash": "eb6cafb7290e8bd5f2937522d8d804f58f02bafc",
   "bir_version": 3,
-  "adapter_version": 3,
-  "lungo_version": "1.127.0",
+  "adapter_version": 4,
+  "lungo_version": "1.131.83",
   "runtime_abi": 3,
-  "worker_identity": "2bea70bceafce1540bf050a85435cb87948f2eec485bafb82c49d084ebcf093e",
+  "worker_identity": "72c9b8a91fbad12998aaf7450234ae878b899b71569b19557121bfd28b049463",
   "input_digests": {
     "Swf.lean": "06e00432c6a1416f3d881a21af61073e6ab18758dc09f6415e58e69052163b17",
     "Swf/AppComposition.lean": "40ba23a169a985553b15cc567619f08ad933529b2529374d899984c26dea17df",
@@ -19,7 +19,7 @@
     "Swf/Arbitration.lean": "47ef2f12b3479a3ca4a066653f2c8f5010b5cea840dd1c0fa40d69bca01a8de0",
     "Swf/Fallback.lean": "f277e41e454875b6f9e1a8eb2aa78ffdcfd31ad7e79dbef09d3e3654e20eeba9",
     "Swf/Gesture.lean": "e3633d7e629d5a80960ae942f60f964124b64cac488a864a9b639a12dfb864d7",
-    "Swf/Handoff.lean": "7b9fd118956c2b1a7897ee79e9840f5bc745399368d2a22db552e84a67116c8b",
+    "Swf/Handoff.lean": "36619e1132d6c8a9966e96c19b2850897a347505e70c955336d62e38031c34d1",
     "Swf/Hierarchy.lean": "7f30f759bfb333e8ed5fae95c977f7afbe907b1f054e782f5c9572ba6efc94ec",
     "Swf/Json.lean": "efdc7f4f6f6e1c84ebac2b3fc39f887f8c3634cb87b10d5fe298635fa5a26631",
     "Swf/Kernel.lean": "1a5ae706818eeebb0fe5acf3440ba85475e4b2abea64e194787e905a9c860ebe",
@@ -29,16 +29,16 @@
     "Swf/Save.lean": "232b29c02db841a7675e740890576313a54c8d4c8e384d7065cd33795fc8af00",
     "Swf/Surface.lean": "d0989ad8f8807f4c035b196143887112cea53c25c324626e796d8aeb6683dee9",
     "Swf/ViewMode.lean": "1a15be6074bba3aa5791f34504b97dcd6ebed2a67e905d36a907af138e6d796b",
-    "lake-manifest.json": "9e1fb1e929a5fba9f7a0b2290e810533924fc2051bc97f1981a379a894274bdd",
-    "lakefile.toml": "549987f6847d8b9222a171ef30f2744c9c3ec4ec26ee93d38ca639d5ff704f96",
+    "lake-manifest.json": "e920afea00424d25243505df8ffefab39b5d72556c2e1fe1932fbea1ac1e8d49",
+    "lakefile.toml": "631d9fbb111f105e05bf63939971b7c6703efdaff3fdbc38bd8ec75bc6b96edd",
     "lean-toolchain": "7d198f1c652dedd9eeb8206a56c9c3b88a4a2a1aeddcffc5d30dd7c587b1db78"
   },
   "project": ".",
   "link_directives": [],
   "output_digests": {
-    "assurance.json": "8ed8ec76b27fc0e78c25a625c3f544fd1a2b48d1b864db93a493abfdfc9439d3",
-    "index.d.ts": "3ac5935b14728504f467bd20177d4cde1d453ba8521aedda3bbc855f00fcb266",
-    "index.js": "b37eec35a9714f829a454da68ca63c45c16d506eec89cb87d1bc5f1d03568fa9"
+    "assurance.json": "28cdc6c17de2a55857a071a3105f4ee5efa9fa0cb16d2762edb22082364c2500",
+    "index.d.ts": "3473dac72371c403e7e2dbce1581dd7b414eeb65a706b22c6d1f3ff59e837766",
+    "index.js": "11e350154bd21c1d0dd20a33e579f5323f374fb4bc048b426e9d1c2e94875032"
   },
   "platform_products": [
     "program.wasm"

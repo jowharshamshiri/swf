@@ -1153,8 +1153,8 @@ claims resting on nothing but Lean's standard axioms.
 
 ### Building and changing the models
 
-The models need the `lungo` command at version 1.127.0 (machinefabric's apt package; without
-installing anything on the machine, `apt-get download lungo=1.127.0` and `dpkg -x` it into a
+The models need the `lungo` command at version 1.131.83 (machinefabric's apt package; without
+installing anything on the machine, `apt-get download lungo=1.131.83` and `dpkg -x` it into a
 folder of your own, then put its `opt/lungo` on `PATH`) and Lean 4.35.0, which
 `lungo setup`, run at the repository root, installs through elan in the per-user elan home. The Lake project
 requires lungo's Lean library at the same version (`models/lakefile.toml`, locked by

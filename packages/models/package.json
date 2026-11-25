@@ -24,7 +24,7 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "lungo-ts": "1.127.0"
+    "lungo-ts": "1.131.83"
   },
   "engines": {
     "node": ">=24.0.0"

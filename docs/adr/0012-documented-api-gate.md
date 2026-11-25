@@ -15,9 +15,9 @@ or skips declarations cannot be relied on.
 `npm run api-reference` generates the reference of every package with typedoc from the sources and
 fails, naming each problem, on a public declaration, member or signature without JSDoc, a public
 type left unexported, a link that does not resolve, or `any` in a published declaration file.
-Releases run it. One exception is declared in the check itself and reported on every run: the
-program lungo generates into `packages/models/program/`, whose generator does not yet carry the
-Lean models' docstrings or type one table without `any`. It is removed when lungo does.
+`npm run check` and releases run it. The declarations lungo generates for `@swf/models` are
+checked like the rest: they carry the Lean models' docstrings, so a model's missing docstring
+fails it.
 
 ## Alternatives
 
