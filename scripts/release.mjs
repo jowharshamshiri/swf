@@ -1,8 +1,8 @@
 import { spawn } from 'node:child_process';
 import console from 'node:console';
 import { createHash } from 'node:crypto';
-import { createWriteStream } from 'node:fs';
-import { cp, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { createWriteStream, rmSync } from 'node:fs';
+import { cp, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { pathToFileURL } from 'node:url';
@@ -213,6 +213,11 @@ if (problems.length > 0) fail(`not releasable:\n  ${problems.join('\n  ')}`);
 
 // --- Checks ---------------------------------------------------------------------------------
 
+// A release that stops part-way is no release: its folder goes, so the version can be built again.
+let complete = false;
+process.on('exit', () => {
+  if (!complete) rmSync(out, { recursive: true, force: true });
+});
 await mkdir(path.join(out, 'quality'), { recursive: true });
 await mkdir(path.join(out, 'dependencies'), { recursive: true });
 const checkLog = createWriteStream(path.join(out, 'quality', 'check.log'));
@@ -262,128 +267,128 @@ for (const { manifest, workspace } of packages) {
 // --- A host's install: smoke test, inventory and audit --------------------------------------
 
 const host = await installHost(released.map((p) => path.join(out, p.file)));
-try {
-  process.stdout.write(
-    await smokeHost(
-      host,
-      released.map((p) => p.name),
-    ),
+// Removed however the release ends: a refusal exits the process from inside the steps below.
+process.on('exit', () => {
+  rmSync(host, { recursive: true, force: true });
+});
+process.stdout.write(
+  await smokeHost(
+    host,
+    released.map((p) => p.name),
+  ),
+);
+
+const lock = await json(path.join(host, 'package-lock.json'));
+const installed = Object.entries(lock.packages)
+  .filter(([where]) => where !== '')
+  .map(([where, entry]) => ({
+    name: where.slice(where.lastIndexOf('node_modules/') + 'node_modules/'.length),
+    version: entry.version,
+    license: entry.license ?? null,
+    integrity: entry.integrity ?? null,
+    from: entry.resolved?.startsWith('file:') ? 'this release' : (entry.resolved ?? null),
+  }))
+  .sort((a, b) => a.name.localeCompare(b.name));
+const sbom = await must('npm', ['sbom', '--sbom-format', 'cyclonedx', '--omit', 'dev'], {
+  cwd: host,
+  quiet: true,
+});
+await writeFile(path.join(out, 'dependencies', 'sbom.cdx.json'), sbom);
+const hostAudit = await run('npm', ['audit', '--json', '--omit', 'dev'], {
+  cwd: host,
+  quiet: true,
+});
+const hostReport = JSON.parse(hostAudit.output);
+if (hostReport.error !== undefined)
+  fail(`the audit of a host's install failed: ${hostReport.error.summary}`);
+await writeFile(path.join(out, 'dependencies', 'audit-host.json'), hostAudit.output);
+
+const devAudit = await run('npm', ['audit', '--json'], { quiet: true });
+const devReport = JSON.parse(devAudit.output);
+if (devReport.error !== undefined)
+  fail(`the audit of the development tools failed: ${devReport.error.summary}`);
+await writeFile(path.join(out, 'dependencies', 'audit-development.json'), devAudit.output);
+
+const advisories = (report) =>
+  Object.values(report.vulnerabilities ?? {}).map((v) => ({
+    name: v.name,
+    severity: v.severity,
+    range: v.range,
+    fix:
+      v.fixAvailable === false
+        ? null
+        : v.fixAvailable === true
+          ? 'available'
+          : `${v.fixAvailable.name} ${v.fixAvailable.version}${v.fixAvailable.isSemVerMajor ? ' (npm suggests it; a major version change)' : ''}`,
+    advisories: v.via.filter((x) => typeof x === 'object').map((x) => `${x.title} (${x.url})`),
+  }));
+const hostAdvisories = advisories(hostReport);
+const devAdvisories = advisories(devReport);
+await writeFile(
+  path.join(out, 'dependencies', 'inventory.md'),
+  inventoryMarkdown(installed, hostAdvisories, devAdvisories),
+);
+if (hostAdvisories.length > 0) {
+  fail(
+    `a host's install has known vulnerabilities: ${hostAdvisories.map((a) => `${a.name} (${a.severity})`).join(', ')}`,
   );
-
-  const lock = await json(path.join(host, 'package-lock.json'));
-  const installed = Object.entries(lock.packages)
-    .filter(([where]) => where !== '')
-    .map(([where, entry]) => ({
-      name: where.slice(where.lastIndexOf('node_modules/') + 'node_modules/'.length),
-      version: entry.version,
-      license: entry.license ?? null,
-      integrity: entry.integrity ?? null,
-      from: entry.resolved?.startsWith('file:') ? 'this release' : (entry.resolved ?? null),
-    }))
-    .sort((a, b) => a.name.localeCompare(b.name));
-  const sbom = await must('npm', ['sbom', '--sbom-format', 'cyclonedx', '--omit', 'dev'], {
-    cwd: host,
-    quiet: true,
-  });
-  await writeFile(path.join(out, 'dependencies', 'sbom.cdx.json'), sbom);
-  const hostAudit = await run('npm', ['audit', '--json', '--omit', 'dev'], {
-    cwd: host,
-    quiet: true,
-  });
-  const hostReport = JSON.parse(hostAudit.output);
-  if (hostReport.error !== undefined)
-    fail(`the audit of a host's install failed: ${hostReport.error.summary}`);
-  await writeFile(path.join(out, 'dependencies', 'audit-host.json'), hostAudit.output);
-
-  const devAudit = await run('npm', ['audit', '--json'], { quiet: true });
-  const devReport = JSON.parse(devAudit.output);
-  if (devReport.error !== undefined)
-    fail(`the audit of the development tools failed: ${devReport.error.summary}`);
-  await writeFile(path.join(out, 'dependencies', 'audit-development.json'), devAudit.output);
-
-  const advisories = (report) =>
-    Object.values(report.vulnerabilities ?? {}).map((v) => ({
-      name: v.name,
-      severity: v.severity,
-      range: v.range,
-      fix:
-        v.fixAvailable === false
-          ? null
-          : v.fixAvailable === true
-            ? 'available'
-            : `${v.fixAvailable.name} ${v.fixAvailable.version}${v.fixAvailable.isSemVerMajor ? ' (npm suggests it; a major version change)' : ''}`,
-      advisories: v.via.filter((x) => typeof x === 'object').map((x) => `${x.title} (${x.url})`),
-    }));
-  const hostAdvisories = advisories(hostReport);
-  const devAdvisories = advisories(devReport);
-  await writeFile(
-    path.join(out, 'dependencies', 'inventory.md'),
-    inventoryMarkdown(installed, hostAdvisories, devAdvisories),
-  );
-  if (hostAdvisories.length > 0) {
-    fail(
-      `a host's install has known vulnerabilities: ${hostAdvisories.map((a) => `${a.name} (${a.severity})`).join(', ')}`,
-    );
-  }
-  const serious = devAdvisories.filter((a) => a.severity === 'high' || a.severity === 'critical');
-  if (serious.length > 0) {
-    fail(
-      `the development tools have serious vulnerabilities: ${serious.map((a) => `${a.name} (${a.severity})`).join(', ')}`,
-    );
-  }
-
-  // --- Compatibility, notes, manifest ---------------------------------------------------------
-
-  const persistence = await import(
-    pathToFileURL(path.join(host, 'node_modules/@swf/persistence/dist/index.js')).href
-  );
-  const formats = {
-    writes: persistence.SNAPSHOT_SCHEMA_ID,
-    reads: [...persistence.SNAPSHOT_MIGRATIONS.map((m) => m.from), persistence.SNAPSHOT_SCHEMA_ID],
-  };
-  const typescript = (await json(path.join(ROOT, 'node_modules/typescript/package.json'))).version;
-  const compatibility = compatibilityMarkdown({
-    released,
-    engines: root.engines.node,
-    typescript,
-    browsers: conformance.browsers,
-    formats,
-  });
-  await writeFile(path.join(out, 'COMPATIBILITY.md'), compatibility);
-
-  const manifest = {
-    version,
-    commit,
-    date: new Date().toISOString(),
-    tools: {
-      node: process.version,
-      npm: (await must('npm', ['--version'], { quiet: true })).trim(),
-      typescript,
-    },
-    packages: released,
-    formats,
-    browsers: conformance.browsers.map((b) => ({
-      browser: b.browser,
-      channel: b.channel,
-      version: b.version,
-    })),
-    benchmark: bench.map((r) => ({
-      browser: `${r.environment.browser.engine} ${r.environment.browser.version}`,
-      fixture: r.fixture.name,
-      verdicts: Object.fromEntries(
-        Object.entries(r.verdicts).map(([id, v]) => [
-          id,
-          v.pass === null ? 'not measurable' : v.pass ? 'met' : 'missed',
-        ]),
-      ),
-    })),
-    advisories: { host: hostAdvisories, development: devAdvisories },
-  };
-  await writeFile(path.join(out, 'release.json'), `${JSON.stringify(manifest, null, 2)}\n`);
-  await writeFile(path.join(out, 'RELEASE-NOTES.md'), releaseNotes(manifest, notes, compatibility));
-} finally {
-  await rm(host, { recursive: true, force: true });
 }
+const serious = devAdvisories.filter((a) => a.severity === 'high' || a.severity === 'critical');
+if (serious.length > 0) {
+  fail(
+    `the development tools have serious vulnerabilities: ${serious.map((a) => `${a.name} (${a.severity})`).join(', ')}`,
+  );
+}
+
+// --- Compatibility, notes, manifest ---------------------------------------------------------
+
+const persistence = await import(
+  pathToFileURL(path.join(host, 'node_modules/@swf/persistence/dist/index.js')).href
+);
+const formats = {
+  writes: persistence.SNAPSHOT_SCHEMA_ID,
+  reads: [...persistence.SNAPSHOT_MIGRATIONS.map((m) => m.from), persistence.SNAPSHOT_SCHEMA_ID],
+};
+const typescript = (await json(path.join(ROOT, 'node_modules/typescript/package.json'))).version;
+const compatibility = compatibilityMarkdown({
+  released,
+  engines: root.engines.node,
+  typescript,
+  browsers: conformance.browsers,
+  formats,
+});
+await writeFile(path.join(out, 'COMPATIBILITY.md'), compatibility);
+
+const manifest = {
+  version,
+  commit,
+  date: new Date().toISOString(),
+  tools: {
+    node: process.version,
+    npm: (await must('npm', ['--version'], { quiet: true })).trim(),
+    typescript,
+  },
+  packages: released,
+  formats,
+  browsers: conformance.browsers.map((b) => ({
+    browser: b.browser,
+    channel: b.channel,
+    version: b.version,
+  })),
+  benchmark: bench.map((r) => ({
+    browser: `${r.environment.browser.engine} ${r.environment.browser.version}`,
+    fixture: r.fixture.name,
+    verdicts: Object.fromEntries(
+      Object.entries(r.verdicts).map(([id, v]) => [
+        id,
+        v.pass === null ? 'not measurable' : v.pass ? 'met' : 'missed',
+      ]),
+    ),
+  })),
+  advisories: { host: hostAdvisories, development: devAdvisories },
+};
+await writeFile(path.join(out, 'release.json'), `${JSON.stringify(manifest, null, 2)}\n`);
+await writeFile(path.join(out, 'RELEASE-NOTES.md'), releaseNotes(manifest, notes, compatibility));
 
 // --- Integrity of everything ---------------------------------------------------------------
 
@@ -398,6 +403,7 @@ for (const file of every) {
   );
 }
 await writeFile(path.join(out, 'SHA256SUMS'), `${sums.join('\n')}\n`);
+complete = true;
 console.log(
   `\nReleased ${String(released.length)} packages of ${version} (${commit.slice(0, 12)}) into ${path.relative(ROOT, out)}/.`,
 );
