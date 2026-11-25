@@ -29,12 +29,14 @@ What SWF does not do, or does not do yet. Each item says why and what a host can
   does not yet carry the Lean models' docstrings into the TypeScript it generates, writes no
   documentation for the descriptor functions and fields, and types `leanTypes` with `any`. The API
   reference check exempts exactly that generated file, and reports how much on every run.
-- **Development tools with moderate advisories.** `npm audit` reports moderate advisories in
-  the linting tools (minimatch through `eslint` 10.14.0 and `typescript-eslint` 8.72.1, fixed by
-  `eslint` 10.15.0 and `typescript-eslint` 8.73.0) and in the reference application's UI kit's own
-  test runner (`vitest` 4.1.0, a development tool of the kit, installed in its folder because the
-  kit is linked from a checkout, never part of what a host installs). The tools are taken at the
-  fixed versions once those are two weeks old; nothing a host installs is affected.
+- **Development tools with moderate advisories.** `npm audit` reports moderate advisories in the
+  linting tools (minimatch through `eslint` 10.14.0 and `typescript-eslint` 8.72.1, fixed by
+  `eslint` 10.15.0 and `typescript-eslint` 8.73.0; the documentation generator `typedoc` 0.28.20
+  reaches the same minimatch advisory, and no release of it is fixed yet) and in the reference
+  application's UI kit's own test runner (`vitest` 4.1.0, a development tool of the kit, installed
+  in its folder because the kit is linked from a checkout, never part of what a host installs). The
+  tools are taken at the fixed versions once those are two weeks old; nothing a host installs is
+  affected.
 
 ## Defects found, to be fixed
 

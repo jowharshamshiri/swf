@@ -311,7 +311,7 @@ try {
           ? null
           : v.fixAvailable === true
             ? 'available'
-            : `${v.fixAvailable.name} ${v.fixAvailable.version}`,
+            : `${v.fixAvailable.name} ${v.fixAvailable.version}${v.fixAvailable.isSemVerMajor ? ' (npm suggests it; a major version change)' : ''}`,
       advisories: v.via.filter((x) => typeof x === 'object').map((x) => `${x.title} (${x.url})`),
     }));
   const hostAdvisories = advisories(hostReport);
