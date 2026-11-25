@@ -2,12 +2,11 @@ import { spawn } from 'node:child_process';
 import console from 'node:console';
 import { createHash } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
-import { cp, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
-import os from 'node:os';
+import { cp, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { pathToFileURL } from 'node:url';
-import { smokeHost } from './smoke-host.mjs';
+import { installHost, smokeHost } from './smoke-host.mjs';
 
 /**
  * Builds a versioned release of every published package from the committed tree, into
@@ -245,23 +244,8 @@ for (const { manifest, workspace } of packages) {
 
 // --- A host's install: smoke test, inventory and audit --------------------------------------
 
-const host = await mkdtemp(path.join(os.tmpdir(), 'swf-release-host-'));
+const host = await installHost(released.map((p) => path.join(out, p.file)));
 try {
-  await writeFile(
-    path.join(host, 'package.json'),
-    `${JSON.stringify({ name: 'swf-release-host', private: true, type: 'module' }, null, 2)}\n`,
-  );
-  await must(
-    'npm',
-    [
-      'install',
-      '--no-fund',
-      '--no-audit',
-      '--prefer-offline',
-      ...released.map((p) => path.join(out, p.file)),
-    ],
-    { cwd: host, quiet: true },
-  );
   process.stdout.write(
     await smokeHost(
       host,

@@ -1,34 +1,54 @@
 import { spawnSync } from 'node:child_process';
-import { readdir, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 
 /**
- * Checks packages installed in a host project as a host uses them: their declarations compile
- * under the strictest options with every library's declarations checked, and each package loads
- * in Node.js; a scene commits, is saved, and restores the same in another workspace. Throws,
- * saying what failed, otherwise.
+ * The release-packaging smoke test: the packages as a host gets them. Each package is packed as
+ * npm publishes it, the tarballs are installed together in a fresh project, a program using every
+ * package is compiled under the strictest options with every library's declarations checked,
+ * and it runs in Node.js: every package loads, and a scene commits, is saved, and restores the
+ * same in another workspace. Throws, saying what failed, otherwise.
  *
- * The release runs it on a project that installed the release's tarballs. On its own:
+ *   npm run build:packages && npm run smoke:packages
  *
- *   node scripts/smoke-host.mjs <host project>
- *
- * checks every `@swf/*` package installed in `<host project>/node_modules`.
+ * `npm run check` runs it after building the packages; the release runs `installHost` and
+ * `smokeHost` on its own tarballs.
  */
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const TSC = path.join(ROOT, 'node_modules/typescript/bin/tsc');
 
-function must(args, cwd) {
-  const result = spawnSync(process.execPath, args, { cwd, encoding: 'utf8' });
+/** Runs a command that must succeed; returns its output. */
+function run(command, args, cwd) {
+  const result = spawnSync(command, args, { cwd, encoding: 'utf8' });
   if (result.status !== 0) {
     throw new Error(
-      `${path.basename(args[0])} failed in ${cwd} (exit ${String(result.status)}):\n${result.stdout}${result.stderr}`,
+      `${path.basename(command)} ${args.join(' ')} failed in ${cwd} (exit ${String(result.status)}):\n${result.stdout}${result.stderr}`,
     );
   }
   return result.stdout;
 }
 
+/** Runs a Node.js script that must succeed. */
+const must = (args, cwd) => run(process.execPath, args, cwd);
+
+/**
+ * A fresh host project in a new temporary folder with `tarballs` installed together, as a host
+ * installs a release. The caller removes the folder.
+ */
+export async function installHost(tarballs) {
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'swf-host-'));
+  await writeFile(
+    path.join(dir, 'package.json'),
+    `${JSON.stringify({ name: 'swf-host', private: true, type: 'module' }, null, 2)}\n`,
+  );
+  run('npm', ['install', '--no-fund', '--no-audit', '--prefer-offline', ...tarballs], dir);
+  return dir;
+}
+
+/** Checks the packages `names` installed in the host project `dir`; returns what the program said. */
 export async function smokeHost(dir, names) {
   await writeFile(
     path.join(dir, 'tsconfig.json'),
@@ -105,13 +125,29 @@ console.log('smoke: every package loads; a scene commits, saves and restores the
   return must([path.join(dir, 'smoke.js')], dir);
 }
 
-if (import.meta.url === `file://${process.argv[1] ?? ''}`) {
-  const dir = process.argv[2];
-  if (dir === undefined || process.argv.length > 3) {
-    process.stderr.write('usage: node scripts/smoke-host.mjs <host project>\n');
+if (import.meta.main) {
+  if (process.argv.length > 2) {
+    process.stderr.write('usage: npm run smoke:packages\n');
     process.exit(2);
   }
-  const host = path.resolve(dir);
-  const names = (await readdir(path.join(host, 'node_modules/@swf'))).map((n) => `@swf/${n}`);
-  process.stdout.write(await smokeHost(host, names));
+  const { workspaces } = JSON.parse(await readFile(path.join(ROOT, 'package.json'), 'utf8'));
+  const packages = workspaces.filter((w) => w.startsWith('packages/'));
+  const packed = await mkdtemp(path.join(os.tmpdir(), 'swf-packed-'));
+  let host = null;
+  try {
+    const names = [];
+    const tarballs = [];
+    for (const workspace of packages) {
+      const [result] = JSON.parse(
+        run('npm', ['pack', '--json', '--pack-destination', packed, `./${workspace}`], ROOT),
+      );
+      names.push(result.name);
+      tarballs.push(path.join(packed, result.filename));
+    }
+    host = await installHost(tarballs);
+    process.stdout.write(await smokeHost(host, names));
+  } finally {
+    await rm(packed, { recursive: true, force: true });
+    if (host !== null) await rm(host, { recursive: true, force: true });
+  }
 }

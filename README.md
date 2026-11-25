@@ -1151,9 +1151,11 @@ npm run api-reference   # the API reference in api-reference/, failing on an und
                         # public declaration
 ```
 
-`npm run check` runs `npm run size` after building the packages; a package over its budget in
-`size-budgets.json`, or one that leaves code behind when imported for nothing, fails it, and every
-run reports each package's change from its recorded size. `npm run release` builds a versioned
+`npm run check` runs `npm run size` and `npm run smoke:packages` after building the packages. The
+first fails a package over its budget in `size-budgets.json`, or one that leaves code behind when
+imported for nothing, and reports each package's change from its recorded size; the second packs
+every package as npm publishes it, installs the tarballs in a fresh project, and compiles and runs
+a program using them all, with every library's declarations checked. `npm run release` builds a versioned
 release from a commit ([Release the packages](docs/how-to/release.md)).
 
 Tests run against each package's TypeScript source, so they need no build first.
