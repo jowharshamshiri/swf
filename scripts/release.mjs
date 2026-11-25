@@ -31,10 +31,11 @@ import { installHost, smokeHost } from './smoke-host.mjs';
  *   npm run release -- --conformance <folder> --bench <folder>
  *
  * `--conformance` and `--bench` are the folders `npm run conformance` and `npm run bench` wrote
- * for this commit. The release refuses: a tree with uncommitted changes; a package whose
- * changelog has no section for its version, whose sibling packages are not required at exactly
- * their versions, or whose dependencies are not pinned to exact versions; a failing check;
- * sizes that differ from those recorded; a conformance record with a failed or missing scenario;
+ * for this commit, after it was made. The release refuses: a tree with uncommitted changes; a
+ * package whose changelog has no section for its version, whose sibling packages are not required
+ * at exactly their versions, or whose dependencies are not pinned to exact versions; a record
+ * dated before the commit; a failing check; sizes that differ from those recorded; a conformance
+ * record with a failed or missing scenario;
  * a benchmark that missed a budget on the standard fixture; any known vulnerability in what a
  * host installs; and a high or critical one in the development tools. Nothing is published:
  * publishing the tarballs is a separate step (docs/how-to/release.md).
@@ -112,6 +113,12 @@ if (status.trim() !== '') {
   fail(`the tree has uncommitted changes; a release is built from a commit:\n${status}`);
 }
 const commit = (await must('git', ['rev-parse', 'HEAD'], { quiet: true })).trim();
+// When the commit was made: evidence recorded before it cannot be evidence for it.
+const committed = Date.parse(
+  (await must('git', ['show', '-s', '--format=%cI', 'HEAD'], { quiet: true })).trim(),
+);
+/** Whether a record's date is no earlier than the commit's. */
+const recordedAfter = (date) => Number.isFinite(Date.parse(date)) && Date.parse(date) >= committed;
 const version = (await readFile(path.join(ROOT, 'version.txt'), 'utf8')).trim();
 const root = await json(path.join(ROOT, 'package.json'));
 if (root.version !== version) {
@@ -169,6 +176,11 @@ for (const { dir, manifest } of packages) {
 const conformance = await json(path.join(args.conformance, 'conformance.json')).catch((error) =>
   fail(`cannot read ${args.conformance}/conformance.json: ${error.message}`),
 );
+if (!recordedAfter(conformance.date)) {
+  problems.push(
+    `the conformance record is dated ${String(conformance.date)}, before the commit it would vouch for`,
+  );
+}
 for (const b of conformance.browsers) {
   const bad = b.scenarios.filter((s) => s.status !== 'passed').map((s) => s.scenario);
   if (b.exitCode !== 0 || bad.length > 0) {
@@ -185,6 +197,11 @@ const bench = [];
 for (const file of benchFiles.sort()) {
   const record = await json(path.join(args.bench, file));
   bench.push(record);
+  if (!recordedAfter(record.date)) {
+    problems.push(
+      `benchmark ${file} is dated ${String(record.date)}, before the commit it would vouch for`,
+    );
+  }
   for (const [id, v] of Object.entries(record.verdicts)) {
     if (v.pass === false) {
       problems.push(`benchmark ${file}: ${id} (${v.target}) missed`);

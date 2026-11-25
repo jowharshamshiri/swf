@@ -54,7 +54,7 @@ It refuses an uncommitted tree, and then:
 1. checks every package's version, changelog, pins and licence field, and that every
    development tool is pinned to an exact version;
 2. reads the conformance record (every scenario passed in every browser) and the benchmark
-   (no budget missed);
+   (no budget missed), refusing either if it was recorded before the commit;
 3. runs `npm run check` (models, formatting, types, lint, tests, builds), the bundle sizes
    against their recorded values, and the API reference with its documentation gate;
 4. packs each package and records its size, SHA-256 and npm integrity (SHA-512);
