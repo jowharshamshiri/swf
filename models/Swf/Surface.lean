@@ -20,14 +20,24 @@ inductive UnboundReason where
   | released
 deriving DecidableEq
 
+/-- Where a surface is in its presentation lifecycle. -/
 inductive Presentation where
+  /-- Not bound to an endpoint: a placeholder keeps the surface's identity and geometry, for
+  `reason`. -/
   | unbound (reason : UnboundReason)
+  /-- Resolving its binding key through its adapter. -/
   | binding
+  /-- Bound to a handle and attached in no viewport. -/
   | ready
+  /-- Bound and visible in at least one viewport. -/
   | presented
+  /-- Bound and attached, but visible in no viewport. -/
   | hidden
+  /-- Its binding failed to resolve or its handle failed; it can bind again. -/
   | error
+  /-- Releasing its binding and attachments. -/
   | detaching
+  /-- Released, its association removed. -/
   | detached
 deriving DecidableEq
 
@@ -43,16 +53,23 @@ def Presentation.bound : Presentation → Bool
 
 /-- How resolving a binding through its adapter ended. -/
 inductive Resolution where
+  /-- The adapter resolved the key to a handle. -/
   | bound
+  /-- The adapter does not know the key. -/
   | unknownKey
+  /-- Resolving failed: the adapter threw or timed out, or the handle's capabilities were
+  unusable. -/
   | failed
 
 /-- Where releasing a binding leaves the surface: unbound (association kept) or detached
 (association removed). -/
 inductive Release where
+  /-- The association stays; the surface shows a placeholder for `reason`. -/
   | unbound (reason : UnboundReason)
+  /-- The association is removed. -/
   | detached
 
+/-- What happens to a surface's binding or attachments. -/
 inductive SurfaceEvent where
   /-- Binding starts, the surface showing `reason` now; `released` means it can bind. -/
   | bindingStarts (reason : UnboundReason)
@@ -71,9 +88,24 @@ inductive SurfaceEvent where
 
 /-- The state after an event, and whether the change is announced (`presentation.stateChanged`). -/
 structure SurfaceStep where
+  /-- The state after the event. -/
   next : Presentation
+  /-- Whether `presentation.stateChanged` is emitted: whenever the state changes, and also when a
+  released surface starts binding, a release ends or the handle fails, even if the state is
+  unchanged. -/
   announce : Bool
 
+/-- The state a surface moves to on an event, and whether the change is announced. Binding a
+released surface starts `binding`; binding for any other reason, and a rebinding, leave it
+`unbound` for that reason. An answer from the adapter moves only a `binding` surface: to `ready`,
+to `unbound` for an unknown key, or to `error`; any other surface ignores it. Release starts
+(`detaching`) only from a state holding or acquiring a binding, and ends `unbound` or `detached`.
+A handle failure moves any surface to `error`. A change of attachments moves only a bound surface:
+to `presented` when one is visible, `hidden` when one remains, `ready` otherwise.
+
+The model proves that a surface becomes `presented` only from a bound state, enters `error` only
+on a failed resolution or handle, enters `detaching` only from a state holding or acquiring a
+binding, and that every change of state is announced. -/
 def surfaceStep (p : Presentation) (e : SurfaceEvent) : SurfaceStep :=
   match e with
   | .bindingStarts .released => ⟨.binding, true⟩
@@ -100,21 +132,30 @@ def surfaceStep (p : Presentation) (e : SurfaceEvent) : SurfaceStep :=
 (`WORKSPACE_DISPOSED`), `invalidViewport` (`INVALID_INPUT`) and the two single-owner refusals
 (`UNSUPPORTED_CAPABILITY`). -/
 inductive SurfaceRefusal where
+  /-- The surface runtime is disposed. -/
   | disposed
   /-- Only an unbound or failed surface can bind. -/
   | notUnboundOrFailed
+  /-- The surface is already releasing its binding. -/
   | detaching
+  /-- The surface is handing its binding over to another endpoint. -/
   | replacing
   /-- Only a bound surface can be presented, or hand its binding over. -/
   | notBound
+  /-- The viewport ID is blank. -/
   | invalidViewport
+  /-- The surface is already visible in this viewport, or attaching there. -/
   | alreadyPresented
   /-- Its single-owner handle is already presented in another viewport. -/
   | singleOwnerElsewhere
   /-- Another surface already presents the same single-owner endpoint. -/
   | endpointPresented
+  /-- The surface is not attached in the viewport, or is still attaching there. -/
   | notAttached
 
+/-- Whether a surface may start binding (or retry after an error): refused with `disposed` on a
+disposed runtime, admitted (`none`) from `unbound` or `error`, and refused with
+`notUnboundOrFailed` from any other state. -/
 def bindGate (disposed : Bool) (p : Presentation) : Option SurfaceRefusal :=
   if disposed then some .disposed
   else match p with
@@ -123,10 +164,16 @@ def bindGate (disposed : Bool) (p : Presentation) : Option SurfaceRefusal :=
 
 /-- What unbinding does: refuse, nothing (already unbound), or release. -/
 inductive UnbindGate where
+  /-- Release the binding and every attachment. -/
   | release
+  /-- The surface is already unbound: nothing to do. -/
   | done
+  /-- Refused, for `why`. -/
   | refuse (why : SurfaceRefusal)
 
+/-- What unbinding a surface does: refused with `replacing` while its binding is being handed
+over and with `detaching` while it is already releasing; nothing to do (`done`) when it is
+unbound; otherwise `release`. -/
 def unbindGate (p : Presentation) (replacing : Bool) : UnbindGate :=
   if replacing then .refuse .replacing
   else match p with
@@ -136,10 +183,13 @@ def unbindGate (p : Presentation) (replacing : Bool) : UnbindGate :=
 
 /-- What presenting a surface in a viewport depends on. -/
 structure PresentFacts where
+  /-- The surface runtime is disposed. -/
   disposed : Bool
   /-- The viewport ID is a non-blank string. -/
   viewportValid : Bool
+  /-- The surface is handing its binding over to another endpoint. -/
   replacing : Bool
+  /-- The surface's presentation state. -/
   phase : Presentation
   /-- The surface's attachment in this viewport, if any: whether it is visible. -/
   existing : Option Bool
@@ -152,6 +202,14 @@ structure PresentFacts where
   /-- Another surface presents (or is attaching) the same endpoint. -/
   endpointElsewhere : Bool
 
+/-- Whether a surface may be presented in a viewport, checked in this order: refused on a disposed
+runtime (`disposed`), for a blank viewport ID (`invalidViewport`), while replacing its binding
+(`replacing`), when not bound (`notBound`), and when already visible or attaching in this viewport
+(`alreadyPresented`). An existing hidden attachment there, or a handle that may present several
+viewports, is then admitted (`none`). A single-owner handle newly attached is refused when the
+surface is attached in another viewport (`singleOwnerElsewhere`) or another surface presents the
+same endpoint (`endpointPresented`). The model proves a single-owner handle is never mounted
+twice. -/
 def presentGate (f : PresentFacts) : Option SurfaceRefusal :=
   if f.disposed then some .disposed
   else if !f.viewportValid then some .invalidViewport
@@ -221,7 +279,7 @@ theorem detaching_only_from_active (p : Presentation) (e : SurfaceEvent)
   cases p <;> cases e <;> (try (rename_i a b; cases a <;> cases b)) <;> (try (rename_i a; cases a)) <;>
     simp_all [surfaceStep, Presentation.bound, Presentation.active]
 
-/-- Every change of state is announced, and nothing else is. -/
+/-- Every change of state is announced. (A step that keeps its state may announce too.) -/
 @[lungo_claim "lungo.law" subject surfaceStep]
 theorem announces_changes (p : Presentation) (e : SurfaceEvent)
     (h : (surfaceStep p e).next ≠ p) : (surfaceStep p e).announce = true := by

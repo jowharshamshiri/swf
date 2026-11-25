@@ -10,15 +10,24 @@ and how a handoff that found no backend ends.
 -/
 namespace Swf.Handoff
 
+/-- Where a presented viewport is in its backend handoff. -/
 inductive ViewportState where
+  /-- A candidate backend's renderer and compositor are being prepared. -/
   | preparing
+  /-- The scene is being planned with the candidate, and its live content checked as movable. -/
   | validating
+  /-- The view is being rebuilt in the candidate and its live content moved into it. -/
   | swapping
+  /-- A backend is active: frames are planned and presented. -/
   | active
+  /-- No backend works and the previous one is gone (`presentation-degraded`): nothing is
+  presented, while the scene stays usable. -/
   | degraded
+  /-- The viewport is disposed and takes no event. -/
   | disposed
 deriving DecidableEq
 
+/-- What happens in a viewport's backend handoff. -/
 inductive HandoffEvent where
   /-- A handoff to a candidate backend starts. -/
   | begin
@@ -53,6 +62,9 @@ inductive Validation where
   /-- The previous backend is gone: it stays attached, hidden, shown by a proxy. -/
   | strand
 
+/-- Whether a surface attached in the viewport lets the handoff go on: `movable` when its endpoint
+allows safe detachment; otherwise `refuse` while the previous backend still works, and `strand`
+only when it is gone. -/
 def validateSurface (oldUsable safeDetach : Bool) : Validation :=
   if safeDetach then .movable else if oldUsable then .refuse else .strand
 
@@ -65,17 +77,24 @@ inductive SwapAction where
   /-- Release its attachment: it is not live in the new view. -/
   | release
 
+/-- What swapping does with a surface attached in the viewport: `move` when it is live in the new
+view; otherwise `keepHidden` when validation stranded it, and `release` when it did not. -/
 def swapSurface (live stranded : Bool) : SwapAction :=
   if live then .move else if stranded then .keepHidden else .release
 
 /-- How a handoff that tried every candidate ends: on the first that worked; else the previous
 backend, kept active, when it still works; else degraded. -/
 inductive Settlement where
+  /-- A candidate worked and is active. -/
   | switched
+  /-- No candidate worked; the previous backend still works and stays active. -/
   | kept
+  /-- No backend works: the viewport is degraded. -/
   | degraded
 deriving DecidableEq
 
+/-- How a handoff ends: `switched` when any candidate worked; otherwise `kept` when the previous
+backend still works, and `degraded` exactly when no backend works at all. -/
 def settle (anyWorked oldUsable : Bool) : Settlement :=
   if anyWorked then .switched else if oldUsable then .kept else .degraded
 

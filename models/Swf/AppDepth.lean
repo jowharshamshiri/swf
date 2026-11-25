@@ -16,13 +16,17 @@ open Swf.AppFeatures (DepthBands)
 
 /-- How a window is represented. -/
 inductive DepthBand where
+  /-- Its content, in full. -/
   | full
+  /-- A compact preview standing for it. -/
   | compact
+  /-- Its label alone. -/
   | label
 deriving DecidableEq
 
 /-- The windows of one frame. -/
 structure DepthQuery where
+  /-- Where the bands end. -/
   bands : DepthBands
   /-- Each window's distance from the camera, in world units. -/
   distances : Array Float
@@ -30,6 +34,7 @@ structure DepthQuery where
   focused one, while the focus mode shows it. -/
   focused : Option Nat
 
+/-- The answer for the windows of one frame: their representations, or why none can be given. -/
 inductive DepthAnswer where
   /-- Each window's representation, in the order of the distances. -/
   | bands (representations : Array DepthBand)

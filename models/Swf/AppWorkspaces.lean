@@ -54,20 +54,27 @@ def workspacesNameIssue (name : Option String) : Option NameIssue :=
 
 /-- How the saver stands: saved, changed since, saving, or failed to save. -/
 inductive SaverState where
+  /-- The store holds what the workspace shows. -/
   | clean
+  /-- The workspace changed since it was saved. -/
   | dirty
+  /-- A save is in flight. -/
   | saving
+  /-- The last save failed. -/
   | failed
 deriving DecidableEq
 
+/-- How saving the workspace as it changes stands. -/
 structure WorkspacesMachine where
   /-- The workspace is saved as it changes. -/
   autosave : Bool
   /-- A save is scheduled: the timer is running. -/
   pending : Bool
+  /-- The workspaces are disposed: nothing more is scheduled. -/
   disposed : Bool
 deriving DecidableEq
 
+/-- What happens to the workspaces' saving. -/
 inductive WorkspacesEvent where
   /-- Saving as the workspace changes is turned on or off; `saver` is how the saver stands. -/
   | setAutosave (on : Bool) (saver : SaverState)
@@ -81,10 +88,12 @@ inductive WorkspacesEvent where
   | cleared
   /-- A restore of the saved visit ended, restoring it or not. -/
   | restored (ok : Bool)
+  /-- The workspaces are disposed: a scheduled save is stopped. -/
   | dispose
 
 /-- What the application does for an event. -/
 structure WorkspacesStep where
+  /-- The machine after the event. -/
   next : WorkspacesMachine
   /-- Stop the running timer. -/
   cancelTimer : Bool
@@ -111,6 +120,14 @@ def schedule (m : WorkspacesMachine) : WorkspacesStep :=
       adopt := false, announce := false, refusal := none }
   else WorkspacesStep.quiet m
 
+/-- What the application does for an event. Turning saving on announces it and schedules a save
+when the saver is not clean; turning it off announces it and stops a scheduled save. A change
+schedules a save afresh, restarting the timer. The scheduled time saves once. Saving now is
+refused while saving is off (`saving is off`), and otherwise saves at once, stopping a scheduled
+save. Clearing every saved layout announces it and schedules a save. A restore that restored the
+visit adopts its key and announces it; one that did not changes nothing. Disposal stops a scheduled
+save. A save is scheduled, and the timer started, only while saving is on and the workspaces are
+not disposed. -/
 def workspacesStep (m : WorkspacesMachine) (e : WorkspacesEvent) : WorkspacesStep :=
   match e with
   | .setAutosave on saver =>

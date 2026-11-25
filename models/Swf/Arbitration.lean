@@ -83,17 +83,23 @@ theorem sortBy_head_first (key : Nat → SortKey) (xs : List Nat) (h : Nat)
 
 /-! ## The gesture arena -/
 
+/-- The gesture a bid is for. -/
 inductive BidKind where
+  /-- A drag: it competes once a pressed pointer moves beyond the slop. -/
   | drag
+  /-- A tap: it competes when the pointers lift before any drag. -/
   | tap
 deriving DecidableEq, Inhabited
 
 /-- A policy's bid for the pressed pointers. -/
 structure Bid where
+  /-- The gesture it bids for. -/
   kind : BidKind
   /-- How many pointers its gesture takes: it competes only when exactly that many are pressed. -/
   pointers : Nat
+  /-- The bidding policy's priority: a finite number, higher winning. -/
   priority : Float
+  /-- The bidding policy's ID, which breaks ties of priority: the lower wins. -/
   policy : String
 deriving Inhabited
 
@@ -158,9 +164,13 @@ theorem winner_exists_iff (bids : Array Bid) (kind : BidKind) (pointers : Nat) :
 
 /-! ## Picking -/
 
+/-- What a hit lies on. -/
 inductive HitRegion where
+  /-- A surface whose interaction is content. -/
   | content
+  /-- A node's frame, or a surface that only shows something. -/
   | chrome
+  /-- The resize band along a resizable node's edges. -/
   | resizeHandle
 deriving DecidableEq, Inhabited
 
@@ -172,10 +182,15 @@ def HitRegion.rank : HitRegion → Nat
 
 /-- A hit of the ray: on a surface, or on a node's own frame (`surface` none). -/
 structure Hit where
+  /-- The node hit, or the owner of the surface hit. -/
   node : String
+  /-- The surface hit, or `none` for the node's own frame. -/
   surface : Option String
+  /-- What the hit lies on. -/
   region : HitRegion
+  /-- Distance from the camera along the ray, in world units. -/
   distance : Float
+  /-- The owner's plus the surface's presentation priority; higher picks first. -/
   priority : Float
   /-- The host says this hit hides what lies behind it. -/
   occluding : Bool
@@ -207,10 +222,20 @@ def hitKey (hits : Array Hit) (kept : List Nat) (tolerance : Float) (i : Nat) : 
 ambiguous: the next is another window tied with it on priority, occlusion and, within the
 tolerance, depth. -/
 structure PickOrder where
+  /-- The positions of the hits that count, best first; the first is the target. -/
   order : List Nat
+  /-- Whether each hit of `order`, in the same order, is occluded. -/
   occluded : List Bool
+  /-- The first two hits of `order` are different nodes tied on priority, occlusion and, within
+  the tolerance, depth: the target was chosen by identity. -/
   ambiguous : Bool
 
+/-- Orders the hits a ray makes, with `tolerance` the depth difference (world units) that counts as
+a tie. A node's frame counts only where none of the node's surfaces is hit, except along its
+resize band, and a surface only where the node's resize band is not hit; every hit that counts is
+ordered once, and nothing else. A hit is occluded when another occluding hit that counts lies nearer by more than the
+tolerance. The order is by higher priority, then not occluded, nearer, region (resize band, then
+content, then frame) and node and surface ID; the target ranks first. -/
 def pickOrder (hits : Array Hit) (tolerance : Float) : PickOrder :=
   let kept := (List.range hits.size).filter (keeps hits)
   let order := sortBy (hitKey hits kept tolerance) kept

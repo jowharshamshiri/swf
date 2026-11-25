@@ -9,10 +9,15 @@ policies' handlers and previews; this model decides where each intent goes and e
 -/
 namespace Swf.Gesture
 
+/-- What a pointer sample reports. -/
 inductive PointerPhase where
+  /-- The pointer went down: a press. -/
   | down
+  /-- The pointer moved. -/
   | move
+  /-- The pointer was released. -/
   | up
+  /-- The platform cancelled the pointer. -/
   | cancel
 
 /-- Where a pointer sample goes, from whether a gesture holds (has captured) the pointer. -/
@@ -21,7 +26,9 @@ inductive PointerRoute where
   | press
   /-- A press of a pointer still held: its release was lost, so its gesture is cancelled first. -/
   | pressAfterLost
+  /-- A move of a held pointer: its gesture follows it. -/
   | move
+  /-- A release of a held pointer: its gesture ends the press or drag. -/
   | release
   /-- The platform took the pointer away: its gesture is cancelled. -/
   | lost
@@ -29,6 +36,10 @@ inductive PointerRoute where
   | ignore
 deriving DecidableEq
 
+/-- Where a pointer sample goes. A press is `press`, or `pressAfterLost` when a gesture still holds
+the pointer. A move, release or cancel of a held pointer is `move`, `release` or `lost`; of a
+pointer no gesture holds it is `ignore`, so a late release from an old pointer never reaches a
+gesture. -/
 def pointerRoute (phase : PointerPhase) (captured : Bool) : PointerRoute :=
   match phase, captured with
   | .down, false => .press
@@ -40,21 +51,31 @@ def pointerRoute (phase : PointerPhase) (captured : Bool) : PointerRoute :=
 
 /-- What a press landed on. -/
 inductive PressPick where
+  /-- A node in the view. -/
   | hit
+  /-- The view's background: no window. -/
   | background
   /-- Outside the view, or on nothing that can be picked. -/
   | none
 
+/-- What part of the workspace a point is over. -/
 inductive Region where
+  /-- A surface's content, whose input stays native unless a takeover is active. -/
   | content
+  /-- A window's frame, or a surface that only shows something. -/
   | chrome
+  /-- The band along a resizable window's edges. -/
   | resizeHandle
+  /-- No window. -/
   | background
+  /-- Anything outside an active modal, which takes no input. -/
   | modalOverlay
 
 /-- What a press is decided from. -/
 structure PressFacts where
+  /-- What the press landed on. -/
   pick : PressPick
+  /-- The region of what it landed on. -/
   region : Region
   /-- A takeover is active, or its modifier is held: content presses may be claimed. -/
   takeover : Bool
@@ -63,6 +84,7 @@ structure PressFacts where
   /-- The target is already in a gesture (a pointer's or a keyboard hold). -/
   busy : Bool
 
+/-- Where a press goes. -/
 inductive PressRoute where
   /-- Not the framework's: nothing there. -/
   | ignore
@@ -76,6 +98,11 @@ inductive PressRoute where
   | claim
 deriving DecidableEq
 
+/-- Where a press goes: `ignore` on nothing pickable; `blocked` outside an active modal; `native`
+on live content when no takeover is active and the target is not a proxy; otherwise `busy` when
+the target is already in a gesture, and `claim` when it is free. Only a press on something
+pickable, outside a modal, not on live content keeping its input, and on a free target reaches the
+policies. -/
 def pressRoute (f : PressFacts) : PressRoute :=
   match f.pick, f.region with
   | .none, _ => .ignore
@@ -87,22 +114,30 @@ def pressRoute (f : PressFacts) : PressRoute :=
 which a press becomes a drag. -/
 def beyondSlop (distance slop : Float) : Bool := distance > slop
 
+/-- Where a pressed target's gesture is. -/
 inductive GesturePhase where
+  /-- No gesture. -/
   | idle
+  /-- A press was claimed; the arena has not yet decided between drag and tap. -/
   | pending
+  /-- A gesture runs: a drag, a tap's action or a keyboard hold, previewing what it changes. -/
   | dragging
+  /-- The gesture's commit was made, once. -/
   | committed
+  /-- The running gesture was cancelled, or its commit rejected; what it previewed is restored. -/
   | cancelled
 deriving DecidableEq
 
 /-- How a gesture's handler finished. -/
 inductive Finish where
+  /-- Its commit was made. -/
   | committed
   /-- Nothing to commit (it was put back where it was). -/
   | unchanged
   /-- Its commit was rejected, or it was cancelled. -/
   | rejected
 
+/-- What happens to a gesture. -/
 inductive GestureEvent where
   /-- Some policy claimed the press. -/
   | claimed
@@ -143,13 +178,18 @@ def gestureStep (p : GesturePhase) (e : GestureEvent) : Option GesturePhase :=
 /-- The keys that put a held node down, pressed with no modifier. -/
 def putDownKey (key : String) : Bool := key = "Enter" || key = " "
 
+/-- What a key event reports. -/
 inductive KeyPhase where
+  /-- The key was pressed. -/
   | down
+  /-- The key was released. -/
   | up
 
 /-- What a key decides from. -/
 structure KeyFacts where
+  /-- Whether the key was pressed or released. -/
   phase : KeyPhase
+  /-- The key's value, as the platform names it (`Escape`, `Enter`, `" "` for Space). -/
   key : String
   /-- Keyboard focus is in live content, which keeps its keys. -/
   inContent : Bool
@@ -160,9 +200,11 @@ structure KeyFacts where
   /-- Shift, Ctrl, Alt or Meta is held. -/
   modified : Bool
 
+/-- Where a key goes. -/
 inductive KeyRoute where
   /-- Escape: every gesture is cancelled. -/
   | cancelAll
+  /-- Live content has focus and keeps the key. -/
   | native
   /-- Key releases run nothing. -/
   | ignoreRelease
@@ -172,6 +214,10 @@ inductive KeyRoute where
   | keymap
 deriving DecidableEq
 
+/-- Where a key goes. A press of Escape while any gesture runs or is pending cancels every gesture,
+whatever has focus. Otherwise live content with focus keeps its keys (`native`); a held node is put
+down by Enter or Space with no modifier (`putDown`); any other press goes to the key map, and any
+other release is ignored. -/
 def keyRoute (k : KeyFacts) : KeyRoute :=
   match k.phase with
   | .down =>
@@ -191,9 +237,14 @@ inductive HoldGate where
   | unknownNode
   /-- The node is in a pointer's gesture. -/
   | busy
+  /-- Admitted: the node is held. -/
   | hold
 deriving DecidableEq
 
+/-- Whether a node may be picked up from the keyboard, checked in this order: refused while a node
+is already held (`alreadyHolding`), for a viewport that is not there (`unknownViewport`), for a
+node that is not there or archived (`unknownNode`), and for one in a pointer's gesture (`busy`);
+otherwise `hold`. One node is held at a time, only an active one. -/
 def holdGate (holding viewportKnown nodeActive inGesture : Bool) : HoldGate :=
   if holding then .alreadyHolding
   else if !viewportKnown then .unknownViewport

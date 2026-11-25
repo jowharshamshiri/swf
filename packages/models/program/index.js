@@ -3408,11 +3408,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppComposition.lean",
         "start": {
-          "line": 298,
+          "line": 317,
           "column": 1
         },
         "end": {
-          "line": 319,
+          "line": 338,
           "column": 39
         }
       }
@@ -3441,11 +3441,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppComposition.lean",
         "start": {
-          "line": 412,
+          "line": 431,
           "column": 1
         },
         "end": {
-          "line": 453,
+          "line": 472,
           "column": 17
         }
       }
@@ -3474,11 +3474,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppComposition.lean",
         "start": {
-          "line": 263,
+          "line": 282,
           "column": 1
         },
         "end": {
-          "line": 272,
+          "line": 291,
           "column": 16
         }
       }
@@ -3507,11 +3507,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppComposition.lean",
         "start": {
-          "line": 256,
+          "line": 275,
           "column": 1
         },
         "end": {
-          "line": 261,
+          "line": 280,
           "column": 36
         }
       }
@@ -3540,11 +3540,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppComposition.lean",
         "start": {
-          "line": 321,
+          "line": 340,
           "column": 1
         },
         "end": {
-          "line": 343,
+          "line": 362,
           "column": 86
         }
       }
@@ -3573,11 +3573,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppComposition.lean",
         "start": {
-          "line": 345,
+          "line": 364,
           "column": 1
         },
         "end": {
-          "line": 372,
+          "line": 391,
           "column": 23
         }
       }
@@ -3606,11 +3606,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppComposition.lean",
         "start": {
-          "line": 374,
+          "line": 393,
           "column": 1
         },
         "end": {
-          "line": 410,
+          "line": 429,
           "column": 16
         }
       }
@@ -3639,11 +3639,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppCursor.lean",
         "start": {
-          "line": 81,
+          "line": 85,
           "column": 1
         },
         "end": {
-          "line": 96,
+          "line": 100,
           "column": 36
         }
       }
@@ -3672,11 +3672,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppCursor.lean",
         "start": {
-          "line": 98,
+          "line": 102,
           "column": 1
         },
         "end": {
-          "line": 103,
+          "line": 107,
           "column": 28
         }
       }
@@ -3704,11 +3704,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppCursor.lean",
         "start": {
-          "line": 118,
+          "line": 122,
           "column": 1
         },
         "end": {
-          "line": 124,
+          "line": 128,
           "column": 60
         }
       }
@@ -3735,11 +3735,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppCursor.lean",
         "start": {
-          "line": 105,
+          "line": 109,
           "column": 1
         },
         "end": {
-          "line": 116,
+          "line": 120,
           "column": 13
         }
       }
@@ -3767,11 +3767,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppCursor.lean",
         "start": {
-          "line": 126,
+          "line": 130,
           "column": 1
         },
         "end": {
-          "line": 137,
+          "line": 141,
           "column": 22
         }
       }
@@ -3800,11 +3800,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppCursor.lean",
         "start": {
-          "line": 57,
+          "line": 61,
           "column": 1
         },
         "end": {
-          "line": 66,
+          "line": 70,
           "column": 13
         }
       }
@@ -3833,11 +3833,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppCursor.lean",
         "start": {
-          "line": 68,
+          "line": 72,
           "column": 1
         },
         "end": {
-          "line": 79,
+          "line": 83,
           "column": 15
         }
       }
@@ -3866,11 +3866,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppDepth.lean",
         "start": {
-          "line": 76,
+          "line": 81,
           "column": 1
         },
         "end": {
-          "line": 96,
+          "line": 101,
           "column": 35
         }
       }
@@ -3899,11 +3899,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppDepth.lean",
         "start": {
-          "line": 98,
+          "line": 103,
           "column": 1
         },
         "end": {
-          "line": 105,
+          "line": 110,
           "column": 42
         }
       }
@@ -3932,11 +3932,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppDepth.lean",
         "start": {
-          "line": 152,
+          "line": 157,
           "column": 1
         },
         "end": {
-          "line": 156,
+          "line": 161,
           "column": 23
         }
       }
@@ -3965,11 +3965,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppDepth.lean",
         "start": {
-          "line": 137,
+          "line": 142,
           "column": 1
         },
         "end": {
-          "line": 150,
+          "line": 155,
           "column": 14
         }
       }
@@ -3998,11 +3998,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppDepth.lean",
         "start": {
-          "line": 123,
+          "line": 128,
           "column": 1
         },
         "end": {
-          "line": 135,
+          "line": 140,
           "column": 39
         }
       }
@@ -4031,11 +4031,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppDepth.lean",
         "start": {
-          "line": 107,
+          "line": 112,
           "column": 1
         },
         "end": {
-          "line": 113,
+          "line": 118,
           "column": 7
         }
       }
@@ -4064,11 +4064,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppFeatures.lean",
         "start": {
-          "line": 280,
+          "line": 303,
           "column": 1
         },
         "end": {
-          "line": 305,
+          "line": 328,
           "column": 112
         }
       }
@@ -4097,11 +4097,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppFeatures.lean",
         "start": {
-          "line": 350,
+          "line": 373,
           "column": 1
         },
         "end": {
-          "line": 365,
+          "line": 388,
           "column": 60
         }
       }
@@ -4130,11 +4130,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppFeatures.lean",
         "start": {
-          "line": 343,
+          "line": 366,
           "column": 1
         },
         "end": {
-          "line": 348,
+          "line": 371,
           "column": 17
         }
       }
@@ -4163,11 +4163,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppFeatures.lean",
         "start": {
-          "line": 307,
+          "line": 330,
           "column": 1
         },
         "end": {
-          "line": 311,
+          "line": 334,
           "column": 86
         }
       }
@@ -4196,11 +4196,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppFeatures.lean",
         "start": {
-          "line": 320,
+          "line": 343,
           "column": 1
         },
         "end": {
-          "line": 341,
+          "line": 364,
           "column": 70
         }
       }
@@ -4229,11 +4229,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppFeatures.lean",
         "start": {
-          "line": 313,
+          "line": 336,
           "column": 1
         },
         "end": {
-          "line": 318,
+          "line": 341,
           "column": 81
         }
       }
@@ -4260,11 +4260,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppOrbit.lean",
         "start": {
-          "line": 195,
+          "line": 203,
           "column": 1
         },
         "end": {
-          "line": 199,
+          "line": 207,
           "column": 22
         }
       }
@@ -4292,11 +4292,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppOrbit.lean",
         "start": {
-          "line": 155,
+          "line": 163,
           "column": 1
         },
         "end": {
-          "line": 160,
+          "line": 168,
           "column": 19
         }
       }
@@ -4323,11 +4323,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppOrbit.lean",
         "start": {
-          "line": 208,
+          "line": 216,
           "column": 1
         },
         "end": {
-          "line": 213,
+          "line": 221,
           "column": 27
         }
       }
@@ -4354,11 +4354,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppOrbit.lean",
         "start": {
-          "line": 126,
+          "line": 134,
           "column": 1
         },
         "end": {
-          "line": 133,
+          "line": 141,
           "column": 60
         }
       }
@@ -4385,11 +4385,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppOrbit.lean",
         "start": {
-          "line": 201,
+          "line": 209,
           "column": 1
         },
         "end": {
-          "line": 206,
+          "line": 214,
           "column": 84
         }
       }
@@ -4417,11 +4417,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppOrbit.lean",
         "start": {
-          "line": 116,
+          "line": 124,
           "column": 1
         },
         "end": {
-          "line": 124,
+          "line": 132,
           "column": 77
         }
       }
@@ -4448,11 +4448,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppOrbit.lean",
         "start": {
-          "line": 135,
+          "line": 143,
           "column": 1
         },
         "end": {
-          "line": 153,
+          "line": 161,
           "column": 77
         }
       }
@@ -4480,11 +4480,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppOrbit.lean",
         "start": {
-          "line": 168,
+          "line": 176,
           "column": 1
         },
         "end": {
-          "line": 193,
+          "line": 201,
           "column": 73
         }
       }
@@ -4512,11 +4512,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppOrbit.lean",
         "start": {
-          "line": 162,
+          "line": 170,
           "column": 1
         },
         "end": {
-          "line": 166,
+          "line": 174,
           "column": 19
         }
       }
@@ -4545,11 +4545,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppSnap.lean",
         "start": {
-          "line": 418,
+          "line": 438,
           "column": 1
         },
         "end": {
-          "line": 423,
+          "line": 443,
           "column": 25
         }
       }
@@ -4578,11 +4578,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppSnap.lean",
         "start": {
-          "line": 355,
+          "line": 375,
           "column": 1
         },
         "end": {
-          "line": 378,
+          "line": 398,
           "column": 10
         }
       }
@@ -4611,11 +4611,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppSnap.lean",
         "start": {
-          "line": 294,
+          "line": 314,
           "column": 1
         },
         "end": {
-          "line": 315,
+          "line": 335,
           "column": 31
         }
       }
@@ -4644,11 +4644,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppSnap.lean",
         "start": {
-          "line": 317,
+          "line": 337,
           "column": 1
         },
         "end": {
-          "line": 330,
+          "line": 350,
           "column": 64
         }
       }
@@ -4677,11 +4677,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppSnap.lean",
         "start": {
-          "line": 411,
+          "line": 431,
           "column": 1
         },
         "end": {
-          "line": 416,
+          "line": 436,
           "column": 29
         }
       }
@@ -4710,11 +4710,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppSnap.lean",
         "start": {
-          "line": 380,
+          "line": 400,
           "column": 1
         },
         "end": {
-          "line": 409,
+          "line": 429,
           "column": 18
         }
       }
@@ -4741,11 +4741,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 258,
+          "line": 275,
           "column": 1
         },
         "end": {
-          "line": 264,
+          "line": 281,
           "column": 101
         }
       }
@@ -4772,11 +4772,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 290,
+          "line": 307,
           "column": 1
         },
         "end": {
-          "line": 301,
+          "line": 318,
           "column": 64
         }
       }
@@ -4805,11 +4805,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 435,
+          "line": 452,
           "column": 1
         },
         "end": {
-          "line": 443,
+          "line": 460,
           "column": 83
         }
       }
@@ -4838,11 +4838,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 213,
+          "line": 230,
           "column": 1
         },
         "end": {
-          "line": 224,
+          "line": 241,
           "column": 36
         }
       }
@@ -4871,11 +4871,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 352,
+          "line": 369,
           "column": 1
         },
         "end": {
-          "line": 362,
+          "line": 379,
           "column": 40
         }
       }
@@ -4902,11 +4902,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 266,
+          "line": 283,
           "column": 1
         },
         "end": {
-          "line": 272,
+          "line": 289,
           "column": 50
         }
       }
@@ -4933,11 +4933,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 281,
+          "line": 298,
           "column": 1
         },
         "end": {
-          "line": 288,
+          "line": 305,
           "column": 46
         }
       }
@@ -4965,11 +4965,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 364,
+          "line": 381,
           "column": 1
         },
         "end": {
-          "line": 388,
+          "line": 405,
           "column": 14
         }
       }
@@ -4996,11 +4996,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 274,
+          "line": 291,
           "column": 1
         },
         "end": {
-          "line": 279,
+          "line": 296,
           "column": 50
         }
       }
@@ -5029,11 +5029,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 427,
+          "line": 444,
           "column": 1
         },
         "end": {
-          "line": 433,
+          "line": 450,
           "column": 32
         }
       }
@@ -5061,11 +5061,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 390,
+          "line": 407,
           "column": 1
         },
         "end": {
-          "line": 394,
+          "line": 411,
           "column": 25
         }
       }
@@ -5092,11 +5092,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 230,
+          "line": 247,
           "column": 1
         },
         "end": {
-          "line": 256,
+          "line": 273,
           "column": 59
         }
       }
@@ -5124,11 +5124,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 242,
+          "line": 267,
           "column": 1
         },
         "end": {
-          "line": 262,
+          "line": 287,
           "column": 33
         }
       }
@@ -5157,11 +5157,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 264,
+          "line": 289,
           "column": 1
         },
         "end": {
-          "line": 280,
+          "line": 305,
           "column": 64
         }
       }
@@ -5190,11 +5190,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 226,
+          "line": 251,
           "column": 1
         },
         "end": {
-          "line": 231,
+          "line": 256,
           "column": 32
         }
       }
@@ -5223,11 +5223,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 233,
+          "line": 258,
           "column": 1
         },
         "end": {
-          "line": 240,
+          "line": 265,
           "column": 49
         }
       }
@@ -5256,11 +5256,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 111,
+          "line": 117,
           "column": 1
         },
         "end": {
-          "line": 123,
+          "line": 129,
           "column": 37
         }
       }
@@ -5289,11 +5289,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 134,
+          "line": 140,
           "column": 1
         },
         "end": {
-          "line": 157,
+          "line": 163,
           "column": 33
         }
       }
@@ -5322,11 +5322,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 125,
+          "line": 131,
           "column": 1
         },
         "end": {
-          "line": 132,
+          "line": 138,
           "column": 49
         }
       }
@@ -5354,11 +5354,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Fallback.lean",
         "start": {
-          "line": 390,
+          "line": 475,
           "column": 1
         },
         "end": {
-          "line": 410,
+          "line": 495,
           "column": 45
         }
       }
@@ -5386,11 +5386,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Fallback.lean",
         "start": {
-          "line": 337,
+          "line": 422,
           "column": 1
         },
         "end": {
-          "line": 347,
+          "line": 432,
           "column": 55
         }
       }
@@ -5418,11 +5418,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Fallback.lean",
         "start": {
-          "line": 412,
+          "line": 497,
           "column": 1
         },
         "end": {
-          "line": 417,
+          "line": 502,
           "column": 24
         }
       }
@@ -5450,11 +5450,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Fallback.lean",
         "start": {
-          "line": 371,
+          "line": 456,
           "column": 1
         },
         "end": {
-          "line": 388,
+          "line": 473,
           "column": 47
         }
       }
@@ -5482,11 +5482,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Fallback.lean",
         "start": {
-          "line": 477,
+          "line": 562,
           "column": 1
         },
         "end": {
-          "line": 483,
+          "line": 568,
           "column": 57
         }
       }
@@ -5513,11 +5513,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Fallback.lean",
         "start": {
-          "line": 349,
+          "line": 434,
           "column": 1
         },
         "end": {
-          "line": 369,
+          "line": 454,
           "column": 20
         }
       }
@@ -5545,11 +5545,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Fallback.lean",
         "start": {
-          "line": 450,
+          "line": 535,
           "column": 1
         },
         "end": {
-          "line": 465,
+          "line": 550,
           "column": 16
         }
       }
@@ -5576,11 +5576,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Fallback.lean",
         "start": {
-          "line": 467,
+          "line": 552,
           "column": 1
         },
         "end": {
-          "line": 475,
+          "line": 560,
           "column": 23
         }
       }
@@ -5609,11 +5609,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 254,
+          "line": 305,
           "column": 1
         },
         "end": {
-          "line": 258,
+          "line": 309,
           "column": 20
         }
       }
@@ -5640,11 +5640,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 229,
+          "line": 280,
           "column": 1
         },
         "end": {
-          "line": 234,
+          "line": 285,
           "column": 83
         }
       }
@@ -5671,11 +5671,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 236,
+          "line": 287,
           "column": 1
         },
         "end": {
-          "line": 240,
+          "line": 291,
           "column": 89
         }
       }
@@ -5702,11 +5702,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 245,
+          "line": 296,
           "column": 1
         },
         "end": {
-          "line": 252,
+          "line": 303,
           "column": 89
         }
       }
@@ -5733,11 +5733,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 242,
+          "line": 293,
           "column": 1
         },
         "end": {
-          "line": 243,
+          "line": 294,
           "column": 101
         }
       }
@@ -5766,11 +5766,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 260,
+          "line": 311,
           "column": 1
         },
         "end": {
-          "line": 273,
+          "line": 324,
           "column": 52
         }
       }
@@ -5797,11 +5797,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 206,
+          "line": 257,
           "column": 1
         },
         "end": {
-          "line": 211,
+          "line": 262,
           "column": 38
         }
       }
@@ -5828,11 +5828,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 275,
+          "line": 326,
           "column": 1
         },
         "end": {
-          "line": 281,
+          "line": 332,
           "column": 101
         }
       }
@@ -5859,11 +5859,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 219,
+          "line": 270,
           "column": 1
         },
         "end": {
-          "line": 227,
+          "line": 278,
           "column": 26
         }
       }
@@ -5890,11 +5890,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 213,
+          "line": 264,
           "column": 1
         },
         "end": {
-          "line": 217,
+          "line": 268,
           "column": 38
         }
       }
@@ -5921,11 +5921,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 146,
+          "line": 165,
           "column": 1
         },
         "end": {
-          "line": 148,
+          "line": 167,
           "column": 24
         }
       }
@@ -5952,11 +5952,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 150,
+          "line": 169,
           "column": 1
         },
         "end": {
-          "line": 153,
+          "line": 172,
           "column": 47
         }
       }
@@ -5983,11 +5983,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 134,
+          "line": 153,
           "column": 1
         },
         "end": {
-          "line": 140,
+          "line": 159,
           "column": 74
         }
       }
@@ -6014,11 +6014,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 110,
+          "line": 129,
           "column": 1
         },
         "end": {
-          "line": 115,
+          "line": 134,
           "column": 45
         }
       }
@@ -6045,11 +6045,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 142,
+          "line": 161,
           "column": 1
         },
         "end": {
-          "line": 144,
+          "line": 163,
           "column": 26
         }
       }
@@ -6076,11 +6076,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 155,
+          "line": 174,
           "column": 1
         },
         "end": {
-          "line": 158,
+          "line": 177,
           "column": 52
         }
       }
@@ -6107,11 +6107,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 101,
+          "line": 120,
           "column": 1
         },
         "end": {
-          "line": 108,
+          "line": 127,
           "column": 45
         }
       }
@@ -6138,11 +6138,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 117,
+          "line": 136,
           "column": 1
         },
         "end": {
-          "line": 123,
+          "line": 142,
           "column": 66
         }
       }
@@ -6169,11 +6169,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 125,
+          "line": 144,
           "column": 1
         },
         "end": {
-          "line": 132,
+          "line": 151,
           "column": 55
         }
       }
@@ -6452,11 +6452,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Kernel.lean",
         "start": {
-          "line": 178,
+          "line": 218,
           "column": 1
         },
         "end": {
-          "line": 181,
+          "line": 221,
           "column": 16
         }
       }
@@ -6485,11 +6485,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Kernel.lean",
         "start": {
-          "line": 293,
+          "line": 333,
           "column": 1
         },
         "end": {
-          "line": 297,
+          "line": 337,
           "column": 111
         }
       }
@@ -6518,11 +6518,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Kernel.lean",
         "start": {
-          "line": 229,
+          "line": 269,
           "column": 1
         },
         "end": {
-          "line": 236,
+          "line": 276,
           "column": 23
         }
       }
@@ -6551,11 +6551,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Kernel.lean",
         "start": {
-          "line": 264,
+          "line": 304,
           "column": 1
         },
         "end": {
-          "line": 277,
+          "line": 317,
           "column": 59
         }
       }
@@ -6582,11 +6582,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Kernel.lean",
         "start": {
-          "line": 238,
+          "line": 278,
           "column": 1
         },
         "end": {
-          "line": 246,
+          "line": 286,
           "column": 67
         }
       }
@@ -6613,11 +6613,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Kernel.lean",
         "start": {
-          "line": 248,
+          "line": 288,
           "column": 1
         },
         "end": {
-          "line": 262,
+          "line": 302,
           "column": 97
         }
       }
@@ -6644,11 +6644,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Kernel.lean",
         "start": {
-          "line": 207,
+          "line": 247,
           "column": 1
         },
         "end": {
-          "line": 209,
+          "line": 249,
           "column": 18
         }
       }
@@ -6676,11 +6676,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Kernel.lean",
         "start": {
-          "line": 192,
+          "line": 232,
           "column": 1
         },
         "end": {
-          "line": 201,
+          "line": 241,
           "column": 26
         }
       }
@@ -6710,11 +6710,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Kernel.lean",
         "start": {
-          "line": 183,
+          "line": 223,
           "column": 1
         },
         "end": {
-          "line": 190,
+          "line": 230,
           "column": 40
         }
       }
@@ -6741,11 +6741,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Kernel.lean",
         "start": {
-          "line": 217,
+          "line": 257,
           "column": 1
         },
         "end": {
-          "line": 227,
+          "line": 267,
           "column": 66
         }
       }
@@ -6772,11 +6772,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Kernel.lean",
         "start": {
-          "line": 172,
+          "line": 212,
           "column": 1
         },
         "end": {
-          "line": 176,
+          "line": 216,
           "column": 26
         }
       }
@@ -6803,11 +6803,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Kernel.lean",
         "start": {
-          "line": 211,
+          "line": 251,
           "column": 1
         },
         "end": {
-          "line": 215,
+          "line": 255,
           "column": 17
         }
       }
@@ -6836,11 +6836,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Kernel.lean",
         "start": {
-          "line": 279,
+          "line": 319,
           "column": 1
         },
         "end": {
-          "line": 291,
+          "line": 331,
           "column": 35
         }
       }
@@ -6867,11 +6867,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Migration.lean",
         "start": {
-          "line": 112,
+          "line": 120,
           "column": 1
         },
         "end": {
-          "line": 116,
+          "line": 124,
           "column": 33
         }
       }
@@ -6899,11 +6899,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Migration.lean",
         "start": {
-          "line": 95,
+          "line": 103,
           "column": 1
         },
         "end": {
-          "line": 103,
+          "line": 111,
           "column": 24
         }
       }
@@ -6931,11 +6931,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Migration.lean",
         "start": {
-          "line": 125,
+          "line": 133,
           "column": 1
         },
         "end": {
-          "line": 138,
+          "line": 146,
           "column": 11
         }
       }
@@ -6963,11 +6963,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Migration.lean",
         "start": {
-          "line": 105,
+          "line": 113,
           "column": 1
         },
         "end": {
-          "line": 110,
+          "line": 118,
           "column": 10
         }
       }
@@ -6994,11 +6994,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Migration.lean",
         "start": {
-          "line": 118,
+          "line": 126,
           "column": 1
         },
         "end": {
-          "line": 123,
+          "line": 131,
           "column": 41
         }
       }
@@ -7025,11 +7025,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Save.lean",
         "start": {
-          "line": 104,
+          "line": 127,
           "column": 1
         },
         "end": {
-          "line": 119,
+          "line": 142,
           "column": 39
         }
       }
@@ -7056,11 +7056,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Save.lean",
         "start": {
-          "line": 85,
+          "line": 108,
           "column": 1
         },
         "end": {
-          "line": 93,
+          "line": 116,
           "column": 27
         }
       }
@@ -7087,11 +7087,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Save.lean",
         "start": {
-          "line": 121,
+          "line": 144,
           "column": 1
         },
         "end": {
-          "line": 138,
+          "line": 161,
           "column": 32
         }
       }
@@ -7118,11 +7118,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Save.lean",
         "start": {
-          "line": 77,
+          "line": 100,
           "column": 1
         },
         "end": {
-          "line": 83,
+          "line": 106,
           "column": 45
         }
       }
@@ -7150,11 +7150,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Save.lean",
         "start": {
-          "line": 140,
+          "line": 163,
           "column": 1
         },
         "end": {
-          "line": 153,
+          "line": 176,
           "column": 61
         }
       }
@@ -7181,11 +7181,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Save.lean",
         "start": {
-          "line": 95,
+          "line": 118,
           "column": 1
         },
         "end": {
-          "line": 102,
+          "line": 125,
           "column": 83
         }
       }
@@ -7212,11 +7212,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 224,
+          "line": 282,
           "column": 1
         },
         "end": {
-          "line": 229,
+          "line": 287,
           "column": 68
         }
       }
@@ -7244,11 +7244,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 231,
+          "line": 289,
           "column": 1
         },
         "end": {
-          "line": 237,
+          "line": 295,
           "column": 30
         }
       }
@@ -7275,11 +7275,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 296,
+          "line": 354,
           "column": 1
         },
         "end": {
-          "line": 299,
+          "line": 357,
           "column": 24
         }
       }
@@ -7306,11 +7306,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 217,
+          "line": 275,
           "column": 1
         },
         "end": {
-          "line": 222,
+          "line": 280,
           "column": 68
         }
       }
@@ -7337,11 +7337,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 209,
+          "line": 267,
           "column": 1
         },
         "end": {
-          "line": 215,
+          "line": 273,
           "column": 68
         }
       }
@@ -7368,11 +7368,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 254,
+          "line": 312,
           "column": 1
         },
         "end": {
-          "line": 258,
+          "line": 316,
           "column": 22
         }
       }
@@ -7399,11 +7399,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 291,
+          "line": 349,
           "column": 1
         },
         "end": {
-          "line": 294,
+          "line": 352,
           "column": 55
         }
       }
@@ -7431,11 +7431,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 283,
+          "line": 341,
           "column": 1
         },
         "end": {
-          "line": 289,
+          "line": 347,
           "column": 86
         }
       }
@@ -7462,11 +7462,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 239,
+          "line": 297,
           "column": 1
         },
         "end": {
-          "line": 252,
+          "line": 310,
           "column": 65
         }
       }
@@ -7493,11 +7493,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 202,
+          "line": 260,
           "column": 1
         },
         "end": {
-          "line": 207,
+          "line": 265,
           "column": 68
         }
       }
@@ -7524,11 +7524,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 260,
+          "line": 318,
           "column": 1
         },
         "end": {
-          "line": 269,
+          "line": 327,
           "column": 11
         }
       }
@@ -7555,11 +7555,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 271,
+          "line": 329,
           "column": 1
         },
         "end": {
-          "line": 281,
+          "line": 339,
           "column": 57
         }
       }
@@ -7586,11 +7586,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/ViewMode.lean",
         "start": {
-          "line": 89,
+          "line": 104,
           "column": 1
         },
         "end": {
-          "line": 96,
+          "line": 111,
           "column": 28
         }
       }
@@ -7618,11 +7618,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/ViewMode.lean",
         "start": {
-          "line": 98,
+          "line": 113,
           "column": 1
         },
         "end": {
-          "line": 102,
+          "line": 117,
           "column": 68
         }
       }
@@ -7650,11 +7650,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/ViewMode.lean",
         "start": {
-          "line": 83,
+          "line": 98,
           "column": 1
         },
         "end": {
-          "line": 87,
+          "line": 102,
           "column": 23
         }
       }
@@ -7681,11 +7681,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/ViewMode.lean",
         "start": {
-          "line": 122,
+          "line": 137,
           "column": 1
         },
         "end": {
-          "line": 138,
+          "line": 153,
           "column": 55
         }
       }
@@ -7712,11 +7712,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/ViewMode.lean",
         "start": {
-          "line": 140,
+          "line": 155,
           "column": 1
         },
         "end": {
-          "line": 146,
+          "line": 161,
           "column": 71
         }
       }
@@ -7743,11 +7743,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/ViewMode.lean",
         "start": {
-          "line": 104,
+          "line": 119,
           "column": 1
         },
         "end": {
-          "line": 109,
+          "line": 124,
           "column": 24
         }
       }
@@ -7774,11 +7774,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/ViewMode.lean",
         "start": {
-          "line": 111,
+          "line": 126,
           "column": 1
         },
         "end": {
-          "line": 120,
+          "line": 135,
           "column": 28
         }
       }
@@ -7830,11 +7830,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppComposition.lean",
         "start": {
-          "line": 149,
+          "line": 168,
           "column": 1
         },
         "end": {
-          "line": 151,
+          "line": 170,
           "column": 98
         }
       }
@@ -7899,11 +7899,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppComposition.lean",
         "start": {
-          "line": 242,
+          "line": 261,
           "column": 1
         },
         "end": {
-          "line": 248,
+          "line": 267,
           "column": 38
         }
       }
@@ -7933,11 +7933,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppCursor.lean",
         "start": {
-          "line": 46,
+          "line": 50,
           "column": 1
         },
         "end": {
-          "line": 53,
+          "line": 57,
           "column": 18
         }
       }
@@ -8007,11 +8007,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppCursor.lean",
         "start": {
-          "line": 35,
+          "line": 39,
           "column": 1
         },
         "end": {
-          "line": 44,
+          "line": 48,
           "column": 69
         }
       }
@@ -8095,11 +8095,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppDepth.lean",
         "start": {
-          "line": 50,
+          "line": 55,
           "column": 1
         },
         "end": {
-          "line": 57,
+          "line": 62,
           "column": 100
         }
       }
@@ -8178,11 +8178,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppFeatures.lean",
         "start": {
-          "line": 183,
+          "line": 206,
           "column": 1
         },
         "end": {
-          "line": 190,
+          "line": 213,
           "column": 45
         }
       }
@@ -8210,11 +8210,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppOrbit.lean",
         "start": {
-          "line": 104,
+          "line": 112,
           "column": 1
         },
         "end": {
-          "line": 107,
+          "line": 115,
           "column": 36
         }
       }
@@ -8242,11 +8242,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppOrbit.lean",
         "start": {
-          "line": 99,
+          "line": 107,
           "column": 1
         },
         "end": {
-          "line": 102,
+          "line": 110,
           "column": 59
         }
       }
@@ -8277,11 +8277,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppOrbit.lean",
         "start": {
-          "line": 64,
+          "line": 72,
           "column": 1
         },
         "end": {
-          "line": 72,
+          "line": 80,
           "column": 14
         }
       }
@@ -8318,11 +8318,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppOrbit.lean",
         "start": {
-          "line": 78,
+          "line": 86,
           "column": 1
         },
         "end": {
-          "line": 97,
+          "line": 105,
           "column": 84
         }
       }
@@ -8412,11 +8412,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppSnap.lean",
         "start": {
-          "line": 193,
+          "line": 213,
           "column": 1
         },
         "end": {
-          "line": 205,
+          "line": 225,
           "column": 80
         }
       }
@@ -8460,11 +8460,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 175,
+          "line": 192,
           "column": 1
         },
         "end": {
-          "line": 180,
+          "line": 197,
           "column": 26
         }
       }
@@ -8535,11 +8535,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 142,
+          "line": 159,
           "column": 1
         },
         "end": {
-          "line": 148,
+          "line": 165,
           "column": 70
         }
       }
@@ -8570,11 +8570,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 154,
+          "line": 171,
           "column": 1
         },
         "end": {
-          "line": 157,
+          "line": 174,
           "column": 65
         }
       }
@@ -8613,11 +8613,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 150,
+          "line": 167,
           "column": 1
         },
         "end": {
-          "line": 152,
+          "line": 169,
           "column": 31
         }
       }
@@ -8650,11 +8650,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 114,
+          "line": 123,
           "column": 1
         },
         "end": {
-          "line": 138,
+          "line": 155,
           "column": 107
         }
       }
@@ -8705,11 +8705,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 106,
+          "line": 112,
           "column": 1
         },
         "end": {
-          "line": 109,
+          "line": 115,
           "column": 76
         }
       }
@@ -8766,11 +8766,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 214,
+          "line": 233,
           "column": 1
         },
         "end": {
-          "line": 224,
+          "line": 249,
           "column": 50
         }
       }
@@ -8811,11 +8811,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Fallback.lean",
         "start": {
-          "line": 269,
+          "line": 350,
           "column": 1
         },
         "end": {
-          "line": 271,
+          "line": 352,
           "column": 26
         }
       }
@@ -8852,11 +8852,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Fallback.lean",
         "start": {
-          "line": 264,
+          "line": 345,
           "column": 1
         },
         "end": {
-          "line": 267,
+          "line": 348,
           "column": 61
         }
       }
@@ -8887,11 +8887,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Fallback.lean",
         "start": {
-          "line": 296,
+          "line": 381,
           "column": 1
         },
         "end": {
-          "line": 302,
+          "line": 387,
           "column": 99
         }
       }
@@ -8919,11 +8919,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Fallback.lean",
         "start": {
-          "line": 259,
+          "line": 340,
           "column": 1
         },
         "end": {
-          "line": 262,
+          "line": 343,
           "column": 88
         }
       }
@@ -8955,11 +8955,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 86,
+          "line": 113,
           "column": 1
         },
         "end": {
-          "line": 88,
+          "line": 115,
           "column": 65
         }
       }
@@ -8990,11 +8990,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 122,
+          "line": 157,
           "column": 1
         },
         "end": {
-          "line": 141,
+          "line": 176,
           "column": 17
         }
       }
@@ -9020,11 +9020,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 197,
+          "line": 244,
           "column": 1
         },
         "end": {
-          "line": 202,
+          "line": 253,
           "column": 13
         }
       }
@@ -9052,11 +9052,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 175,
+          "line": 217,
           "column": 1
         },
         "end": {
-          "line": 182,
+          "line": 228,
           "column": 59
         }
       }
@@ -9083,11 +9083,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 32,
+          "line": 39,
           "column": 1
         },
         "end": {
-          "line": 39,
+          "line": 50,
           "column": 24
         }
       }
@@ -9115,11 +9115,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 79,
+          "line": 101,
           "column": 1
         },
         "end": {
-          "line": 84,
+          "line": 111,
           "column": 45
         }
       }
@@ -9148,11 +9148,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 34,
+          "line": 43,
           "column": 1
         },
         "end": {
-          "line": 44,
+          "line": 53,
           "column": 17
         }
       }
@@ -9178,11 +9178,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 79,
+          "line": 96,
           "column": 1
         },
         "end": {
-          "line": 80,
+          "line": 99,
           "column": 74
         }
       }
@@ -9208,11 +9208,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 87,
+          "line": 106,
           "column": 1
         },
         "end": {
-          "line": 88,
+          "line": 107,
           "column": 61
         }
       }
@@ -9238,11 +9238,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 68,
+          "line": 80,
           "column": 1
         },
         "end": {
-          "line": 69,
+          "line": 83,
           "column": 69
         }
       }
@@ -9268,11 +9268,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 56,
+          "line": 65,
           "column": 1
         },
         "end": {
-          "line": 57,
+          "line": 69,
           "column": 74
         }
       }
@@ -9300,11 +9300,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 93,
+          "line": 112,
           "column": 1
         },
         "end": {
-          "line": 94,
+          "line": 113,
           "column": 63
         }
       }
@@ -9332,11 +9332,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 96,
+          "line": 115,
           "column": 1
         },
         "end": {
-          "line": 97,
+          "line": 116,
           "column": 100
         }
       }
@@ -9364,11 +9364,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Handoff.lean",
         "start": {
-          "line": 90,
+          "line": 109,
           "column": 1
         },
         "end": {
-          "line": 91,
+          "line": 110,
           "column": 63
         }
       }
@@ -9531,11 +9531,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Kernel.lean",
         "start": {
-          "line": 36,
+          "line": 45,
           "column": 1
         },
         "end": {
-          "line": 38,
+          "line": 47,
           "column": 48
         }
       }
@@ -9563,11 +9563,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Kernel.lean",
         "start": {
-          "line": 162,
+          "line": 202,
           "column": 1
         },
         "end": {
-          "line": 164,
+          "line": 204,
           "column": 81
         }
       }
@@ -9601,11 +9601,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Kernel.lean",
         "start": {
-          "line": 114,
+          "line": 140,
           "column": 1
         },
         "end": {
-          "line": 133,
+          "line": 165,
           "column": 25
         }
       }
@@ -9631,11 +9631,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Kernel.lean",
         "start": {
-          "line": 203,
+          "line": 243,
           "column": 1
         },
         "end": {
-          "line": 205,
+          "line": 245,
           "column": 53
         }
       }
@@ -9664,11 +9664,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Kernel.lean",
         "start": {
-          "line": 44,
+          "line": 53,
           "column": 1
         },
         "end": {
-          "line": 49,
+          "line": 58,
           "column": 11
         }
       }
@@ -9698,11 +9698,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Kernel.lean",
         "start": {
-          "line": 84,
+          "line": 104,
           "column": 1
         },
         "end": {
-          "line": 92,
+          "line": 117,
           "column": 25
         }
       }
@@ -9731,11 +9731,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Kernel.lean",
         "start": {
-          "line": 60,
+          "line": 69,
           "column": 1
         },
         "end": {
-          "line": 64,
+          "line": 77,
           "column": 15
         }
       }
@@ -9761,11 +9761,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Kernel.lean",
         "start": {
-          "line": 40,
+          "line": 49,
           "column": 1
         },
         "end": {
-          "line": 42,
+          "line": 51,
           "column": 101
         }
       }
@@ -9797,11 +9797,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Kernel.lean",
         "start": {
-          "line": 150,
+          "line": 186,
           "column": 1
         },
         "end": {
-          "line": 160,
+          "line": 200,
           "column": 97
         }
       }
@@ -9841,11 +9841,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Migration.lean",
         "start": {
-          "line": 35,
+          "line": 38,
           "column": 1
         },
         "end": {
-          "line": 37,
+          "line": 45,
           "column": 35
         }
       }
@@ -9873,11 +9873,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Save.lean",
         "start": {
-          "line": 37,
+          "line": 49,
           "column": 1
         },
         "end": {
-          "line": 40,
+          "line": 52,
           "column": 92
         }
       }
@@ -9905,11 +9905,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Save.lean",
         "start": {
-          "line": 33,
+          "line": 45,
           "column": 1
         },
         "end": {
-          "line": 35,
+          "line": 47,
           "column": 76
         }
       }
@@ -9940,11 +9940,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Save.lean",
         "start": {
-          "line": 61,
+          "line": 77,
           "column": 1
         },
         "end": {
-          "line": 70,
+          "line": 93,
           "column": 58
         }
       }
@@ -9972,11 +9972,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Save.lean",
         "start": {
-          "line": 27,
+          "line": 39,
           "column": 1
         },
         "end": {
-          "line": 31,
+          "line": 43,
           "column": 14
         }
       }
@@ -10004,11 +10004,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 118,
+          "line": 156,
           "column": 1
         },
         "end": {
-          "line": 122,
+          "line": 163,
           "column": 36
         }
       }
@@ -10036,11 +10036,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 197,
+          "line": 255,
           "column": 1
         },
         "end": {
-          "line": 198,
+          "line": 256,
           "column": 81
         }
       }
@@ -10066,11 +10066,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 183,
+          "line": 241,
           "column": 1
         },
         "end": {
-          "line": 187,
+          "line": 245,
           "column": 12
         }
       }
@@ -10096,11 +10096,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 189,
+          "line": 247,
           "column": 1
         },
         "end": {
-          "line": 191,
+          "line": 249,
           "column": 81
         }
       }
@@ -10128,11 +10128,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 193,
+          "line": 251,
           "column": 1
         },
         "end": {
-          "line": 195,
+          "line": 253,
           "column": 55
         }
       }
@@ -10158,11 +10158,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 175,
+          "line": 233,
           "column": 1
         },
         "end": {
-          "line": 181,
+          "line": 239,
           "column": 12
         }
       }
@@ -10190,11 +10190,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 155,
+          "line": 205,
           "column": 1
         },
         "end": {
-          "line": 164,
+          "line": 222,
           "column": 12
         }
       }
@@ -10222,11 +10222,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 166,
+          "line": 224,
           "column": 1
         },
         "end": {
-          "line": 173,
+          "line": 231,
           "column": 12
         }
       }
@@ -10259,11 +10259,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 77,
+          "line": 98,
           "column": 1
         },
         "end": {
-          "line": 97,
+          "line": 129,
           "column": 47
         }
       }
@@ -10291,11 +10291,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Surface.lean",
         "start": {
-          "line": 130,
+          "line": 174,
           "column": 1
         },
         "end": {
-          "line": 135,
+          "line": 182,
           "column": 20
         }
       }
@@ -10323,11 +10323,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/ViewMode.lean",
         "start": {
-          "line": 51,
+          "line": 66,
           "column": 1
         },
         "end": {
-          "line": 55,
+          "line": 70,
           "column": 62
         }
       }
@@ -10363,11 +10363,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/ViewMode.lean",
         "start": {
-          "line": 57,
+          "line": 72,
           "column": 1
         },
         "end": {
-          "line": 79,
+          "line": 94,
           "column": 84
         }
       }

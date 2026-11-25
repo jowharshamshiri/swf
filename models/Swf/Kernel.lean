@@ -15,22 +15,31 @@ namespace Swf.Kernel
 /-- Where a workspace is in its life. `disposing` says whether its disposal has been announced
 (the `workspace.disposed` event emitted). -/
 inductive Lifecycle where
+  /-- The workspace admits operations. -/
   | ready
+  /-- Disposal has begun: the workspace admits nothing more but still delivers what it holds.
+  `announced` is true once `workspace.disposed` has been emitted. -/
   | disposing (announced : Bool)
+  /-- Everything is released: the workspace refuses every operation and delivers nothing. -/
   | disposed
 deriving DecidableEq
 
 /-- What the workspace counts of its history and caches, and its revision. -/
 structure Ledger where
+  /-- Where the workspace is in its life. -/
   lifecycle : Lifecycle
+  /-- The scene's revision: 0 for a new workspace, moved on by every commit, undo, redo and
+  restore, and never moved back. -/
   revision : Nat
   /-- Committed layout transactions that can be undone. -/
   undo : Nat
   /-- Undone transactions that can be redone. -/
   redo : Nat
+  /-- The most undo and redo records kept together; 0 keeps no history. -/
   undoCapacity : Nat
   /-- Idempotency keys remembered. -/
   keys : Nat
+  /-- The most idempotency keys remembered; beyond it the oldest are forgotten. -/
   keyCapacity : Nat
 
 /-- Whether the workspace admits an operation: only while ready. Anything else is refused with
@@ -57,6 +66,10 @@ inductive IdleStep where
   /-- Nothing to do. -/
   | rest
 
+/-- What a workspace with nothing left to deliver or run does next: a disposing workspace not yet
+announced announces its disposal; an announced one finishes, its history and caches emptied; a
+ready or disposed workspace rests. Disposal therefore goes `ready → disposing → (announced) →
+disposed` and nowhere else, and a disposed workspace stays disposed. -/
 def idle (l : Ledger) : IdleStep :=
   match l.lifecycle with
   | .disposing false => .announce { l with lifecycle := .disposing true }
@@ -67,20 +80,32 @@ def idle (l : Ledger) : IdleStep :=
 known (`some same`, `same` saying whether the commands are the ones recorded under it), and the
 revision it expects the scene to be at. -/
 structure TxRequest where
+  /-- `none` when the transaction carries no idempotency key or one the workspace does not
+  remember; `some same` for a remembered key, `same` saying whether the commands are the ones
+  recorded under it. -/
   known : Option Bool
+  /-- The revision the transaction expects the scene to be at, or `none` to commit at any
+  revision. -/
   expected : Option Nat
 
 /-- The outcome of a transaction's checks, in the order they are made. -/
 inductive TxGate where
+  /-- Every check passed: apply the commands and commit. -/
   | proceed
   /-- The key was used for these same commands: the recorded result, replayed. -/
   | replay
+  /-- The workspace is disposing or disposed: `WORKSPACE_DISPOSED`, before any other check. -/
   | refuseDisposed
   /-- The key was used for different commands: `INVALID_INPUT`. -/
   | refuseKeyReused
   /-- The scene is not at the expected revision: `CONFLICT`. -/
   | refuseStale
 
+/-- Checks a transaction before its commands are applied, in this order: a workspace that is not
+ready refuses it (`refuseDisposed`); a remembered key used for the same commands replays its
+result, whatever revision it expects (`replay`); one used for other commands is refused
+(`refuseKeyReused`); otherwise the transaction proceeds exactly when it expects no revision or the
+scene's current one, and is refused as stale when it expects another (`refuseStale`). -/
 def gate (l : Ledger) (r : TxRequest) : TxGate :=
   if l.lifecycle ≠ .ready then .refuseDisposed
   else match r.known with
@@ -101,6 +126,7 @@ inductive Change where
 
 /-- What a commit does to the workspace's records. -/
 structure Commit where
+  /-- The ledger after the commit. -/
   next : Ledger
   /-- Forget what could be redone: the commit changed the layout. -/
   clearRedo : Bool
@@ -111,6 +137,12 @@ structure Commit where
   /-- Forget this many of the oldest idempotency keys. -/
   evictKeys : Nat
 
+/-- What committing a change does to the ledger and the records it counts. Commands move the
+revision on by exactly one; a restore moves it on by at least one and never below the snapshot's
+revision. A change to the layout empties the redo stack and, when the workspace keeps an undo
+history, is recorded for undo, dropping the oldest record past the capacity; any other change
+leaves the history as it was. A keyed commit remembers its key and forgets the oldest past the
+key capacity. The counts move exactly as the records do, and the ledger stays within its bounds. -/
 def commit (l : Ledger) (c : Change) : Commit :=
   let layout := match c with | .commands layout _ => layout | .restore layout _ => layout
   let revision := match c with
@@ -132,8 +164,11 @@ def commit (l : Ledger) (c : Change) : Commit :=
     dropOldest
     evictKeys := evict }
 
+/-- Which way a step through the history goes. -/
 inductive Direction where
+  /-- Take back the latest committed layout transaction. -/
   | undo
+  /-- Apply again the latest undone transaction. -/
   | redo
 
 /-- The outcome of an undo or redo. `stale` says whether anything the step would restore has
@@ -141,12 +176,17 @@ changed since it was recorded; it is read only when there is a step to take. -/
 inductive Travel where
   /-- Restore the step as a new commit, moving its record to the other stack. -/
   | commit (next : Ledger)
+  /-- The workspace is disposing or disposed: `WORKSPACE_DISPOSED`. -/
   | refuseDisposed
   /-- There is nothing to undo or redo: `INVALID_INPUT`. -/
   | refuseEmpty
   /-- What the step would restore has changed since: `CONFLICT`, history left as it was. -/
   | refuseStale
 
+/-- Undoes or redoes one step. A workspace that is not ready refuses (`refuseDisposed`); an empty
+stack in that direction refuses (`refuseEmpty`); a step whose target has changed since it was
+recorded refuses (`refuseStale`); otherwise the step commits, moving the revision on by one and
+one record to the other stack, so the history's total size and the ledger's bounds are kept. -/
 def travel (l : Ledger) (d : Direction) (stale : Bool) : Travel :=
   if l.lifecycle ≠ .ready then .refuseDisposed
   else match d with

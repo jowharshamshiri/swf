@@ -10,39 +10,54 @@ namespace Swf.ViewMode
 
 /-- A unit quaternion, as the camera's rotation. -/
 structure Quat where
+  /-- The x component of the vector part. -/
   x : Float
+  /-- The y component of the vector part. -/
   y : Float
+  /-- The z component of the vector part. -/
   z : Float
+  /-- The scalar part. -/
   w : Float
 
 /-- A projection kind's versioned ID and its configuration. -/
 structure ProjectionSetting where
+  /-- The projection kind's versioned ID, `<name>/<version>`. -/
   id : String
+  /-- The projection's configuration, as the host gave it. -/
   config : Json
 
 /-- A viewport's view settings, as they were when a mode was entered. -/
 structure ViewSettings where
+  /-- The view mode the viewport showed. -/
   mode : String
+  /-- The projection it was shown with. -/
   projection : ProjectionSetting
+  /-- The camera's rotation. -/
   camera : Quat
 
 /-- The mode the viewport is in, and the view it was entered from: where going back returns to.
 `origin` is none when there is none to return to (the first mode, or one reached by going back). -/
 structure ModeMachine where
+  /-- The view mode the viewport is in. -/
   mode : String
+  /-- The view the mode was entered from, or `none` when there is none to return to. -/
   origin : Option ViewSettings
 
+/-- What is asked of the view-mode switch. -/
 inductive ModeEvent where
   /-- Switch to a mode; switching to the mode the viewport is in enters it again. -/
   | switch (to : String)
   /-- Leave the mode for the view it was entered from. -/
   | back
 
+/-- What a view-mode event leads to. -/
 inductive ModeTransition where
   /-- The machine after the event, the mode the viewport switches to, the projection to show it
   with when it is the one the view was in before (going back), and the camera rotation to put
   back. -/
   | next (machine : ModeMachine) (mode : String) (projection : Option ProjectionSetting) (camera : Option Quat)
+  /-- The event is refused, `reason` saying why in English: the viewport shows another mode than
+  the machine is in, or going back from a mode not entered from another view. -/
   | refused (reason : String)
 
 /-- The machine of a viewport first shown in `mode`. -/

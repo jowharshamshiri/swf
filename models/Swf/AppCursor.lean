@@ -13,9 +13,13 @@ namespace Swf.AppCursor
 
 /-- A pointer sample's phase. -/
 inductive WrapPhase where
+  /-- The pointer went down: a press, never wrapped. -/
   | down
+  /-- The pointer moved. -/
   | move
+  /-- The pointer was released. -/
   | up
+  /-- The platform cancelled the pointer. -/
   | cancel
 deriving DecidableEq
 

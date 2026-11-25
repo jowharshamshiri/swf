@@ -14,32 +14,51 @@ open Swf (Json)
 
 /-- Each module on or off. -/
 structure FeatureFlags where
+  /-- Focus and context, the Focus view mode. -/
   focus : Bool
+  /-- Workspace orbit. -/
   orbit : Bool
+  /-- The spatial map, the Map view mode. -/
   map : Bool
+  /-- The wrapped cursor. -/
   cursor : Bool
+  /-- Magnetic positioning. -/
   snap : Bool
+  /-- Semantic depth. -/
   depth : Bool
+  /-- Detaching, moving and merging surfaces, and regrouping windows. -/
   composition : Bool
+  /-- Saving the workspace as it changes, named workspaces, import and export. -/
   persistence : Bool
 deriving DecidableEq
 
 /-- Magnetic positioning's thresholds: world units within which an edge snaps, degrees within
 which a centre lines up, and world units of gap kept between snapped edges. -/
 structure SnapSettings where
+  /-- World units within which an edge snaps to a neighbour's; finite, zero or more. -/
   linear : Float
+  /-- Degrees within which a window's centre lines up with a neighbour's or the horizon; finite,
+  zero to 15. -/
   angular : Float
+  /-- World units of gap kept between snapped edges; finite, zero or more. -/
   padding : Float
 
 /-- Semantic depth's bands, in world units from the camera: a window nearer than `full` shows its
 content, one nearer than `compact` a compact preview, and one farther its label alone. -/
 structure DepthBands where
+  /-- Where the full band ends, in world units; finite and above zero. -/
   full : Float
+  /-- Where the compact band ends, in world units; finite, and farther than `full`. -/
   compact : Float
 
+/-- The reference application's feature settings: which modules are on, and the parameters of
+magnetic positioning and semantic depth. -/
 structure FeatureSettings where
+  /-- Each module on or off. -/
   enabled : FeatureFlags
+  /-- Magnetic positioning's thresholds. -/
   snap : SnapSettings
+  /-- Semantic depth's bands. -/
   depth : DepthBands
 
 /-- What is wrong with a refused field. -/
@@ -62,7 +81,11 @@ inductive FeatureFault where
 /-- The outcome of a patch: the field refused and why, or each part of the settings that changes
 (none for a part that stays as it is). -/
 inductive FeaturesUpdate where
+  /-- The patch is refused and nothing changes: `field` is the path of the first field at fault
+  (`features` for the patch itself, else such as `enabled.map` or `snap.angular`), `fault` what
+  is wrong with it. -/
   | refused (field : String) (fault : FeatureFault)
+  /-- The patch is admitted: each part's new value, or `none` for a part that stays as it is. -/
   | updated (enabled : Option FeatureFlags) (snap : Option SnapSettings) (depth : Option DepthBands)
 
 /-- The largest angular snap threshold, in degrees: beyond it everything would snap to

@@ -9,19 +9,31 @@ which acknowledgements count.
 -/
 namespace Swf.Save
 
+/-- Where saving a workspace's snapshot is. -/
 inductive SaveState where
+  /-- The store holds exactly what the workspace shows. -/
   | clean
+  /-- The workspace has changed since the store last acknowledged a snapshot of it. -/
   | dirty
+  /-- A snapshot is being stored. -/
   | saving
+  /-- The last save failed or its acknowledgement did not count; the store keeps what it held
+  before and the workspace is unsaved. -/
   | failed
 deriving DecidableEq
 
 /-- Where saving is, what the store holds of this workspace (the revision it acknowledged and the
 change count that snapshot reflects), and the workspace's change count now. -/
 structure SaveMachine where
+  /-- Where saving is. -/
   state : SaveState
+  /-- The workspace revision the store last acknowledged, or `none` when it holds nothing of this
+  workspace. It never goes back. -/
   savedRevision : Option Nat
+  /-- The change count the stored snapshot reflects, or `none` when the store holds nothing of
+  this workspace. -/
   savedChanges : Option Int
+  /-- The workspace's change count now. -/
   changes : Int
 
 /-- A saver opened on a store that holds `savedRevision`/`savedChanges` (or nothing) of a workspace
@@ -54,10 +66,21 @@ inductive AckRefusal where
   /-- Of a revision older than the one the store already acknowledged. -/
   | older
 
+/-- How a save ended: the machine after it, and why the store's answer did not count, if it was an
+acknowledgement that did not. -/
 structure SaveEnd where
+  /-- The machine after the save. -/
   next : SaveMachine
+  /-- Why an acknowledgement did not count; `none` for one that counted and for a failure. -/
   refused : Option AckRefusal
 
+/-- Ends a save of the snapshot captured at change count `captured`, the workspace now at change
+count `changes`. An acknowledgement of exactly the key and revision saved, of a revision no older
+than the one the store already acknowledged, counts: the store then holds that revision and
+`captured`, and the machine is `clean` when nothing changed meanwhile and `dirty` when something
+did. A failure, or an acknowledgement that does not count (`mismatch` or `older`, in `refused`),
+makes the machine `failed` and keeps what the store held as the saver knew it. The saved revision
+never goes back, so a retry never overwrites a newer snapshot. -/
 def saveEnd (m : SaveMachine) (captured changes : Int) (a : SaveAnswer) : SaveEnd :=
   let failed := fun r => ⟨{ m with state := .failed, changes }, r⟩
   match a with

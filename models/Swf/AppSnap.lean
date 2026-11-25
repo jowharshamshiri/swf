@@ -24,37 +24,53 @@ open Swf.AppFeatures (SnapSettings)
 /-- A window as seen from the camera: its centre's heading (to the right) and elevation, in
 radians, its distance in world units, and its angular half width and half height. -/
 structure SnapSeen where
+  /-- The centre's heading, in radians, increasing to the right. -/
   heading : Float
+  /-- The centre's elevation above the horizon, in radians. -/
   elevation : Float
+  /-- The distance from the camera, in world units; a window at no distance does not snap. -/
   distance : Float
+  /-- Half the window's angular width, in radians. -/
   halfWidth : Float
+  /-- Half the window's angular height, in radians. -/
   halfHeight : Float
 deriving Inhabited
 
 /-- A window the moving one may snap to. -/
 structure SnapNeighbour where
+  /-- The window's node ID; the moving window's own ID is passed over. -/
   id : String
+  /-- How the window is seen from the camera. -/
   seen : SnapSeen
 deriving Inhabited
 
 /-- The moving window's edge. -/
 inductive SnapSide where
+  /-- Its left edge, to a neighbour's right edge. -/
   | left
+  /-- Its right edge, to a neighbour's left edge. -/
   | right
+  /-- Its top edge, to a neighbour's bottom edge. -/
   | top
+  /-- Its bottom edge, to a neighbour's top edge. -/
   | bottom
 deriving DecidableEq
 
 /-- What a centre lines up along. -/
 inductive SnapLine where
+  /-- The centres take the same heading. -/
   | heading
+  /-- The centres take the same elevation. -/
   | elevation
 deriving DecidableEq
 
 /-- What the moving window lines up with; a neighbour is named by its place in the neighbours. -/
 inductive SnapConstraint where
+  /-- Its `side` edge goes to the facing edge of `neighbour`, leaving the padding between them. -/
   | edge (side : SnapSide) (neighbour : Nat)
+  /-- Its centre lines up with the centre of `neighbour` along `line`. -/
   | align (line : SnapLine) (neighbour : Nat)
+  /-- Its centre lines up with the horizon. -/
   | horizon
 deriving DecidableEq
 
@@ -66,7 +82,10 @@ def SnapConstraint.rank : SnapConstraint → Nat
 
 /-- A snap on one axis: how far to turn the window, in radians, and why. -/
 structure SnapCandidate where
+  /-- How far to turn the window along the axis, in radians: positive to the right across, and
+  upwards down the elevation. -/
   delta : Float
+  /-- What the window lines up with. -/
   constraint : SnapConstraint
 
 /-- The axis a snap turns the window along: across (heading) or down (elevation). -/
@@ -83,6 +102,7 @@ structure SnapOption where
   distance : Float
   threshold : Float
 
+/-- The magnetic snap for a moved window. -/
 inductive SnapOutcome where
   /-- Nothing to snap to. -/
   | unsnapped

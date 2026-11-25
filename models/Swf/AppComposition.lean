@@ -15,25 +15,35 @@ namespace Swf.AppComposition
 
 /-- A node of the scene, as composition weighs it. -/
 structure CompNode where
+  /-- The node's ID. -/
   id : String
   /-- Its kind, such as `window` or `group`. -/
   kind : String
   /-- Not archived. -/
   active : Bool
+  /-- Its label, if it has one; refusals name the node by it, else by its ID. -/
   label : Option String
+  /-- Its parent's ID, or `none` at the root. -/
   parentId : Option String
+  /-- Its child nodes' IDs. -/
   childIds : Array String
   /-- Its surfaces, in their order. -/
   surfaceIds : Array String
 
 /-- A surface of the scene: its window is `owner`. -/
 structure CompSurface where
+  /-- The surface's ID. -/
   id : String
+  /-- Its label, if it has one; a window made for it takes it, and refusals name it by it. -/
   label : Option String
+  /-- The ID of the node that holds it. -/
   owner : String
 
+/-- The committed scene, as composition weighs it. -/
 structure CompScene where
+  /-- Every node, archived ones included. -/
   nodes : Array CompNode
+  /-- Every surface. -/
   surfaces : Array CompSurface
   /-- The group workspace orbit turns, if any. -/
   orbitRootId : Option String
@@ -41,14 +51,19 @@ structure CompScene where
 /-- An ID as a host gave it, untyped: none when it is not a string at all; `shown` is how it
 reads. -/
 structure CompRef where
+  /-- The ID, or `none` when the host gave something other than a string. -/
   id : Option String
+  /-- How the value given reads, for a refusal to quote. -/
   shown : String
 
 /-- Where a window is moved: into a group that exists, or into a new group of its own. -/
 inductive CompTarget where
+  /-- The existing group `id`; it must be an active group the window is not already in. -/
   | group (id : String)
+  /-- A new group with ID `id`, which no node or surface may hold, labelled `label`. -/
   | fresh (id : String) (label : String)
 
+/-- A composition step asked for. -/
 inductive CompStep where
   /-- Takes a surface out of its window into a new window of its own. -/
   | detach (surface : CompRef)
@@ -61,11 +76,15 @@ inductive CompStep where
 
 /-- Where a regrouped window goes. -/
 inductive CompInto where
+  /-- The existing group `id`. -/
   | group (id : String)
   /-- A new group, made where the window is (under `parentId`). -/
   | fresh (id : String) (label : String) (parentId : Option String)
 
+/-- The plan of a composition step: what changes, or why it cannot be done. -/
 inductive CompPlan where
+  /-- The step cannot be done and nothing changes: `field` names the argument at fault
+  (`surfaceId`, `windowId`, `targetId` or `groupId`), `reason` says why, in English. -/
   | refused (field : String) (reason : String)
   /-- `surface` leaves `window` (laid out again round `kept`) for a new window `created`, named
   `label`, in the same group (`parentId`), beside the window it left. -/

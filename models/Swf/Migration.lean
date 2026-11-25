@@ -29,9 +29,17 @@ def planFrom (steps : Array (String × String)) (current : String) :
 /-- The steps to take, in order, and where the plan ends short: none when it reaches the current
 format, else the format no step leads on from (or that it reached twice). -/
 structure MigrationPlan where
+  /-- The positions of the steps to take, in the order to take them: each reads the format the
+  one before wrote. -/
   steps : List Nat
+  /-- `none` when the plan reaches the current format; else the format where it ends short. -/
   blocked : Option String
 
+/-- Plans the migration of a snapshot in format `source` to format `current`, given the steps as
+(format read, format written) pairs in the order they are tried. Each step taken is the first that
+reads the format reached. The plan ends at the current format (`blocked` is `none`), or at a format
+no step reads or one it reached before (`blocked` names it). A snapshot already in the current
+format takes no step; a format no step reads is blocked at once; no format is migrated from twice. -/
 def migrationPlan (steps : Array (String × String)) (source current : String) : MigrationPlan :=
   let r := planFrom steps current (steps.size + 1) source []
   { steps := r.1, blocked := r.2 }

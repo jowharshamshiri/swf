@@ -12,7 +12,9 @@ namespace Swf.AppOrbit
 
 /-- What a background drag turns in a viewport. -/
 inductive OrbitNavigation where
+  /-- The camera turns: view state, never undone. -/
   | camera
+  /-- The orbit root turns about the camera: a change to the scene, undone like any other. -/
   | orbit
 deriving DecidableEq
 
@@ -20,6 +22,7 @@ deriving DecidableEq
 structure OrbitState where
   /-- The orbit policy is on. -/
   enabled : Bool
+  /-- What the viewport's background drags turn. -/
   navigation : OrbitNavigation
   /-- The designated group, if any. -/
   rootId : Option String
@@ -29,15 +32,19 @@ deriving DecidableEq
 structure OrbitNode where
   /-- The node's kind, such as `group` or `window`. -/
   kind : String
+  /-- The node's label, if it has one; a refusal names the node by it, else by its ID. -/
   label : Option String
   /-- Not archived. -/
   active : Bool
 
 /-- A node asked to be the orbit root: its ID, and the scene's node of that ID, if there is one. -/
 structure OrbitCandidate where
+  /-- The node ID asked for. -/
   id : String
+  /-- The scene's node of that ID, or `none` when there is none. -/
   node : Option OrbitNode
 
+/-- What is asked of the orbit policy. -/
 inductive OrbitEvent where
   /-- Background drags turn this from now on. -/
   | navigate (to : OrbitNavigation)
@@ -54,6 +61,7 @@ inductive OrbitCommand where
   | setNavigation (to : OrbitNavigation)
 deriving DecidableEq
 
+/-- What an orbit event leads to. -/
 inductive OrbitStep where
   /-- The state after the event, and the commands that make it: one transaction, or none when
   nothing of the scene changes. -/

@@ -9,8 +9,8 @@
   "@swf/models": {
     "budget": 43264,
     "recorded": {
-      "minified": 231402,
-      "gzip": 39308
+      "minified": 231433,
+      "gzip": 39341
     }
   },
   "@swf/core": {

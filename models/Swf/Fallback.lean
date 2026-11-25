@@ -11,28 +11,46 @@ namespace Swf.Fallback
 
 /-- How a surface is presented, best first. -/
 inductive Mode where
+  /-- Drawn content following the projection exactly, interior included. -/
   | exact
+  /-- The live element, placed exactly, its interaction native. -/
   | native
+  /-- Live content whose anchor is placed exactly but whose shape only approximates the
+  projection (a planar element in a panorama). -/
   | approximated
+  /-- A representation of the surface instead of its live content. -/
   | proxy
+  /-- The surface's identity and geometry only; always possible. -/
   | placeholder
 deriving DecidableEq
 
+/-- What a mode needs and did not get: the party whose capabilities or facts ruled it out. -/
 inductive Requirement where
+  /-- The surface's bound handle: none, or one whose capabilities do not allow the mode. -/
   | surface
+  /-- The renderer's handle kinds, fidelity, transforms or clipping. -/
   | renderer
+  /-- The compositor's layer categories, native layers, clipping or transparency. -/
   | compositor
+  /-- The projection: nonlinear, or placing the fragment only approximately. -/
   | projection
+  /-- The surface's geometry: no provider for its kind, or one that only approximates it. -/
   | geometry
+  /-- The live handle is held by another fragment or viewport. -/
   | ownership
 deriving DecidableEq
 
 /-- How faithfully content follows its geometry. -/
 inductive Fidelity where
+  /-- Placed by the platform itself: a live element. -/
   | native
+  /-- Matched exactly. -/
   | exact
+  /-- Approximated. -/
   | approximate
+  /-- Shown only as a proxy. -/
   | proxy
+  /-- Not shown at all. -/
   | unsupported
 deriving DecidableEq
 
@@ -51,9 +69,13 @@ def Fidelity.name : Fidelity → String
   | .proxy => "proxy"
   | .unsupported => "unsupported"
 
+/-- How an endpoint is attached (its attach strategy). -/
 inductive Strategy where
+  /-- As a live browser element in a native layer (`native-dom`). -/
   | nativeDom
+  /-- As a drawable resource a geometry backend renders (`drawable`). -/
   | drawable
+  /-- Only as a representational proxy (`proxy-only`). -/
   | proxyOnly
 deriving DecidableEq
 
@@ -62,15 +84,23 @@ def Strategy.name : Strategy → String
   | .drawable => "drawable"
   | .proxyOnly => "proxy-only"
 
+/-- How much of an endpoint's own interaction stays native. -/
 inductive Interaction where
+  /-- All of it. -/
   | full
+  /-- Some of it (`partial`). -/
   | partly
+  /-- None of it. -/
   | none
 deriving DecidableEq
 
+/-- How far a backend clips. -/
 inductive Clip where
+  /-- Not at all. -/
   | none
+  /-- To rectangles. -/
   | rect
+  /-- To arbitrary paths, polygons included. -/
   | path
 deriving DecidableEq
 
@@ -79,10 +109,15 @@ def Clip.rank : Clip → Nat
   | .rect => 1
   | .path => 2
 
+/-- The most general transform a renderer applies to presented content, least general first. -/
 inductive TransformMode where
+  /-- Translation only. -/
   | translate
+  /-- 2D affine transforms (`affine-2d`). -/
   | affine2d
+  /-- 3D perspective of planar content (`perspective-3d`). -/
   | perspective3d
+  /-- Arbitrary mesh warps: nonlinear deformation. -/
   | mesh
 deriving DecidableEq
 
@@ -98,49 +133,80 @@ def TransformMode.name : TransformMode → String
   | .perspective3d => "perspective-3d"
   | .mesh => "mesh"
 
+/-- The kinds of layer a compositor assembles. -/
 inductive LayerCategory where
+  /-- Live native elements (`content-native`): the only layers that hold live content. -/
   | contentNative
+  /-- Drawn content (`content-raster`). -/
   | contentRaster
+  /-- Proxies standing in for surfaces. -/
   | proxy
+  /-- Placeholders showing a surface's identity and geometry. -/
   | placeholder
+  /-- Window chrome: frames and handles, kept apart from content. -/
   | chrome
+  /-- Overlays above the scene. -/
   | overlay
 deriving DecidableEq
 
 /-- What negotiation needs of a bound handle's capabilities. -/
 structure HandleCapabilities where
+  /-- How the endpoint is attached. -/
   strategy : Strategy
+  /-- How much of the endpoint's own input stays native. -/
   nativeInteraction : Interaction
+  /-- How faithfully the attachment follows the projected geometry. -/
   transformFidelity : Fidelity
+  /-- The endpoint's content may be transparent, so what lies behind it shows through. -/
   transparency : Bool
   /-- One handle may be shown in several viewports at once. -/
   shared : Bool
 
+/-- What negotiation needs of a renderer's capabilities. -/
 structure RendererCapabilities where
   /-- The handle kinds it presents, with the best transform fidelity for each. -/
   handleKinds : List (Strategy × Fidelity)
+  /-- The most general transform it applies to presented content. -/
   transformMode : TransformMode
+  /-- How far it clips presented content. -/
   clipping : Clip
 
+/-- What negotiation needs of a compositor's capabilities. -/
 structure CompositorCapabilities where
+  /-- The layer categories it assembles. -/
   layerCategories : List LayerCategory
+  /-- It presents live native layers directly. -/
   directNative : Bool
+  /-- How far it clips layers. -/
   clipping : Clip
+  /-- It blends translucent layers over what lies behind them. -/
   transparency : Bool
 
 /-- What every fragment of a frame shares: the backends and whether the projection is nonlinear. -/
 structure NegotiationContext where
+  /-- The viewport's renderer. -/
   renderer : RendererCapabilities
+  /-- The viewport's compositor. -/
   compositor : CompositorCapabilities
+  /-- The projection bends straight edges (a panorama), so planar live content can only
+  approximate its shape. -/
   nonlinear : Bool
 
 /-- What negotiation weighs for one fragment. -/
 structure FragmentFacts where
   /-- The bound handle's capabilities, or none when the surface has no bound handle. -/
   handle : Option HandleCapabilities
+  /-- The surface's geometry kind, such as `rect` or `polygon`; a polygon needs path clipping to
+  be presented `exact` or `native`. -/
   geometryKind : String
+  /-- A provider for the geometry kind is registered; without one neither `exact` nor `native` is
+  possible. -/
   geometrySupported : Bool
+  /-- The provider places the geometry exactly; otherwise neither `exact` nor `native` is
+  possible. -/
   geometryExact : Bool
+  /-- The projection places the fragment's anchor exactly; otherwise neither `exact` nor `native`
+  is possible. -/
   anchorExact : Bool
   /-- The viewport may hold the live handle (a single-owner handle presented elsewhere is not its). -/
   viewportOwns : Bool
@@ -151,9 +217,13 @@ structure FragmentFacts where
   /-- The viewport represents the surface (a compact preview or its label) rather than showing it. -/
   represented : Bool
 
+/-- One reason a mode was ruled out for a fragment. -/
 structure Gap where
+  /-- The mode ruled out. -/
   mode : Mode
+  /-- Whose capabilities or facts ruled it out. -/
   requirement : Requirement
+  /-- What was missing, in English. -/
   detail : String
 
 /-- Whether the fragment may hold the live handle: in a viewport that may, the native-owner fragment;
@@ -224,17 +294,28 @@ def gapsFor (c : NegotiationContext) (f : FragmentFacts) (m : Mode) : List Gap :
 
 /-- How a chosen mode presents the fragment. -/
 inductive ShapeFidelity where
+  /-- The presented interior follows the projection exactly: `exact` and `native`. -/
   | exact
+  /-- It only approximates the projection: `approximated` and `proxy`. -/
   | approximate
+  /-- Nothing of the content is presented: `placeholder`. -/
   | none
 
+/-- The presentation chosen for one fragment. -/
 structure Negotiated where
+  /-- The first mode of the fragment's order that nothing rules out. -/
   mode : Mode
   /-- Every better mode of the order and what ruled it out, in order. -/
   gaps : List Gap
+  /-- Whether the presented interior follows the projection. -/
   shape : ShapeFidelity
+  /-- How faithful the content is: `native` for a live element, `exact` or `approximate` for drawn
+  content, `proxy` for a proxy, `unsupported` for a placeholder. -/
   content : Fidelity
+  /-- How much of the content's own interaction stays native: the handle's for a live element,
+  `none` otherwise. -/
   interaction : Interaction
+  /-- The compositor layer category the presentation goes in. -/
   layer : LayerCategory
 
 def presented (f : FragmentFacts) (m : Mode) (gaps : List Gap) : Negotiated :=
@@ -272,9 +353,13 @@ def negotiateFrame (c : NegotiationContext) (fs : Array FragmentFacts) : Array (
 
 /-- Why a fallback order is not a policy. -/
 inductive PolicyIssue where
+  /-- The order lists no mode. -/
   | empty
+  /-- The first entry that is not a mode: `name`. -/
   | unknown (name : String)
+  /-- The first mode listed twice: `m`. -/
   | repeats (m : Mode)
+  /-- The order does not end with `placeholder`. -/
   | notEndingWithPlaceholder
 
 def modeOf : String → Option Mode
