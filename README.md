@@ -602,8 +602,9 @@ path. Serialized, it leaves out what is the host's unless disclosed: a label bec
 a binding key a token (`binding-1`, one per key), tags and metadata `"[host data]"`, and error
 messages and timings are dropped, so two runs of the same operations give the same text. The
 export holds identifiers, performance numbers and error codes by default; labels, binding keys,
-the host's data, error messages and timings are added only when chosen, each in its own section
-keyed by ID, and the host's own measures go in as given. Nothing walks a surface's content.
+the host's data and error messages are added only when chosen, each in its own section keyed by
+ID, and the trace's timestamps and durations only when timings are chosen (the report's own
+performance measures are always in it); the host's own measures go in as given. Nothing walks a surface's content.
 
 ## Measuring performance
 
@@ -745,10 +746,12 @@ nothing, it reads the snapshot within the size limits, brings it to the current 
 and validates it, and has each registered extension migrate its state on a copy when the snapshot
 holds an older version of it. Then the workspace's scene is replaced in one revision. Its surfaces
 come back as placeholders that keep their binding keys and bind in place as soon as their adapters
-resolve them, in the same window, with the same Surface ID. The policies and extensions then take
-back their state, each alone within the hook timeout. A failure in the first phase, or the
-workspace refusing the scene, returns `rejected` with nothing changed and an error naming the path
-and `details.sourceVersion`, the format the snapshot was in. An extension that cannot take its
+resolve them, in the same window, with the same Surface ID. The policies then take back their
+parameters, and the extensions their state, each extension alone within the hook timeout. A
+failure in the first phase, or the workspace refusing the scene, returns `rejected` with nothing
+changed and an error naming the failing path where there is one. Text over the size limit or not
+JSON is refused before its format is read; every later refusal also names the format the snapshot
+was in, as `details.sourceVersion`. An extension that cannot take its
 state back (a newer version than it reads, no migration, or a failing hook) is reported, and its
 state from the snapshot is held: later snapshots carry it unchanged, never overwritten by what the
 extension holds instead, until a restore it takes back. The outcome lists the format the snapshot
@@ -1151,12 +1154,13 @@ npm run api-reference   # the API reference in api-reference/, failing on an und
                         # public declaration
 ```
 
-`npm run check` runs `npm run size` and `npm run smoke:packages` after building the packages. The
-first fails a package over its budget in `size-budgets.json`, or one that leaves code behind when
-imported for nothing, and reports each package's change from its recorded size; the second packs
-every package as npm publishes it, installs the tarballs in a fresh project, and compiles and runs
-a program using them all, with every library's declarations checked. `npm run release` builds a versioned
-release from a commit ([Release the packages](docs/how-to/release.md)).
+`npm run check` runs `npm run size` and `npm run smoke:packages` after building the packages, and
+`npm run api-reference -- --check` after the lint. The first fails a package over its budget in
+`size-budgets.json`, or one that leaves code behind when imported for nothing, and reports each
+package's change from its recorded size; the second packs every package as npm publishes it,
+installs the tarballs in a fresh project, and compiles and runs a program using them all, with every
+library's declarations checked; the third fails on an undocumented public declaration. `npm run
+release` builds a versioned release from a commit ([Release the packages](docs/how-to/release.md)).
 
 Tests run against each package's TypeScript source, so they need no build first.
 

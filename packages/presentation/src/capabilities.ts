@@ -21,10 +21,27 @@ export type Layering = 'dom' | 'raster' | 'dom-and-raster';
  * graphics context.
  */
 export interface RendererCapabilities {
+  /**
+   * Each handle kind (attach strategy) the renderer presents, with the best transform fidelity it
+   * achieves for it; a kind left out is not presented, and at least one must be named. A
+   * `native-dom` kind needs a DOM layer and is `exact` only with `mesh` transforms; a `drawable`
+   * kind needs a raster layer; only `native-dom` content can be `native`, and `proxy-only` content
+   * is at best `proxy`.
+   */
   readonly handleKinds: Readonly<Partial<Record<AttachStrategy, Fidelity>>>;
+  /** The most general transform it applies to presented content. */
   readonly transformMode: TransformMode;
+  /** How far it clips presented content. */
   readonly clipping: ClipSupport;
+  /**
+   * Whether it maps a hit on what it realized back to a point on the surface. Advertised for
+   * hosts; negotiation does not weigh it.
+   */
   readonly hitMapping: boolean;
+  /**
+   * Where it puts what it realizes; it bounds which handle kinds it can present (see
+   * `handleKinds`).
+   */
   readonly layering: Layering;
   /** `renderer`: it creates and releases its resources; `host`: the host supplies them. */
   readonly resourceOwnership: 'renderer' | 'host';
@@ -47,14 +64,36 @@ export type LayerCategory =
  * overlapping layers occlude each other.
  */
 export interface CompositorCapabilities {
+  /**
+   * The layer categories it assembles, each at most once. `placeholder` and `chrome` are
+   * required; `content-native` is listed exactly when `directNative` holds, and `overlay` exactly
+   * when `overlays` does.
+   */
   readonly layerCategories: readonly LayerCategory[];
+  /**
+   * `explicit`: it stacks layers in the order the renderer gives; `dom-order`: their order is the
+   * DOM's, as it declares.
+   */
   readonly ordering: 'explicit' | 'dom-order';
+  /** Whether it can mask layers. Advertised for hosts; negotiation does not weigh it. */
   readonly masking: boolean;
+  /**
+   * Whether it blends translucent layers over what lies behind them; content that declares
+   * transparency needs it to be shown live.
+   */
   readonly transparency: boolean;
+  /** How far it clips layers. */
   readonly clipping: ClipSupport;
+  /** Whether it assembles overlay layers; goes with an `overlay` category. */
   readonly overlays: boolean;
+  /** Whether it interpolates layer content. Advertised for hosts; negotiation does not weigh it. */
   readonly interpolation: boolean;
+  /** Whether it presents live native layers directly; goes with a `content-native` category. */
   readonly directNative: boolean;
+  /**
+   * Whether one instance assembles several viewports. Advertised for hosts; negotiation does not
+   * weigh it.
+   */
   readonly multiViewport: boolean;
   /**
    * How overlapping layers occlude each other: `depth`, by a per-pixel depth test across layers
@@ -76,13 +115,20 @@ export type Occlusion = 'depth' | 'layer-order';
 export interface ProjectionProfile {
   /** A versioned ID, `<name>/<version>`. */
   readonly id: string;
+  /**
+   * `affine`: planar geometry stays planar on screen (a perspective camera); `nonlinear`: straight
+   * edges bend (a panorama), so live planar content can only approximate its shape.
+   */
   readonly mapping: 'affine' | 'nonlinear';
+  /** Whether the image's edges meet at a seam, so a surface can show as several fragments. */
   readonly seamWrapping: boolean;
+  /** Whether every screen point maps back to its exact ray. */
   readonly exactInverse: boolean;
 }
 
 const STRATEGIES = ATTACH_STRATEGIES;
 const FIDELITIES = FIDELITY_ORDER;
+/** Every {@link LayerCategory}, in the order the type lists them. */
 export const LAYER_CATEGORIES: readonly LayerCategory[] = [
   'content-native',
   'content-raster',
@@ -134,7 +180,12 @@ function bools(
   return bad === undefined ? null : `${what}.${bad} must be a boolean`;
 }
 
-/** Why a renderer's capabilities are malformed or self-contradictory, or null when valid. */
+/**
+ * Why a renderer's capabilities are malformed or self-contradictory, or null when valid: the
+ * first problem, in words naming the field (`renderer capabilities.<field>`). It accepts any value
+ * and never throws; an unknown field is a problem too. Registration refuses capabilities it
+ * faults.
+ */
 export function rendererCapabilitiesIssue(value: unknown): string | null {
   const what = 'renderer capabilities';
   const record = fields(
@@ -199,7 +250,12 @@ export function rendererCapabilitiesIssue(value: unknown): string | null {
   return null;
 }
 
-/** Why a compositor's capabilities are malformed or self-contradictory, or null when valid. */
+/**
+ * Why a compositor's capabilities are malformed or self-contradictory, or null when valid: the
+ * first problem, in words naming the field (`compositor capabilities.<field>`). It accepts any
+ * value and never throws; an unknown field is a problem too. Registration refuses capabilities it
+ * faults.
+ */
 export function compositorCapabilitiesIssue(value: unknown): string | null {
   const what = 'compositor capabilities';
   const record = fields(
@@ -266,7 +322,11 @@ export function compositorCapabilitiesIssue(value: unknown): string | null {
   return null;
 }
 
-/** Why a projection profile is malformed, or null when valid. */
+/**
+ * Why a projection profile is malformed, or null when valid: the first problem, in words naming
+ * the field (`projection profile.<field>`). It accepts any value and never throws; an unknown
+ * field is a problem too.
+ */
 export function projectionProfileIssue(value: unknown): string | null {
   const what = 'projection profile';
   const record = fields(value, ['id', 'mapping', 'seamWrapping', 'exactInverse'], what);

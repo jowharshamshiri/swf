@@ -67,6 +67,7 @@ export type {
   CancelReason,
   EventOf,
   EventPayload,
+  EventPayloads,
   NodeField,
   OperationPhase,
   SurfaceField,
@@ -107,7 +108,13 @@ export type {
 } from './model.js';
 export type { ProjectionKind } from './projection-kinds.js';
 export { DEFAULT_FLAGS } from './model.js';
-export type { CoarseHit, EffectiveState, NodeQuery, SpatialQueryOptions } from './query.js';
+export type {
+  CoarseHit,
+  EffectiveState,
+  NodeLookup,
+  NodeQuery,
+  SpatialQueryOptions,
+} from './query.js';
 export {
   ancestorIds,
   descendantIds,
@@ -125,7 +132,7 @@ export {
 } from './query.js';
 export type { SceneSnapshot } from './snapshot.js';
 export { SCENE_SNAPSHOT_FIELDS, serializeScene, validateSceneSnapshot } from './snapshot.js';
-export type { RecordLookup, Table } from './table.js';
+export type { RecordLookup, Table, TableDraft } from './table.js';
 export { VERSIONED_ID } from './validate.js';
 export type {
   Diagnostic,

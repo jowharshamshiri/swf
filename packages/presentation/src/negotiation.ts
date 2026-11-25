@@ -35,6 +35,7 @@ import type {
  */
 export type PresentationMode = 'exact' | 'native' | 'approximated' | 'proxy' | 'placeholder';
 
+/** Every {@link PresentationMode}, best first; frozen. */
 export const PRESENTATION_MODES: readonly PresentationMode[] = Object.freeze([
   'exact',
   'native',
@@ -48,14 +49,21 @@ export const PRESENTATION_MODES: readonly PresentationMode[] = Object.freeze([
  * which is always possible.
  */
 export interface FallbackPolicy {
+  /** The modes to try, each at most once and ending with `placeholder`; the first is preferred. */
   readonly order: readonly PresentationMode[];
 }
 
+/** The policy used when none is given: every mode, best first ({@link PRESENTATION_MODES}). */
 export const DEFAULT_FALLBACK_POLICY: FallbackPolicy = Object.freeze({
   order: PRESENTATION_MODES,
 });
 
-/** Validates a policy. Throws {@link SwfFailure} (`INVALID_INPUT`) naming the problem. */
+/**
+ * Validates a fallback order and makes it a policy. Throws {@link SwfFailure} (`INVALID_INPUT`,
+ * with path `order`) naming the problem: an order that is not an array or is empty, an entry
+ * that is not a presentation mode, a mode listed twice, or a last mode other than `placeholder`.
+ * The policy returned is frozen and holds its own frozen copy of the order.
+ */
 export function fallbackPolicy(order: readonly PresentationMode[]): FallbackPolicy {
   const fail = (message: string): never => {
     throw new SwfFailure(
@@ -95,17 +103,47 @@ export function fallbackPolicy(order: readonly PresentationMode[]): FallbackPoli
 
 /** What negotiation weighs for one surface in one viewport. */
 export interface NegotiationInput {
+  /** The surface negotiated for. */
   readonly surfaceId: Id;
+  /** The viewport it is presented in. */
   readonly viewportId: Id;
   /** The bound handle's capabilities, or null when the surface has no bound handle. */
   readonly surface: SurfaceCapabilities | null;
-  readonly renderer: { readonly id: string; readonly capabilities: RendererCapabilities };
-  readonly compositor: { readonly id: string; readonly capabilities: CompositorCapabilities };
+  /** The viewport's renderer. */
+  readonly renderer: {
+    /** Its versioned ID, carried into diagnostics. */
+    readonly id: string;
+    /** What it declared, as registration validated it. */
+    readonly capabilities: RendererCapabilities;
+  };
+  /** The viewport's compositor. */
+  readonly compositor: {
+    /** Its versioned ID, carried into diagnostics. */
+    readonly id: string;
+    /** What it declared, as registration validated it. */
+    readonly capabilities: CompositorCapabilities;
+  };
+  /**
+   * The profile of the viewport's projection: a `nonlinear` mapping rules out `native`, and
+   * `exact` without a renderer's `mesh` transforms.
+   */
   readonly projection: ProjectionProfile;
   /** The surface geometry: its kind, whether its provider is registered, and its fidelity. */
   readonly geometry: {
+    /**
+     * The geometry kind, such as `rect` or `polygon`; a polygon is presented `exact` or `native`
+     * only with path clipping.
+     */
     readonly kind: string;
+    /**
+     * Whether a provider for the kind is registered; without one, neither `exact` nor `native` is
+     * possible.
+     */
     readonly supported: boolean;
+    /**
+     * Whether the provider places the geometry exactly; `approximate` rules out `exact` and
+     * `native`.
+     */
     readonly fidelity: 'exact' | 'approximate';
   };
   /** Whether the projected anchor (the fragment's placement) is exact. */
@@ -121,9 +159,13 @@ export interface NegotiationInput {
 export type Requirement =
   'surface' | 'renderer' | 'compositor' | 'projection' | 'geometry' | 'ownership';
 
+/** One reason a mode was ruled out. A mode may have several. */
 export interface CapabilityGap {
+  /** The mode ruled out. */
   readonly mode: PresentationMode;
+  /** Whose capabilities ruled it out. */
   readonly requirement: Requirement;
+  /** What was missing, in words, such as `a polygon needs path clipping`. */
   readonly detail: string;
 }
 
@@ -132,16 +174,33 @@ export interface CapabilityGap {
  * out. Identical fallbacks share a `groupKey`, so a log can show them once with a count.
  */
 export interface FallbackDiagnostic {
+  /** Always `PRESENTATION_FALLBACK`. */
   readonly code: 'PRESENTATION_FALLBACK';
+  /** The surface presented below the preferred mode. */
   readonly surfaceId: Id;
+  /** The viewport it is presented in. */
   readonly viewportId: Id;
+  /** The viewport's renderer. */
   readonly rendererId: string;
+  /** The viewport's compositor. */
   readonly compositorId: string;
+  /** The viewport's projection. */
   readonly projectionId: string;
+  /**
+   * The first mode tried: the policy's first, or for a surface represented compactly or by its
+   * label, the first stand-in mode.
+   */
   readonly preferred: PresentationMode;
+  /** The mode presented instead. */
   readonly chosen: PresentationMode;
+  /** Every reason each better mode was ruled out, best mode first; frozen. */
   readonly gaps: readonly CapabilityGap[];
+  /**
+   * The same for every fallback with the same backends, projection, attach strategy, outcome and
+   * reasons, whatever the surface or viewport.
+   */
   readonly groupKey: string;
+  /** The fallback in words, naming the surface, viewport, both modes and every reason. */
   readonly message: string;
 }
 
@@ -152,11 +211,23 @@ export interface FallbackDiagnostic {
  * result says so.
  */
 export interface Negotiation {
+  /** The surface negotiated for. */
   readonly surfaceId: Id;
+  /** The viewport it is presented in. */
   readonly viewportId: Id;
+  /** The mode chosen: the first of the tried modes that nothing ruled out. */
   readonly mode: PresentationMode;
+  /** Whether the surface's placement is exact: the projected anchor's fidelity, as given. */
   readonly anchorFidelity: 'exact' | 'approximate';
+  /**
+   * Whether the presented interior follows the projection: `exact` for `exact` and `native`,
+   * `approximate` for `approximated` and `proxy`, `none` for a placeholder.
+   */
   readonly shapeFidelity: 'exact' | 'approximate' | 'none';
+  /**
+   * How faithful the content is: `native` for a live element, `exact` or `approximate` for drawn
+   * content, `proxy` for a proxy and `unsupported` for a placeholder.
+   */
   readonly contentFidelity: Fidelity;
   /** How much of the content's own interaction stays native in this presentation. */
   readonly interaction: InteractionSupport;
@@ -170,7 +241,13 @@ export interface Negotiation {
  * Chooses how to present a surface in a viewport: the first mode of the policy that the surface,
  * renderer, compositor, projection, geometry and ownership all allow. Every better mode that was
  * ruled out is reported with the requirement that ruled it out. The fallback model
- * (`Swf.Fallback`) decides.
+ * (`Swf.Fallback`) decides. The surface is taken as its own native-owner fragment, shown in full;
+ * {@link planFrame} negotiates a whole frame's fragments. The result is frozen.
+ *
+ * @param policy - Default {@link DEFAULT_FALLBACK_POLICY}; one made by {@link fallbackPolicy}
+ *   always ends with `placeholder`.
+ * @throws Error when no mode of the policy is possible, which only a policy not ending with
+ *   `placeholder` allows.
  */
 export function negotiate(
   input: NegotiationInput,

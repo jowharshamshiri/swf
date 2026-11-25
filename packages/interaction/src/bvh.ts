@@ -37,21 +37,27 @@ function cost(box: Aabb): number {
 /**
  * A dynamic bounding-volume hierarchy over keyed world boxes: insert, update and remove in
  * logarithmic time on a balanced tree, and ray and box queries that visit only the branches a
- * query can reach. Keys are unique; boxes must be finite.
+ * query can reach. Keys are unique, compared as a `Map` compares them; boxes must be finite. The
+ * tree keeps each box it is given, not a copy. Query results come in no particular order.
  */
 export class BoundingVolumeTree<K> {
   #root: TreeNode<K> | null = null;
   readonly #leaves = new Map<K, TreeNode<K>>();
 
+  /** How many keys the tree holds. */
   get size(): number {
     return this.#leaves.size;
   }
 
+  /** True when the tree holds `key`. */
   has(key: K): boolean {
     return this.#leaves.has(key);
   }
 
-  /** Adds `key` with `box`, or moves it there when it is already present. */
+  /**
+   * Adds `key` with `box`, or moves it there when it is already present. Throws a RangeError,
+   * leaving the tree unchanged, when a corner of the box is not finite.
+   */
   set(key: K, box: Aabb): void {
     if (![...box.min, ...box.max].every(Number.isFinite)) {
       throw new RangeError(`the box of ${String(key)} is not finite`);
@@ -76,7 +82,11 @@ export class BoundingVolumeTree<K> {
     return true;
   }
 
-  /** Every key whose box the ray enters at a distance in [0, maxDistance]. */
+  /**
+   * Every key whose box the ray enters at a distance in [0, maxDistance] (default unbounded),
+   * counting a ray that starts inside a box as entering it at 0. Distances are ray parameters,
+   * world units for a ray with a unit direction. Returns a fresh array.
+   */
   raycast(ray: Ray, maxDistance = Infinity): K[] {
     const found: K[] = [];
     const stack: TreeNode<K>[] = this.#root === null ? [] : [this.#root];
@@ -94,7 +104,10 @@ export class BoundingVolumeTree<K> {
     return found;
   }
 
-  /** Every key whose box intersects `box`. */
+  /**
+   * Every key whose box overlaps `box` with positive volume, as {@link aabbIntersects} decides;
+   * boxes that only touch are not returned. Returns a fresh array.
+   */
   query(box: Aabb): K[] {
     const found: K[] = [];
     const stack: TreeNode<K>[] = this.#root === null ? [] : [this.#root];

@@ -9,11 +9,21 @@ export const VIRTUAL_CURSOR_LAYER = 'virtual-cursor';
  * and is hidden from assistive technology; whoever shows it says in words what it means.
  */
 export interface VirtualCursor {
-  /** Shows the cursor with its tip at a point of the container, in CSS pixels. */
+  /**
+   * Shows the cursor with its tip at a point of the container, in CSS pixels from its top left.
+   *
+   * @throws `RangeError` for a point that is not finite; `Error` once the cursor is disposed.
+   */
   show(x: number, y: number): void;
+  /** Hides the cursor, keeping its element for the next `show`. */
   hide(): void;
-  /** Where the cursor's tip is shown, or null while it is hidden. */
-  position(): { readonly x: number; readonly y: number } | null;
+  /** Where the cursor's tip is shown, or null while it is hidden; a frozen point. */
+  position(): {
+    /** CSS pixels from the container's left edge. */
+    readonly x: number;
+    /** CSS pixels from the container's top edge. */
+    readonly y: number;
+  } | null;
   /** Takes the cursor out of the container. Safe to call twice. */
   dispose(): void;
 }
@@ -26,7 +36,9 @@ const ARROW = 'M0.5 0.5 L0.5 17 L4.5 13 L7.5 20 L10.5 18.7 L7.6 12 L13 12 Z';
 /**
  * Creates a virtual cursor in a view's container. It sits in a holder of no size at the
  * container's top left, so its coordinates are the container's whatever the container's own
- * positioning, and it never shifts what the container lays out.
+ * positioning, and it never shifts what the container lays out. It starts hidden. The holder is
+ * prepended to the container, which stays the caller's; the caller disposes the cursor to take
+ * the holder out again.
  */
 export function createVirtualCursor(options: { readonly container: HTMLElement }): VirtualCursor {
   const { container } = options;

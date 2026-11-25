@@ -5,12 +5,23 @@ import type { DragMode } from './drag.js';
 import { DRAG_MODES } from './drag.js';
 import type { ModifierKey } from './intents.js';
 
-/** A key binding: a key with the modifiers it needs, and the command it runs. */
+/**
+ * A key binding: a key with the modifiers it needs, and the command it runs. Bindings run only
+ * while keyboard focus is in the workspace's own controls, and only on key down.
+ */
 export interface KeyBinding {
-  /** The key's value, matched case-insensitively for single characters. */
+  /**
+   * The key's value as the platform names it (`ArrowLeft`, `z`, `+`), not empty; single
+   * characters match case-insensitively, named keys exactly.
+   */
   readonly key: string;
-  /** Modifiers that must be held; any modifier not listed must not be held. */
+  /**
+   * Modifiers that must be held, each at most once; any modifier not listed must not be held,
+   * except that Shift does not count against a binding of a sign or punctuation character that
+   * does not list it (many layouts type `+` with Shift). Kept sorted.
+   */
   readonly modifiers: readonly ModifierKey[];
+  /** The ID of the command it runs; a router refuses a binding to a command it does not have. */
   readonly command: string;
   /**
    * The command's arguments. A key intent's viewport is added as `viewportId` for commands that
@@ -19,38 +30,82 @@ export interface KeyBinding {
   readonly args: JsonValue;
 }
 
-/** Step sizes of keyboard operations. Distances in world units, angles in radians. */
+/**
+ * Step sizes of keyboard operations, each positive and finite. Distances in world units, angles in
+ * radians. They are what {@link defaultKeymap} builds its bindings from; the keymap holds the
+ * resulting amounts, so changing the steps alone changes no binding.
+ */
 export interface KeyboardSteps {
+  /**
+   * How far an arrow key moves the selected window; Shift moves it five times as far. Default
+   * 0.05.
+   */
   readonly move: number;
+  /** How far Page Up and Page Down change its depth. Default 0.1. */
   readonly depth: number;
+  /** How much `+` and `-` change its width and height. Default 0.05. */
   readonly resize: number;
+  /** How far `[` and `]` turn it about the world vertical through its origin. Default π/36 (5°). */
   readonly rotate: number;
+  /** How far Alt with an arrow key turns the camera, or orbits it with Shift. Default π/36 (5°). */
   readonly turn: number;
 }
 
-/** Interaction settings. Every field is validated; an invalid update changes nothing. */
+/**
+ * Interaction settings. Every field is validated by {@link mergeSettings}; an invalid update
+ * changes nothing. Settings objects are frozen.
+ */
 export interface InteractionSettings {
-  /** How far (CSS px) a pointer moves before a press becomes a drag. Default 4. */
+  /**
+   * How far (CSS px) a pressed pointer may move and still be a press; moving farther makes it a
+   * drag. Non-negative. Default 4.
+   */
   readonly slopPx: number;
-  /** Width of the resize band along window edges, in CSS px. Default 12. */
+  /** Width of the resize band along window edges, in CSS px: positive. Default 12. */
   readonly handlePx: number;
-  /** Depths closer than this count as a tie when picking, in world units. Default 1e-6. */
+  /**
+   * Depths closer than this count as a tie when picking, in world units: positive. Default 1e-6.
+   */
   readonly depthTolerance: number;
-  /** Held during a press on content, it starts a takeover gesture instead of native input. */
+  /**
+   * Held during a press on content, it starts a takeover gesture instead of native input. Must
+   * differ from `depthModifier`. Default `alt`.
+   */
   readonly takeoverModifier: ModifierKey;
-  /** Held during a wheel over a window, it adjusts the window's depth instead of scrolling. */
+  /**
+   * Held during a wheel over a window, it adjusts the window's depth instead of scrolling. Must
+   * differ from `takeoverModifier`. Default `shift`.
+   */
   readonly depthModifier: ModifierKey;
   /** How window drags map pointer movement to the world. Default `camera-plane`. */
   readonly dragMode: DragMode;
-  /** The plane normal for `world-plane` drags. Default +Y (the floor). */
+  /**
+   * The plane normal for `world-plane` drags: finite and non-zero, any length. Default +Y (the
+   * floor).
+   */
   readonly worldPlaneNormal: Vec3;
-  /** Depth change per CSS px of wheel scroll, in world units. Default 0.002. */
+  /**
+   * Depth change per CSS px of wheel scroll, in world units: positive. Scrolling up (negative
+   * `deltaY`) moves the window away from the camera, scrolling down brings it nearer. Default
+   * 0.002.
+   */
   readonly wheelDepthPerPixel: number;
-  /** Nearest distance from the camera a drag may bring a window to. Default 0.1. */
+  /**
+   * Nearest distance from the camera a drag may bring a window to, in world units: positive.
+   * Default 0.1.
+   */
   readonly minDistance: number;
-  /** Smallest window width or height a resize may make, in world units. Default 0.05. */
+  /** Smallest window width or height a resize may make, in world units: positive. Default 0.05. */
   readonly minSize: number;
+  /**
+   * The step sizes the default keymap is built from. A patch may give some of them; the rest are
+   * kept.
+   */
   readonly steps: KeyboardSteps;
+  /**
+   * The key bindings, each key and modifier combination at most once. A patch replaces the whole
+   * keymap. Default: {@link defaultKeymap} with the default steps.
+   */
   readonly keymap: readonly KeyBinding[];
 }
 
@@ -69,6 +124,7 @@ const DEFAULT_STEPS: KeyboardSteps = Object.freeze({
  * window up, and Ctrl or Cmd with Z/Y undo and redo. Tab is left to the page, so keyboard focus can
  * always leave the view. While a window is held its moves, turns and resizes preview, and Enter or
  * Space puts it down as one change; Escape cancels gestures and holds. Those need no binding.
+ * Returns a fresh, unfrozen array of fresh bindings.
  */
 export function defaultKeymap(steps: KeyboardSteps = DEFAULT_STEPS): KeyBinding[] {
   const b = (
@@ -117,6 +173,10 @@ export function defaultKeymap(steps: KeyboardSteps = DEFAULT_STEPS): KeyBinding[
   ];
 }
 
+/**
+ * The settings a router starts from: each field's default as {@link InteractionSettings} states
+ * it. Frozen.
+ */
 export const DEFAULT_SETTINGS: InteractionSettings = Object.freeze({
   slopPx: 4,
   handlePx: 12,
@@ -136,7 +196,10 @@ const MODIFIER_KEYS: readonly string[] = ['shift', 'ctrl', 'alt', 'meta'];
 
 /**
  * `current` with `patch` applied, validated. Throws {@link SwfFailure} (`INVALID_INPUT`) naming
- * the first invalid field; `current` is never changed.
+ * the first invalid field as the path `settings.<field>` (such as `settings.keymap[2].modifiers`);
+ * `current` is never changed. An unknown field is rejected. The result is a fresh frozen settings
+ * object; the fields the patch leaves out are shared with `current`. Key bindings are checked for
+ * their shape only, not for whether their commands exist.
  */
 export function mergeSettings(current: InteractionSettings, patch: unknown): InteractionSettings {
   const fail = (path: string, message: string): never => {

@@ -16,29 +16,76 @@ import { representationFor } from './representation.js';
 
 /**
  * The stages that turn a scene change into a presented frame, in order, and the contract that
- * carries each. Interaction previews may take a shorter path through them.
+ * carries each. Interaction previews may take a shorter path through them. The presenter runs
+ * stages 4 to 8 for each viewport frame: it projects, plans, renders and composes, attaches what
+ * is live, then delivers the hints once the attachments have settled, and publishes the frame's
+ * metrics last. The list and each entry are frozen.
  */
 export const PRESENTATION_STAGES = Object.freeze([
-  { stage: 1, name: 'ingest', contract: 'Workspace.transaction: commands are validated' },
-  { stage: 2, name: 'commit', contract: 'Workspace: one revision is committed' },
   {
+    /** Its place in the order, from 1. */
+    stage: 1,
+    /** Its short name. */
+    name: 'ingest',
+    /** The interface that carries it, and what it guarantees. */
+    contract: 'Workspace.transaction: commands are validated',
+  },
+  {
+    /** Its place in the order, from 1. */
+    stage: 2,
+    /** Its short name. */
+    name: 'commit',
+    /** The interface that carries it, and what it guarantees. */
+    contract: 'Workspace: one revision is committed',
+  },
+  {
+    /** Its place in the order, from 1. */
     stage: 3,
+    /** Its short name. */
     name: 'resolve',
+    /** The interface that carries it, and what it guarantees. */
     contract: 'Workspace: constraints are resolved; effectiveState gives inherited flags',
   },
   {
+    /** Its place in the order, from 1. */
     stage: 4,
+    /** Its short name. */
     name: 'project',
+    /** The interface that carries it, and what it guarantees. */
     contract: 'ViewProjector.project, then createViewOutput: visible candidates as fragments',
   },
-  { stage: 5, name: 'hint', contract: 'SurfaceRuntime.deliverHint: advisory adapter hints' },
-  { stage: 6, name: 'plan', contract: 'planFrame: negotiation per fragment into a RenderFrame' },
   {
+    /** Its place in the order, from 1. */
+    stage: 5,
+    /** Its short name. */
+    name: 'hint',
+    /** The interface that carries it, and what it guarantees. */
+    contract: 'SurfaceRuntime.deliverHint: advisory adapter hints',
+  },
+  {
+    /** Its place in the order, from 1. */
+    stage: 6,
+    /** Its short name. */
+    name: 'plan',
+    /** The interface that carries it, and what it guarantees. */
+    contract: 'planFrame: negotiation per fragment into a RenderFrame',
+  },
+  {
+    /** Its place in the order, from 1. */
     stage: 7,
+    /** Its short name. */
     name: 'realize',
+    /** The interface that carries it, and what it guarantees. */
     contract: 'RendererSession.render, then CompositorSession.compose',
   },
-  { stage: 8, name: 'publish', contract: 'frame metrics are published' },
+  {
+    /** Its place in the order, from 1. */
+    stage: 8,
+    /** Its short name. */
+    name: 'publish',
+    /** The interface that carries it, and what it guarantees. */
+    contract: 'frame metrics are published',
+  },
 ] as const);
 
 /**
@@ -46,7 +93,9 @@ export const PRESENTATION_STAGES = Object.freeze([
  * it gave, for the very same view geometry.
  */
 export interface PreviousProjection {
+  /** The scene the previous projection was made from. */
   readonly scene: SceneState;
+  /** What it returned, unchanged. */
   readonly fragments: readonly ProjectedFragment[];
 }
 
@@ -55,6 +104,10 @@ export interface PreviousProjection {
  * surface geometry only; it never changes either.
  */
 export interface ViewProjector {
+  /**
+   * The profile of the projection it places fragments with; its `id` is the projection ID it is
+   * registered under and that views name.
+   */
   readonly profile: ProjectionProfile;
   /**
    * The fragments of every visible surface, in the scene's surface order. With `previous` (given
@@ -72,12 +125,29 @@ export interface ViewProjector {
 
 /** What stage 6 needs to plan a frame. */
 export interface FrameInput {
+  /** The scene the frame shows; every surface of `output` must be in it. */
   readonly scene: SceneState;
+  /** The view; it must pass {@link viewGeometryIssue} and name `projection`'s ID. */
   readonly view: ViewGeometry;
+  /** The view's fragments for `scene`, from the same viewport and revision. */
   readonly output: ViewOutput;
-  readonly renderer: { readonly id: string; readonly capabilities: RendererCapabilities };
-  readonly compositor: { readonly id: string; readonly capabilities: CompositorCapabilities };
+  /** The viewport's renderer. */
+  readonly renderer: {
+    /** Its versioned ID. */
+    readonly id: string;
+    /** What it declared, as registration validated it. */
+    readonly capabilities: RendererCapabilities;
+  };
+  /** The viewport's compositor. */
+  readonly compositor: {
+    /** Its versioned ID. */
+    readonly id: string;
+    /** What it declared, as registration validated it. */
+    readonly capabilities: CompositorCapabilities;
+  };
+  /** The profile of the view's projection. */
   readonly projection: ProjectionProfile;
+  /** The fallback order; default {@link DEFAULT_FALLBACK_POLICY}. */
   readonly policy?: FallbackPolicy;
   /** How each surface is represented here; with none, every surface is `full`. */
   readonly representation?: RepresentationPolicy;
@@ -88,6 +158,7 @@ export interface FrameInput {
    * presented in another viewport.
    */
   readonly viewportOwns: (surfaceId: Id) => boolean;
+  /** Each surface's geometry as placed in `scene`; a surface of `output` without one is refused. */
   readonly geometry: (surfaceId: Id) => ResolvedGeometry | undefined;
 }
 
@@ -95,7 +166,10 @@ export interface FrameInput {
  * Stage 6: negotiates the presentation of every fragment and assembles the frame. Only a
  * surface's native-owner fragment can hold a live native element; its other fragments become
  * proxies routing to the same surface. Drawable content that the adapter declares shareable can
- * be drawn in every fragment. Throws {@link SwfFailure} (`INVALID_INPUT`) when the inputs disagree.
+ * be drawn in every fragment. Throws {@link SwfFailure} (`INVALID_INPUT`) when the inputs disagree:
+ * an invalid view, an output of another viewport or revision, a view naming another projection,
+ * or a fragment whose surface is not in the scene or has no geometry. The representation policy
+ * is asked once per surface. The frame returned is frozen and refers to the inputs as given.
  */
 export function planFrame(input: FrameInput): RenderFrame {
   const { scene, view, output } = input;
@@ -198,8 +272,11 @@ export function planFrame(input: FrameInput): RenderFrame {
  * kind of endpoint, outcome and reasons) are reported once with a count, in first-seen order.
  */
 export function groupFallbacks(fallbacks: readonly FallbackDiagnostic[]): {
+  /** The group's first fallback. */
   readonly example: FallbackDiagnostic;
+  /** How many fallbacks the group holds, repeats of a surface included. */
   readonly count: number;
+  /** The surfaces of the group, each once, in first-seen order. */
   readonly surfaceIds: readonly Id[];
 }[] {
   const groups = new Map<

@@ -20,10 +20,14 @@ const TRANSFORMS = ['translate', 'affine-2d', 'perspective-3d', 'mesh'] as const
 const CLIPS = ['none', 'rect', 'path'] as const;
 const RECOVERY = ['none', 'rebuild', 'restore'] as const;
 
+/** The two renderers a layered renderer pairs. It keeps them as given and never disposes them. */
 export interface LayeredRendererOptions {
-  /** A versioned ID for the pair. Default `swf.layered-renderer/1`. */
+  /** A versioned ID for the pair, `<name>/<version>`. Default `swf.layered-renderer/1`. */
   readonly id?: string;
-  /** Presents live content (`content-native` layers), such as a DOM renderer without chrome. */
+  /**
+   * Presents live content (`content-native` layers), such as a DOM renderer without chrome. It
+   * must present `native-dom` handles, or {@link LayeredRenderer.capabilities} throws.
+   */
   readonly native: RendererBackend;
   /** Draws everything else: drawn content, proxies, placeholders, chrome and indicators. */
   readonly geometry: GeometryRenderer;
@@ -35,11 +39,18 @@ export interface LayeredRendererOptions {
  * indicators on top). Its capabilities are what the pair can honestly do together.
  */
 export class LayeredRenderer implements RendererBackend {
+  /** The pair's ID, as its options gave it. */
   readonly id: string;
+  /** The presentation API version it implements. */
   readonly apiVersion = PRESENTATION_API_VERSION;
   readonly #native: RendererBackend;
   readonly #geometry: GeometryRenderer;
 
+  /**
+   * Pairs `options.native` and `options.geometry`, which are not checked here.
+   *
+   * @throws `RangeError` for an `id` that is not a versioned ID.
+   */
   constructor(options: LayeredRendererOptions) {
     const id = options.id ?? 'swf.layered-renderer/1';
     if (!VERSIONED_ID.test(id)) {
@@ -52,6 +63,14 @@ export class LayeredRenderer implements RendererBackend {
     this.#geometry = options.geometry;
   }
 
+  /**
+   * What the pair can do together: live content as the native renderer presents it, every other
+   * handle kind as the geometry renderer does, and the lower of the two transform modes, clipping
+   * and recovery. A new frozen object on every call.
+   *
+   * @throws {@link @swf/core!SwfFailure} `UNSUPPORTED_CAPABILITY` when the native renderer
+   *   presents no `native-dom` content.
+   */
   capabilities(): RendererCapabilities {
     const native = this.#native.capabilities();
     const geometry = this.#geometry.capabilities();
@@ -80,6 +99,10 @@ export class LayeredRenderer implements RendererBackend {
     });
   }
 
+  /**
+   * Prepares a session of each renderer for the view, the native one first, and pairs them. When
+   * the geometry renderer fails, the native session is released and the failure passed on.
+   */
   async prepare(scene: SceneState, view: ViewGeometry): Promise<RendererSession> {
     const native = await this.#native.prepare(scene, view);
     let geometry: RendererSession;
@@ -96,14 +119,22 @@ export class LayeredRenderer implements RendererBackend {
   }
 }
 
+/**
+ * A layered renderer's session for one viewport: a native session and a geometry session, owned
+ * together. The presenter owns it; releasing it releases both.
+ */
 export class LayeredRendererSession implements RendererSession {
+  /** The layered renderer that prepared it. */
   readonly rendererId: string;
+  /** The viewport it renders. */
   readonly viewportId: Id;
   /** The native renderer's own session (for the live slots a host attaches content to). */
   readonly native: RendererSession;
+  /** The geometry renderer's own session, which draws everything but live content. */
   readonly geometry: GeometryRendererSession;
   #released = false;
 
+  /** Pairs two prepared sessions of one viewport, as {@link LayeredRenderer.prepare} does. */
   constructor(
     rendererId: string,
     viewportId: Id,
@@ -116,6 +147,15 @@ export class LayeredRendererSession implements RendererSession {
     this.geometry = geometry;
   }
 
+  /**
+   * Has the native session render the frame's live fragments and the geometry session everything
+   * else, then merges their layers in plan order: each fragment's layer, then the chrome stacked
+   * after it, then the layers of no fragment on top. Its writes are both sessions' together.
+   *
+   * @throws {@link @swf/core!SwfFailure} `INVALID_TRANSITION` once released; `INVALID_INPUT`
+   *   when the native session makes a layer that is not live content it was asked for; and as
+   *   either session's `render` throws.
+   */
   render(frame: RenderFrame): RenderedFrame {
     if (this.#released) {
       throw new SwfFailure(
@@ -184,6 +224,7 @@ export class LayeredRendererSession implements RendererSession {
     return this.native.watchLoss(listener);
   }
 
+  /** Releases the native session, then the geometry session. Safe to call more than once. */
   async release(): Promise<void> {
     if (!this.#released) {
       this.#released = true;

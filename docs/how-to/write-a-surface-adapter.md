@@ -46,7 +46,7 @@ const CAPABILITIES: SurfaceCapabilities = {
 ## 2. Resolve binding keys
 
 ```ts
-resolve(bindingKey, signal, context) {
+resolve(bindingKey, signal: AbortSignal, context) {
   if (signal.aborted) return Promise.reject(signal.reason);
   return editors.open(bindingKey, { signal }); // null for a key the host does not know
 },
@@ -55,6 +55,9 @@ capabilities: (editor) => editor.readOnly ? READ_ONLY : CAPABILITIES,
 
 - Answer `null` for a key the host does not know: the surface stays an `unbound` placeholder and
   is not an error. Reject only for a real failure; the surface then shows a retryable error.
+- `signal` is typed `BindingSignal`, the part of the platform's `AbortSignal` every runtime
+  has; the runtime passes a real `AbortSignal`. To hand it to `fetch` or another platform API,
+  declare the parameter `signal: AbortSignal`.
 - Stop work when `signal` aborts: the runtime aborts a binding when the surface is removed or
   rebound, or when `bindingTimeoutMs` passes (set `untimedBinding: true` for an endpoint whose
   setup is expected to take longer; it must still honour the signal). A late answer for a surface

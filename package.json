@@ -1,5 +1,5 @@
 {
-  "version": "0.58.1568",
+  "version": "0.59.1578",
   "name": "swf",
   "private": true,
   "description": "Spatial Workspace Framework: a browser-first TypeScript framework for spatial presentation and window management.",
@@ -39,7 +39,7 @@
     "conformance": "node scripts/conformance.mjs",
     "bench": "node scripts/bench.mjs",
     "test:watch": "vitest",
-    "check": "npm run models:verify && npm run format:check && npm run build:packages && npm run size && npm run smoke:packages && npm run typecheck && npm run lint && npm run test && npm run build",
+    "check": "npm run models:verify && npm run format:check && npm run build:packages && npm run size && npm run smoke:packages && npm run typecheck && npm run lint && npm run api-reference -- --check && npm run test && npm run build",
     "dev": "npm run dev -w @swf/reference",
     "models": "lungo generate",
     "models:verify": "lungo generate --verify",

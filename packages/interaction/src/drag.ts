@@ -30,19 +30,25 @@ import {
  */
 export type DragMode = 'camera-plane' | 'world-plane' | 'angular-shell';
 
+/** Every drag mode, the default first; frozen. */
 export const DRAG_MODES: readonly DragMode[] = Object.freeze([
   'camera-plane',
   'world-plane',
   'angular-shell',
 ]);
 
-/** What a drag fixed when it started. */
+/** What a drag fixed when it started, in world space and units. */
 export interface DragFrame {
+  /** How the drag maps pointer movement to world movement. */
   readonly mode: DragMode;
+  /** The camera position at the start of the drag. */
   readonly eye: Vec3;
   /** The grabbed world point. */
   readonly anchor: Vec3;
-  /** The plane's unit normal (planar modes). */
+  /**
+   * The plane's unit normal (planar modes): the given world-plane normal for `world-plane`, the
+   * direction from the eye to the anchor otherwise.
+   */
   readonly normal: Vec3;
   /** The anchor's distance from the eye. */
   readonly radius: number;
@@ -50,6 +56,14 @@ export interface DragFrame {
   readonly minDistance: number;
 }
 
+/**
+ * Fixes a drag of the point `anchor`, seen from `eye`, in `mode`. `worldPlaneNormal` is used only
+ * for `world-plane` and need not be unit length. The returned frame is fresh and unfrozen and
+ * keeps `eye` and `anchor` as given.
+ *
+ * @throws RangeError when `anchor` is at `eye`, or when a `world-plane` normal is zero or not
+ *   finite.
+ */
 export function dragFrame(
   mode: DragMode,
   eye: Vec3,
@@ -95,7 +109,10 @@ export function dragAnchor(frame: DragFrame, ray: Ray, depth: number): Vec3 | nu
   return depth === 0 ? point : withDepth(frame.eye, point, depth, frame.minDistance);
 }
 
-/** `point` moved by `depth` along the line from `eye`, never nearer than `minDistance`. */
+/**
+ * `point` moved by `depth` along the line from `eye` (positive away from it), never nearer than
+ * `minDistance`. A point at `eye` is returned as it is.
+ */
 export function withDepth(eye: Vec3, point: Vec3, depth: number, minDistance: number): Vec3 {
   const offset = sub(point, eye);
   const distance = length(offset);
@@ -108,6 +125,7 @@ export function withDepth(eye: Vec3, point: Vec3, depth: number, minDistance: nu
 
 /** A node's placement: its local transform and the world it lives in. */
 export interface Placement {
+  /** The node's transform relative to its parent, as the scene holds it. */
   readonly local: Transform3D;
   /** The world matrix of the node's parent (identity for a root). */
   readonly parentWorld: Mat4;
@@ -131,7 +149,7 @@ export function placementOf(scene: SceneState, nodeId: Id): Placement {
   return { local: node.transform, parentWorld, world };
 }
 
-/** The node's world origin. */
+/** The node's world origin: the translation of its world matrix. */
 export function worldOrigin(placement: Placement): Vec3 {
   return [placement.world[12], placement.world[13], placement.world[14]];
 }
@@ -188,7 +206,10 @@ export function movedTransform(
   return turned === null ? null : translatedBy({ ...placement, local: turned }, delta);
 }
 
-/** Radians right of -Z about +Y; 0 for a vertical direction. */
+/**
+ * The heading of `direction`: radians right of -Z about +Y, in [-π, π]; 0 for a vertical
+ * direction.
+ */
 export function headingOf(direction: Vec3): number {
   return Math.hypot(direction[0], direction[2]) === 0 ? 0 : Math.atan2(direction[0], -direction[2]);
 }

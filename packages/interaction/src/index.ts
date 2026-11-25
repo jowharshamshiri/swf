@@ -40,6 +40,7 @@ export type {
   PickOptions,
   PickResult,
   PresentationLookup,
+  RayInfo,
   ResizeEdge,
 } from './pick.js';
 export { pick } from './pick.js';

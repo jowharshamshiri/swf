@@ -6,6 +6,7 @@
  */
 export type {
   BindingContext,
+  BindingSignal,
   OcclusionConfidence,
   PresentationHint,
   PresentationTarget,
@@ -31,6 +32,7 @@ export type {
   PresentationState,
   RuntimeEvent,
   RuntimeEventPayload,
+  RuntimeEventPayloads,
   RuntimeEventType,
   UnboundReason,
 } from './events.js';

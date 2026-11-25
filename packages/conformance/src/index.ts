@@ -13,7 +13,7 @@ export type { HandoffFixture } from './handoff-suite.js';
 export { handoffConformance } from './handoff-suite.js';
 export type { ConformanceCase, ConformanceResult } from './harness.js';
 export { ConformanceFailure, runConformance } from './harness.js';
-export type { MockCall, MockHandle } from './mock-adapter.js';
+export type { Deferred as MockDeferred, MockCall, MockHandle } from './mock-adapter.js';
 export { mockCapabilities, MockOpaqueAdapter, NATIVE_CAPABILITIES } from './mock-adapter.js';
 export {
   MOCK_COMPOSITOR_CAPABILITIES,

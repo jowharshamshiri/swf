@@ -22,7 +22,8 @@ Every release carries it in `api-reference/` ([Release the packages](../how-to/r
 - a published declaration file (`dist/**/*.d.ts`) states `any`. Values the framework does not
   look into (an endpoint's handle, a backend's container, an extension's state) are `unknown`.
 
-`npm run release` runs it, so no release has an undocumented public declaration.
+`npm run check` runs it after the lint, and `npm run release` runs it too, so no release has an
+undocumented public declaration.
 
 One part is exempt, and the check reports how much on every run: the declarations of the program
 lungo generates into `packages/models/program/`. lungo's TypeScript generator writes no

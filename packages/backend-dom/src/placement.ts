@@ -13,7 +13,12 @@ export type CssMatrix = readonly [
   number, number, number, number,
 ];
 
-/** The projective map of the plane as the CSS matrix that applies it to an element. */
+/**
+ * The projective map of the plane as the CSS matrix that applies it to an element.
+ *
+ * @param m - A 3×3 homography in row-major order, acting on `(x, y, 1)`.
+ * @returns A new array.
+ */
 export function cssMatrixOf(m: Homography): CssMatrix {
   // prettier-ignore
   return [
@@ -34,7 +39,10 @@ export function quadMatrix(width: number, height: number, quad: Quad2): CssMatri
   return m === null ? null : cssMatrixOf(m);
 }
 
-/** Where `matrix` takes the point (x, y) of the element. */
+/**
+ * Where `matrix` takes the point (x, y) of the element, in the element's CSS pixels. A point the
+ * matrix sends to infinity gives non-finite coordinates.
+ */
 export function applyMatrix(matrix: CssMatrix, x: number, y: number): Vec2 {
   const w = matrix[3] * x + matrix[7] * y + matrix[15];
   return [
@@ -43,7 +51,7 @@ export function applyMatrix(matrix: CssMatrix, x: number, y: number): Vec2 {
   ];
 }
 
-/** The matrix as a CSS `transform` value. */
+/** The matrix as a CSS `transform` value: `matrix3d(…)` with its 16 values in order. */
 export function cssTransform(matrix: CssMatrix): string {
   return `matrix3d(${matrix.map((v) => String(v)).join(', ')})`;
 }

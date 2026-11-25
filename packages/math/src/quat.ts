@@ -1,22 +1,29 @@
 import type { Vec3 } from './vec3.js';
 import { cross, dot, length, normalize } from './vec3.js';
 
-/** A rotation quaternion `x, y, z, w`. Rotations are unit quaternions; `q` and `-q` are the same rotation. */
+/**
+ * A rotation quaternion `x, y, z, w`, with `w` the scalar part. Rotations are unit quaternions; `q`
+ * and `-q` are the same rotation. The type does not enforce unit length; {@link isUnitQuat} checks
+ * it. Every function here returns a fresh, unfrozen array and leaves its arguments unchanged.
+ */
 export type Quat = readonly [number, number, number, number];
 
+/** The rotation that turns nothing, `[0, 0, 0, 1]`; frozen. */
 export const IDENTITY_QUAT: Quat = Object.freeze([0, 0, 0, 1] as const);
 
+/** The Euclidean length of `q` as a 4-vector: 1 for a rotation. */
 export function quatLength(q: Quat): number {
   return Math.hypot(q[0], q[1], q[2], q[3]);
 }
 
+/** True when no component of `q` is NaN or infinite. */
 export function isFiniteQuat(q: Quat): boolean {
   return (
     Number.isFinite(q[0]) && Number.isFinite(q[1]) && Number.isFinite(q[2]) && Number.isFinite(q[3])
   );
 }
 
-/** True when `q` is finite and its length is within `tolerance` of 1. */
+/** True when `q` is finite and its length is within `tolerance` (default `1e-6`) of 1. */
 export function isUnitQuat(q: Quat, tolerance = 1e-6): boolean {
   return isFiniteQuat(q) && Math.abs(quatLength(q) - 1) <= tolerance;
 }
@@ -42,11 +49,15 @@ export function quatMultiply(a: Quat, b: Quat): Quat {
   ];
 }
 
+/** The conjugate `[-x, -y, -z, w]`: the inverse rotation when `q` is a unit quaternion. */
 export function quatConjugate(q: Quat): Quat {
   return [-q[0], -q[1], -q[2], q[3]];
 }
 
-/** The inverse rotation of a unit quaternion. */
+/**
+ * The multiplicative inverse of `q`, its conjugate divided by its squared length: for a unit
+ * quaternion, the inverse rotation. Throws a RangeError for a zero-length or non-finite quaternion.
+ */
 export function quatInvert(q: Quat): Quat {
   const lenSq = q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3];
   if (!(lenSq > 0) || !Number.isFinite(lenSq)) {
@@ -55,7 +66,10 @@ export function quatInvert(q: Quat): Quat {
   return [-q[0] / lenSq, -q[1] / lenSq, -q[2] / lenSq, q[3] / lenSq];
 }
 
-/** Rotates vector `v` by unit quaternion `q`. */
+/**
+ * Rotates vector `v` by unit quaternion `q`. The length of `q` is not checked; a quaternion that is
+ * not unit also scales `v`.
+ */
 export function quatRotate(q: Quat, v: Vec3): Vec3 {
   const [qx, qy, qz, qw] = q;
   const [vx, vy, vz] = v;
@@ -70,7 +84,11 @@ export function quatRotate(q: Quat, v: Vec3): Vec3 {
   ];
 }
 
-/** The rotation of `angle` radians about `axis` (right-handed). */
+/**
+ * The rotation of `angle` radians about `axis`, counter-clockwise when the axis points at the
+ * viewer (right-handed). The axis need not be unit length; a zero-length or non-finite axis
+ * throws a RangeError.
+ */
 export function quatFromAxisAngle(axis: Vec3, angle: number): Quat {
   const [x, y, z] = normalize(axis);
   const half = angle / 2;
@@ -80,7 +98,9 @@ export function quatFromAxisAngle(axis: Vec3, angle: number): Quat {
 
 /**
  * The rotation whose columns are the given orthonormal basis vectors: local +X maps to `xAxis`,
- * +Y to `yAxis` and +Z to `zAxis`. The basis must be right-handed and orthonormal.
+ * +Y to `yAxis` and +Z to `zAxis`. The basis must be right-handed and orthonormal, which is not
+ * checked: any other basis still gives a unit quaternion, but not one that maps the axes so. A
+ * non-finite basis throws a RangeError.
  */
 export function quatFromBasis(xAxis: Vec3, yAxis: Vec3, zAxis: Vec3): Quat {
   const [m00, m10, m20] = xAxis;
@@ -106,7 +126,8 @@ export function quatFromBasis(xAxis: Vec3, yAxis: Vec3, zAxis: Vec3): Quat {
 
 /**
  * The rotation that points local +Z along `forward` while keeping local +Y as close to `up` as
- * possible. Throws a RangeError when `forward` is zero or parallel to `up`.
+ * possible. Neither need be unit length. Throws a RangeError when `forward` or `up` is zero or not
+ * finite, or when they are parallel.
  */
 export function quatLookRotation(forward: Vec3, up: Vec3): Quat {
   const z = normalize(forward);
@@ -119,7 +140,10 @@ export function quatLookRotation(forward: Vec3, up: Vec3): Quat {
   return quatFromBasis(x, y, z);
 }
 
-/** True when `a` and `b` describe the same rotation within `epsilon` (treating `q` and `-q` as equal). */
+/**
+ * True when the unit quaternions `a` and `b` describe the same rotation, treating `q` and `-q` as
+ * equal: the absolute value of their 4-D dot product is within `epsilon` (default `1e-9`) of 1.
+ */
 export function quatSameRotation(a: Quat, b: Quat, epsilon = 1e-9): boolean {
   const d = Math.abs(dot([a[0], a[1], a[2]], [b[0], b[1], b[2]]) + a[3] * b[3]);
   return Math.abs(1 - d) <= epsilon;

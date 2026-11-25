@@ -1,10 +1,18 @@
 import { makeError, RejectionSignal, SwfFailure } from './errors.js';
 
-/** A JSON-compatible value with finite numbers only. */
+/**
+ * A JSON-compatible value with finite numbers only. Values the scene stores are deep, frozen
+ * copies of plain data: no functions, symbols, class instances, cycles, the keys `__proto__`,
+ * `constructor` or `prototype`, or nesting deeper than 64 levels.
+ */
 export type JsonValue =
   null | boolean | number | string | readonly JsonValue[] | { readonly [key: string]: JsonValue };
 
-/** Namespaced descriptive data on an entity. Keys are `host.<name>` or `ext.<extension-id>.<name>`. */
+/**
+ * Namespaced descriptive data on an entity. Keys are `host.<name>` or `ext.<extension-id>.<name>`;
+ * keys under `swf.` are reserved for the framework and rejected (`INVALID_INPUT`). Values are
+ * {@link JsonValue} data. The map the scene holds is frozen.
+ */
 export type Metadata = Readonly<Record<string, JsonValue>>;
 
 const MAX_DEPTH = 64;

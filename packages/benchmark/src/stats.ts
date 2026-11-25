@@ -3,14 +3,19 @@
  * maximum, frame-interval analysis, and how a cost grows with scene size.
  */
 
-/** A summary of measured values. */
+/** A summary of measured values, in their own unit. Frozen. */
 export interface Summary {
+  /** How many values were summarized: at least 1. */
   readonly count: number;
+  /** The smallest value. */
   readonly min: number;
+  /** The median, by nearest rank: a value that was measured. */
   readonly median: number;
   /** The 95th percentile, by nearest rank. */
   readonly p95: number;
+  /** The largest value. */
   readonly max: number;
+  /** The arithmetic mean. */
   readonly mean: number;
 }
 
@@ -18,6 +23,9 @@ export interface Summary {
  * The value at quantile `q` (0 to 1) of sorted values, by nearest rank: the smallest value with at
  * least `q` of the values at or below it. Nearest rank reports a value that was measured, never
  * one interpolated between two.
+ *
+ * @param sorted - The values in ascending order; the order is not checked.
+ * @throws `RangeError` for no values, or a `q` outside 0 to 1 (`NaN` included).
  */
 export function quantile(sorted: readonly number[], q: number): number {
   if (sorted.length === 0) {
@@ -39,7 +47,11 @@ function valueAt(values: readonly number[], index: number): number {
   return value;
 }
 
-/** Summarizes values. Throws `RangeError` for none, or for a value that is not finite. */
+/**
+ * Summarizes values, in any order; the input is not changed.
+ *
+ * @throws `RangeError` for no values, or for a value that is not finite.
+ */
 export function summarize(values: readonly number[]): Summary {
   if (values.length === 0) {
     throw new RangeError('a summary of no values is undefined');
@@ -62,20 +74,33 @@ export function summarize(values: readonly number[]): Summary {
 /** The display's frame interval at 60 Hz, in milliseconds: NFR-001's budget. */
 export const FRAME_BUDGET_MS = 1000 / 60;
 
-/** The width of a frame-interval histogram's bins, and how many there are, in milliseconds. */
-export const HISTOGRAM = Object.freeze({ binMs: 1, bins: 100 });
+/**
+ * The width of a frame-interval histogram's bins, in milliseconds, and how many there are:
+ * 1 ms bins, 100 of them. Frozen.
+ */
+export const HISTOGRAM: {
+  /** The width of each bin, in milliseconds. */
+  readonly binMs: number;
+  /** How many bins there are; longer intervals are counted together past the last. */
+  readonly bins: number;
+} = Object.freeze({ binMs: 1, bins: 100 });
 
-/** What a run of frames shows. */
+/** What a run of frames shows. Frozen. */
 export interface FrameAnalysis {
+  /** Frames recorded: one more than the intervals between them. */
   readonly frames: number;
+  /** The intervals between successive frames, in milliseconds. */
   readonly intervals: Summary;
   /**
    * The intervals by length: `counts[i]` holds those of `i` to `i + 1` bins' width, `over` those
    * past the last bin (QA-010).
    */
   readonly histogram: {
+    /** The width of each bin, in milliseconds: {@link HISTOGRAM}'s. */
     readonly binMs: number;
+    /** How many intervals fell in each bin, {@link HISTOGRAM}'s number of them. */
     readonly counts: readonly number[];
+    /** How many intervals were as long as all the bins together, or longer. */
     readonly over: number;
   };
   /**
@@ -85,15 +110,23 @@ export interface FrameAnalysis {
    * this tolerates, while a missed frame makes an interval of two periods or more.
    */
   readonly withinBudget: number;
-  /** Frames missed: each interval counts the whole budgets it spans, less one. */
+  /**
+   * Frames missed: each interval counts the budgets it spans, rounded to the nearest whole, less
+   * one.
+   */
   readonly skipped: number;
-  /** Frames per second over the run. */
+  /** Frames per second over the run: 0 when the first and last timestamps are equal. */
   readonly fps: number;
 }
 
 /**
- * Analyses the timestamps of successive animation frames, in milliseconds. Throws `RangeError`
- * for fewer than two frames or timestamps that go back.
+ * Analyses the timestamps of successive animation frames, in milliseconds.
+ *
+ * @param timestamps - Each frame's timestamp, in order, such as {@link FrameRecorder.stop} gives.
+ * @param budgetMs - One display frame, in milliseconds; positive, not checked. Default
+ *   {@link FRAME_BUDGET_MS}.
+ * @throws `RangeError` for fewer than two frames, timestamps that go back, or an interval that is
+ *   not finite.
  */
 export function analyseFrames(
   timestamps: readonly number[],
@@ -147,7 +180,9 @@ export function meetsFrameBudget(
 
 /** A cost measured at a scene size. */
 export interface Growth {
+  /** The scene's size, such as its number of windows: greater than 0. */
   readonly n: number;
+  /** The cost measured at that size, in any one unit: greater than 0. */
   readonly cost: number;
 }
 

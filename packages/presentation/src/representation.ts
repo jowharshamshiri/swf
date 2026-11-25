@@ -12,6 +12,7 @@ import { standInModes } from './negotiation.js';
  */
 export type Representation = 'full' | 'compact' | 'label';
 
+/** Every {@link Representation}, from the most shown to the least; frozen. */
 export const REPRESENTATIONS: readonly Representation[] = Object.freeze([
   'full',
   'compact',
@@ -22,7 +23,9 @@ export const REPRESENTATIONS: readonly Representation[] = Object.freeze([
 export interface RepresentationContext {
   /** The presented scene of the frame being planned. */
   readonly scene: SceneState;
+  /** The view the frame is planned for. */
   readonly view: ViewGeometry;
+  /** The surface asked about; it is in `scene`. */
   readonly surfaceId: Id;
   /** The node that owns the surface. */
   readonly nodeId: Id;
@@ -36,12 +39,20 @@ export interface RepresentationContext {
 export interface RepresentationPolicy {
   /** A versioned ID, `<name>/<version>`. */
   readonly id: string;
+  /**
+   * How the surface is represented. Asked once per surface and frame, whatever its number of
+   * fragments; an answer that is not a {@link Representation} fails the frame with
+   * `INVALID_INPUT`, and what it throws propagates.
+   */
   representationOf(context: RepresentationContext): Representation;
 }
 
 const VERSIONED_ID = /^[a-z0-9][a-z0-9.-]*\/[1-9][0-9]*$/;
 
-/** Why a value is not a representation policy, or null when it is. */
+/**
+ * Why a value is not a representation policy, or null when it is: not an object, an `id` that is
+ * not a versioned ID in lower case (`name/1`), or no `representationOf` function. It never throws.
+ */
 export function representationPolicyIssue(value: unknown): string | null {
   if (typeof value !== 'object' || value === null) {
     return 'a representation policy must be an object';
@@ -58,7 +69,8 @@ export function representationPolicyIssue(value: unknown): string | null {
 
 /**
  * Asks a policy how a surface is represented, holding it to its contract. Throws
- * {@link SwfFailure} (`INVALID_INPUT`) when it answers something that is not a representation.
+ * {@link SwfFailure} (`INVALID_INPUT`, naming the surface) when it answers something that is not a
+ * representation; what the policy itself throws propagates unchanged.
  */
 export function representationFor(
   policy: RepresentationPolicy,
@@ -82,6 +94,9 @@ export function representationFor(
  * policy's own for `full`; for `compact` and `label`, only the modes that stand for the surface
  * without showing its content, in the policy's order. What negotiation then reports as a fallback
  * is only what capabilities ruled out, never the representation chosen.
+ *
+ * @returns `policy` itself for `full`; otherwise a new frozen policy holding only `proxy` and
+ *   `placeholder` (those the policy lists).
  */
 export function representedOrder(
   policy: FallbackPolicy,

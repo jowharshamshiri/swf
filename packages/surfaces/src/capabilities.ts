@@ -1,4 +1,8 @@
-/** How faithfully a surface's placement follows its projected geometry, best first. */
+/**
+ * How faithfully a surface's placement follows its projected geometry, best first: placed by the
+ * platform itself (`native`), matched exactly, approximated, shown only as a proxy, or not at all.
+ * {@link FIDELITY_ORDER} ranks them.
+ */
 export type Fidelity = 'native' | 'exact' | 'approximate' | 'proxy' | 'unsupported';
 
 /**
@@ -7,7 +11,10 @@ export type Fidelity = 'native' | 'exact' | 'approximate' | 'proxy' | 'unsupport
  */
 export type AttachStrategy = 'native-dom' | 'drawable' | 'proxy-only';
 
-/** How much of the endpoint's own interaction stays native: all of it, some of it, or none. */
+/**
+ * How much of the endpoint's own interaction stays native: all of it, some of it, or none.
+ * {@link INTERACTION_ORDER} ranks them.
+ */
 export type InteractionSupport = 'full' | 'partial' | 'none';
 
 /**
@@ -22,23 +29,44 @@ export type ViewportSharing = 'shared' | 'single-owner';
 /**
  * What an adapter can do with an endpoint, each capability advertised independently. An adapter
  * declares the most it offers at registration; each resolved handle reports its own, which must
- * not exceed the declaration.
+ * not exceed the declaration ({@link exceededCapabilities}). Every field is required, and a
+ * descriptor must not contradict itself: {@link capabilitiesIssue} states the rules. The runtime
+ * keeps a frozen copy of every descriptor it accepts.
  */
 export interface SurfaceCapabilities {
+  /**
+   * How the endpoint is attached. A handle's strategy must equal its adapter's declared one, and
+   * only `native-dom` may claim native interaction or native transform fidelity.
+   */
   readonly attachStrategy: AttachStrategy;
+  /** How much of the endpoint's own input stays native; above `none` needs `native-dom`. */
   readonly nativeInteraction: InteractionSupport;
-  /** Pointer positions can be addressed as surface UV coordinates. */
+  /**
+   * Pointer positions can be addressed as surface UV coordinates. A `proxy-only` endpoint cannot
+   * offer it.
+   */
   readonly uvAddressing: boolean;
+  /**
+   * How faithfully the attachment follows the projected geometry. `native` needs `native-dom`; a
+   * `proxy-only` endpoint offers at best `proxy`.
+   */
   readonly transformFidelity: Fidelity;
+  /** The endpoint's content may be transparent, so what lies behind it can show through. */
   readonly transparency: boolean;
+  /** The attachment can be clipped to a region of the surface. */
   readonly clipping: boolean;
-  /** The adapter maps the cursor's position and shape onto the endpoint. */
+  /** The adapter maps the cursor's position and shape onto the endpoint; needs `uvAddressing`. */
   readonly cursorMapping: boolean;
+  /** Which sizes the adapter follows when they change. */
   readonly resize: ResizeHandling;
+  /**
+   * Whether the handle may be shown in several viewports at once. A `single-owner` handle is
+   * presented in one viewport at a time, and its endpoint by one surface at a time.
+   */
   readonly viewportSharing: ViewportSharing;
   /** The presentation attachment can be released while hidden without harming the endpoint. */
   readonly safeDetach: boolean;
-  /** A released attachment can be attached again later. */
+  /** A released attachment can be attached again later; needs `safeDetach`. */
   readonly rebinding: boolean;
   /** The adapter can supply its own placeholder while unbound. */
   readonly placeholder: boolean;
@@ -46,7 +74,7 @@ export interface SurfaceCapabilities {
   readonly snapshotHooks: boolean;
 }
 
-/** Fidelity levels, worst first. */
+/** Fidelity levels, worst first; frozen. */
 export const FIDELITY_ORDER: readonly Fidelity[] = Object.freeze([
   'unsupported',
   'proxy',
@@ -54,7 +82,7 @@ export const FIDELITY_ORDER: readonly Fidelity[] = Object.freeze([
   'exact',
   'native',
 ]);
-/** Interaction support levels, least first. */
+/** Interaction support levels, least first; frozen. */
 export const INTERACTION_ORDER: readonly InteractionSupport[] = Object.freeze([
   'none',
   'partial',
@@ -62,6 +90,7 @@ export const INTERACTION_ORDER: readonly InteractionSupport[] = Object.freeze([
 ]);
 const RESIZE_ORDER: readonly ResizeHandling[] = ['none', 'spatial', 'intrinsic'];
 const SHARING_ORDER: readonly ViewportSharing[] = ['single-owner', 'shared'];
+/** Every attach strategy, in no rank order: none is better than another; frozen. */
 export const ATTACH_STRATEGIES: readonly AttachStrategy[] = Object.freeze([
   'native-dom',
   'drawable',
@@ -97,7 +126,10 @@ function oneOf(value: unknown, allowed: readonly string[], name: string): string
 
 /**
  * Why a capability descriptor is malformed or self-contradictory, or null when it is valid.
- * Every field is required; unknown fields are rejected.
+ * Every field is required; unknown fields are rejected. The reason names the field, as
+ * `capabilities.<field> ...`, or states the contradiction: native interaction or native fidelity
+ * without `native-dom`; a `proxy-only` endpoint claiming better than proxy fidelity or UV
+ * addressing; cursor mapping without UV addressing; rebinding without safe detachment.
  */
 export function capabilitiesIssue(value: unknown): string | null {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
@@ -153,8 +185,11 @@ function contradiction(c: SurfaceCapabilities): string | null {
 const rank = <T>(order: readonly T[], value: T): number => order.indexOf(value);
 
 /**
- * The capabilities in `actual` that exceed `declared`, by name. Empty when `actual` stays within
- * the declaration (same attach strategy, nothing better than declared).
+ * The capabilities in `actual` that exceed `declared`, by field name, in the order of
+ * {@link SurfaceCapabilities}' fields. Empty when `actual` stays within the declaration: the same
+ * attach strategy, no ranked capability better than declared (`single-owner` ranks below
+ * `shared`), and no boolean capability true that the declaration leaves false. Both descriptors
+ * are taken to be valid. Returns a fresh array.
  */
 export function exceededCapabilities(
   declared: SurfaceCapabilities,

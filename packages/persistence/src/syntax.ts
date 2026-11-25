@@ -6,10 +6,11 @@
 export interface JsonSyntaxError {
   /** UTF-16 offset of the first character that cannot be there. */
   readonly offset: number;
-  /** 1-based line and column of that character. */
+  /** 1-based line of that character; lines end at each `\n`. */
   readonly line: number;
+  /** 1-based column of that character, in UTF-16 units from the start of its line. */
   readonly column: number;
-  /** What the grammar needed there. */
+  /** What the grammar needed there, in words, such as `a colon (:)`. */
   readonly expected: string;
 }
 
@@ -24,7 +25,7 @@ class Broken extends Error {
 
 const WHITESPACE = new Set([' ', '\t', '\n', '\r']);
 
-/** The first syntax error in `text`, or null when it is valid JSON. */
+/** The first syntax error in `text`, or null when it is valid JSON. The result is frozen. */
 export function jsonSyntaxError(text: string): JsonSyntaxError | null {
   let at = 0;
   const peek = () => text[at];

@@ -12,6 +12,10 @@ import { DOM_ATTRIBUTES } from './renderer.js';
  * frame, so no work repeats within a frame without end. A hidden tab gets no animation frames, so
  * work waits there, coalesced, and resumes from the latest state when the tab shows again. A call
  * that throws does not stop the others: its error is reported to the window once they have run.
+ *
+ * At most one animation frame is requested at a time. Each `request` returns a function that
+ * cancels that call (safe to call twice); once every call waiting is cancelled, the frame is
+ * cancelled too. The source holds nothing else and needs no disposal.
  */
 export function animationFrames(
   view: Pick<Window, 'requestAnimationFrame' | 'cancelAnimationFrame' | 'queueMicrotask'>,
@@ -76,8 +80,11 @@ export function animationFrames(
 
 /**
  * Shows, in a viewport's container, that the viewport presents nothing and why: a status line of
- * text, marked with the error's code, for a presenter's `showDegraded`. Returns what removes it.
- * Throws {@link SwfFailure} (`INVALID_INPUT`) when the container is not an element.
+ * text (`role="status"`), marked with the error's code in {@link DOM_ATTRIBUTES}`.degraded`, for
+ * a presenter's `showDegraded`. The message is inserted as text, never markup. Returns what
+ * removes the line again; the container stays the caller's.
+ *
+ * @throws {@link @swf/core!SwfFailure} `INVALID_INPUT` when the container is not an element.
  */
 export function showDegraded(container: unknown, error: SwfError): () => void {
   if (typeof HTMLElement === 'undefined' || !(container instanceof HTMLElement)) {

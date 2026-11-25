@@ -25,7 +25,12 @@ import { MockCompositor, MockRenderer } from './mock-backend.js';
 
 /** What the handoff suite needs: the backend under test, and how it loses its resources. */
 export interface HandoffFixture {
+  /**
+   * A fresh renderer under test, registered beside the reference mocks in each case's own
+   * presentation registry.
+   */
   renderer(): RendererBackend;
+  /** A fresh compositor under test, to pair with the renderer. */
   compositor(): Compositor;
   /** The host container of a viewport. Default: an empty object. */
   container?(viewportId: Id): unknown;
@@ -292,7 +297,8 @@ const attachments = (r: Rig) =>
  * The runtime cases of renderer and compositor conformance (QA-005): a backend handoff that
  * succeeds, one that fails and rolls back, the loss of a graphics context, and the fallback a
  * running viewport chose, visible, or the viewport visibly degraded when nothing works. Each
- * case runs a presenter over the backend under test with the reference mocks beside it.
+ * case runs a presenter over the backend under test with the reference mocks beside it, made when
+ * the case runs and disposed when it ends.
  */
 export function handoffConformance(fixture: HandoffFixture): ConformanceCase[] {
   const withRig = async (body: (r: Rig) => Promise<void>): Promise<'passed'> => {

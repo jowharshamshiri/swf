@@ -10,9 +10,18 @@ import type { BenchmarkHost } from './host.js';
 
 /** Records the timestamp of every animation frame until stopped. */
 export interface FrameRecorder {
+  /**
+   * Stops recording and returns the frames' timestamps, in milliseconds by the window's frame
+   * clock, oldest first: the recorder's own array, the same on every call.
+   */
   stop(): readonly number[];
 }
 
+/**
+ * Starts recording the timestamp of every animation frame of `view`, from the next one, by
+ * requesting one frame after another. The caller must call {@link FrameRecorder.stop}, which ends
+ * the requests.
+ */
 export function recordFrames(view: Window): FrameRecorder {
   const stamps: number[] = [];
   let running = true;
@@ -36,7 +45,13 @@ export function recordFrames(view: Window): FrameRecorder {
  * The control a run is read against: the page itself moving one plain element every animation
  * frame, with no framework, for `durationMs`, on a page of the given size. What the browser
  * manages here is what the machine and the browser can give a page at all; a run's frames are
- * read against it. Resolves to the frames' timestamps.
+ * read against it. Resolves to the frames' timestamps, in milliseconds.
+ *
+ * The control's page element is appended to `parent` and removed again when it is done.
+ *
+ * @param size - The page's size, in CSS pixels.
+ * @param durationMs - How long to run, in milliseconds by the window's frame clock.
+ * @throws `Error` (as a rejection) when `parent` is not in a window.
  */
 export async function recordControl(
   parent: HTMLElement,
@@ -115,7 +130,13 @@ export interface PreviewLatency {
   readonly maxPending: number;
 }
 
+/** Records preview latency until stopped. */
 export interface PreviewRecorder {
+  /**
+   * Stops listening to the host's input and frames and returns what was found. Moves shown by
+   * the last presented frame are added to `latencies` when the frame after it begins, which may
+   * be after `stop`.
+   */
   stop(): PreviewLatency;
 }
 
@@ -125,6 +146,9 @@ export interface PreviewRecorder {
  * input, as the DOM input device passes it on) to the start of the animation frame after the one
  * whose presentation showed the window where that move put it, or somewhere a later move put it.
  * That next frame begins once the presented one is painted, so the measure includes the paint.
+ * A move is counted only while a preview of `nodeId` is open. The caller must stop the recorder.
+ *
+ * @throws `Error` when the host has no viewport or is not in a window.
  */
 export function recordPreviewLatency(host: BenchmarkHost, nodeId: Id): PreviewRecorder {
   const main = host.viewports[0];
@@ -179,9 +203,17 @@ export function recordPreviewLatency(host: BenchmarkHost, nodeId: Id): PreviewRe
 
 /** The router's hit queries for pointer input, as it timed them. */
 export interface PickRecorder {
+  /**
+   * Stops recording and returns each hit query's time, in milliseconds, in dispatch order: the
+   * recorder's own array, the same on every call.
+   */
   stop(): readonly number[];
 }
 
+/**
+ * Starts recording the time of every hit query the host's router makes for pointer input, as the
+ * router timed it. The caller must call {@link PickRecorder.stop}, which stops observing input.
+ */
 export function recordPicks(host: BenchmarkHost): PickRecorder {
   const times: number[] = [];
   const stop = host.observeInput((intent, result) => {
@@ -202,6 +234,10 @@ export function recordPicks(host: BenchmarkHost): PickRecorder {
  * clocks still resolve them (Firefox and Safari round `performance.now` to a millisecond or
  * more): each point's time is its queries' time divided by their number. Returns milliseconds per
  * query, one value per point.
+ *
+ * @param points - Points of the viewport, in CSS pixels from its top left.
+ * @param perPoint - Queries at each point: a whole number of at least 1, not checked.
+ * @throws `Error` when the host is not in a window.
  */
 export function timePicks(
   host: BenchmarkHost,

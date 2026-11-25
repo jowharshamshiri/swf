@@ -38,8 +38,14 @@ export interface EquirectangularConfig {
   readonly vertical: number;
 }
 
+/**
+ * The equirectangular module's default configuration, frozen: the full circle across and 120°
+ * down, so the poles are not shown.
+ */
 export const DEFAULT_EQUIRECTANGULAR_CONFIG = Object.freeze({
+  /** The full 360°, with a wrapping seam behind the camera. */
   horizontal: 360,
+  /** 60° above and below the horizon. */
   vertical: 120,
 }) satisfies EquirectangularConfig;
 
@@ -68,6 +74,15 @@ function configIssue(config: JsonValue): string | null {
  * (positive up); the viewport spans the configured angles centred on the camera's heading. At
  * 360° the left and right edges meet at a seam behind the camera; at 180° vertically, the top and
  * bottom rows are the poles. Its inverse is exact everywhere in the image.
+ *
+ * Its configuration is an {@link EquirectangularConfig} in degrees; `configIssue` names a missing,
+ * out-of-range or unknown setting, and `create` throws a RangeError for one. A surface crossing the
+ * seam is placed as one fragment on each side, both carrying the whole surface's corners; the one
+ * showing the surface's centre (or else the widest) is its native owner. With continuity, an
+ * interaction ray's longitude follows the drag across the seam instead of jumping a full turn. A
+ * surface whose outline circles a pole is one approximate fragment the full width of the image.
+ * Its methods throw a RangeError for a view whose camera matrix cannot be inverted, and
+ * `projectDirection` for a zero or non-finite direction.
  */
 export const equirectangular: ProjectionModule = Object.freeze({
   id: 'equirectangular/1',
@@ -350,11 +365,6 @@ class Equirectangular implements Projection {
   }
 
   /**
-   * The surface's outline as unwrapped angles: samples around its local bounds, followed
-   * continuously in longitude, centred so their mean lies in (-π, π]. Null when the surface is
-   * beyond the far distance or the camera is within the near distance of it.
-   */
-  /**
    * Whether a surface lies wholly beyond the image, decided from its world bounds alone (NFR-017):
    * the sphere round its bounding box, seen from the eye, covers a cap of the sky; when that cap
    * lies above or below the image, or (short of the full circle) to either side of it, no part of
@@ -384,6 +394,11 @@ class Equirectangular implements Projection {
     return Math.abs(longitude) - across > this.#h / 2 + EPS;
   }
 
+  /**
+   * The surface's outline as unwrapped angles: samples around its local bounds, followed
+   * continuously in longitude, centred so their mean lies in (-π, π]. Null when the surface is
+   * beyond the far distance or the camera is within the near distance of it.
+   */
   #outline(geometry: ResolvedGeometry, view: ViewGeometry) {
     const frame = frameOf(view);
     const world = (p: Vec3) => mat4TransformPoint(geometry.world, p);

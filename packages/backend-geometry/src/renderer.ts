@@ -35,6 +35,7 @@ import type { GeometryLayer } from './layer.js';
 import { GEOMETRY_LAYER } from './layer.js';
 import { planeMesh, planeOutline } from './sampling.js';
 
+/** The geometry renderer's registered ID, as {@link GeometryRenderer} declares it. */
 export const GEOMETRY_RENDERER_ID = 'swf.geometry-renderer/1';
 
 /**
@@ -44,13 +45,17 @@ export const GEOMETRY_RENDERER_ID = 'swf.geometry-renderer/1';
  * stand out from the view's ground by 3:1 at least (WCAG 1.4.11), text by 4.5:1 (WCAG 1.4.3).
  */
 export interface GeometryInks {
+  /** Every window frame and every mark of a window out of view: a non-blank canvas colour. */
   readonly frame: string;
+  /** The selected window's frame: a non-blank canvas colour. */
   readonly selected: string;
+  /** The focused window's frame, over `selected`: a non-blank canvas colour. */
   readonly focused: string;
+  /** Titles, labels standing for windows and the marks' names: a non-blank canvas colour. */
   readonly text: string;
 }
 
-/** Inks that stand out on a light ground by 4.5:1 or more. */
+/** Inks that stand out on a light ground by 4.5:1 or more. Frozen. */
 export const DEFAULT_GEOMETRY_INKS: GeometryInks = Object.freeze({
   frame: 'rgb(118, 118, 118)',
   selected: 'rgb(0, 95, 184)',
@@ -64,10 +69,13 @@ const STAND_IN = Object.freeze({
   placeholder: { ground: 'rgb(220, 220, 220)', edge: 'rgb(90, 90, 90)', ink: 'rgb(40, 40, 40)' },
 });
 
+/** What a geometry renderer draws from. Checked when the renderer is made, `inks` every frame. */
 export interface GeometryRendererOptions {
   /**
    * The drawable an adapter supplies for a surface, for surfaces presented as drawn content
-   * (typically the surface runtime's handle of a `drawable` adapter).
+   * (typically the surface runtime's handle of a `drawable` adapter). Asked at every frame; a
+   * surface planned as drawn content whose answer is not a {@link Drawable} fails the frame with
+   * `INVALID_INPUT`. The drawables stay the adapters'.
    */
   readonly drawables?: (surfaceId: Id) => unknown;
   /**
@@ -75,8 +83,11 @@ export interface GeometryRendererOptions {
    * point by point (mesh warping), and draws window chrome and indicators for windows out of
    * view; without them it places drawn content by its projected corners only.
    */
-  readonly projections?: { get(id: string): ProjectionModule | undefined };
-  /** Cells per side of the mesh a drawable is warped with. Default 12. */
+  readonly projections?: {
+    /** The projection module registered under `id`, or undefined when none is. */
+    get(id: string): ProjectionModule | undefined;
+  };
+  /** Cells per side of the mesh a drawable is warped with: a whole number, 1 to 128. Default 12. */
   readonly meshCells?: number;
   /**
    * What a proxy or placeholder says when it stands in for content for a reason (FR-195), as text.
@@ -85,7 +96,8 @@ export interface GeometryRendererOptions {
   readonly standIn?: (reason: StandInReason) => string;
   /**
    * The inks, read at every frame so a change of the host's appearance is drawn at the next one.
-   * Default {@link DEFAULT_GEOMETRY_INKS}.
+   * Default {@link DEFAULT_GEOMETRY_INKS}. An ink that is not a non-blank string makes that frame
+   * throw `RangeError`.
    */
   readonly inks?: () => GeometryInks;
 }
@@ -96,11 +108,18 @@ export interface GeometryRendererOptions {
  * back. It cannot present live elements; with nothing else, those are shown as proxies.
  */
 export class GeometryRenderer implements RendererBackend {
+  /** {@link GEOMETRY_RENDERER_ID}. */
   readonly id = GEOMETRY_RENDERER_ID;
+  /** The presentation API version it implements. */
   readonly apiVersion = PRESENTATION_API_VERSION;
   readonly #options: GeometryRendererOptions;
   readonly #cells: number;
 
+  /**
+   * A renderer drawing from `options`, which it keeps as given.
+   *
+   * @throws `RangeError` for a `meshCells` that is not a whole number from 1 to 128.
+   */
   constructor(options: GeometryRendererOptions = {}) {
     const cells = options.meshCells ?? 12;
     if (!Number.isInteger(cells) || cells < 1 || cells > 128) {
@@ -127,6 +146,10 @@ export class GeometryRenderer implements RendererBackend {
     });
   }
 
+  /**
+   * A new session for the view's viewport. Rejects with {@link SwfFailure} (`INVALID_INPUT`) for
+   * an invalid view.
+   */
   prepare(_scene: SceneState, view: ViewGeometry): Promise<RendererSession> {
     const issue = viewGeometryIssue(view);
     if (issue !== null) {
@@ -142,8 +165,15 @@ export class GeometryRenderer implements RendererBackend {
   }
 }
 
+/**
+ * A geometry renderer's session for one viewport. It holds no graphics resources, only the
+ * layers it drew last, kept so unchanged ones are not drawn anew; the presenter owns and releases
+ * it.
+ */
 export class GeometryRendererSession implements RendererSession {
+  /** The renderer that prepared it. */
   readonly rendererId: string;
+  /** The viewport it renders. */
   readonly viewportId: Id;
   readonly #options: GeometryRendererOptions;
   readonly #cells: number;
@@ -158,6 +188,7 @@ export class GeometryRendererSession implements RendererSession {
   #inks: GeometryInks = DEFAULT_GEOMETRY_INKS;
   #released = false;
 
+  /** A session as {@link GeometryRenderer.prepare} makes it, with `cells` mesh cells per side. */
   constructor(rendererId: string, viewportId: Id, options: GeometryRendererOptions, cells: number) {
     this.rendererId = rendererId;
     this.viewportId = viewportId;
@@ -165,13 +196,27 @@ export class GeometryRendererSession implements RendererSession {
     this.#cells = cells;
   }
 
+  /**
+   * Realizes a frame as drawn layers: drawn content, proxies and placeholders in plan order, each
+   * window's chrome after its last fragment, and the indicators of windows out of view on top
+   * (chrome and indicators only with projection modules). A layer whose inputs did not change is
+   * the same object as last frame.
+   *
+   * @throws {@link @swf/core!SwfFailure} `INVALID_TRANSITION` once released; `INVALID_INPUT`
+   *   for a frame of another viewport or a missing or invalid drawable; `UNSUPPORTED_CAPABILITY`
+   *   for live content, a chrome or overlay fragment, or a projection the modules do not have.
+   *   `RangeError` for an invalid ink.
+   */
   render(frame: RenderFrame): RenderedFrame {
     return this.renderExcept(frame, new Set());
   }
 
   /**
    * Renders every planned fragment except the live ones listed, which another renderer realizes
-   * (see {@link LayeredRenderer}); window chrome still stacks with them in plan order.
+   * (see {@link LayeredRenderer}); window chrome still stacks with them in plan order. Throws as
+   * {@link GeometryRendererSession.render} does, but not for the live fragments listed.
+   *
+   * @param elsewhere - The IDs of live fragments another renderer realizes.
    */
   renderExcept(frame: RenderFrame, elsewhere: ReadonlySet<string>): RenderedFrame {
     if (this.#released) {
@@ -287,6 +332,7 @@ export class GeometryRendererSession implements RendererSession {
     return () => undefined;
   }
 
+  /** Ends the session: rendering afterwards throws. It frees nothing. Safe to call twice. */
   release(): Promise<void> {
     this.#released = true;
     return Promise.resolve();

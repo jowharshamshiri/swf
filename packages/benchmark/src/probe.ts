@@ -21,13 +21,29 @@ export interface ResourceCounts {
   readonly timers: number;
 }
 
+/**
+ * A probe installed in a window, counting what the window's code holds. The caller owns it and
+ * must call {@link ResourceProbe.dispose} to give the window its own functions back.
+ */
 export interface ResourceProbe {
+  /**
+   * What the window's code holds now, counting only what was registered since the probe was
+   * installed. A new frozen object on every call.
+   */
   counts(): ResourceCounts;
-  /** Puts the window's own functions back. Registrations made meanwhile keep working. */
+  /**
+   * Puts the window's own functions back and lets another probe be installed. Registrations made
+   * meanwhile keep working; they are no longer followed, so counts read afterwards are stale.
+   * Safe to call twice.
+   */
   dispose(): void;
 }
 
-type ProbedWindow = Window & typeof globalThis;
+/**
+ * The window a probe is installed in: a browser window with its globals, whose
+ * `EventTarget.prototype`, observers, animation frames and timers the probe wraps.
+ */
+export type ProbedWindow = Window & typeof globalThis;
 
 interface Registration {
   readonly target: WeakRef<EventTarget>;
@@ -51,8 +67,14 @@ const captureOf = (options: boolean | EventListenerOptions | undefined): boolean
   typeof options === 'boolean' ? options : options?.capture === true;
 
 /**
- * Installs a probe in a window. Throws `Error` when one is installed there already: two would
- * count each registration twice.
+ * Installs a probe in a window: it replaces the window's `addEventListener` and
+ * `removeEventListener` (on `EventTarget.prototype`), its `ResizeObserver`, `MutationObserver`
+ * and `IntersectionObserver` (those it has), `requestAnimationFrame`, `cancelAnimationFrame`,
+ * `setTimeout`, `clearTimeout`, `setInterval` and `clearInterval` with versions that count
+ * and then call the originals. While installed, `setTimeout` takes only a function and throws
+ * `TypeError` for code given as text. The caller owns the probe and disposes it.
+ *
+ * @throws `Error` when one is installed there already: two would count each registration twice.
  */
 export function createResourceProbe(view: ProbedWindow): ResourceProbe {
   const marker = '__swfResourceProbe';

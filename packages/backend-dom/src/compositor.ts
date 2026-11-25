@@ -13,12 +13,13 @@ import { PRESENTATION_API_VERSION } from '@swf/presentation';
 import { DomRendererSession } from './renderer.js';
 import { DomWriter } from './writer.js';
 
+/** The DOM compositor's registered ID, as {@link DomCompositor} declares it. */
 export const DOM_COMPOSITOR_ID = 'swf.dom-compositor/1';
 
 /**
  * What the DOM compositor can do: it assembles live content, proxies, placeholders, chrome and
  * overlays as DOM layers, ordered explicitly (by stacking order, never by moving elements), clipped
- * to rectangles. It has no raster layer.
+ * to rectangles. It has no raster layer. Frozen.
  */
 export const DOM_COMPOSITOR_CAPABILITIES: CompositorCapabilities = Object.freeze({
   layerCategories: Object.freeze([
@@ -42,16 +43,21 @@ export const DOM_COMPOSITOR_CAPABILITIES: CompositorCapabilities = Object.freeze
 
 /** Assembles a DOM renderer's layers into the host's container, one session per viewport. */
 export class DomCompositor implements Compositor {
+  /** {@link DOM_COMPOSITOR_ID}. */
   readonly id = DOM_COMPOSITOR_ID;
+  /** The presentation API version it implements. */
   readonly apiVersion = PRESENTATION_API_VERSION;
 
+  /** {@link DOM_COMPOSITOR_CAPABILITIES}, the same object on every call. */
   capabilities(): CompositorCapabilities {
     return DOM_COMPOSITOR_CAPABILITIES;
   }
 
   /**
    * Puts the renderer session's root in the target container. The container must be an element
-   * of the renderer's document, and the renderer a DOM renderer session of the same viewport.
+   * of the renderer's document, and the renderer a DOM renderer session of the same viewport;
+   * otherwise it rejects with {@link SwfFailure} (`INVALID_INPUT`). The container stays the
+   * host's; the session takes the root out again when released.
    */
   prepare(target: CompositionTarget, renderer: RendererSession): Promise<CompositorSession> {
     const reject = (message: string) =>
@@ -78,13 +84,20 @@ export class DomCompositor implements Compositor {
   }
 }
 
+/**
+ * A DOM compositor's session for one viewport, assembling one DOM renderer session's layers in
+ * its root. The presenter owns it and releases it.
+ */
 export class DomCompositorSession implements CompositorSession {
+  /** The compositor that prepared it. */
   readonly compositorId: string;
+  /** The viewport it composes: its renderer session's. */
   readonly viewportId: Id;
   readonly #renderer: DomRendererSession;
   readonly #write = new DomWriter();
   #released = false;
 
+  /** A session over `renderer`, as {@link DomCompositor.prepare} makes it. */
   constructor(compositorId: string, renderer: DomRendererSession) {
     this.compositorId = compositorId;
     this.viewportId = renderer.viewportId;
@@ -95,6 +108,10 @@ export class DomCompositorSession implements CompositorSession {
    * Stacks the layers in the rendered order by `z-index`. A layer's element is appended to the
    * view's root the first time it appears and never moved after, so live content (an iframe, a
    * video) is never re-parented, which would reload it.
+   *
+   * @throws {@link @swf/core!SwfFailure} `INVALID_TRANSITION` once released; `INVALID_INPUT`
+   *   for a frame of another viewport, or a layer that is not an element of this view or already
+   *   has another parent.
    */
   compose(frame: RenderedFrame): ComposedFrame {
     if (this.#released) {

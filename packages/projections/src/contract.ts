@@ -51,10 +51,15 @@ export interface ProjectedDirection {
   readonly behind: boolean;
 }
 
-/** The world ray for a screen point, or why there is none. */
+/**
+ * The world ray for a screen point, or why there is none. A point that has no ray is reported,
+ * never guessed: callers decide what an `outside` or `unpickable` point means for them.
+ */
 export type RayResult =
   | {
+      /** The point has a ray. */
       readonly kind: 'ray';
+      /** In world space, from the camera's position, with a unit direction. */
       readonly ray: Ray;
       /** Bound on the angle between this ray and the true one, in radians; 0 when exact. */
       readonly error: number;
@@ -64,12 +69,26 @@ export type RayResult =
       readonly latitude: number;
     }
   /** The point lies outside the image. */
-  | { readonly kind: 'outside'; readonly reason: string }
+  | {
+      /** The point is outside the view, or not a finite number. */
+      readonly kind: 'outside';
+      /** Why, in words for diagnostics, naming the point and the image size. */
+      readonly reason: string;
+    }
   /** The point lies inside the image where the projection has no valid inverse. */
-  | { readonly kind: 'unpickable'; readonly reason: string };
+  | {
+      /** The point is inside the view, where the projection has no inverse to give. */
+      readonly kind: 'unpickable';
+      /** Why, in words for diagnostics. */
+      readonly reason: string;
+    };
 
 /** How much of a surface a viewport shows. */
 export interface Visibility {
+  /**
+   * `inside` when the whole outline is in the image (`coverage` 1), `outside` when none of it is
+   * (`coverage` 0), `partial` otherwise.
+   */
   readonly state: 'inside' | 'partial' | 'outside';
   /** Share of the surface's outline inside the image, 0 to 1. */
   readonly coverage: number;
@@ -81,26 +100,43 @@ export interface Visibility {
 
 /** Continuity for interaction: the previous longitude of a drag in progress, unwrapped. */
 export interface Continuity {
+  /**
+   * The longitude the drag's previous ray reported, in radians, as {@link RayResult} gives it:
+   * already unwrapped, so it may lie outside (-π, π].
+   */
   readonly previousLongitude: number;
 }
 
 /**
  * A projection for one configuration. It maps between world directions and viewport pixels and
  * places surface geometry as fragments; it reads the view and the geometry only, and keeps no
- * state of its own.
+ * state of its own. Screen coordinates are viewport CSS pixels with (0, 0) at the top-left corner,
+ * x to the right and y down; world directions are in the right-handed, +Y-up world, and the
+ * camera looks along its local -Z. Every method expects a view that passes `viewGeometryIssue`
+ * and uses this projection's ID and configuration, as {@link projectionFor} checks.
  */
 export interface Projection {
+  /** The versioned ID of the module that created it; registration refuses any other. */
   readonly id: string;
+  /**
+   * What this configuration covers and how its mapping behaves. Registration checks it against
+   * the module's profile (seam wrapping, exact inverse) and refuses a contradiction.
+   */
   describeDomain(): ProjectionDomain;
-  /** Where a world direction (from the camera) appears. */
+  /** Where a world direction (from the camera, any non-zero length) appears. */
   projectDirection(direction: Vec3, view: ViewGeometry): ProjectedDirection;
-  /** The world ray through a viewport point. */
+  /**
+   * The world ray through a viewport point, or `outside` for a point beyond the image or not
+   * finite. Its longitude is never unwrapped; {@link Projection.interactionRay} unwraps it for a
+   * drag.
+   */
   unprojectPoint(x: number, y: number, view: ViewGeometry): RayResult;
   /**
    * The visible fragments of a surface: none, one, or several (a surface crossing a seam), each
    * referring to the surface. Exactly one of them, if any, is the native owner.
    */
   projectGeometry(geometry: ResolvedGeometry, view: ViewGeometry): ProjectedFragment[];
+  /** How much of a surface the view shows, as the share of its outline inside the image. */
   clipVisibility(geometry: ResolvedGeometry, view: ViewGeometry): Visibility;
   /**
    * The world ray for a pointer at a viewport point. With `continuity`, the longitude is unwrapped
@@ -115,9 +151,18 @@ export interface Projection {
  * projections.
  */
 export interface ProjectionModule extends ProjectionKind {
+  /**
+   * The contract version it implements; registration refuses any but
+   * {@link PROJECTION_API_VERSION} with `UNSUPPORTED_CAPABILITY`.
+   */
   readonly apiVersion: number;
+  /** What negotiation knows of it; its `id` must be the module's own. */
   readonly profile: ProjectionProfile;
   /** A configuration the module accepts, used to validate it on registration. */
   readonly defaultConfig: JsonValue;
+  /**
+   * A projection for `config`. It throws for a configuration `configIssue` rejects; a projection
+   * holds no resources, so there is nothing to release.
+   */
   create(config: JsonValue): Projection;
 }

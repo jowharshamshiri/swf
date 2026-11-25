@@ -1,4 +1,7 @@
-/** A point in a plane (such as a viewport, in pixels). */
+/**
+ * A point in a plane, such as a viewport in CSS pixels with +x to the right and +y down. Every
+ * function here returns fresh, unfrozen arrays and leaves its arguments unchanged.
+ */
 export type Vec2 = readonly [number, number];
 
 /** Four points of a plane, in order: top-left, top-right, bottom-right, bottom-left. */
@@ -15,7 +18,10 @@ export type Homography = readonly [
   number, number, 1,
 ];
 
-/** The rectangle [x, y, width, height] as a quad. */
+/**
+ * The rectangle `[x, y, width, height]` as a quad, with `(x, y)` its top-left corner when +y points
+ * down. The values are not checked.
+ */
 export function rectQuad(rect: readonly [number, number, number, number]): Quad2 {
   const [x, y, w, h] = rect;
   return [
@@ -39,7 +45,9 @@ export function offsetQuad(quad: Quad2, dx: number, dy: number): Quad2 {
 /**
  * Whether the quad is a non-degenerate convex quadrilateral: every turn along its edges goes the
  * same way, with no three corners in a line. Only such a quad is the image of a rectangle under a
- * projective map that keeps the rectangle's inside in front of the viewer.
+ * projective map that keeps the rectangle's inside in front of the viewer. Either winding is
+ * accepted. A turn whose cross product is within `tolerance` (default `1e-9`, in squared units of
+ * the plane) of zero counts as a straight line; a non-finite corner makes the quad not convex.
  */
 export function isConvexQuad(quad: Quad2, tolerance = 1e-9): boolean {
   if (!quad.every(([x, y]) => Number.isFinite(x) && Number.isFinite(y))) {
@@ -106,7 +114,10 @@ export function rectToQuad(width: number, height: number, quad: Quad2): Homograp
   return m.every(Number.isFinite) ? m : null;
 }
 
-/** Where the homography takes the point (x, y). */
+/**
+ * Where the homography takes the point (x, y). A point on the map's line at infinity (where `w` is
+ * 0) gives infinite or NaN coordinates; it is not checked.
+ */
 export function applyHomography(m: Homography, x: number, y: number): Vec2 {
   const w = m[6] * x + m[7] * y + 1;
   return [(m[0] * x + m[1] * y + m[2]) / w, (m[3] * x + m[4] * y + m[5]) / w];

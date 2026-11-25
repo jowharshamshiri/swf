@@ -19,7 +19,12 @@ import { check, ConformanceFailure, sleep, until } from './harness.js';
  * those cases report `not-applicable`.
  */
 export interface AdapterFixture<THandle> {
+  /**
+   * A fresh adapter, with no state shared with any made before: each case registers its own in a
+   * workspace and surface runtime of its own.
+   */
   create(): SurfaceAdapter<THandle>;
+  /** The binding keys the cases bind surfaces with. */
   readonly keys: {
     /** Two distinct keys that resolve to endpoints. */
     readonly valid: readonly [string, string];
@@ -163,7 +168,8 @@ const WAIT = 2000;
 /**
  * The adapter conformance cases: binding success, unknown keys, failure, timeout, cancellation,
  * late resolution, attach/detach symmetry, safe and unsafe detachment, viewport sharing,
- * replacement with rollback, lifecycle event order and capability changes.
+ * replacement with rollback, lifecycle event order and capability changes. Nothing runs until a
+ * case's `run` is called; each run creates its own adapter, workspace and surface runtime.
  */
 export function adapterConformance<THandle>(fixture: AdapterFixture<THandle>): ConformanceCase[] {
   const container = (viewportId: Id) => fixture.container?.(viewportId) ?? {};

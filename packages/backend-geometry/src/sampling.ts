@@ -10,6 +10,10 @@ import type { Mesh } from './drawing.js';
  * projection that covers the full circle and wraps at its seam repeats every view width, so its
  * images one width to either side (beyond the image's edges) count too: a surface crossing the
  * seam is then followed continuously past the edge, where clipping cuts it off.
+ *
+ * @param point - The world point, in world units.
+ * @param near - A point of the view, in CSS pixels, the chosen image is to be nearest.
+ * @returns The image in viewport CSS pixels; null also for the camera's own position.
  */
 export function imageNear(
   projection: Projection,
@@ -45,7 +49,12 @@ export function imageNear(
  * A mesh over a plane rectangle in the world: local x from `x0` to `x1` (left to right) and local
  * y from `y1` down to `y0` (top to bottom), placed by `world`, each point projected onto the
  * branch continuing its neighbour's, starting near `start`. Its rows run top to bottom, so the
- * mesh lines up with an image drawn top-down.
+ * mesh lines up with an image drawn top-down. Points the view does not show are null.
+ *
+ * @param world - The rectangle's world matrix (its local plane to world units).
+ * @param columns - Cells across: a whole number of at least 1, not checked.
+ * @param rows - Cells down: a whole number of at least 1, not checked.
+ * @param start - Where in the view, in CSS pixels, the first point's branch is sought.
  */
 export function planeMesh(
   projection: Projection,
@@ -85,6 +94,10 @@ export function planeMesh(
  * The outline of a plane rectangle in the world as a polyline of `perEdge` points per edge,
  * clockwise from its top-left corner, projected continuously from `start`. Points the view does
  * not show are left out.
+ *
+ * @param perEdge - Points per edge, each edge's start included and its end left to the next: a
+ *   whole number of at least 1, not checked.
+ * @returns A new array of points in viewport CSS pixels.
  */
 export function planeOutline(
   projection: Projection,

@@ -1,12 +1,22 @@
 import type { Mat4 } from './mat4.js';
 import type { Vec3 } from './vec3.js';
 
-/** An axis-aligned bounding box; `min` is component-wise no greater than `max`. */
+/**
+ * An axis-aligned bounding box in world units; `min` is component-wise no greater than `max`. The
+ * functions here assume that ordering and never check it. Every function returns a fresh, unfrozen
+ * box and leaves its arguments unchanged.
+ */
 export interface Aabb {
+  /** The corner with the least x, y and z. */
   readonly min: Vec3;
+  /** The corner with the greatest x, y and z. */
   readonly max: Vec3;
 }
 
+/**
+ * The box centred on `center` that extends `size` along each axis, half on either side. The size is
+ * not checked: a negative component gives a box whose `min` exceeds its `max` on that axis.
+ */
 export function aabbFromCenterSize(center: Vec3, size: Vec3): Aabb {
   const hx = size[0] / 2;
   const hy = size[1] / 2;
@@ -34,6 +44,7 @@ export function aabbOfBox(m: Mat4, size: Vec3): Aabb {
   };
 }
 
+/** The point midway between the box's corners. */
 export function aabbCenter(box: Aabb): Vec3 {
   return [
     (box.min[0] + box.max[0]) / 2,
@@ -42,10 +53,12 @@ export function aabbCenter(box: Aabb): Vec3 {
   ];
 }
 
+/** The box's extent along each axis: `max - min`, component-wise. */
 export function aabbSize(box: Aabb): Vec3 {
   return [box.max[0] - box.min[0], box.max[1] - box.min[1], box.max[2] - box.min[2]];
 }
 
+/** The smallest box that encloses both `a` and `b`. */
 export function aabbUnion(a: Aabb, b: Aabb): Aabb {
   return {
     min: [Math.min(a.min[0], b.min[0]), Math.min(a.min[1], b.min[1]), Math.min(a.min[2], b.min[2])],
@@ -53,7 +66,10 @@ export function aabbUnion(a: Aabb, b: Aabb): Aabb {
   };
 }
 
-/** Grows the box by `padding` on every side. */
+/**
+ * The box grown by `padding` world units on every side; a negative padding shrinks it, and is not
+ * checked against the box's size.
+ */
 export function aabbExpand(box: Aabb, padding: number): Aabb {
   return {
     min: [box.min[0] - padding, box.min[1] - padding, box.min[2] - padding],
@@ -73,6 +89,7 @@ export function aabbIntersects(a: Aabb, b: Aabb): boolean {
   );
 }
 
+/** True when `p` lies inside the box or on its boundary; false when a component of `p` is NaN. */
 export function aabbContainsPoint(box: Aabb, p: Vec3): boolean {
   return (
     p[0] >= box.min[0] &&

@@ -3,10 +3,12 @@ import { descendantIds, worldBounds } from '@swf/core';
 import type { Ray } from '@swf/math';
 import { BoundingVolumeTree } from './bvh.js';
 
-/** An entry of the index: a node's frame or a surface. */
+/** An entry of the index: a node's frame or a surface, by its ID. */
 export type IndexKey = `node:${string}` | `surface:${string}`;
 
+/** The index key of the node `id`'s frame: `node:<id>`. */
 export const nodeKey = (id: Id): IndexKey => `node:${id}`;
+/** The index key of the surface `id`: `surface:<id>`. */
 export const surfaceKey = (id: Id): IndexKey => `surface:${id}`;
 
 /**
@@ -14,6 +16,9 @@ export const surfaceKey = (id: Id): IndexKey => `surface:${id}`;
  * scene by comparing records: only nodes that changed, their descendants, and the surfaces on them
  * are re-placed, so a single-window move costs one subtree, not the scene. The index is in world
  * space, where a panorama seam does not exist: a ray from any viewport finds the same entries.
+ *
+ * A node's entry is its world bounds; a surface's is the world box of its resolved geometry. The
+ * index reads the states it is given and never changes them.
  */
 export class SceneIndex {
   readonly #tree = new BoundingVolumeTree<IndexKey>();
@@ -26,13 +31,16 @@ export class SceneIndex {
     return this.#state;
   }
 
+  /** How many entries the index holds: nodes and surfaces together. */
   get size(): number {
     return this.#tree.size;
   }
 
   /**
    * Brings the index up to date with `state`, using `geometry` to place surfaces. Returns the
-   * number of entries re-placed (0 when the state is the one already indexed).
+   * number of entries re-placed (0 when the state is the one already indexed). Records are
+   * compared by identity, as a workspace shares unchanged records between revisions. Throws an
+   * Error when `geometry` has nothing for a surface of the scene.
    */
   sync(state: SceneState, geometry: (surfaceId: Id) => ResolvedGeometry | undefined): number {
     if (state === this.#state) {
@@ -97,7 +105,10 @@ export class SceneIndex {
     return placed;
   }
 
-  /** The entries whose boxes the ray enters within `maxDistance`. */
+  /**
+   * The entries whose boxes the ray enters within `maxDistance` (default unbounded), in no
+   * particular order: candidates for an exact hit test, not hits.
+   */
   raycast(ray: Ray, maxDistance = Infinity): IndexKey[] {
     return this.#tree.raycast(ray, maxDistance);
   }

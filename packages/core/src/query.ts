@@ -16,9 +16,16 @@ import { makeError, RejectionSignal, SwfFailure } from './errors.js';
 import { checkMetadataKey } from './json.js';
 import { Table } from './table.js';
 
-type NodeLookup = RecordLookup<NodeRecord>;
+/**
+ * Read access to nodes by ID: a scene's `nodes` table, or a constraint's view of the nodes as
+ * they stand in a transaction.
+ */
+export type NodeLookup = RecordLookup<NodeRecord>;
 
-/** The surface's local-to-world matrix: its owner's world matrix times its own transform. */
+/**
+ * The surface's local-to-world matrix: its owner's world matrix times its own transform.
+ * Undefined for an unknown surface.
+ */
 export function surfaceWorldMatrix(state: SceneState, surfaceId: Id): Mat4 | undefined {
   const surface = state.surfaces.get(surfaceId);
   const owner = surface === undefined ? undefined : worldMatrix(state.nodes, surface.ownerNodeId);
@@ -85,7 +92,8 @@ const worldCache = new WeakMap<NodeLookup, Map<Id, Mat4>>();
 
 /**
  * The node's local-to-world matrix: the product of its ancestors' transforms and its own. Results
- * on committed (immutable) tables are cached. Returns undefined for an unknown node.
+ * on committed (immutable) tables are cached, so the matrix returned may be shared and must not be
+ * changed. Returns undefined for an unknown node, or one with an unknown ancestor.
  */
 export function worldMatrix(nodes: NodeLookup, id: Id): Mat4 | undefined {
   const cache = nodes instanceof Table ? cacheFor(nodes) : undefined;
@@ -130,7 +138,10 @@ export function worldTransform(nodes: NodeLookup, id: Id): DecomposeResult | und
   return m === undefined ? undefined : mat4Decompose(m);
 }
 
-/** The world-aligned box enclosing the node's bounds. */
+/**
+ * The world-aligned box enclosing the node's bounds placed in the world. Undefined for an unknown
+ * node.
+ */
 export function worldBounds(nodes: NodeLookup, id: Id): Aabb | undefined {
   const node = nodes.get(id);
   const m = worldMatrix(nodes, id);
@@ -138,8 +149,9 @@ export function worldBounds(nodes: NodeLookup, id: Id): Aabb | undefined {
 }
 
 /**
- * The node's ancestors, nearest first. Throws if the hierarchy contains a cycle, which committed
- * state never does: it means a defect, not an input to tolerate.
+ * The node's ancestors, nearest first; empty for a root or an unknown node. The array is new on
+ * every call and the caller's. Throws an `Error` if the hierarchy contains a cycle, which
+ * committed state never does: it means a defect, not an input to tolerate.
  */
 export function ancestorIds(nodes: NodeLookup, id: Id): Id[] {
   const out: Id[] = [];
@@ -162,8 +174,9 @@ export function isSelfOrAncestor(nodes: NodeLookup, ancestorId: Id, id: Id): boo
 }
 
 /**
- * The node's descendants in depth-first pre-order (children in presentation order). Throws if the
- * hierarchy contains a cycle.
+ * The node's descendants in depth-first pre-order (children in presentation order), archived ones
+ * included; empty for a leaf or an unknown node. The array is new on every call and the caller's.
+ * Throws an `Error` if the hierarchy contains a cycle.
  */
 export function descendantIds(nodes: NodeLookup, id: Id): Id[] {
   const out: Id[] = [];
@@ -192,6 +205,12 @@ export interface EffectiveState {
   readonly selectable: boolean;
 }
 
+/**
+ * The node's status and flags after inheriting from its ancestors: it is active only when it and
+ * every ancestor are, visible only when also it and every ancestor are visible, and selectable
+ * only when also visible and it and every ancestor are selectable. Undefined for an unknown node.
+ * Throws an `Error` if the hierarchy contains a cycle, which committed state never does.
+ */
 export function effectiveState(nodes: NodeLookup, id: Id): EffectiveState | undefined {
   const node = nodes.get(id);
   if (node === undefined) {
@@ -214,12 +233,17 @@ export function effectiveState(nodes: NodeLookup, id: Id): EffectiveState | unde
   return { active, visible, selectable };
 }
 
+/** Options of the spatial queries {@link nodesInBox} and {@link raycastBounds}. */
 export interface SpatialQueryOptions {
   /** Include nodes that are not effectively visible (hidden or archived). Default false. */
   readonly includeHidden?: boolean;
 }
 
-/** Nodes whose world bounds overlap `box`, in scene order. */
+/**
+ * Nodes whose world bounds overlap `box` (world coordinates; boxes that only touch do not
+ * overlap), in the order they were added to the scene. Only effectively visible nodes count unless
+ * `includeHidden` is set.
+ */
 export function nodesInBox(state: SceneState, box: Aabb, options: SpatialQueryOptions = {}): Id[] {
   const out: Id[] = [];
   for (const node of state.nodes) {
@@ -234,15 +258,22 @@ export function nodesInBox(state: SceneState, box: Aabb, options: SpatialQueryOp
   return out;
 }
 
+/** A node whose world bounds a ray passes through. */
 export interface CoarseHit {
+  /** The node hit. */
   readonly nodeId: Id;
-  /** Distance along the ray to where it enters the node's world bounds. */
+  /**
+   * Distance along the ray to where it enters the node's world bounds: the ray parameter, 0 when
+   * the ray starts inside them.
+   */
   readonly distance: number;
 }
 
 /**
  * Nodes whose world bounds the ray passes through: nearest first, then higher presentation
  * priority, then ID. This is a coarse, renderer-independent test; exact surface picking refines it.
+ * Only hits in front of the ray's origin count, and only effectively visible nodes unless
+ * `includeHidden` is set.
  */
 export function raycastBounds(
   state: SceneState,
@@ -277,6 +308,10 @@ function included(state: SceneState, id: Id, options: SpatialQueryOptions): bool
   return options.includeHidden === true || effectiveState(state.nodes, id)?.visible === true;
 }
 
+/**
+ * What {@link findNodes} looks for. Every criterion given must hold; an empty query matches every
+ * active node.
+ */
 export interface NodeQuery {
   /**
    * Case-insensitive, Unicode-normalized (NFKC) substring of the ID, the label, a tag, a value at
@@ -293,6 +328,7 @@ export interface NodeQuery {
   readonly groupPath?: boolean;
   /** Every listed tag must be present. */
   readonly tags?: readonly string[];
+  /** The node's kind must be one of these. */
   readonly kinds?: readonly string[];
   /** Only nodes inside this node's subtree (not the node itself). */
   readonly within?: Id;
@@ -432,7 +468,10 @@ function matchesText(
   });
 }
 
-/** Unicode compatibility normalization plus locale-independent lower-casing. */
+/**
+ * Unicode compatibility normalisation (NFKC) plus locale-independent lower-casing: how
+ * {@link findNodes} compares text.
+ */
 export function fold(text: string): string {
   return text.normalize('NFKC').toLowerCase();
 }

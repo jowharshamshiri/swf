@@ -14,17 +14,39 @@ import type { PlannedFragment } from './contracts.js';
  */
 export type SurfaceCondition =
   | {
+      /** Its endpoint is bound. */
       readonly kind: 'bound';
+      /** What the bound endpoint declares: the same object the runtime holds, not a copy. */
       readonly capabilities: SurfaceCapabilities;
+      /**
+       * Its handle is single-owner and presented in another viewport, so this one shows a stand-in;
+       * always false for a handle that can be shared.
+       */
       readonly presentedElsewhere: boolean;
     }
-  | { readonly kind: 'pending' }
   | {
+      /** A binding or release is under way, or the runtime has not taken the surface up. */
+      readonly kind: 'pending';
+    }
+  | {
+      /** No endpoint is bound. */
       readonly kind: 'unbound';
+      /**
+       * `no-binding-key`: the surface names no endpoint; `unknown-binding-key`: its adapter does
+       * not know the key it names; `released`: its endpoint was released.
+       */
       readonly reason: 'no-binding-key' | 'unknown-binding-key' | 'released';
     }
-  | { readonly kind: 'unsupported' }
-  | { readonly kind: 'failed'; readonly error: SwfError };
+  | {
+      /** No adapter is registered for the surface's adapter type. */
+      readonly kind: 'unsupported';
+    }
+  | {
+      /** Binding or attaching failed. */
+      readonly kind: 'failed';
+      /** The typed error; its `retryable` tells a passing failure from a lasting one. */
+      readonly error: SwfError;
+    };
 
 const PENDING: SurfaceCondition = Object.freeze({ kind: 'pending' });
 const UNSUPPORTED: SurfaceCondition = Object.freeze({ kind: 'unsupported' });
@@ -32,7 +54,11 @@ const UNSUPPORTED: SurfaceCondition = Object.freeze({ kind: 'unsupported' });
 /**
  * A surface's condition from its presentation in the runtime (undefined while the runtime has not
  * taken the surface up). `presentedElsewhere` is the caller's: whether a single-owner handle is
- * presented in a viewport other than the one being planned.
+ * presented in a viewport other than the one being planned; it is ignored for a shared handle.
+ * The condition returned is frozen.
+ *
+ * @throws Error when the presentation contradicts itself: bound without capabilities, or in error
+ *   without an error.
  */
 export function surfaceCondition(
   presentation: SurfacePresentation | undefined,
@@ -88,6 +114,7 @@ export function surfaceCondition(
 export type StandInReason =
   'pending' | 'unbound' | 'unsupported' | 'unavailable' | 'failed' | 'elsewhere';
 
+/** Every {@link StandInReason}, frozen, in the order the type lists them. */
 export const STAND_IN_REASONS: readonly StandInReason[] = Object.freeze([
   'pending',
   'unbound',
@@ -97,7 +124,7 @@ export const STAND_IN_REASONS: readonly StandInReason[] = Object.freeze([
   'elsewhere',
 ]);
 
-/** The words renderers use for each reason by default, in English. */
+/** The words renderers use for each reason by default, in English; frozen. */
 export const STAND_IN_TEXT: Readonly<Record<StandInReason, string>> = Object.freeze({
   pending: 'Binding…',
   unbound: 'Unbound: no content is bound',
@@ -135,7 +162,8 @@ export function standInReason(planned: PlannedFragment): StandInReason | null {
 
 /**
  * The condition of a surface bound with these capabilities, or, for null, of one that names no
- * endpoint: for hosts and tests that plan frames without a runtime.
+ * endpoint: for hosts and tests that plan frames without a runtime. `presentedElsewhere` (default
+ * false) counts only for a single-owner handle. The condition returned is frozen.
  */
 export function conditionFor(
   capabilities: SurfaceCapabilities | null,

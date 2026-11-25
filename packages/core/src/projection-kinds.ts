@@ -10,7 +10,11 @@ import { VERSIONED_ID } from './validate.js';
 export interface ProjectionKind {
   /** A versioned ID, `<name>/<version>`, such as `equirectangular/1`. */
   readonly id: string;
-  /** Why `config` is invalid for this projection, or null when it is valid. */
+  /**
+   * Why `config` is invalid for this projection, or null when it is valid. It must be
+   * deterministic and free of side effects; when it throws, the configuration is refused with
+   * `INVALID_INPUT` (or `SNAPSHOT_INVALID` on a restore) quoting what it threw.
+   */
   configIssue(config: JsonValue): string | null;
 }
 

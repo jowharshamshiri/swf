@@ -2,13 +2,20 @@ import type { Id } from './model.js';
 
 /** Read access to records by ID, in a stable insertion order. */
 export interface RecordLookup<T> {
+  /** The record with this ID, or undefined when there is none. */
   get(id: Id): T | undefined;
+  /** Whether a record with this ID exists. */
   has(id: Id): boolean;
+  /** How many records there are. */
   readonly size: number;
+  /** The records in insertion order; a replaced record keeps its place. */
   values(): IterableIterator<T>;
 }
 
-/** An immutable table of records keyed by ID. Iteration follows insertion order. */
+/**
+ * An immutable table of records keyed by ID. Iteration follows insertion order. A table never
+ * changes once made, so it can be held and shared freely; the records it holds are frozen.
+ */
 export class Table<T> implements RecordLookup<T> {
   readonly #map: ReadonlyMap<Id, T>;
 
@@ -17,35 +24,45 @@ export class Table<T> implements RecordLookup<T> {
     Object.freeze(this);
   }
 
+  /** A table with no records. */
   static empty<T>(): Table<T> {
     return new Table<T>(new Map<Id, T>());
   }
 
+  /** The record with this ID, or undefined when there is none. */
   get(id: Id): T | undefined {
     return this.#map.get(id);
   }
 
+  /** Whether a record with this ID exists. */
   has(id: Id): boolean {
     return this.#map.has(id);
   }
 
+  /** How many records the table holds. */
   get size(): number {
     return this.#map.size;
   }
 
+  /** The IDs in insertion order. */
   ids(): IterableIterator<Id> {
     return this.#map.keys();
   }
 
+  /** The records in insertion order. */
   values(): IterableIterator<T> {
     return this.#map.values();
   }
 
+  /** The records in insertion order, as {@link Table.values} gives them. */
   [Symbol.iterator](): IterableIterator<T> {
     return this.#map.values();
   }
 
-  /** A mutable working copy; the table itself is unchanged. */
+  /**
+   * A mutable working copy; the table itself is unchanged. The copy is the caller's: changing it
+   * affects no workspace, and its {@link TableDraft.freeze} yields a separate table.
+   */
   edit(): TableDraft<T> {
     return new TableDraft(new Map(this.#map));
   }
@@ -56,42 +73,62 @@ export class Table<T> implements RecordLookup<T> {
   }
 }
 
-/** A working copy of a table, used while a transaction is applied. */
+/**
+ * A working copy of a table, used while a transaction is applied. It is mutable until
+ * {@link TableDraft.freeze}, after which it refuses every change. It holds the same record
+ * objects as the table it was copied from.
+ */
 export class TableDraft<T> implements RecordLookup<T> {
   readonly #map: Map<Id, T>;
   #frozen = false;
 
+  /**
+   * Wraps `map`, which the draft then owns and changes in place: the caller must not keep using
+   * it.
+   */
   constructor(map: Map<Id, T>) {
     this.#map = map;
   }
 
+  /** The record with this ID, or undefined when there is none. */
   get(id: Id): T | undefined {
     return this.#map.get(id);
   }
 
+  /** Whether a record with this ID exists. */
   has(id: Id): boolean {
     return this.#map.has(id);
   }
 
+  /** How many records the draft holds. */
   get size(): number {
     return this.#map.size;
   }
 
+  /** The records in insertion order. */
   values(): IterableIterator<T> {
     return this.#map.values();
   }
 
+  /**
+   * Adds the record, or replaces the one with this ID in its place. Throws an `Error` once the
+   * draft is frozen.
+   */
   set(id: Id, value: T): void {
     this.#assertOpen();
     this.#map.set(id, value);
   }
 
+  /** Removes the record with this ID, if any. Throws an `Error` once the draft is frozen. */
   delete(id: Id): void {
     this.#assertOpen();
     this.#map.delete(id);
   }
 
-  /** The finished table. The draft accepts no further changes. */
+  /**
+   * The finished table. The draft accepts no further changes; freezing it again throws an
+   * `Error`.
+   */
   freeze(): Table<T> {
     this.#assertOpen();
     this.#frozen = true;

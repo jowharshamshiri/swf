@@ -17,7 +17,12 @@ export const SNAPSHOT_SCHEMA_ID = 'swf.workspace/1';
 /** The engine that writes snapshots, as recorded in each one. */
 export const SNAPSHOT_ENGINE = 'swf.persistence/1';
 
-/** The published JSON Schema of {@link SNAPSHOT_SCHEMA_ID} (draft 2020-12). */
+/**
+ * The published JSON Schema of {@link SNAPSHOT_SCHEMA_ID} (draft 2020-12), deeply frozen; the same
+ * as `@swf/persistence/schema/swf.workspace-1.schema.json`. {@link validateDocument} enforces
+ * everything it says, and what a schema cannot: references that hold, unique IDs, a hierarchy
+ * without cycles and the size limits.
+ */
 export const SNAPSHOT_SCHEMA: Readonly<Record<string, unknown>> = deepFreeze(
   schema as Record<string, unknown>,
 );
@@ -28,22 +33,36 @@ export const SNAPSHOT_SCHEMA: Readonly<Record<string, unknown>> = deepFreeze(
  * entities by ID and object keys sorted, so equal snapshots have identical JSON text.
  */
 export interface WorkspaceDocument extends SceneSnapshot {
+  /** The format: always {@link SNAPSHOT_SCHEMA_ID}. */
   readonly schema: typeof SNAPSHOT_SCHEMA_ID;
+  /**
+   * The engine that wrote the snapshot, as a versioned ID `<name>/<version>`;
+   * {@link SNAPSHOT_ENGINE} for snapshots this package captures.
+   */
   readonly engine: string;
-  /** When the snapshot was taken, in milliseconds. */
+  /** When the snapshot was taken, in milliseconds since the epoch: finite, at least 0. */
   readonly createdAt: number;
-  /** Policy parameters, by the policy's versioned ID. */
+  /** Policy parameters, by the policy's versioned ID, as JSON data in canonical form. */
   readonly policies: Readonly<Record<string, JsonValue>>;
-  /** Extension state by namespace, with the version of the extension's own format. */
+  /**
+   * Extension state by namespace (`host.<name>` or `ext.<extension-id>`, see {@link NAMESPACE}),
+   * with the version of the extension's own format.
+   */
   readonly extensions: Readonly<Record<string, ExtensionEntry>>;
 }
 
+/** One extension's state in a snapshot: opaque to the framework, which only checks its size. */
 export interface ExtensionEntry {
+  /** The version of the extension's own payload format: a whole number of at least 1. */
   readonly version: number;
+  /**
+   * The state, as JSON data in canonical form; at most {@link SnapshotLimits.extensionBytes} of
+   * canonical JSON text.
+   */
   readonly data: JsonValue;
 }
 
-/** Size limits, in UTF-8 bytes. */
+/** Size limits, in UTF-8 bytes, each a whole number of at least 1. */
 export interface SnapshotLimits {
   /** A whole snapshot's JSON text. Default 32 MiB. */
   readonly maxBytes: number;
@@ -55,13 +74,17 @@ export interface SnapshotLimits {
 
 const MIB = 1024 * 1024;
 
+/** The limits used where none are given: 32 MiB, 1 MiB per namespace, 10 MiB in all. Frozen. */
 export const DEFAULT_SNAPSHOT_LIMITS: SnapshotLimits = Object.freeze({
   maxBytes: 32 * MIB,
   extensionBytes: MIB,
   extensionTotalBytes: 10 * MIB,
 });
 
-/** `host.<name>` or `ext.<extension-id>`, with further dot-separated parts. */
+/**
+ * What an extension namespace must match: `host.<name>` or `ext.<extension-id>`, with further
+ * dot-separated parts, each of ASCII letters, digits, `_` and `-`.
+ */
 export const NAMESPACE = /^(?:host|ext)\.[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*$/;
 
 const DOCUMENT_FIELDS = [
@@ -74,8 +97,11 @@ const DOCUMENT_FIELDS = [
 ] as const;
 
 /**
- * Checks limits a host supplies, filling the rest with defaults. Throws {@link SwfFailure}
- * (`INVALID_INPUT`) naming the field.
+ * Checks limits a host supplies, filling the rest from {@link DEFAULT_SNAPSHOT_LIMITS}. A new
+ * frozen object.
+ *
+ * @throws {@link @swf/core!SwfFailure} `INVALID_INPUT` naming `limits.<field>` for a field that
+ *   is not a limit, or a value that is not a whole number of at least 1.
  */
 export function snapshotLimits(limits: Partial<SnapshotLimits> = {}): SnapshotLimits {
   const out = { ...DEFAULT_SNAPSHOT_LIMITS };
@@ -96,11 +122,17 @@ export function snapshotLimits(limits: Partial<SnapshotLimits> = {}): SnapshotLi
 }
 
 /**
- * Validates a snapshot and returns its canonical, frozen copy. Throws {@link SwfFailure}
- * (`SNAPSHOT_INVALID`) naming the first failing path: a format other than
- * {@link SNAPSHOT_SCHEMA_ID}, a malformed, unknown, missing or non-finite field, a key that could
- * reach an object's prototype, a cycle (in data or in the hierarchy), a broken reference, or an
- * extension over its size limit. Nothing in a snapshot is ever run.
+ * Validates a snapshot and returns its canonical, deeply frozen copy; the input is never changed.
+ * Nothing in a snapshot is ever run.
+ *
+ * @param value - The snapshot, as parsed JSON or a document; anything else is refused.
+ * @param limits - The size limits its extension state is held to. Default
+ *   {@link DEFAULT_SNAPSHOT_LIMITS}.
+ * @throws {@link @swf/core!SwfFailure} `SNAPSHOT_INVALID` naming the first failing path: a format
+ *   other than {@link SNAPSHOT_SCHEMA_ID} (with `details.sourceVersion`), a malformed, unknown,
+ *   missing or non-finite field, a key that could reach an object's prototype, a cycle (in data
+ *   or in the hierarchy), a broken reference, or an extension over its size limit
+ *   (`details.bytes`, `details.limit`).
  */
 export function validateDocument(
   value: unknown,
@@ -149,7 +181,11 @@ export function validateDocument(
 
 /**
  * Reads a snapshot from its JSON text: checks its size before parsing, then validates it as
- * {@link validateDocument} does. Throws {@link SwfFailure} (`SNAPSHOT_INVALID`).
+ * {@link validateDocument} does. It reads only the current format; {@link migrateDocument} brings
+ * older ones forward.
+ *
+ * @throws {@link @swf/core!SwfFailure} `SNAPSHOT_INVALID`, as {@link parseJson} and
+ *   {@link validateDocument} do.
  */
 export function parseDocument(
   text: unknown,
@@ -160,7 +196,12 @@ export function parseDocument(
 
 /**
  * JSON text read safely: its UTF-8 size is checked against `limits.maxBytes` before it is parsed.
- * Throws {@link SwfFailure} (`SNAPSHOT_INVALID`) for text over the limit or not JSON.
+ * The value is parsed only, not validated.
+ *
+ * @throws {@link @swf/core!SwfFailure} `SNAPSHOT_INVALID` for a value that is not a string, text
+ *   over the limit (`details.bytes`, `details.limit`), or text that is not JSON, saying where it
+ *   breaks and what was expected there (`details.line`, `details.column`, `details.offset`;
+ *   see {@link jsonSyntaxError}).
  */
 export function parseJson(
   text: unknown,
@@ -198,9 +239,12 @@ export function parseJson(
 }
 
 /**
- * The snapshot's canonical JSON text, UTF-8 ready. It is validated first, so only a valid snapshot
- * is ever written. Throws {@link SwfFailure}: `SNAPSHOT_INVALID` for an invalid snapshot,
- * `QUOTA_EXCEEDED` when its text is over `limits.maxBytes`.
+ * The snapshot's canonical JSON text, UTF-8 ready, without indentation: equal snapshots give
+ * identical text. It is validated first, so only a valid snapshot is ever written.
+ *
+ * @throws {@link @swf/core!SwfFailure} `SNAPSHOT_INVALID` for an invalid snapshot, as
+ *   {@link validateDocument} says; `QUOTA_EXCEEDED` when its text is over `limits.maxBytes`
+ *   (`details.bytes`, `details.limit`).
  */
 export function exportDocument(
   document: WorkspaceDocument,
@@ -219,7 +263,10 @@ export function exportDocument(
   return text;
 }
 
-/** The size of a string encoded as UTF-8, in bytes. */
+/**
+ * The size of a string encoded as UTF-8, in bytes, without encoding it. A lone surrogate counts as
+ * the three bytes of the replacement character it is encoded as.
+ */
 export function utf8Length(text: string): number {
   let bytes = 0;
   for (let i = 0; i < text.length; i++) {

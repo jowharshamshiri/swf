@@ -16,7 +16,7 @@ export type {
 export { PROJECTION_API_VERSION } from './contract.js';
 export type { EquirectangularConfig } from './equirectangular.js';
 export { DEFAULT_EQUIRECTANGULAR_CONFIG, equirectangular } from './equirectangular.js';
-export type { Pick, PickCandidate } from './projector.js';
+export type { GeometryOf, Pick, PickCandidate } from './projector.js';
 export { pickAt, projectionFor, projectorOf } from './projector.js';
 export type { ProjectionRegistry, ProjectionTargets } from './registry.js';
 export { createProjectionRegistry, validateProjectionModule } from './registry.js';

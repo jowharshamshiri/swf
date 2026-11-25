@@ -6,7 +6,14 @@
  * machine. Snapshots hold layout only: never runtime handles, elements, callbacks or content.
  */
 export type {
+  Handler as IdbHandler,
+  IdbDatabase,
+  IdbError,
   IdbFactory,
+  IdbObjectStore,
+  IdbOpenRequest,
+  IdbRequest,
+  IdbTransaction,
   IndexedDbStoreOptions,
   WebStorage,
   WebStorageStoreOptions,

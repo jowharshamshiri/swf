@@ -38,9 +38,23 @@ export interface ConstraintInput {
   readonly committedNodes: RecordLookup<NodeRecord>;
 }
 
+/** What a constraint decides about a proposed placement. */
 export type ConstraintOutcome =
-  | { readonly kind: 'accept'; readonly transform: Transform3D }
-  | { readonly kind: 'reject'; readonly reason: string };
+  | {
+      /** The placement is allowed, as given or adjusted. */
+      readonly kind: 'accept';
+      /**
+       * The local transform the constraint allows: the proposal itself, or an adjusted one. It
+       * must be a valid transform (finite, unit rotation, positive scale).
+       */
+      readonly transform: Transform3D;
+    }
+  | {
+      /** The placement is refused. */
+      readonly kind: 'reject';
+      /** Why, for the rejection's message. */
+      readonly reason: string;
+    };
 
 /**
  * A deterministic rule over proposed placements. `resolve` returns the placement it allows (the
@@ -49,22 +63,34 @@ export type ConstraintOutcome =
  * applied only when every applicable required constraint still holds afterwards.
  */
 export interface Constraint {
+  /** A non-blank ID, unique among the workspace's constraints; rejections name it. */
   readonly id: string;
-  /** Constraints resolve in ascending order, ties broken by ID. */
+  /** Constraints resolve in ascending order, ties broken by ID. A finite number. */
   readonly order: number;
+  /** Whether the constraint must hold after every commit, rather than being a preference. */
   readonly required: boolean;
   /** Which nodes the constraint governs. Omitted: every node. */
   appliesTo?(node: NodeRecord): boolean;
+  /**
+   * Decides one node's proposed placement. It runs synchronously inside the transaction and must
+   * not change anything. A constraint that throws or accepts an invalid transform is treated as
+   * defective, required or not: the transaction is rejected with `CONSTRAINT_REJECTED`.
+   */
   resolve(input: ConstraintInput): ConstraintOutcome;
 }
 
 /** Common settings of the built-in constraints. */
 export interface ConstraintOptions {
+  /** The constraint's ID: non-blank and unique among the workspace's constraints. */
   readonly id: string;
   /** Default 0. */
   readonly order?: number;
   /** Default true. */
   readonly required?: boolean;
+  /**
+   * Which nodes the constraint governs. Omitted: every node. {@link collisionSpacingConstraint}
+   * also uses it to choose which other nodes to keep clear of.
+   */
   readonly appliesTo?: (node: NodeRecord) => boolean;
 }
 
@@ -96,10 +122,15 @@ export function withWorldPosition(input: ConstraintInput, world: Vec3): Constrai
   return accept({ ...input.transform, position: mat4TransformPoint(inverse, world) });
 }
 
-const AXIS_INDEX = { x: 0, y: 1, z: 2 } as const;
-export type Axis = keyof typeof AXIS_INDEX;
+/** A world axis, for {@link axisLockConstraint}. */
+export type Axis = 'x' | 'y' | 'z';
 
-/** Keeps the node's world origin inside the box `min`..`max`, clamping it there. */
+const AXIS_INDEX: Readonly<Record<Axis, 0 | 1 | 2>> = { x: 0, y: 1, z: 2 };
+
+/**
+ * Keeps the node's world origin inside the box `min`..`max` (world coordinates, `min` not above
+ * `max` on any axis), clamping it there.
+ */
 export function worldBoundsConstraint(
   options: ConstraintOptions & { readonly min: Vec3; readonly max: Vec3 },
 ): Constraint {
@@ -149,7 +180,11 @@ export function axisLockConstraint(
   };
 }
 
-/** Keeps the node's world origin between `min` and `max` from `center`, moving it radially. */
+/**
+ * Keeps the node's world origin between `min` and `max` world units from `center`, moving it
+ * radially. Rejects a placement exactly at the centre when `min` is above 0, since no direction
+ * leads out of it.
+ */
 export function distanceConstraint(
   options: ConstraintOptions & {
     readonly center: Vec3;
@@ -181,7 +216,10 @@ export function distanceConstraint(
   };
 }
 
-/** Snaps the node's world origin to a grid of spacing `step` through `origin`. */
+/**
+ * Snaps the node's world origin to a grid of spacing `step` (world units, non-zero) through
+ * `origin` (default the world origin).
+ */
 export function gridSnapConstraint(
   options: ConstraintOptions & { readonly step: number; readonly origin?: Vec3 },
 ): Constraint {

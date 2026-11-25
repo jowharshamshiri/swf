@@ -16,13 +16,14 @@ import { PRESENTATION_API_VERSION } from '@swf/presentation';
 import type { GeometryLayer } from './layer.js';
 import { isGeometryLayer } from './layer.js';
 
+/** The layer compositor's registered ID, as {@link LayerCompositor} declares it. */
 export const LAYER_COMPOSITOR_ID = 'swf.layer-compositor/1';
 
 /**
  * What the layer compositor can do: it assembles live elements and drawn layers together, in an
  * explicit order. Live elements and canvases are stacked as whole layers, so where they overlap
  * each lies entirely in front of or behind the other (`layer-order`): there is no per-pixel depth
- * between a live element and drawn content.
+ * between a live element and drawn content. Frozen.
  */
 export const LAYER_COMPOSITOR_CAPABILITIES: CompositorCapabilities = Object.freeze({
   layerCategories: Object.freeze([
@@ -50,14 +51,22 @@ export const LAYER_COMPOSITOR_CAPABILITIES: CompositorCapabilities = Object.free
  * exactly the planned order. Elements are appended once and never moved.
  */
 export class LayerCompositor implements Compositor {
+  /** {@link LAYER_COMPOSITOR_ID}. */
   readonly id = LAYER_COMPOSITOR_ID;
+  /** The presentation API version it implements. */
   readonly apiVersion = PRESENTATION_API_VERSION;
 
+  /** {@link LAYER_COMPOSITOR_CAPABILITIES}, the same object on every call. */
   capabilities(): CompositorCapabilities {
     return LAYER_COMPOSITOR_CAPABILITIES;
   }
 
-  /** Builds the view's root in the target container, which must be an element. */
+  /**
+   * Builds the view's root in the target container, which must be an element. Rejects with
+   * {@link SwfFailure} (`INVALID_INPUT`) when it is not, or when the renderer session belongs to
+   * another viewport. The container stays the host's; the session takes its root out again when
+   * released.
+   */
   prepare(target: CompositionTarget, renderer: RendererSession): Promise<CompositorSession> {
     const reject = (message: string) =>
       Promise.reject(new SwfFailure(makeError('INVALID_INPUT', message)));
@@ -82,8 +91,15 @@ export class LayerCompositor implements Compositor {
   }
 }
 
+/**
+ * A layer compositor's session for one viewport: a root element, marked
+ * `data-swf-composition`, holding the view's canvases and live elements. The presenter owns it
+ * and releases it.
+ */
 export class LayerCompositorSession implements CompositorSession {
+  /** The compositor that prepared it. */
   readonly compositorId: string;
+  /** The viewport it composes. */
   readonly viewportId: Id;
   /** The view's root: canvases and live elements are its children. */
   readonly root: HTMLElement;
@@ -99,12 +115,24 @@ export class LayerCompositorSession implements CompositorSession {
   readonly #lossListeners = new Set<LossListener>();
   #released = false;
 
+  /** A session over `root`, as {@link LayerCompositor.prepare} makes it. */
   constructor(compositorId: string, viewportId: Id, root: HTMLElement) {
     this.compositorId = compositorId;
     this.viewportId = viewportId;
     this.root = root;
   }
 
+  /**
+   * Stacks the frame's layers in order by `z-index`: each live element alone, each run of
+   * consecutive drawn layers on one canvas (marked `data-swf-layer="drawn"`, taking no pointer
+   * input) at the frame's device pixel ratio. A canvas showing the same layers at the same size is
+   * not repainted, and canvases the frame does not need are removed. A live element is appended
+   * once and never moved.
+   *
+   * @throws {@link @swf/core!SwfFailure} `INVALID_TRANSITION` once released; `INVALID_INPUT`
+   *   for a frame of another viewport, a layer that is neither drawn nor an element, or an element
+   *   with another parent; `UNSUPPORTED_CAPABILITY` when the browser offers no 2D canvas context.
+   */
   compose(frame: RenderedFrame): ComposedFrame {
     if (this.#released) {
       throw new SwfFailure(
@@ -225,7 +253,10 @@ export class LayerCompositorSession implements CompositorSession {
     };
   }
 
-  /** Takes the view's root out of its container. Safe to call more than once. */
+  /**
+   * Takes the view's root out of its container, with its canvases and whatever live elements it
+   * holds, and drops every loss listener. Composing afterwards throws. Safe to call more than once.
+   */
   release(): Promise<void> {
     if (!this.#released) {
       this.#released = true;

@@ -40,16 +40,28 @@ import {
  * are never part of the scene.
  */
 export interface SceneSnapshot {
+  /**
+   * The workspace the scene was taken from. A restore does not require it to match the restoring
+   * workspace.
+   */
   readonly workspaceId: Id;
+  /** The revision the scene was at: a whole number of at least 0. */
   readonly revision: number;
   /** Root nodes in presentation order. */
   readonly rootIds: readonly Id[];
+  /** Every node, archived ones included, ordered by ID. */
   readonly nodes: readonly NodeRecord[];
+  /** Every surface association, ordered by ID. */
   readonly surfaces: readonly SurfaceRecord[];
+  /** Every camera, ordered by ID. */
   readonly cameras: readonly CameraRecord[];
+  /** Every viewport, ordered by ID. */
   readonly viewports: readonly ViewportRecord[];
+  /** The node that workspace orbit rotates, or null. */
   readonly orbitRootId: Id | null;
+  /** Selected nodes in selection order. */
   readonly selection: readonly Id[];
+  /** The focused node, or null. */
   readonly focusedId: Id | null;
 }
 
@@ -130,7 +142,10 @@ const VIEWPORT_FIELDS = [
 const byId = <T extends { readonly id: Id }>(a: T, b: T) =>
   a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 
-/** The canonical snapshot of a scene state. */
+/**
+ * The canonical snapshot of a scene state: a new, deeply frozen copy that shares nothing mutable
+ * with the scene and can be stored or sent as JSON as it is.
+ */
 export function serializeScene(state: SceneState): SceneSnapshot {
   return deepFreeze({
     workspaceId: state.workspaceId,

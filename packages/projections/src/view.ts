@@ -3,7 +3,10 @@ import { quatFromAxisAngle, quatMultiply, quatRotate } from '@swf/math';
 
 /**
  * A camera rotation from a heading (radians to the right of the -Z axis, about +Y) and a pitch
- * (radians above the horizon). A camera looks along its local -Z with +Y up.
+ * (radians above the horizon). A camera looks along its local -Z with +Y up. Any finite angles are
+ * accepted, beyond a turn or past straight up included; the rotation is a new value.
+ *
+ * @throws RangeError when either angle is not finite.
  */
 export function cameraRotation(heading: number, pitch: number): Quat {
   if (!Number.isFinite(heading) || !Number.isFinite(pitch)) {
@@ -19,7 +22,12 @@ export function cameraRotation(heading: number, pitch: number): Quat {
  * heading is in (-π, π] and pitch in [-π/2, π/2]. Looking straight up or down, the heading is that
  * of the camera's up vector, so it stays defined.
  */
-export function headingPitchOf(rotation: Quat): { heading: number; pitch: number } {
+export function headingPitchOf(rotation: Quat): {
+  /** Radians to the right of the -Z axis, about +Y. */
+  heading: number;
+  /** Radians above the horizon. */
+  pitch: number;
+} {
   const forward = quatRotate(rotation, [0, 0, -1]);
   const pitch = Math.asin(Math.max(-1, Math.min(1, forward[1])));
   const horizontal = Math.hypot(forward[0], forward[2]);

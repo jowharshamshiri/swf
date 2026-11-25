@@ -30,7 +30,7 @@ export {
   recordPreviewLatency,
   timePicks,
 } from './measure.js';
-export type { ResourceCounts, ResourceProbe } from './probe.js';
+export type { ProbedWindow, ResourceCounts, ResourceProbe } from './probe.js';
 export { createResourceProbe } from './probe.js';
 export type { FrameAnalysis, Growth, Summary } from './stats.js';
 export {
