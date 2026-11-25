@@ -1,4 +1,5 @@
 import type { FrameSource } from '@swf/presentation';
+import { failWith } from './release.js';
 
 /**
  * A frame source whose frame boundaries come only when the test says, so frames are
@@ -23,13 +24,29 @@ export class ManualFrames implements FrameSource {
   }
 
   /**
-   * Reaches a frame boundary: runs what was requested so far (not what that requests in turn)
-   * and waits for it to finish. Returns how many requests ran. Rejects when one of them throws or
-   * rejects; one that throws at once stops those after it, which are dropped.
+   * Reaches a frame boundary: runs what was requested so far (not what that requests in turn),
+   * every one even when one before it throws, and waits for all of them to finish. Resolves to how
+   * many requests ran; rejects when one of them throws or rejects, with its failure, or with an
+   * `AggregateError` holding each failure, in request order, when more than one fails.
    */
   async flush(): Promise<number> {
     const due = this.#pending.splice(0);
-    await Promise.all(due.map((run) => run()));
+    // A request that throws at once rejects like one that rejects: the others still run.
+    const settled = await Promise.allSettled(
+      due.map(
+        (run) =>
+          new Promise((resolve) => {
+            resolve(run());
+          }),
+      ),
+    );
+    const failed = settled.flatMap((s) =>
+      s.status === 'rejected' ? [{ error: s.reason as unknown }] : [],
+    );
+    const [first, ...more] = failed;
+    if (first !== undefined) {
+      failWith(first.error, more);
+    }
     return due.length;
   }
 

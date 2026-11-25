@@ -158,8 +158,11 @@ export interface BenchmarkHost {
   settled(): Promise<void>;
   /**
    * Stops observing input and disposes the router, presenter, runtime and workspace, in that
-   * order. The containers stay in place, holding nothing of the framework's. The same promise on
-   * every call.
+   * order, each even when one before it fails. The containers stay in place, holding nothing of
+   * the framework's. The same promise on every call.
+   *
+   * @throws As a disposal fails (as a rejection); an `AggregateError` holding each failure, in
+   *   order, when more than one does.
    */
   dispose(): Promise<void>;
 }
@@ -207,9 +210,13 @@ export function layoutViewports(parent: HTMLElement, fixture: Fixture): HTMLElem
  * and input over the first taken by the interaction router with its built-in policies. The caller
  * owns the host and disposes it.
  *
+ * When a step fails, everything made before it is disposed, in reverse order, and the failure
+ * passed on: the containers are left holding nothing of the framework's.
+ *
  * @throws `Error` (as a rejection) when the containers are not one per viewport or not in a
  *   window, or the fixture's scene cannot be committed. A viewport that cannot open rejects as
- *   the presenter does.
+ *   the presenter does. When disposing what was made also fails, it rejects with an
+ *   `AggregateError` holding the step's failure, then each disposal's.
  *
  * @example
  * ```ts
@@ -247,119 +254,168 @@ export async function createBenchmarkHost(options: BenchmarkHostOptions): Promis
     },
     timer,
   });
-  const registry = createPresentationRegistry();
-  const projections = createProjectionRegistry({
-    kinds: workspace.mutator(),
-    projectors: registry.registrar(),
-  });
-  projections.register(equirectangular);
-  const made = workspace.transaction(fixture.commands, { source: 'system' });
-  if (made.status !== 'committed') {
-    throw new Error(`the fixture could not be made: ${JSON.stringify(made)}`);
-  }
-  const runtime = createSurfaceRuntime(workspace);
-  const content = adapters(document);
-  runtime.registerAdapter(content.live);
-  runtime.registerAdapter(content.drawn);
-  registry.registerRenderer(
-    new DomRenderer({ document, pixelsPerUnit: PIXELS_PER_UNIT, chrome: { projections } }),
-  );
-  registry.registerCompositor(new DomCompositor());
-  const presenter = createPresenter({
-    workspace,
-    runtime,
-    registry,
-    frames,
-    showDegraded,
-    now: timer,
-  });
-  const viewports: HostViewport[] = [];
-  for (const [i, v] of fixture.viewports.entries()) {
-    const container = containers[i];
-    if (container === undefined) {
-      throw new Error(`containers: no element for viewport "${v.id}"`);
-    }
-    const viewport = await presenter.open({
-      viewportId: v.id,
-      container,
-      backends: [{ renderer: DOM_RENDERER_ID, compositor: DOM_COMPOSITOR_ID }],
+  /** How to dispose of each thing made so far, in the order they were made. */
+  const made: (() => unknown)[] = [() => workspace.dispose()];
+  /** Disposes of everything made, the last made first. */
+  const disposeMade = () => disposeEach([...made].reverse());
+  try {
+    const registry = createPresentationRegistry();
+    const projections = createProjectionRegistry({
+      kinds: workspace.mutator(),
+      projectors: registry.registrar(),
     });
-    viewports.push({ fixture: v, container, viewport });
-  }
-  const main = viewports[0];
-  if (main === undefined) {
-    throw new Error('the fixture has no viewport');
-  }
-  const router = createInteractionRouter({
-    workspace,
-    projections,
-    presentation: (surfaceId) => main.viewport.presentation(surfaceId),
-    timer,
-  });
-  const observers = new Set<(intent: InputIntent, result: DispatchResult) => void>();
-  const device = createDomInput({
-    root: main.container,
-    viewportId: main.fixture.id,
-    events: (listener) => router.subscribe(listener),
-  });
-  // The device, with every dispatch it makes told to those observing input.
-  const observed: InputAdapter = {
-    id: device.id,
-    apiVersion: device.apiVersion,
-    connect: (dispatch) =>
-      device.connect((intent) => {
-        const result = dispatch(intent);
-        for (const listener of observers) {
-          listener(intent, result);
-        }
-        return result;
-      }),
-  };
-  const unregisterInput = router.registerInputAdapter(observed);
-  const unbound = () => runtime.list().some((s) => s.state === 'binding' || s.state === 'unbound');
-  let disposed: Promise<void> | null = null;
-  return Object.freeze({
-    fixture,
-    workspace,
-    runtime,
-    projections,
-    presenter,
-    router,
-    viewports: Object.freeze(viewports),
-    observeInput(listener: (intent: InputIntent, result: DispatchResult) => void) {
-      observers.add(listener);
-      return () => {
-        observers.delete(listener);
-      };
-    },
-    async settled() {
-      if (unbound()) {
-        await new Promise<void>((resolve) => {
-          const stop = runtime.subscribe(() => {
-            if (!unbound()) {
-              stop();
-              resolve();
-            }
+    projections.register(equirectangular);
+    const scene = workspace.transaction(fixture.commands, { source: 'system' });
+    if (scene.status !== 'committed') {
+      throw new Error(`the fixture could not be made: ${JSON.stringify(scene)}`);
+    }
+    const runtime = createSurfaceRuntime(workspace);
+    made.push(() => runtime.dispose());
+    const content = adapters(document);
+    runtime.registerAdapter(content.live);
+    runtime.registerAdapter(content.drawn);
+    registry.registerRenderer(
+      new DomRenderer({ document, pixelsPerUnit: PIXELS_PER_UNIT, chrome: { projections } }),
+    );
+    registry.registerCompositor(new DomCompositor());
+    const presenter = createPresenter({
+      workspace,
+      runtime,
+      registry,
+      frames,
+      showDegraded,
+      now: timer,
+    });
+    // Disposing the presenter disposes every viewport it opened.
+    made.push(() => presenter.dispose());
+    const viewports: HostViewport[] = [];
+    for (const [i, v] of fixture.viewports.entries()) {
+      const container = containers[i];
+      if (container === undefined) {
+        throw new Error(`containers: no element for viewport "${v.id}"`);
+      }
+      const viewport = await presenter.open({
+        viewportId: v.id,
+        container,
+        backends: [{ renderer: DOM_RENDERER_ID, compositor: DOM_COMPOSITOR_ID }],
+      });
+      viewports.push({ fixture: v, container, viewport });
+    }
+    const main = viewports[0];
+    if (main === undefined) {
+      throw new Error('the fixture has no viewport');
+    }
+    const router = createInteractionRouter({
+      workspace,
+      projections,
+      presentation: (surfaceId) => main.viewport.presentation(surfaceId),
+      timer,
+    });
+    made.push(() => {
+      router.dispose();
+    });
+    const observers = new Set<(intent: InputIntent, result: DispatchResult) => void>();
+    const device = createDomInput({
+      root: main.container,
+      viewportId: main.fixture.id,
+      events: (listener) => router.subscribe(listener),
+    });
+    // The device, with every dispatch it makes told to those observing input.
+    const observed: InputAdapter = {
+      id: device.id,
+      apiVersion: device.apiVersion,
+      connect: (dispatch) =>
+        device.connect((intent) => {
+          const result = dispatch(intent);
+          for (const listener of observers) {
+            listener(intent, result);
+          }
+          return result;
+        }),
+    };
+    made.push(router.registerInputAdapter(observed), () => {
+      observers.clear();
+    });
+    const unbound = () =>
+      runtime.list().some((s) => s.state === 'binding' || s.state === 'unbound');
+    let disposed: Promise<void> | null = null;
+    return Object.freeze({
+      fixture,
+      workspace,
+      runtime,
+      projections,
+      presenter,
+      router,
+      viewports: Object.freeze(viewports),
+      observeInput(listener: (intent: InputIntent, result: DispatchResult) => void) {
+        observers.add(listener);
+        return () => {
+          observers.delete(listener);
+        };
+      },
+      async settled() {
+        if (unbound()) {
+          await new Promise<void>((resolve) => {
+            const stop = runtime.subscribe(() => {
+              if (!unbound()) {
+                stop();
+                resolve();
+              }
+            });
           });
-        });
-      }
-      for (const v of viewports) {
-        const frame = await v.viewport.update();
-        if (frame.status !== 'presented') {
-          throw new Error(`viewport "${v.fixture.id}" is degraded: ${frame.error.message}`);
         }
-      }
-    },
-    dispose() {
-      disposed ??= (async () => {
-        observers.clear();
-        unregisterInput();
-        router.dispose();
-        await presenter.dispose();
-        await runtime.dispose();
-        await workspace.dispose();
-      })();
-      return disposed;
-    },
-  });
+        for (const v of viewports) {
+          const frame = await v.viewport.update();
+          if (frame.status !== 'presented') {
+            throw new Error(`viewport "${v.fixture.id}" is degraded: ${frame.error.message}`);
+          }
+        }
+      },
+      dispose() {
+        disposed ??= (async () => {
+          const [first, ...more] = await disposeMade();
+          if (first !== undefined) {
+            failWith(first.error, more);
+          }
+        })();
+        return disposed;
+      },
+    });
+  } catch (error) {
+    return failWith(error, await disposeMade());
+  }
+}
+
+/**
+ * Runs each disposal in turn, every one even when one before it fails, and resolves to what
+ * failed, in order.
+ */
+async function disposeEach(
+  disposals: readonly (() => unknown)[],
+): Promise<{ readonly error: unknown }[]> {
+  const failed: { readonly error: unknown }[] = [];
+  for (const dispose of disposals) {
+    try {
+      await dispose();
+    } catch (error) {
+      failed.push({ error });
+    }
+  }
+  return failed;
+}
+
+/**
+ * Throws `error` as it is when nothing else `failed`; otherwise an `AggregateError` holding
+ * `error`, then each other failure, in order.
+ */
+function failWith(error: unknown, failed: readonly { readonly error: unknown }[]): never {
+  if (failed.length === 0) {
+    throw error;
+  }
+  const all = [error, ...failed.map((f) => f.error)];
+  throw new AggregateError(all, all.map(describe).join('; and then '));
+}
+
+function describe(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

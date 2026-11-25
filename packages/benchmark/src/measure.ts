@@ -11,8 +11,9 @@ import type { BenchmarkHost } from './host.js';
 /** Records the timestamp of every animation frame until stopped. */
 export interface FrameRecorder {
   /**
-   * Stops recording and returns the frames' timestamps, in milliseconds by the window's frame
-   * clock, oldest first: the recorder's own array, the same on every call.
+   * Stops recording, cancelling the frame it requested, and returns the frames' timestamps, in
+   * milliseconds by the window's frame clock, oldest first: final and frozen, the same array on
+   * every call.
    */
   stop(): readonly number[];
 }
@@ -24,19 +25,19 @@ export interface FrameRecorder {
  */
 export function recordFrames(view: Window): FrameRecorder {
   const stamps: number[] = [];
-  let running = true;
   const tick = (time: number) => {
-    if (!running) {
-      return;
-    }
     stamps.push(time);
-    view.requestAnimationFrame(tick);
+    request = view.requestAnimationFrame(tick);
   };
-  view.requestAnimationFrame(tick);
+  let request = view.requestAnimationFrame(tick);
+  let found: readonly number[] | null = null;
   return {
     stop() {
-      running = false;
-      return stamps;
+      if (found === null) {
+        view.cancelAnimationFrame(request);
+        found = Object.freeze([...stamps]);
+      }
+      return found;
     },
   };
 }
@@ -124,7 +125,10 @@ export async function recordControl(
 export interface PreviewLatency {
   /** For each pointer move shown, milliseconds from its event to the frame after it was drawn. */
   readonly latencies: readonly number[];
-  /** Pointer moves never shown before the recording stopped. */
+  /**
+   * Pointer moves not seen shown when the recording stopped: never presented, or presented in a
+   * frame whose next frame had not yet begun, so their latency is not known.
+   */
   readonly unshown: number;
   /** The most pointer moves waiting to be shown at once. */
   readonly maxPending: number;
@@ -133,9 +137,8 @@ export interface PreviewLatency {
 /** Records preview latency until stopped. */
 export interface PreviewRecorder {
   /**
-   * Stops listening to the host's input and frames and returns what was found. Moves shown by
-   * the last presented frame are added to `latencies` when the frame after it begins, which may
-   * be after `stop`.
+   * Stops listening to the host's input and frames, cancels the frames it requested, and returns
+   * what was found: final and deeply frozen, the same object on every call.
    */
   stop(): PreviewLatency;
 }
@@ -161,6 +164,8 @@ export function recordPreviewLatency(host: BenchmarkHost, nodeId: Id): PreviewRe
   }
   /** Pointer moves not yet shown: when each happened, and the place it previewed. */
   const pending: { readonly at: number; readonly place: Transform3D }[] = [];
+  /** Moves presented, waiting for the frame after their presentation, by its request. */
+  const painting = new Map<number, readonly { readonly at: number }[]>();
   const latencies: number[] = [];
   let maxPending = 0;
   // Observed as the router returns, the preview this move made is in place.
@@ -186,17 +191,33 @@ export function recordPreviewLatency(host: BenchmarkHost, nodeId: Id): PreviewRe
       return;
     }
     const done = pending.splice(0, index + 1);
-    view.requestAnimationFrame((painted) => {
+    const request = view.requestAnimationFrame((painted) => {
+      painting.delete(request);
       for (const p of done) {
         latencies.push(painted - p.at);
       }
     });
+    painting.set(request, done);
   });
+  let found: PreviewLatency | null = null;
   return {
     stop() {
-      stopInput();
-      stopFrames();
-      return Object.freeze({ latencies, unshown: pending.length, maxPending });
+      if (found === null) {
+        stopInput();
+        stopFrames();
+        let unpainted = 0;
+        for (const [request, done] of painting) {
+          view.cancelAnimationFrame(request);
+          unpainted += done.length;
+        }
+        painting.clear();
+        found = Object.freeze({
+          latencies: Object.freeze([...latencies]),
+          unshown: pending.length + unpainted,
+          maxPending,
+        });
+      }
+      return found;
     },
   };
 }
@@ -204,8 +225,8 @@ export function recordPreviewLatency(host: BenchmarkHost, nodeId: Id): PreviewRe
 /** The router's hit queries for pointer input, as it timed them. */
 export interface PickRecorder {
   /**
-   * Stops recording and returns each hit query's time, in milliseconds, in dispatch order: the
-   * recorder's own array, the same on every call.
+   * Stops recording and returns each hit query's time, in milliseconds, in dispatch order: final
+   * and frozen, the same array on every call.
    */
   stop(): readonly number[];
 }
@@ -221,10 +242,14 @@ export function recordPicks(host: BenchmarkHost): PickRecorder {
       times.push(result.pick.ms);
     }
   });
+  let found: readonly number[] | null = null;
   return {
     stop() {
-      stop();
-      return times;
+      if (found === null) {
+        stop();
+        found = Object.freeze([...times]);
+      }
+      return found;
     },
   };
 }

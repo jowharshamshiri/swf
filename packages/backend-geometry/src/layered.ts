@@ -101,7 +101,12 @@ export class LayeredRenderer implements RendererBackend {
 
   /**
    * Prepares a session of each renderer for the view, the native one first, and pairs them. When
-   * the geometry renderer fails, the native session is released and the failure passed on.
+   * the geometry renderer fails, or prepares a session that is not a geometry session, every
+   * session prepared is released and the failure passed on.
+   *
+   * @throws `Error` (as a rejection) when the geometry renderer prepares a session of another
+   *   kind; and as either renderer's `prepare` rejects. When releasing a session prepared also
+   *   fails, it rejects with an `AggregateError` holding the first failure, then each release's.
    */
   async prepare(scene: SceneState, view: ViewGeometry): Promise<RendererSession> {
     const native = await this.#native.prepare(scene, view);
@@ -109,11 +114,14 @@ export class LayeredRenderer implements RendererBackend {
     try {
       geometry = await this.#geometry.prepare(scene, view);
     } catch (error) {
-      await native.release();
-      throw error;
+      return failWith(error, await releaseEach([() => native.release()]));
     }
     if (!(geometry instanceof GeometryRendererSession)) {
-      throw new Error('the geometry renderer prepared a session of another kind');
+      const other = geometry;
+      return failWith(
+        new Error('the geometry renderer prepared a session of another kind'),
+        await releaseEach([() => native.release(), () => other.release()]),
+      );
     }
     return new LayeredRendererSession(this.id, view.viewportId, native, geometry);
   }
@@ -224,12 +232,57 @@ export class LayeredRendererSession implements RendererSession {
     return this.native.watchLoss(listener);
   }
 
-  /** Releases the native session, then the geometry session. Safe to call more than once. */
+  /**
+   * Releases the native session, then the geometry session, the second even when the first
+   * fails. Safe to call more than once: only the first call releases.
+   *
+   * @throws As a session's `release` rejects; an `AggregateError` holding both failures when
+   *   both do.
+   */
   async release(): Promise<void> {
     if (!this.#released) {
       this.#released = true;
-      await this.native.release();
-      await this.geometry.release();
+      const [first, ...more] = await releaseEach([
+        () => this.native.release(),
+        () => this.geometry.release(),
+      ]);
+      if (first !== undefined) {
+        failWith(first.error, more);
+      }
     }
   }
+}
+
+/**
+ * Runs each release in turn, every one even when one before it fails, and resolves to what
+ * failed, in order.
+ */
+async function releaseEach(
+  releases: readonly (() => Promise<void>)[],
+): Promise<{ readonly error: unknown }[]> {
+  const failed: { readonly error: unknown }[] = [];
+  for (const release of releases) {
+    try {
+      await release();
+    } catch (error) {
+      failed.push({ error });
+    }
+  }
+  return failed;
+}
+
+/**
+ * Throws `error` as it is when nothing else `failed`; otherwise an `AggregateError` holding
+ * `error`, then each other failure, in order.
+ */
+function failWith(error: unknown, failed: readonly { readonly error: unknown }[]): never {
+  if (failed.length === 0) {
+    throw error;
+  }
+  const all = [error, ...failed.map((f) => f.error)];
+  throw new AggregateError(all, all.map(describe).join('; and then '));
+}
+
+function describe(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

@@ -58,22 +58,22 @@
   "@swf/backend-geometry": {
     "budget": 7936,
     "recorded": {
-      "minified": 19013,
-      "gzip": 6991
+      "minified": 19429,
+      "gzip": 7148
     }
   },
   "@swf/conformance": {
     "budget": 10752,
     "recorded": {
-      "minified": 32228,
-      "gzip": 9774
+      "minified": 33014,
+      "gzip": 10015
     }
   },
   "@swf/diagnostics": {
     "budget": 3840,
     "recorded": {
-      "minified": 9786,
-      "gzip": 3392
+      "minified": 9822,
+      "gzip": 3400
     }
   },
   "@swf/persistence": {
@@ -86,8 +86,8 @@
   "@swf/benchmark": {
     "budget": 6912,
     "recorded": {
-      "minified": 15574,
-      "gzip": 6133
+      "minified": 16526,
+      "gzip": 6447
     }
   }
 }

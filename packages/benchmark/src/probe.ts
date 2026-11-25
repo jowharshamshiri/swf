@@ -6,7 +6,9 @@
  * moment after it is disposed (NFR-010, AN-008).
  *
  * A listener counts while its target is the window, the document, or an element in the document:
- * one on an element that was removed and dropped goes with the element, and holds nothing.
+ * one on an element that was removed and dropped goes with the element, and holds nothing. The
+ * probe holds what it follows only weakly, so it keeps no target, listener or observer alive that
+ * the page has let go.
  */
 
 /** What the window's code holds, at one moment. */
@@ -48,8 +50,14 @@ export type ProbedWindow = Window & typeof globalThis;
 interface Registration {
   readonly target: WeakRef<EventTarget>;
   readonly type: string;
-  readonly listener: EventListenerOrEventListenerObject;
+  /** Held weakly: while its target lives, the browser holds it. */
+  readonly listener: WeakRef<EventListenerOrEventListenerObject>;
   readonly capture: boolean;
+}
+
+/** What one observer observes. */
+interface Observation {
+  readonly targets: Set<WeakRef<Node>>;
 }
 
 /** Whether a target still holds what is registered on it: it is reachable from the page. */
@@ -85,6 +93,14 @@ export function createResourceProbe(view: ProbedWindow): ResourceProbe {
   flagged[marker] = true;
 
   const registrations = new Set<Registration>();
+  // A registration whose target is collected holds nothing: it is forgotten with the target.
+  const forgetRegistration = new FinalizationRegistry<Registration>((r) => {
+    registrations.delete(r);
+  });
+  const drop = (r: Registration) => {
+    registrations.delete(r);
+    forgetRegistration.unregister(r);
+  };
   const find = (
     target: EventTarget,
     type: string,
@@ -94,7 +110,7 @@ export function createResourceProbe(view: ProbedWindow): ResourceProbe {
     for (const r of registrations) {
       if (
         r.type === type &&
-        r.listener === listener &&
+        r.listener.deref() === listener &&
         r.capture === capture &&
         r.target.deref() === target
       ) {
@@ -122,17 +138,36 @@ export function createResourceProbe(view: ProbedWindow): ResourceProbe {
     if (find(this, type, listener, capture) !== undefined) {
       return; // the browser ignores a second identical registration
     }
-    const registration: Registration = { target: new WeakRef(this), type, listener, capture };
+    const registration: Registration = {
+      target: new WeakRef(this),
+      type,
+      listener: new WeakRef(listener),
+      capture,
+    };
     const signal = typeof options === 'object' ? options.signal : undefined;
     if (signal?.aborted === true) {
       return;
     }
     registrations.add(registration);
+    forgetRegistration.register(this, registration, registration);
     if (typeof options === 'object' && options.once === true) {
       // A listener added once is removed by the browser as it runs: wrapped, it is seen to run.
-      add.call(this, type, () => registrations.delete(registration), { once: true, capture });
+      add.call(
+        this,
+        type,
+        () => {
+          drop(registration);
+        },
+        { once: true, capture },
+      );
     }
-    signal?.addEventListener('abort', () => registrations.delete(registration), { once: true });
+    signal?.addEventListener(
+      'abort',
+      () => {
+        drop(registration);
+      },
+      { once: true },
+    );
   };
   proto.removeEventListener = function (
     this: EventTarget,
@@ -146,12 +181,18 @@ export function createResourceProbe(view: ProbedWindow): ResourceProbe {
     }
     const found = find(this, type, listener, captureOf(options));
     if (found !== undefined) {
-      registrations.delete(found);
+      drop(found);
     }
   };
 
-  /** Each observer's observed targets, while it is not disconnected. */
-  const observed = new Map<object, Set<WeakRef<Element | Node>>>();
+  /**
+   * What each observer observing something observes, held apart from the observer: an observer
+   * that observes nothing, or is collected, leaves.
+   */
+  const observing = new Set<Observation>();
+  const forgetObservation = new FinalizationRegistry<Observation>((o) => {
+    observing.delete(o);
+  });
   const restoreObservers: (() => void)[] = [];
   const wrapObserver = (name: 'ResizeObserver' | 'MutationObserver' | 'IntersectionObserver') => {
     const Original = view[name] as unknown as new (...args: unknown[]) => {
@@ -163,29 +204,35 @@ export function createResourceProbe(view: ProbedWindow): ResourceProbe {
       return;
     }
     class Probed extends Original {
+      readonly #observation: Observation = { targets: new Set() };
       constructor(...args: unknown[]) {
         super(...args);
-        observed.set(this, new Set());
+        forgetObservation.register(this, this.#observation);
       }
       override observe(target: Node, options?: unknown): void {
         super.observe(target, options);
-        const set = observed.get(this);
-        if (set !== undefined && ![...set].some((t) => t.deref() === target)) {
-          set.add(new WeakRef(target));
+        const { targets } = this.#observation;
+        if (![...targets].some((t) => t.deref() === target)) {
+          targets.add(new WeakRef(target));
         }
+        observing.add(this.#observation);
       }
       override unobserve(target: Element): void {
         super.unobserve?.(target);
-        const set = observed.get(this);
-        for (const t of set ?? []) {
+        const { targets } = this.#observation;
+        for (const t of targets) {
           if (t.deref() === target) {
-            set?.delete(t);
+            targets.delete(t);
           }
+        }
+        if (targets.size === 0) {
+          observing.delete(this.#observation);
         }
       }
       override disconnect(): void {
         super.disconnect();
-        observed.get(this)?.clear();
+        this.#observation.targets.clear();
+        observing.delete(this.#observation);
       }
     }
     Object.defineProperty(view, name, { value: Probed, configurable: true, writable: true });
@@ -263,8 +310,8 @@ export function createResourceProbe(view: ProbedWindow): ResourceProbe {
         }
       }
       let observations = 0;
-      for (const set of observed.values()) {
-        for (const t of set) {
+      for (const { targets } of observing) {
+        for (const t of targets) {
           if (live(view, t.deref())) {
             observations += 1;
           }

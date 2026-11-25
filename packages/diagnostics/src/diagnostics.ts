@@ -252,9 +252,9 @@ export interface Diagnostics {
  * nothing that happened before is counted. The caller owns the returned {@link Diagnostics} and
  * disposes it to stop listening.
  *
- * @throws {@link @swf/core!SwfFailure} `INVALID_INPUT`, naming the option in its message, when
- *   `errorCapacity` is not a whole number of at least 1 or `now` is not a function. The four
- *   sources are not checked: they are used as given.
+ * @throws {@link @swf/core!SwfFailure} `INVALID_INPUT`, naming the option in its message and
+ *   its `path`, when `errorCapacity` is not a whole number of at least 1 or `now` is not a
+ *   function. The four sources are not checked: they are used as given.
  *
  * @example
  * ```ts
@@ -267,11 +267,13 @@ export function createDiagnostics(options: DiagnosticsOptions): Diagnostics {
   const capacity = options.errorCapacity ?? 50;
   if (!Number.isInteger(capacity) || capacity < 1) {
     throw new SwfFailure(
-      makeError('INVALID_INPUT', 'errorCapacity must be a whole number of at least 1'),
+      makeError('INVALID_INPUT', 'errorCapacity must be a whole number of at least 1', {
+        path: 'errorCapacity',
+      }),
     );
   }
   if (options.now !== undefined && typeof options.now !== 'function') {
-    throw new SwfFailure(makeError('INVALID_INPUT', 'now must be a function'));
+    throw new SwfFailure(makeError('INVALID_INPUT', 'now must be a function', { path: 'now' }));
   }
   return new Collector(options, capacity);
 }

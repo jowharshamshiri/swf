@@ -22,6 +22,7 @@ import type { ConformanceCase } from './harness.js';
 import { check, sleep } from './harness.js';
 import { MockOpaqueAdapter } from './mock-adapter.js';
 import { MockCompositor, MockRenderer } from './mock-backend.js';
+import { failWith, releaseAll, runEach, using } from './release.js';
 
 /** What the handoff suite needs: the backend under test, and how it loses its resources. */
 export interface HandoffFixture {
@@ -132,86 +133,96 @@ interface Rig extends Counted {
   /** Unregisters the renderer under test. */
   readonly removeUnderTest: () => void;
   readonly rendererUnderTest: RendererBackend;
+  /** Disposes the presenter, the runtime and the workspace, in that order, each even when one fails. */
   dispose(): Promise<void>;
 }
 
+/**
+ * The handoff scene with a presenter over it, which the rig's `dispose` disposes with the runtime
+ * and workspace. When a step fails, what was made before it is disposed and the failure passed on.
+ */
 async function rig(fixture: HandoffFixture): Promise<Rig> {
   const ws = createWorkspace({
     id: 'conformance',
     projectionKinds: [{ id: PROJECTION, configIssue: () => null }],
   });
-  const result = ws.transaction([
-    { type: 'camera.create', camera: { id: 'cam' } },
-    {
-      type: 'viewport.create',
-      viewport: {
-        id: 'v',
-        cameraId: 'cam',
-        projection: { id: PROJECTION, config: {} },
-        size: { width: 800, height: 400, devicePixelRatio: 1 },
+  /** How to dispose of each thing made so far, in the order they were made. */
+  const made: (() => unknown)[] = [() => ws.dispose()];
+  try {
+    const result = ws.transaction([
+      { type: 'camera.create', camera: { id: 'cam' } },
+      {
+        type: 'viewport.create',
+        viewport: {
+          id: 'v',
+          cameraId: 'cam',
+          projection: { id: PROJECTION, config: {} },
+          size: { width: 800, height: 400, devicePixelRatio: 1 },
+        },
       },
-    },
-    ...windowAt('a', -1, 'key-a'),
-    ...windowAt('b', 1.5, null),
-  ]);
-  check(result.status === 'committed', 'the handoff scene could not be built');
-  const runtime = createSurfaceRuntime(ws, { autoBind: false });
-  const adapter = new MockOpaqueAdapter('conformance.view/1');
-  runtime.registerAdapter(adapter);
-  check((await runtime.bind('a-s')).status === 'ok', 'surface a-s could not be bound');
-  const registry = createPresentationRegistry();
-  registry.registerProjector(flat);
-  const reference = {
-    renderer: new MockRenderer(REFERENCE.renderer),
-    compositor: new MockCompositor(REFERENCE.compositor),
-  };
-  registry.registerRenderer(reference.renderer);
-  registry.registerCompositor(reference.compositor);
-  const counted: Counted = {
-    released: { renderer: 0, compositor: 0 },
-    sessions: [],
-    wrappers: new WeakMap(),
-  };
-  const renderer = countedRenderer(fixture.renderer(), counted);
-  const compositor = countedCompositor(fixture.compositor(), counted);
-  const removeUnderTest = registry.registerRenderer(renderer);
-  registry.registerCompositor(compositor);
-  const events: PresenterEvent[] = [];
-  const degraded: Rig['degraded'] = [];
-  const presenter = createPresenter({
-    workspace: ws,
-    runtime,
-    registry,
-    frames: new ManualFrames(),
-    showDegraded: (container, error) => {
-      const entry = { container, error, shown: true };
-      degraded.push(entry);
-      return () => {
-        entry.shown = false;
-      };
-    },
-  });
-  presenter.subscribe((event) => events.push(event));
-  const container = fixture.container?.('v') ?? {};
-  return {
-    ...counted,
-    ws,
-    runtime,
-    adapter,
-    registry,
-    presenter,
-    events,
-    degraded,
-    container,
-    reference,
-    underTest: { renderer: renderer.id, compositor: compositor.id },
-    removeUnderTest,
-    rendererUnderTest: renderer,
-    async dispose() {
-      await presenter.dispose();
-      await runtime.dispose();
-    },
-  };
+      ...windowAt('a', -1, 'key-a'),
+      ...windowAt('b', 1.5, null),
+    ]);
+    check(result.status === 'committed', 'the handoff scene could not be built');
+    const runtime = createSurfaceRuntime(ws, { autoBind: false });
+    made.push(() => runtime.dispose());
+    const adapter = new MockOpaqueAdapter('conformance.view/1');
+    runtime.registerAdapter(adapter);
+    check((await runtime.bind('a-s')).status === 'ok', 'surface a-s could not be bound');
+    const registry = createPresentationRegistry();
+    registry.registerProjector(flat);
+    const reference = {
+      renderer: new MockRenderer(REFERENCE.renderer),
+      compositor: new MockCompositor(REFERENCE.compositor),
+    };
+    registry.registerRenderer(reference.renderer);
+    registry.registerCompositor(reference.compositor);
+    const counted: Counted = {
+      released: { renderer: 0, compositor: 0 },
+      sessions: [],
+      wrappers: new WeakMap(),
+    };
+    const renderer = countedRenderer(fixture.renderer(), counted);
+    const compositor = countedCompositor(fixture.compositor(), counted);
+    const removeUnderTest = registry.registerRenderer(renderer);
+    registry.registerCompositor(compositor);
+    const events: PresenterEvent[] = [];
+    const degraded: Rig['degraded'] = [];
+    const presenter = createPresenter({
+      workspace: ws,
+      runtime,
+      registry,
+      frames: new ManualFrames(),
+      showDegraded: (container, error) => {
+        const entry = { container, error, shown: true };
+        degraded.push(entry);
+        return () => {
+          entry.shown = false;
+        };
+      },
+    });
+    made.push(() => presenter.dispose());
+    presenter.subscribe((event) => events.push(event));
+    const container = fixture.container?.('v') ?? {};
+    return {
+      ...counted,
+      ws,
+      runtime,
+      adapter,
+      registry,
+      presenter,
+      events,
+      degraded,
+      container,
+      reference,
+      underTest: { renderer: renderer.id, compositor: compositor.id },
+      removeUnderTest,
+      rendererUnderTest: renderer,
+      dispose: () => releaseAll([...made].reverse()),
+    };
+  } catch (error) {
+    return failWith(error, await runEach([...made].reverse()));
+  }
 }
 
 function countedRenderer(inner: RendererBackend, counted: Counted): RendererBackend {
@@ -302,12 +313,7 @@ const attachments = (r: Rig) =>
  */
 export function handoffConformance(fixture: HandoffFixture): ConformanceCase[] {
   const withRig = async (body: (r: Rig) => Promise<void>): Promise<'passed'> => {
-    const r = await rig(fixture);
-    try {
-      await body(r);
-    } finally {
-      await r.dispose();
-    }
+    await using(await rig(fixture), (r) => r.dispose(), body);
     return 'passed';
   };
   return [

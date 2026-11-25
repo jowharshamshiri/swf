@@ -59,12 +59,6 @@ These were found while documenting the API; the JSDoc states today's behaviour.
   opening the same ID again is refused as already open; a backend handoff ignores a refused hide
   of a surface it keeps hidden; and `restore()` on a viewport already on its first backend
   reports a failed switch where nothing failed.
-- **Backends and tools**: the layered renderer does not release its sessions when it fails to
-  prepare, nor its drawn session when releasing its live one fails; the benchmark's latency
-  recorder can add to what `stop()` returned, its resource probe keeps observers alive while
-  installed, and its host leaves what it made undisposed when a later step fails; the conformance
-  frame source drops the rest of a flush after a request throws, and the backend suite releases
-  sessions only on success; diagnostics' option errors name no path.
 - **Interaction and surfaces**: a keymap given to `createInteractionRouter` may name an unknown
   command (which `configure` refuses); `settings.steps` changes only the default keymap; an input
   adapter whose `connect` returns no function stays connected when its registration fails; a

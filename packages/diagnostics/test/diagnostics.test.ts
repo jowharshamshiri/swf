@@ -5,8 +5,8 @@ import {
   MockOpaqueAdapter,
   MockRenderer,
 } from '@swf/conformance';
-import type { SceneCommand } from '@swf/core';
-import { createWorkspace, surfaceEffectiveState } from '@swf/core';
+import type { SceneCommand, SwfError } from '@swf/core';
+import { createWorkspace, SwfFailure, surfaceEffectiveState } from '@swf/core';
 import type { ProjectedFragment, ViewProjector } from '@swf/presentation';
 import { createPresentationRegistry, createPresenter, fragmentId } from '@swf/presentation';
 import { createSurfaceRuntime } from '@swf/surfaces';
@@ -271,7 +271,7 @@ describe('diagnostics (API-013, AN-001, AN-003, AN-005, AN-008)', () => {
     await r.runtime.dispose();
   });
 
-  it('keeps only as many errors as asked, newest last, and validates its options', async () => {
+  it('keeps only as many errors as asked, newest last', async () => {
     const r = await rig();
     const small = createDiagnostics({
       workspace: r.ws,
@@ -292,14 +292,38 @@ describe('diagnostics (API-013, AN-001, AN-003, AN-005, AN-008)', () => {
       'y.renderer/1',
       'z.renderer/1',
     ]);
-    expect(() =>
-      createDiagnostics({
-        workspace: r.ws,
-        runtime: r.runtime,
-        presenter: r.presenter,
-        registry: r.registry,
-        errorCapacity: 0,
-      }),
-    ).toThrow(/errorCapacity/);
+  });
+
+  it('refuses invalid options, naming the field in the error and its path', async () => {
+    const r = await rig();
+    const sources = {
+      workspace: r.ws,
+      runtime: r.runtime,
+      presenter: r.presenter,
+      registry: r.registry,
+    };
+    const refusal = (options: Partial<Parameters<typeof createDiagnostics>[0]>): SwfError => {
+      try {
+        createDiagnostics({ ...sources, ...options });
+      } catch (error) {
+        if (error instanceof SwfFailure) {
+          return error.error;
+        }
+        throw error;
+      }
+      throw new Error('the options were accepted');
+    };
+    for (const errorCapacity of [0, 1.5, Number.NaN]) {
+      const error = refusal({ errorCapacity });
+      expect([error.code, error.path]).toEqual(['INVALID_INPUT', 'errorCapacity']);
+      expect(error.message).toMatch(/errorCapacity/);
+    }
+    const error = refusal({ now: 5 as unknown as () => number });
+    expect([error.code, error.path]).toEqual(['INVALID_INPUT', 'now']);
+    expect(error.message).toMatch(/now/);
+    r.diagnostics.dispose();
+    await r.presenter.dispose();
+    await r.runtime.dispose();
+    await r.ws.dispose();
   });
 });

@@ -84,6 +84,31 @@ describe('the standard benchmark fixture in a real browser (§26.1)', () => {
   });
 });
 
+describe('a host that cannot be made', () => {
+  it('disposes what it made before the step that failed, leaving the containers empty', async () => {
+    const fixture = planFixture(STANDARD, 1);
+    const [ahead, behind] = fixture.viewports;
+    if (ahead === undefined || behind === undefined) {
+      throw new Error('the fixture has two viewports');
+    }
+    // The first viewport opens; the second is not in the scene, so opening it fails.
+    const broken: Fixture = { ...fixture, viewports: [ahead, { ...behind, id: 'missing' }] };
+    const containers = layoutViewports(page(), broken);
+    const probe = createResourceProbe(window);
+    try {
+      await nextFrame();
+      const baseline = probe.counts();
+      await expect(createBenchmarkHost({ fixture: broken, containers })).rejects.toThrow(/missing/);
+      await nextFrame();
+      await nextFrame();
+      expect(probe.counts()).toEqual(baseline);
+      expect(containers.every((c) => c.childElementCount === 0)).toBe(true);
+    } finally {
+      probe.dispose();
+    }
+  });
+});
+
 describe('the control a run is read against', () => {
   it('moves one plain element every animation frame for as long as asked, then takes it away', async () => {
     const element = page();
