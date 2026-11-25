@@ -57,3 +57,23 @@ These were found while documenting the API; the JSDoc states today's behaviour.
   opening the same ID again is refused as already open; a backend handoff ignores a refused hide
   of a surface it keeps hidden; and `restore()` on a viewport already on its first backend
   reports a failed switch where nothing failed.
+- **Persistence**: text nested hundreds of thousands of levels deep overflows the stack while
+  locating its syntax error, so `restore` rejects instead of resolving `rejected`; a policy's or
+  extension's `watch` that throws leaves it registered with no way to unregister; a policy's
+  asynchronous `restore` is neither awaited nor timed out; option checks written as `key in` accept
+  names an object inherits (`constructor`, `toString`); the Web Storage store's read-back and its
+  removal of the old slot can fail with an untyped error, the second reporting a committed save as
+  failed; and a migration step that returns nothing fails with a `TypeError` instead of
+  `MIGRATION_FAILED`.
+- **Backends and tools**: the layered renderer does not release its sessions when it fails to
+  prepare, nor its drawn session when releasing its live one fails; the benchmark's latency
+  recorder can add to what `stop()` returned, its resource probe keeps observers alive while
+  installed, and its host leaves what it made undisposed when a later step fails; the conformance
+  frame source drops the rest of a flush after a request throws, and the backend suite releases
+  sessions only on success; diagnostics' option errors name no path.
+- **Interaction and surfaces**: a keymap given to `createInteractionRouter` may name an unknown
+  command (which `configure` refuses); `settings.steps` changes only the default keymap; an input
+  adapter whose `connect` returns no function stays connected when its registration fails; a
+  listener subscribed after `dispose` is accepted and never called; during `replaceBinding` the
+  binding context carries the old binding's generation; and `replaceBinding` checks single
+  ownership only against the surface's own viewports.
