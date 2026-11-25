@@ -1,7 +1,9 @@
 {
   "name": "@swf/backend-geometry",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "A geometry presentation backend for the Spatial Workspace Framework: drawn content, proxies, placeholders, window chrome and spatial indicators on canvases, a layered renderer pairing it with a native renderer, and a compositor stacking live and drawn layers in one explicit order.",
+  "license": "UNLICENSED",
+  "private": true,
   "type": "module",
   "sideEffects": false,
   "exports": {
@@ -12,16 +14,20 @@
   },
   "files": [
     "dist",
-    "src"
+    "src",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@swf/core": "0.0.0",
-    "@swf/math": "0.0.0",
-    "@swf/presentation": "0.0.0",
-    "@swf/projections": "0.0.0",
-    "@swf/surfaces": "0.0.0"
+    "@swf/core": "0.1.0",
+    "@swf/math": "0.1.0",
+    "@swf/presentation": "0.1.0",
+    "@swf/projections": "0.1.0",
+    "@swf/surfaces": "0.1.0"
+  },
+  "engines": {
+    "node": ">=24.0.0"
   }
 }

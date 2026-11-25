@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SWF browser host</title>
+    <!--
+      The packages, found by the browser's own module loader: each name maps to a built package's
+      entry module (npm run build:packages), served from the repository's root.
+    -->
+    <script type="importmap">
+      {
+        "imports": {
+          "@swf/math": "/packages/math/dist/index.js",
+          "@swf/models": "/packages/models/dist/index.js",
+          "@swf/core": "/packages/core/dist/index.js",
+          "@swf/surfaces": "/packages/surfaces/dist/index.js",
+          "@swf/presentation": "/packages/presentation/dist/index.js",
+          "@swf/projections": "/packages/projections/dist/index.js",
+          "@swf/interaction": "/packages/interaction/dist/index.js",
+          "@swf/backend-dom": "/packages/backend-dom/dist/index.js",
+          "lungo-ts": "/node_modules/lungo-ts/index.js",
+          "lungo-ts/wasi.js": "/node_modules/lungo-ts/wasi.js"
+        }
+      }
+    </script>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        font: 14px sans-serif;
+      }
+      #view {
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+        background: #f4f5f7;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="view"></div>
+    <script type="module">
+      import { start } from './host.js';
+
+      const host = await start(document.getElementById('view'));
+      // The page is ready: the build test waits for this.
+      document.documentElement.dataset.swfExample = 'ready';
+      globalThis.swfExample = host;
+    </script>
+  </body>
+</html>

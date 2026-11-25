@@ -1,7 +1,9 @@
 {
   "name": "@swf/persistence",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Versioned, canonical workspace snapshots for the Spatial Workspace Framework: a published JSON Schema with its validator, extension and policy state, a storage interface with an in-memory store, and the save state machine.",
+  "license": "UNLICENSED",
+  "private": true,
   "type": "module",
   "sideEffects": false,
   "exports": {
@@ -13,14 +15,18 @@
   },
   "files": [
     "dist",
-    "src"
+    "src",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "typecheck": "tsc -p tsconfig.json && tsc -p test/browser/tsconfig.json"
   },
   "dependencies": {
-    "@swf/core": "0.0.0",
-    "@swf/math": "0.0.0",
-    "@swf/models": "0.0.0"
+    "@swf/core": "0.1.0",
+    "@swf/math": "0.1.0",
+    "@swf/models": "0.1.0"
+  },
+  "engines": {
+    "node": ">=24.0.0"
   }
 }

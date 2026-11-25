@@ -1,7 +1,9 @@
 {
   "name": "@swf/benchmark",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "The Spatial Workspace Framework's performance benchmark: seeded standard and stress fixtures, a host that presents them, in-page measures, statistics and a resource probe for disposal soaks.",
+  "license": "UNLICENSED",
+  "private": true,
   "type": "module",
   "sideEffects": false,
   "exports": {
@@ -12,18 +14,22 @@
   },
   "files": [
     "dist",
-    "src"
+    "src",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@swf/backend-dom": "0.0.0",
-    "@swf/core": "0.0.0",
-    "@swf/interaction": "0.0.0",
-    "@swf/math": "0.0.0",
-    "@swf/presentation": "0.0.0",
-    "@swf/projections": "0.0.0",
-    "@swf/surfaces": "0.0.0"
+    "@swf/backend-dom": "0.1.0",
+    "@swf/core": "0.1.0",
+    "@swf/interaction": "0.1.0",
+    "@swf/math": "0.1.0",
+    "@swf/presentation": "0.1.0",
+    "@swf/projections": "0.1.0",
+    "@swf/surfaces": "0.1.0"
+  },
+  "engines": {
+    "node": ">=24.0.0"
   }
 }

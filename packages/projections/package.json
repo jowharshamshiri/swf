@@ -1,7 +1,9 @@
 {
   "name": "@swf/projections",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Projections for the Spatial Workspace Framework: the projection contract and registry, the equirectangular reference projection with seam-continuous inverse mapping, and viewport view and picking helpers.",
+  "license": "UNLICENSED",
+  "private": true,
   "type": "module",
   "sideEffects": false,
   "exports": {
@@ -12,14 +14,18 @@
   },
   "files": [
     "dist",
-    "src"
+    "src",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@swf/core": "0.0.0",
-    "@swf/math": "0.0.0",
-    "@swf/presentation": "0.0.0"
+    "@swf/core": "0.1.0",
+    "@swf/math": "0.1.0",
+    "@swf/presentation": "0.1.0"
+  },
+  "engines": {
+    "node": ">=24.0.0"
   }
 }

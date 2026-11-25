@@ -1,7 +1,9 @@
 {
   "name": "@swf/diagnostics",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Diagnostics for the Spatial Workspace Framework: backend capabilities, fallback reasons, frame and attachment measures, resource health and the last typed errors, all local.",
+  "license": "UNLICENSED",
+  "private": true,
   "type": "module",
   "sideEffects": false,
   "exports": {
@@ -12,14 +14,18 @@
   },
   "files": [
     "dist",
-    "src"
+    "src",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@swf/core": "0.0.0",
-    "@swf/presentation": "0.0.0",
-    "@swf/surfaces": "0.0.0"
+    "@swf/core": "0.1.0",
+    "@swf/presentation": "0.1.0",
+    "@swf/surfaces": "0.1.0"
+  },
+  "engines": {
+    "node": ">=24.0.0"
   }
 }

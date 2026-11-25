@@ -1,7 +1,9 @@
 {
   "name": "@swf/presentation",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Presentation contracts for the Spatial Workspace Framework: renderer and compositor capabilities, capability negotiation, view fragments and frame stages.",
+  "license": "UNLICENSED",
+  "private": true,
   "type": "module",
   "sideEffects": false,
   "exports": {
@@ -12,15 +14,19 @@
   },
   "files": [
     "dist",
-    "src"
+    "src",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@swf/core": "0.0.0",
-    "@swf/math": "0.0.0",
-    "@swf/models": "0.0.0",
-    "@swf/surfaces": "0.0.0"
+    "@swf/core": "0.1.0",
+    "@swf/math": "0.1.0",
+    "@swf/models": "0.1.0",
+    "@swf/surfaces": "0.1.0"
+  },
+  "engines": {
+    "node": ">=24.0.0"
   }
 }

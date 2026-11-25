@@ -1,7 +1,9 @@
 {
   "name": "@swf/core",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "The Spatial Workspace Framework's scene kernel: spatial nodes, hierarchy, constraints, atomic revisioned transactions, undo and events.",
+  "license": "UNLICENSED",
+  "private": true,
   "type": "module",
   "sideEffects": false,
   "exports": {
@@ -12,13 +14,17 @@
   },
   "files": [
     "dist",
-    "src"
+    "src",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@swf/math": "0.0.0",
-    "@swf/models": "0.0.0"
+    "@swf/math": "0.1.0",
+    "@swf/models": "0.1.0"
+  },
+  "engines": {
+    "node": ">=24.0.0"
   }
 }

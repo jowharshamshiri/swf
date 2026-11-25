@@ -23,7 +23,11 @@ export default defineConfig({
     },
   },
   test: {
-    include: ['packages/*/test/**/*.test.ts', 'apps/*/test/**/*.test.ts'],
+    include: [
+      'packages/*/test/**/*.test.ts',
+      'apps/*/test/**/*.test.ts',
+      'examples/test/**/*.test.ts',
+    ],
     // Browser tests need a real browser: `npm run test:browser`.
     exclude: ['**/*.browser.test.ts', '**/*.build.test.ts'],
   },

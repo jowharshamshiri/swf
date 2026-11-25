@@ -1,7 +1,9 @@
 {
   "name": "@swf/math",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Vectors, quaternions, rigid transforms, rays and bounding boxes for the Spatial Workspace Framework.",
+  "license": "UNLICENSED",
+  "private": true,
   "type": "module",
   "sideEffects": false,
   "exports": {
@@ -12,9 +14,13 @@
   },
   "files": [
     "dist",
-    "src"
+    "src",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"
+  },
+  "engines": {
+    "node": ">=24.0.0"
   }
 }

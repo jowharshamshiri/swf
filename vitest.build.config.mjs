@@ -5,7 +5,7 @@ import { defineConfig } from 'vitest/config';
 // (`npx playwright install --with-deps chromium firefox webkit` once).
 export default defineConfig({
   test: {
-    include: ['apps/*/test/**/*.build.test.ts'],
+    include: ['apps/*/test/**/*.build.test.ts', 'examples/test/**/*.build.test.ts'],
     testTimeout: 60_000,
     hookTimeout: 120_000,
     fileParallelism: false,
