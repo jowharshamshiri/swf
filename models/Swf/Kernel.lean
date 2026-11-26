@@ -121,14 +121,18 @@ inductive Change where
   /-- A transaction's commands; `layout` says whether they changed any node, surface or the root
   order (only such a commit is recorded for undo), `keyed` whether it carries an idempotency key. -/
   | commands (layout : Bool) (keyed : Bool)
-  /-- A snapshot restored, at the revision it was taken at. -/
-  | restore (layout : Bool) (snapshotRevision : Nat)
+  /-- A snapshot restored, at the revision it was taken at; `fresh` says whether the history starts
+  afresh with it (another document opened in the workspace's place, whose history is not this
+  scene's), leaving nothing to undo or redo. -/
+  | restore (layout : Bool) (snapshotRevision : Nat) (fresh : Bool)
 
 /-- What a commit does to the workspace's records. -/
 structure Commit where
   /-- The ledger after the commit. -/
   next : Ledger
-  /-- Forget what could be redone: the commit changed the layout. -/
+  /-- Forget what could be undone: the commit starts the history afresh. -/
+  clearUndo : Bool
+  /-- Forget what could be redone: the commit changed the layout or starts the history afresh. -/
   clearRedo : Bool
   /-- Record the commit for undo: it changed the layout and the workspace keeps an undo history. -/
   push : Bool
@@ -139,27 +143,30 @@ structure Commit where
 
 /-- What committing a change does to the ledger and the records it counts. Commands move the
 revision on by exactly one; a restore moves it on by at least one and never below the snapshot's
-revision. A change to the layout empties the redo stack and, when the workspace keeps an undo
+revision. A restore that starts the history afresh empties both stacks and records nothing.
+Otherwise a change to the layout empties the redo stack and, when the workspace keeps an undo
 history, is recorded for undo, dropping the oldest record past the capacity; any other change
 leaves the history as it was. A keyed commit remembers its key and forgets the oldest past the
 key capacity. The counts move exactly as the records do, and the ledger stays within its bounds. -/
 def commit (l : Ledger) (c : Change) : Commit :=
-  let layout := match c with | .commands layout _ => layout | .restore layout _ => layout
+  let layout := match c with | .commands layout _ => layout | .restore layout _ _ => layout
   let revision := match c with
     | .commands _ _ => l.revision + 1
-    | .restore _ snapshot => max (l.revision + 1) snapshot
-  let keyed := match c with | .commands _ keyed => keyed | .restore _ _ => false
-  let push := layout && decide (l.undoCapacity > 0)
+    | .restore _ snapshot _ => max (l.revision + 1) snapshot
+  let keyed := match c with | .commands _ keyed => keyed | .restore _ _ _ => false
+  let fresh := match c with | .commands _ _ => false | .restore _ _ fresh => fresh
+  let push := layout && !fresh && decide (l.undoCapacity > 0)
   let pushed := if push then l.undo + 1 else l.undo
   let dropOldest := push && decide (pushed > l.undoCapacity)
   let keys := if keyed then l.keys + 1 else l.keys
   let evict := if keyed then keys - l.keyCapacity else 0
   { next := { l with
       revision
-      undo := if dropOldest then pushed - 1 else pushed
-      redo := if layout then 0 else l.redo
+      undo := if fresh then 0 else if dropOldest then pushed - 1 else pushed
+      redo := if layout || fresh then 0 else l.redo
       keys := keys - evict }
-    clearRedo := layout
+    clearUndo := fresh
+    clearRedo := layout || fresh
     push
     dropOldest
     evictKeys := evict }
@@ -269,37 +276,52 @@ theorem gate_order (l : Ledger) (h : l.lifecycle = .ready) (e : Option Nat) :
 /-- A commit of commands moves the revision on by exactly one; a restore moves it on by at least
 one and never below the snapshot's. -/
 @[lungo_claim "lungo.law" subject commit]
-theorem commit_advances_revision (l : Ledger) (layout keyed : Bool) (s : Nat) :
+theorem commit_advances_revision (l : Ledger) (layout keyed fresh : Bool) (s : Nat) :
     (commit l (.commands layout keyed)).next.revision = l.revision + 1 ∧
-      l.revision + 1 ≤ (commit l (.restore layout s)).next.revision ∧
-      s ≤ (commit l (.restore layout s)).next.revision := by
+      l.revision + 1 ≤ (commit l (.restore layout s fresh)).next.revision ∧
+      s ≤ (commit l (.restore layout s fresh)).next.revision := by
   simp [commit]; omega
 
-/-- A commit that changes the layout is recorded and leaves nothing to redo; one that does not
-leaves the history as it was. -/
+/-- A commit that changes the layout leaves nothing to redo; one that starts the history afresh
+leaves nothing to undo either; one that does neither leaves the history as it was. -/
 @[lungo_claim "lungo.law" subject commit]
 theorem commit_history (l : Ledger) (c : Change) :
     let r := commit l c
     (r.clearRedo = true → r.next.redo = 0) ∧
+      (r.clearUndo = true → r.next.undo = 0 ∧ r.clearRedo = true) ∧
       (r.clearRedo = false → r.next.undo = l.undo ∧ r.next.redo = l.redo ∧ r.push = false ∧
-        r.dropOldest = false) := by
-  cases c <;> rename_i layout _ <;> cases layout <;> simp [commit]
+        r.dropOldest = false ∧ r.clearUndo = false) := by
+  cases c with
+  | commands layout keyed => cases layout <;> simp [commit]
+  | restore layout s fresh => cases layout <;> cases fresh <;> simp [commit]
+
+/-- A restore that starts the history afresh records nothing and leaves nothing to undo or redo,
+whatever the history held: no step can take the workspace back to the scene it replaced. -/
+@[lungo_claim "lungo.law" subject commit]
+theorem commit_fresh_forgets (l : Ledger) (layout : Bool) (s : Nat) :
+    let r := commit l (.restore layout s true)
+    r.next.undo = 0 ∧ r.next.redo = 0 ∧ r.push = false ∧ r.dropOldest = false ∧
+      r.clearUndo = true ∧ r.clearRedo = true := by
+  simp [commit]
 
 /-- The counts move exactly as the workspace's records do when it applies a commit's effects: one
 undo record pushed when `push`, the oldest dropped when `dropOldest`, the redo stack emptied when
 `clearRedo`, one key remembered for a keyed commit and `evictKeys` of the oldest forgotten. -/
 @[lungo_claim "lungo.law" subject commit]
-theorem commit_mirrors_records (l : Ledger) (layout keyed : Bool) (s : Nat) :
+theorem commit_mirrors_records (l : Ledger) (layout keyed fresh : Bool) (s : Nat) :
     (let r := commit l (.commands layout keyed)
      r.next.undo + (if r.dropOldest then 1 else 0) = l.undo + (if r.push then 1 else 0) ∧
+       r.clearUndo = false ∧
        r.next.redo = (if r.clearRedo then 0 else l.redo) ∧
        r.next.keys + r.evictKeys = l.keys + (if keyed then 1 else 0)) ∧
-    (let r := commit l (.restore layout s)
-     r.next.undo + (if r.dropOldest then 1 else 0) = l.undo + (if r.push then 1 else 0) ∧
+    (let r := commit l (.restore layout s fresh)
+     r.next.undo + (if r.dropOldest then 1 else 0) =
+         (if r.clearUndo then 0 else l.undo) + (if r.push then 1 else 0) ∧
        r.next.redo = (if r.clearRedo then 0 else l.redo) ∧
        r.next.keys = l.keys ∧ r.evictKeys = 0) := by
-  simp only [commit]
-  refine ⟨⟨?_, ?_, ?_⟩, ⟨?_, ?_, ?_, ?_⟩⟩ <;> (try split) <;> (try split) <;> simp_all <;> omega
+  cases layout <;> cases keyed <;> cases fresh <;>
+    by_cases h1 : l.undoCapacity > 0 <;> by_cases h2 : l.undo + 1 > l.undoCapacity <;>
+    simp_all [commit] <;> (repeat' split) <;> omega
 
 /-- Every commit keeps the ledger within its bounds, given capacities as the workspace accepts
 them (an idempotency cache of at least one key). -/
@@ -311,8 +333,8 @@ theorem commit_bounded (l : Ledger) (c : Change) (hb : Bounded l) :
     cases layout <;> cases keyed <;>
       by_cases h1 : l.undoCapacity > 0 <;> by_cases h2 : l.undo + 1 > l.undoCapacity <;>
       simp_all [commit, Bounded] <;> (try split) <;> omega
-  | restore layout s =>
-    cases layout <;>
+  | restore layout s fresh =>
+    cases layout <;> cases fresh <;>
       by_cases h1 : l.undoCapacity > 0 <;> by_cases h2 : l.undo + 1 > l.undoCapacity <;>
       simp_all [commit, Bounded] <;> (try split) <;> omega
 

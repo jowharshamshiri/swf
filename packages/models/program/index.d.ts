@@ -1794,12 +1794,18 @@ export type Change =
       readonly keyed: boolean;
     }
   | {
-      /** A snapshot restored, at the revision it was taken at. */
+      /**
+       * A snapshot restored, at the revision it was taken at; `fresh` says whether the history starts
+       * afresh with it (another document opened in the workspace's place, whose history is not this
+       * scene's), leaving nothing to undo or redo.
+       */
       readonly kind: "restore";
       /** The field `layout` of Lean's Swf.Kernel.Change.restore. */
       readonly layout: boolean;
       /** The field `snapshotRevision` of Lean's Swf.Kernel.Change.restore. */
       readonly snapshotRevision: bigint;
+      /** The field `fresh` of Lean's Swf.Kernel.Change.restore. */
+      readonly fresh: boolean;
     }
 ;
 /** The descriptor of Swf.Kernel.Change: how its values cross the boundary. */
@@ -1809,7 +1815,9 @@ export function changeType(): L.Type<Change>;
 export interface Commit {
   /** The ledger after the commit. */
   readonly next: Ledger;
-  /** Forget what could be redone: the commit changed the layout. */
+  /** Forget what could be undone: the commit starts the history afresh. */
+  readonly clearUndo: boolean;
+  /** Forget what could be redone: the commit changed the layout or starts the history afresh. */
   readonly clearRedo: boolean;
   /** Record the commit for undo: it changed the layout and the workspace keeps an undo history. */
   readonly push: boolean;
@@ -3721,7 +3729,8 @@ export class SwfModels {
   /**
    * What committing a change does to the ledger and the records it counts. Commands move the
    * revision on by exactly one; a restore moves it on by at least one and never below the snapshot's
-   * revision. A change to the layout empties the redo stack and, when the workspace keeps an undo
+   * revision. A restore that starts the history afresh empties both stacks and records nothing.
+   * Otherwise a change to the layout empties the redo stack and, when the workspace keeps an undo
    * history, is recorded for undo, dropping the oldest record past the capacity; any other change
    * leaves the history as it was. A keyed commit remembers its key and forgets the oldest past the
    * key capacity. The counts move exactly as the records do, and the ledger stays within its bounds.

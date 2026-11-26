@@ -286,6 +286,41 @@ describe('restore (FR-002, FR-163, FR-165, FR-167, API-011)', () => {
     expect([...ws.getState().nodes.ids()]).toEqual(['mine']);
   });
 
+  it('starts the history afresh with a fresh restore: no undo or redo reaches the replaced scene', () => {
+    const ws = fresh();
+    committed(ws.dispatch(window('mine', { label: 'Mine' })));
+    committed(ws.dispatch({ type: 'node.patch', id: 'mine', label: 'Mine, renamed' }));
+    committed(ws.dispatch({ type: 'node.patch', id: 'mine', label: 'Mine, again' }));
+    committed(done(ws.undo()));
+    expect(ws.canUndo()).toBe(true);
+    expect(ws.canRedo()).toBe(true);
+    const snapshot = layout().serialize();
+    committed(ws.restore(snapshot, { history: 'fresh' }));
+    expect(ws.canUndo()).toBe(false);
+    expect(ws.canRedo()).toBe(false);
+    expect(ws.history()).toEqual([]);
+    expect(rejected(done(ws.undo())).error.code).toBe('INVALID_INPUT');
+    expect([...ws.getState().nodes.ids()].sort()).toEqual(['a', 'b']);
+    // What is done after it is undone as usual, back to the restored scene and never past it.
+    committed(ws.dispatch({ type: 'node.patch', id: 'a', label: 'edited' }));
+    committed(done(ws.undo()));
+    expect(sceneOf(ws.serialize()).nodes).toEqual(snapshot.nodes);
+    expect(ws.canUndo()).toBe(false);
+    expect(ws.getState().nodes.has('mine')).toBe(false);
+  });
+
+  it('refuses a restore history it does not know, naming the option, and changes nothing', () => {
+    const ws = layout(fresh(), 'old-');
+    const before = ws.serialize();
+    const result = rejected(
+      done(
+        ws.restore(layout().serialize(), { history: 'forget' } as unknown as { history: 'fresh' }),
+      ),
+    );
+    expect(result.error).toMatchObject({ code: 'INVALID_INPUT', path: 'options.history' });
+    expect(ws.serialize()).toEqual(before);
+  });
+
   it('drops previews that no longer apply, and refuses a disposed workspace', async () => {
     const ws = layout(fresh(), 'old-');
     ws.preview('drag', [{ type: 'node.patch', id: 'old-a', transform: at([0, 0, -2]) }]);

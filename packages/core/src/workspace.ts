@@ -351,7 +351,19 @@ export interface WorkspacePersistence {
 }
 
 /** Options of a restore: `source` defaults to `restore`. */
-export type RestoreOptions = Pick<TxOptions, 'expectedRevision' | 'source' | 'causeId'>;
+export interface RestoreOptions extends Pick<TxOptions, 'expectedRevision' | 'source' | 'causeId'> {
+  /**
+   * What the restore does to the history. `record` (the default) records it as one undoable
+   * revision, as any change to the layout. `fresh` starts the history afresh with it, leaving
+   * nothing to undo or redo: for a snapshot of another document opened in the workspace's place,
+   * whose history is not the replaced scene's, so that no undo ever brings the replaced scene
+   * back into it.
+   */
+  readonly history?: 'record' | 'fresh';
+}
+
+/** What a restore may do to the history. */
+const RESTORE_HISTORY = Object.freeze(['record', 'fresh'] as const);
 
 /**
  * The scene-changing operations of a workspace, for modules allowed to change the scene. Like
@@ -506,7 +518,9 @@ export interface Workspace extends WorkspaceReader, WorkspaceMutator {
    * again changes nothing: the scene is replaced, never added to. Records equal to the current ones
    * are kept as they are, so they report no change. The revision never goes back: it becomes the
    * snapshot's when that is later than the next one. Undo puts the previous nodes and surfaces
-   * back; cameras and viewports, being view state, are not undone.
+   * back; cameras and viewports, being view state, are not undone. With `history: 'fresh'` the
+   * history starts afresh instead: nothing is left to undo or redo. An unknown `history` is
+   * `INVALID_INPUT` naming `options.history`.
    */
   restore(snapshot: SceneSnapshot, options?: RestoreOptions): TxResult;
   /**
@@ -1185,8 +1199,10 @@ class WorkspaceImpl implements Workspace {
       return this.#reject(transactionId, error, null);
     }
     let options: CheckedTxOptions;
+    let history: (typeof RESTORE_HISTORY)[number];
     try {
-      options = checkTxOptions(rawOptions, ['expectedRevision', 'source', 'causeId']);
+      options = checkTxOptions(rawOptions, ['expectedRevision', 'source', 'causeId', 'history']);
+      history = checkRestoreHistory(rawOptions);
     } catch (error) {
       return this.#reject(transactionId, error, {
         source: 'restore',
@@ -1261,6 +1277,7 @@ class WorkspaceImpl implements Workspace {
       kind: 'restore',
       layout: layoutChanged(before, outcome),
       snapshotRevision: BigInt(scene.revision),
+      fresh: history === 'fresh',
     });
     return this.#commit(outcome, meta, durationMs, decision, {
       idempotencyKey: null,
@@ -1330,6 +1347,7 @@ class WorkspaceImpl implements Workspace {
     /** What the kernel model decided the commit does to the revision and the history. */
     decision: {
       readonly next: Ledger;
+      readonly clearUndo: boolean;
       readonly clearRedo: boolean;
       readonly push: boolean;
       readonly dropOldest: boolean;
@@ -1357,6 +1375,9 @@ class WorkspaceImpl implements Workspace {
     });
     this.#state = after;
     this.#ledger = decision.next;
+    if (decision.clearUndo) {
+      this.#undo.length = 0;
+    }
     if (decision.clearRedo) {
       this.#redo.length = 0;
     }
@@ -1554,7 +1575,7 @@ class WorkspaceImpl implements Workspace {
       },
       meta,
       durationMs,
-      { next: travel.next, clearRedo: false, push: false, dropOldest: false },
+      { next: travel.next, clearUndo: false, clearRedo: false, push: false, dropOldest: false },
       {
         idempotencyKey: null,
         previewId: null,
@@ -2094,6 +2115,19 @@ interface CheckedTxOptions {
 }
 
 const TX_OPTION_KEYS = ['expectedRevision', 'idempotencyKey', 'source', 'causeId', 'previewId'];
+
+/** What a restore's options ask of the history: `record` unless they say otherwise. */
+function checkRestoreHistory(raw: unknown): (typeof RESTORE_HISTORY)[number] {
+  const value = (raw as { history?: unknown }).history ?? 'record';
+  if (!(RESTORE_HISTORY as readonly unknown[]).includes(value)) {
+    throw new RejectionSignal(
+      'INVALID_INPUT',
+      `options.history must be one of ${RESTORE_HISTORY.join(', ')} (got ${describe(value)})`,
+      { path: 'options.history' },
+    );
+  }
+  return value as (typeof RESTORE_HISTORY)[number];
+}
 
 function checkTxOptions(
   raw: unknown,

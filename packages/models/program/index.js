@@ -2353,6 +2353,7 @@ export function changeType() {
           w.u32(1);
           L.BOOL.encode(w, v.layout);
           L.NAT.encode(w, v.snapshotRevision);
+          L.BOOL.encode(w, v.fresh);
           return;
         default:
           throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.Kernel.Change`);
@@ -2362,7 +2363,7 @@ export function changeType() {
       const c = r.u32();
       switch (c) {
         case 0: return ({ kind: "commands", layout: L.BOOL.decode(r), keyed: L.BOOL.decode(r) });
-        case 1: return ({ kind: "restore", layout: L.BOOL.decode(r), snapshotRevision: L.NAT.decode(r) });
+        case 1: return ({ kind: "restore", layout: L.BOOL.decode(r), snapshotRevision: L.NAT.decode(r), fresh: L.BOOL.decode(r) });
         default: throw new L.MalformedError(`constructor index ${c} of Swf.Kernel.Change`);
       }
     },
@@ -2377,6 +2378,7 @@ export function commitType() {
       if (typeof v !== "object" || v === null) throw new L.MalformedError("not a Swf.Kernel.Commit");
       w.u32(0);
       ledgerType().encode(w, v.next);
+      L.BOOL.encode(w, v.clearUndo);
       L.BOOL.encode(w, v.clearRedo);
       L.BOOL.encode(w, v.push);
       L.BOOL.encode(w, v.dropOldest);
@@ -2385,7 +2387,7 @@ export function commitType() {
     (r) => {
       const c = r.u32();
       if (c !== 0) throw new L.MalformedError(`constructor index ${c} of Swf.Kernel.Commit`);
-      return ({ next: ledgerType().decode(r), clearRedo: L.BOOL.decode(r), push: L.BOOL.decode(r), dropOldest: L.BOOL.decode(r), evictKeys: L.NAT.decode(r) });
+      return ({ next: ledgerType().decode(r), clearUndo: L.BOOL.decode(r), clearRedo: L.BOOL.decode(r), push: L.BOOL.decode(r), dropOldest: L.BOOL.decode(r), evictKeys: L.NAT.decode(r) });
     },
   );
 }
@@ -9922,11 +9924,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Kernel.lean",
         "start": {
-          "line": 218,
+          "line": 225,
           "column": 1
         },
         "end": {
-          "line": 221,
+          "line": 228,
           "column": 16
         }
       }
@@ -9955,11 +9957,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Kernel.lean",
         "start": {
-          "line": 333,
+          "line": 355,
           "column": 1
         },
         "end": {
-          "line": 337,
+          "line": 359,
           "column": 111
         }
       }
@@ -9971,7 +9973,7 @@ export const ASSURANCE = L.parseAssurance({
         "Swf.Kernel.commit"
       ],
       "specifications": [],
-      "statement": "∀ (l : Swf.Kernel.Ledger) (layout keyed : Bool) (s : Nat),\n  (Swf.Kernel.commit l (Swf.Kernel.Change.commands layout keyed)).next.revision = l.revision + 1 ∧\n    l.revision + 1 ≤ (Swf.Kernel.commit l (Swf.Kernel.Change.restore layout s)).next.revision ∧\n      s ≤ (Swf.Kernel.commit l (Swf.Kernel.Change.restore layout s)).next.revision",
+      "statement": "∀ (l : Swf.Kernel.Ledger) (layout keyed fresh : Bool) (s : Nat),\n  (Swf.Kernel.commit l (Swf.Kernel.Change.commands layout keyed)).next.revision = l.revision + 1 ∧\n    l.revision + 1 ≤ (Swf.Kernel.commit l (Swf.Kernel.Change.restore layout s fresh)).next.revision ∧\n      s ≤ (Swf.Kernel.commit l (Swf.Kernel.Change.restore layout s fresh)).next.revision",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -9983,16 +9985,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "316278f054f02f1c40abbf3c91e944a08a3d432de654f118228b872a59d55d9b",
+      "fingerprint": "089fa1a3604db76badfd8937ee66c8bbb21ad31c0a1be1085ba4718d2ce69b5e",
       "source": {
         "package": "swf_models",
         "file": "Swf/Kernel.lean",
         "start": {
-          "line": 269,
+          "line": 276,
           "column": 1
         },
         "end": {
-          "line": 276,
+          "line": 283,
           "column": 23
         }
       }
@@ -10016,17 +10018,48 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "2a0145986fa9cdcc83302f460704ed81fa111c792eaa24285ceedc3635ab98aa",
+      "fingerprint": "99f68fff10a1993ea71ab4df35b8200fceedadbee73ac1c1df9d1e09456f2d33",
       "source": {
         "package": "swf_models",
         "file": "Swf/Kernel.lean",
         "start": {
-          "line": 304,
+          "line": 326,
           "column": 1
         },
         "end": {
-          "line": 317,
+          "line": 339,
           "column": 59
+        }
+      }
+    },
+    {
+      "name": "Swf.Kernel.commit_fresh_forgets",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Kernel.commit"
+      ],
+      "specifications": [],
+      "statement": "∀ (l : Swf.Kernel.Ledger) (layout : Bool) (s : Nat),\n  have r := Swf.Kernel.commit l (Swf.Kernel.Change.restore layout s true);\n  r.next.undo = 0 ∧ r.next.redo = 0 ∧ r.push = false ∧ r.dropOldest = false ∧ r.clearUndo = true ∧ r.clearRedo = true",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "459d522bf31070fce8766814733b9f296d91d2bbd907cd22a18238f5a1b1f16a",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Kernel.lean",
+        "start": {
+          "line": 298,
+          "column": 1
+        },
+        "end": {
+          "line": 305,
+          "column": 16
         }
       }
     },
@@ -10037,7 +10070,7 @@ export const ASSURANCE = L.parseAssurance({
         "Swf.Kernel.commit"
       ],
       "specifications": [],
-      "statement": "∀ (l : Swf.Kernel.Ledger) (c : Swf.Kernel.Change),\n  have r := Swf.Kernel.commit l c;\n  (r.clearRedo = true → r.next.redo = 0) ∧\n    (r.clearRedo = false → r.next.undo = l.undo ∧ r.next.redo = l.redo ∧ r.push = false ∧ r.dropOldest = false)",
+      "statement": "∀ (l : Swf.Kernel.Ledger) (c : Swf.Kernel.Change),\n  have r := Swf.Kernel.commit l c;\n  (r.clearRedo = true → r.next.redo = 0) ∧\n    (r.clearUndo = true → r.next.undo = 0 ∧ r.clearRedo = true) ∧\n      (r.clearRedo = false →\n        r.next.undo = l.undo ∧ r.next.redo = l.redo ∧ r.push = false ∧ r.dropOldest = false ∧ r.clearUndo = false)",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -10047,17 +10080,17 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "2fc76cc7552c97d350c2a410f5e51465f2bf80e8129a56fd9fc24ebcbedc72ea",
+      "fingerprint": "165ee00bc210c4359ce6b9b0237f42d486a46ec48158fc2b611462a80dbceca1",
       "source": {
         "package": "swf_models",
         "file": "Swf/Kernel.lean",
         "start": {
-          "line": 278,
+          "line": 285,
           "column": 1
         },
         "end": {
-          "line": 286,
-          "column": 67
+          "line": 296,
+          "column": 77
         }
       }
     },
@@ -10068,27 +10101,28 @@ export const ASSURANCE = L.parseAssurance({
         "Swf.Kernel.commit"
       ],
       "specifications": [],
-      "statement": "∀ (l : Swf.Kernel.Ledger) (layout keyed : Bool) (s : Nat),\n  (have r := Swf.Kernel.commit l (Swf.Kernel.Change.commands layout keyed);\n    ((r.next.undo + if r.dropOldest = true then 1 else 0) = l.undo + if r.push = true then 1 else 0) ∧\n      (r.next.redo = if r.clearRedo = true then 0 else l.redo) ∧\n        r.next.keys + r.evictKeys = l.keys + if keyed = true then 1 else 0) ∧\n    have r := Swf.Kernel.commit l (Swf.Kernel.Change.restore layout s);\n    ((r.next.undo + if r.dropOldest = true then 1 else 0) = l.undo + if r.push = true then 1 else 0) ∧\n      (r.next.redo = if r.clearRedo = true then 0 else l.redo) ∧ r.next.keys = l.keys ∧ r.evictKeys = 0",
+      "statement": "∀ (l : Swf.Kernel.Ledger) (layout keyed fresh : Bool) (s : Nat),\n  (have r := Swf.Kernel.commit l (Swf.Kernel.Change.commands layout keyed);\n    ((r.next.undo + if r.dropOldest = true then 1 else 0) = l.undo + if r.push = true then 1 else 0) ∧\n      r.clearUndo = false ∧\n        (r.next.redo = if r.clearRedo = true then 0 else l.redo) ∧\n          r.next.keys + r.evictKeys = l.keys + if keyed = true then 1 else 0) ∧\n    have r := Swf.Kernel.commit l (Swf.Kernel.Change.restore layout s fresh);\n    ((r.next.undo + if r.dropOldest = true then 1 else 0) =\n        (if r.clearUndo = true then 0 else l.undo) + if r.push = true then 1 else 0) ∧\n      (r.next.redo = if r.clearRedo = true then 0 else l.redo) ∧ r.next.keys = l.keys ∧ r.evictKeys = 0",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
+          "Quot.sound",
           "propext"
         ],
         "depends_on_sorry": false
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "c3d8b2694a0f0b3d3c218632ca9fb736ada2e57f433e152669d1f4c73a14a661",
+      "fingerprint": "d1d01ac7d2d9f25e670f62bddcd39ef6e58b34619a32f781007770d6ee2b5026",
       "source": {
         "package": "swf_models",
         "file": "Swf/Kernel.lean",
         "start": {
-          "line": 288,
+          "line": 307,
           "column": 1
         },
         "end": {
-          "line": 302,
-          "column": 97
+          "line": 324,
+          "column": 52
         }
       }
     },
@@ -10114,11 +10148,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Kernel.lean",
         "start": {
-          "line": 247,
+          "line": 254,
           "column": 1
         },
         "end": {
-          "line": 249,
+          "line": 256,
           "column": 18
         }
       }
@@ -10146,11 +10180,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Kernel.lean",
         "start": {
-          "line": 232,
+          "line": 239,
           "column": 1
         },
         "end": {
-          "line": 241,
+          "line": 248,
           "column": 26
         }
       }
@@ -10180,11 +10214,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Kernel.lean",
         "start": {
-          "line": 223,
+          "line": 230,
           "column": 1
         },
         "end": {
-          "line": 230,
+          "line": 237,
           "column": 40
         }
       }
@@ -10211,11 +10245,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Kernel.lean",
         "start": {
-          "line": 257,
+          "line": 264,
           "column": 1
         },
         "end": {
-          "line": 267,
+          "line": 274,
           "column": 66
         }
       }
@@ -10242,11 +10276,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Kernel.lean",
         "start": {
-          "line": 212,
+          "line": 219,
           "column": 1
         },
         "end": {
-          "line": 216,
+          "line": 223,
           "column": 26
         }
       }
@@ -10273,11 +10307,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Kernel.lean",
         "start": {
-          "line": 251,
+          "line": 258,
           "column": 1
         },
         "end": {
-          "line": 255,
+          "line": 262,
           "column": 17
         }
       }
@@ -10306,11 +10340,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Kernel.lean",
         "start": {
-          "line": 319,
+          "line": 341,
           "column": 1
         },
         "end": {
-          "line": 331,
+          "line": 353,
           "column": 35
         }
       }
@@ -13820,11 +13854,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Kernel.lean",
         "start": {
-          "line": 202,
+          "line": 209,
           "column": 1
         },
         "end": {
-          "line": 204,
+          "line": 211,
           "column": 81
         }
       }
@@ -13848,6 +13882,7 @@ export const ASSURANCE = L.parseAssurance({
       "claims": [
         "Swf.Kernel.commit_advances_revision",
         "Swf.Kernel.commit_bounded",
+        "Swf.Kernel.commit_fresh_forgets",
         "Swf.Kernel.commit_history",
         "Swf.Kernel.commit_mirrors_records"
       ],
@@ -13858,11 +13893,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Kernel.lean",
         "start": {
-          "line": 140,
+          "line": 144,
           "column": 1
         },
         "end": {
-          "line": 165,
+          "line": 172,
           "column": 25
         }
       }
@@ -13888,11 +13923,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Kernel.lean",
         "start": {
-          "line": 243,
+          "line": 250,
           "column": 1
         },
         "end": {
-          "line": 245,
+          "line": 252,
           "column": 53
         }
       }
@@ -14054,11 +14089,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Kernel.lean",
         "start": {
-          "line": 186,
+          "line": 193,
           "column": 1
         },
         "end": {
-          "line": 200,
+          "line": 207,
           "column": 97
         }
       }
@@ -14844,8 +14879,8 @@ export const leanTypes = Object.freeze({
   "Swf.Kernel.Lifecycle": Object.freeze({ fingerprint: "2c835e6526aff4101d4bbb4b9d142f054824f1bdb476b84b0b62f4aacbd3d96a", type: lifecycleType }),
   "Swf.Kernel.Ledger": Object.freeze({ fingerprint: "c220d887d23ae5ca11e8e818db6a2bfc08e2400ee159795866f856e91978e3b7", type: ledgerType }),
   "Swf.Kernel.Direction": Object.freeze({ fingerprint: "17f21a59b3409ae5cc98ff66c27a7bf7d3bf29a8a9ce98aafed6304be9d63e4d", type: directionType }),
-  "Swf.Kernel.Change": Object.freeze({ fingerprint: "9c0def9665c0846d190e98eeab0602405f0f947733b730f5b4e6f84be8f1d16f", type: changeType }),
-  "Swf.Kernel.Commit": Object.freeze({ fingerprint: "d16bd60db386fa2253305d7d31fb6b2b45e2f6d1d761481e1c6da3ba0b35e629", type: commitType }),
+  "Swf.Kernel.Change": Object.freeze({ fingerprint: "efe925298e0a7acf3e4e0a57d7dff4c219e8f291dfe53e235f5643cdb263934b", type: changeType }),
+  "Swf.Kernel.Commit": Object.freeze({ fingerprint: "c760a35ee9b26b5d2de078aae30dfa9d334b7993a733a608c376c324c35641ab", type: commitType }),
   "Swf.Kernel.TxRequest": Object.freeze({ fingerprint: "1c312f9c47cd212e5311f1a0393682a732340d0bad50b957efb53f7c7ffdf1a9", type: txRequestType }),
   "Swf.Kernel.TxGate": Object.freeze({ fingerprint: "5c5785c6e4e9e146c13696dd7cbde448a35f15d669c395f9c81a50e6bf0fb90d", type: txGateType }),
   "Swf.Kernel.IdleStep": Object.freeze({ fingerprint: "86d76c1a0899b0e4705e48b52c236b397fce1702ed61fd67204dc7e88d7a8347", type: idleStepType }),

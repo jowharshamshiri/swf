@@ -39,3 +39,9 @@ included, for a transaction, an undo, a redo and a restore alike; before, the en
 carried the transaction's own ID, as they still do when no `causeId` is given. A preview's
 `causeId` is carried on the `preview.cancelled` that ends it however it ends, as on its
 `transform.preview` events; before, only the disposal's `preview.cancelled` carried it.
+
+A restore can start the history afresh: `restore(snapshot, { history: 'fresh' })` replaces the
+scene and leaves nothing to undo or redo, so that a snapshot of another document opened in the
+workspace's place is never undone back into the scene it replaced. The default, `record`, records
+the restore as one undoable revision as before; any other `history` is refused with
+`INVALID_INPUT` naming `options.history`.
