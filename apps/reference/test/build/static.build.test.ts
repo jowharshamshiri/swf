@@ -23,6 +23,8 @@ const DIAGNOSTICS_ONLY = 'errorCapacity must be a whole number of at least 1';
 const DEVTOOLS_ONLY = 'reference.simulated.slow/1';
 /** Named only by the experiment panel: its list's handle. */
 const EXPERIMENTS_ONLY = 'page.experiments.run';
+/** The panorama as either backend presents it: the DOM backend's viewport, the geometry backend's composition. */
+const PANORAMA = '[data-swf-viewport], [data-swf-composition]';
 
 const builds = { production: '', staging: '', everyday: '' };
 let browser: Browser;
@@ -102,7 +104,7 @@ describe('the static build', () => {
   it('shows the shell and the sparse panorama from the file, offline, without a single request', async () => {
     const run = await open('?preset=sparse');
     await shows(run.page, '[data-reference-content]', (n) => n === 3);
-    await shows(run.page, '[data-swf-viewport]', (n) => n === 1);
+    await shows(run.page, PANORAMA, (n) => n === 1);
     expect(await run.has('page.scene.preset')).toBe(true);
     expect(await run.has('editor.actions.commands')).toBe(true);
     // The kit's faces are in the page itself.
@@ -151,7 +153,7 @@ describe('the static build', () => {
       `text=The address names an invalid preset: ${String(presetIssue('busy'))}`,
       (n) => n === 1,
     );
-    expect(await run.page.locator('[data-swf-viewport]').count()).toBe(0);
+    expect(await run.page.locator(PANORAMA).count()).toBe(0);
     expect(run.errors).toEqual([]);
     expect(run.requests).toEqual([]);
     await run.close();
@@ -164,7 +166,7 @@ describe('the debug overlay (ENV-005)', () => {
     expect(html).not.toContain(DIAGNOSTICS_ONLY);
     expect(html).not.toContain(DEVTOOLS_ONLY);
     const run = await open('?preset=sparse');
-    await shows(run.page, '[data-swf-viewport]', (n) => n === 1);
+    await shows(run.page, PANORAMA, (n) => n === 1);
     expect(await run.has('worktree.view#inspector')).toBe(true);
     expect(await run.has('worktree.view#developer')).toBe(false);
     await run.close();
@@ -175,7 +177,7 @@ describe('the debug overlay (ENV-005)', () => {
     expect(html).toContain(DIAGNOSTICS_ONLY);
     expect(html).toContain(DEVTOOLS_ONLY);
     const run = await open('?preset=sparse', 'staging');
-    await shows(run.page, '[data-swf-viewport]', (n) => n === 1);
+    await shows(run.page, PANORAMA, (n) => n === 1);
     expect(await run.has('worktree.view#developer')).toBe(true);
     await run.page.click('[data-wsb="worktree.view#developer"]');
     await shows(run.page, '[data-wsb="page.developer"]', (n) => n === 1);
@@ -191,7 +193,7 @@ describe('the experiment panel (brief §5)', () => {
     const html = await readFile(join(builds.production, 'index.html'), 'utf8');
     expect(html).toContain(EXPERIMENTS_ONLY);
     const run = await open('?preset=studio');
-    await shows(run.page, '[data-swf-viewport]', (n) => n === 1);
+    await shows(run.page, PANORAMA, (n) => n === 1);
     expect(await run.has('workshop.view#experiments')).toBe(true);
     await run.page.click('[data-wsb="workshop.view#experiments"]');
     await shows(run.page, '[data-wsb="page.experiments.list"]', (n) => n === 1);
@@ -205,7 +207,7 @@ describe('the experiment panel (brief §5)', () => {
     expect(html).not.toContain(DIAGNOSTICS_ONLY);
     expect(html).not.toContain(DEVTOOLS_ONLY);
     const run = await open('?preset=studio', 'everyday');
-    await shows(run.page, '[data-swf-viewport]', (n) => n === 1);
+    await shows(run.page, PANORAMA, (n) => n === 1);
     expect(await run.has('workshop.view#experiments')).toBe(false);
     expect(await run.has('worktree.view#developer')).toBe(false);
     for (const handle of [

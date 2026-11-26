@@ -17,6 +17,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 const app = fileURLToPath(new URL('../..', import.meta.url));
 const configFile = join(app, 'vite.config.mjs');
 const repository = fileURLToPath(new URL('../../../..', import.meta.url));
+/** The panorama as either backend presents it: the DOM backend's viewport, the geometry backend's composition. */
+const PANORAMA = '[data-swf-viewport], [data-swf-composition]';
 let root = '';
 let server: ViteDevServer;
 let browser: Browser;
@@ -71,7 +73,7 @@ describe('the development server', () => {
         const errors: string[] = [];
         page.on('pageerror', (error) => errors.push(error.message));
         await page.goto(address());
-        await page.locator('.wsb-application [data-swf-viewport]').waitFor({ timeout: 15_000 });
+        await page.locator(`.wsb-application :is(${PANORAMA})`).waitFor({ timeout: 15_000 });
         const layout = await page.evaluate(() => {
           const application = document.querySelector('.wsb-application');
           if (application === null) {
@@ -137,7 +139,7 @@ describe('the development server', () => {
       ]);
     // The page was not reloaded, and the old application left nothing behind.
     expect(await page.evaluate(() => (window as unknown as { mark?: string }).mark)).toBe('kept');
-    expect(await page.locator('[data-swf-viewport]').count()).toBe(1);
+    expect(await page.locator(PANORAMA).count()).toBe(1);
     expect(await page.locator('[data-reference-content]').count()).toBe(4);
     expect(errors).toEqual([]);
   });
