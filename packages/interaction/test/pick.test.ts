@@ -1,7 +1,7 @@
 import { SwfFailure } from '@swf/core';
 import { describe, expect, it } from 'vitest';
 import type { PickResult } from '../src/index.js';
-import { intentIssue, NO_MODIFIERS } from '../src/index.js';
+import { intentIssue, NO_MODIFIERS, wheelTurn } from '../src/index.js';
 import { contentOf, H, onWindow, screenOf, titleBar, W, world } from './fixtures.js';
 
 function hit(result: PickResult) {
@@ -245,6 +245,27 @@ describe('picking order and reporting (FR-102)', () => {
 });
 
 describe('normalized intents (FR-100, FR-101)', () => {
+  it('reads how far the wheel turned from deltaY, or from deltaX when the platform turned it sideways', () => {
+    const turn = (deltaX: number, deltaY: number) =>
+      wheelTurn({
+        kind: 'wheel',
+        viewportId: 'v',
+        deviceId: 'wheel',
+        x: 0,
+        y: 0,
+        deltaX,
+        deltaY,
+        modifiers: { ...NO_MODIFIERS, shift: true },
+        timestamp: 0,
+      });
+    expect(turn(0, -120)).toBe(-120);
+    expect(turn(-120, 0)).toBe(-120);
+    expect(turn(120, -0)).toBe(120);
+    expect(turn(37, 5)).toBe(5);
+    expect(turn(37, -1e-300)).toBe(-1e-300);
+    expect(turn(0, 0)).toBe(0);
+  });
+
   const pointer = {
     kind: 'pointer',
     viewportId: 'v',

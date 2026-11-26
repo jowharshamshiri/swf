@@ -28,7 +28,7 @@ import type {
   PointerIntent,
   WheelIntent,
 } from './intents.js';
-import { intentIssue } from './intents.js';
+import { intentIssue, wheelTurn } from './intents.js';
 import type {
   InputRegion,
   OcclusionLookup,
@@ -1197,7 +1197,7 @@ export class InteractionRouter {
     const outcome = this.#run('node.move', {
       nodeId: result.target.nodeId,
       viewportId: intent.viewportId,
-      depth: -intent.deltaY * this.#settings.wheelDepthPerPixel,
+      depth: -wheelTurn(intent) * this.#settings.wheelDepthPerPixel,
     });
     return {
       consumed: true,

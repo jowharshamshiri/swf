@@ -1,5 +1,6 @@
 import type { Id, JsonValue } from '@swf/core';
 import { jsonValue, SwfFailure } from '@swf/core';
+import { models } from '@swf/models';
 
 /** Modifier keys held during an intent. All four are required; no other field is allowed. */
 export interface Modifiers {
@@ -101,6 +102,20 @@ export interface WheelIntent {
   readonly modifiers: Modifiers;
   /** Milliseconds on the host's monotonic clock: non-negative and finite. */
   readonly timestamp: number;
+}
+
+/**
+ * How far a scroll turned the wheel, in CSS pixels, positive downwards (towards the user): its
+ * `deltaY`, or its `deltaX` when `deltaY` is zero (plus or minus). Browsers on Windows and Linux,
+ * and macOS itself, turn a wheel with Shift held into a sideways scroll: the turn then comes in
+ * `deltaX` with `deltaY` zero, with the same sign, so it reads the same whichever way the platform
+ * delivers it. A scroll that has a vertical part (a trackpad's diagonal, say) is read by that part
+ * alone. Everything the wheel does with the depth modifier held reads the wheel through this:
+ * the depth of a dragged window, the wheel's move of a window, and a custom gesture's wheel
+ * should too. Decided by the Lean model `Swf.Gesture.wheelTurn`.
+ */
+export function wheelTurn(intent: WheelIntent): number {
+  return models.wheelTurn(intent.deltaX, intent.deltaY);
 }
 
 /**

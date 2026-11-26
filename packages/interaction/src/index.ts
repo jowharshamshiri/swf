@@ -31,7 +31,7 @@ export type {
   PointerType,
   WheelIntent,
 } from './intents.js';
-export { intentIssue, NO_MODIFIERS } from './intents.js';
+export { intentIssue, NO_MODIFIERS, wheelTurn } from './intents.js';
 export type {
   InputRegion,
   OcclusionLookup,

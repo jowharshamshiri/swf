@@ -10,6 +10,7 @@ import {
   INTERACTION_API_VERSION,
   placementOf,
   translatedBy,
+  wheelTurn,
   withDepth,
   worldOrigin,
 } from '@swf/interaction';
@@ -203,13 +204,10 @@ export function createWheelBursts(options: WheelBurstOptions): WheelBursts {
               const nodeId = wheeled(intent);
               if (nodeId !== null) {
                 rest();
-                // Browsers on Windows and Linux turn the wheel with Shift held into a sideways
-                // scroll: the turn is then the horizontal delta.
-                const turned = intent.deltaY === 0 ? intent.deltaX : intent.deltaY;
                 step({
                   kind: 'tick',
                   nodeId,
-                  delta: -turned * router.settings().wheelDepthPerPixel,
+                  delta: -wheelTurn(intent) * router.settings().wheelDepthPerPixel,
                 });
                 timer = setTimeout(settle, WHEEL_REST_MS);
                 return CONSUMED;

@@ -3538,6 +3538,17 @@ export class SwfModels {
    */
   pressRoute(f: PressFacts): PressRoute;
   /**
+   * How far a wheel turned, in CSS pixels, from its scroll's deltas: its vertical delta, or its
+   * horizontal one when the vertical is zero (plus or minus). Browsers on Windows and Linux, and macOS
+   * itself, turn a wheel with Shift held into a sideways scroll, carrying the turn in `deltaX` with
+   * `deltaY` zero, and keep its sign: turned up (away from the user) is negative either way. So a
+   * turn reads the same whichever way the platform delivers it, while a scroll that has a vertical
+   * part, a trackpad's diagonal included, is read by that part alone.
+   *
+   * Lean's Swf.Gesture.wheelTurn : Float → Float → Float
+   */
+  wheelTurn(deltaX: number, deltaY: number): number;
+  /**
    * The state after an event, or none when the event does not follow from the state (spec §13.5).
    * A handoff begins only from a settled viewport, active or degraded: one under way is never begun
    * again, so trying the next candidate follows the failure of the one in hand. The stages go in

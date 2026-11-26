@@ -211,6 +211,56 @@ describe('a window handled directly in the panorama', () => {
     );
   });
 
+  it('goes as far with Shift and the wheel in the middle of a drag whether the browser delivers the turn upright or sideways', async () => {
+    const m = await visit();
+    const { app } = m;
+    const before = app.workspace.getState();
+    const history = app.workspace.history().length;
+    const reach = () => app.poseOf('window-01')?.reach ?? NaN;
+    const [x, y] = onFrame(app, 'window-01');
+    const delivered: [number, number][] = [];
+    app.root.addEventListener('wheel', (e) => delivered.push([e.deltaX, e.deltaY]), {
+      capture: true,
+    });
+    /** How much farther one Shift+wheel turn takes the window in the middle of a drag. */
+    const farther = async (deltaX: number, deltaY: number) => {
+      await commands.mouse('move', x, y);
+      await commands.mouse('down', x, y);
+      await commands.mouse('move', x + 12, y);
+      await nextFrame();
+      await m.settle();
+      expect(bar(m)).toContain('Moving Tile 01');
+      const start = reach();
+      await commands.wheel(x + 12, y, deltaX, deltaY, ['Shift']);
+      await expect.poll(() => delivered.length).toBe(1);
+      await nextFrame();
+      await m.settle();
+      const change = reach() - start;
+      expect(await m.model.run('reference.gesture.cancel', {})).toBe(true);
+      await commands.mouse('up', x + 12, y);
+      await m.settle();
+      return { delivered: delivered.splice(0), change };
+    };
+    // The plain move, and the magnetic one that snaps each place it proposes.
+    for (const snap of [false, true]) {
+      app.policies.configure({ enabled: { snap } });
+      // Turned up (away from the user) once as the turn comes upright, in deltaY, and once as
+      // browsers on Windows and Linux deliver a turn with Shift held: sideways, in deltaX, with
+      // deltaY zero and the same sign.
+      const upright = await farther(0, -100);
+      const sideways = await farther(-100, 0);
+      expect(upright.delivered).toEqual([[0, -100]]);
+      expect(sideways.delivered).toEqual([[-100, 0]]);
+      expect(upright.change).toBeGreaterThan(0.1);
+      expect(sideways.change).toBeCloseTo(upright.change, 6);
+    }
+    // Every drag cancelled: nothing changed.
+    expect(app.workspace.history()).toHaveLength(history);
+    expect(app.workspace.getState().nodes.get('window-01')?.transform).toEqual(
+      before.nodes.get('window-01')?.transform,
+    );
+  });
+
   it('goes farther with Shift and the wheel, shown as it goes, the burst one change once the wheel rests', async () => {
     const m = await visit();
     const { app } = m;

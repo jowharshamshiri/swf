@@ -18,3 +18,9 @@ dispatch refuses intents once the device is disconnected, or when its registrati
 Picking refuses a number it cannot order: `pick` throws a `RangeError` when the depth tolerance is
 not finite and at least zero, or when a hit's distance or presentation priority is not finite,
 naming the hit and the field, where before such a hit was ordered by a meaningless key.
+
+The wheel with the depth modifier held reads its turn one way on every platform: a dragged
+window's depth and the wheel's move of a window take it from `deltaY`, or from `deltaX` when
+`deltaY` is zero, as browsers on Windows and Linux deliver a wheel turned with Shift held. Before,
+both read `deltaY` alone, so there the wheel did nothing. `wheelTurn(intent)` reads a wheel intent
+so, for a host's own gestures.

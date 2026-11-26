@@ -1,4 +1,5 @@
 import Lungo
+import Swf.Order
 
 /-!
 Gestures (spec §13.3) and the keyboard hold. A pressed target's gesture goes `idle → pending →
@@ -8,6 +9,8 @@ can also be held from the keyboard, one at a time, and put down once. The router
 policies' handlers and previews; this model decides where each intent goes and each phase.
 -/
 namespace Swf.Gesture
+
+open Swf.Order (magnitudeKey)
 
 /-- What a pointer sample reports. -/
 inductive PointerPhase where
@@ -113,6 +116,15 @@ def pressRoute (f : PressFacts) : PressRoute :=
 /-- A pressed pointer moved this far from where it went down: whether that is beyond the slop, past
 which a press becomes a drag. -/
 def beyondSlop (distance slop : Float) : Bool := distance > slop
+
+/-- How far a wheel turned, in CSS pixels, from its scroll's deltas: its vertical delta, or its
+horizontal one when the vertical is zero (plus or minus). Browsers on Windows and Linux, and macOS
+itself, turn a wheel with Shift held into a sideways scroll, carrying the turn in `deltaX` with
+`deltaY` zero, and keep its sign: turned up (away from the user) is negative either way. So a
+turn reads the same whichever way the platform delivers it, while a scroll that has a vertical
+part, a trackpad's diagonal included, is read by that part alone. -/
+def wheelTurn (deltaX deltaY : Float) : Float :=
+  if magnitudeKey deltaY = 0 then deltaX else deltaY
 
 /-- Where a pressed target's gesture is. -/
 inductive GesturePhase where
@@ -307,6 +319,29 @@ theorem every_end_returns_idle (p : GesturePhase) (e : GestureEvent) :
 theorem beyond_slop_iff (distance slop : Float) :
     beyondSlop distance slop = true ↔ distance > slop := by
   simp [beyondSlop]
+
+/-- A wheel's turn is its vertical delta whenever that is not zero, and its horizontal delta when
+it is. -/
+@[lungo_claim "lungo.law" subject wheelTurn]
+theorem wheel_turn_reads (deltaX deltaY : Float) :
+    (magnitudeKey deltaY ≠ 0 → wheelTurn deltaX deltaY = deltaY) ∧
+      (magnitudeKey deltaY = 0 → wheelTurn deltaX deltaY = deltaX) := by
+  constructor <;> intro h <;> simp [wheelTurn, h]
+
+/-- A wheel turned sideways by the platform (its turn in `deltaX`, a zero in `deltaY`) turns as
+far, in the same direction, as the same wheel delivered upright (the turn in `deltaY`, a zero in
+`deltaX`). -/
+@[lungo_claim "lungo.law" subject wheelTurn]
+theorem sideways_turns_as_upright (turn zero : Float) (hz : magnitudeKey zero = 0)
+    (ht : magnitudeKey turn ≠ 0) : wheelTurn turn zero = wheelTurn zero turn := by
+  simp [wheelTurn, hz, ht]
+
+/-- A wheel turns by nothing exactly when neither delta moved. -/
+@[lungo_claim "lungo.law" subject wheelTurn]
+theorem no_turn_iff_still (deltaX deltaY : Float) :
+    magnitudeKey (wheelTurn deltaX deltaY) = 0 ↔
+      magnitudeKey deltaX = 0 ∧ magnitudeKey deltaY = 0 := by
+  by_cases h : magnitudeKey deltaY = 0 <;> simp [wheelTurn, h]
 
 /-- Escape cancels every gesture whatever has focus; otherwise live content keeps its keys; a held
 node is put down by Enter or Space with no modifier. -/

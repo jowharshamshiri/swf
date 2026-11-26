@@ -25,6 +25,7 @@ import {
   withDepth,
 } from './drag.js';
 import type { PointerIntent, WheelIntent } from './intents.js';
+import { wheelTurn } from './intents.js';
 import type { InputRegion, PickCandidate, PickResult, ResizeEdge } from './pick.js';
 import type { InteractionSettings } from './settings.js';
 
@@ -293,7 +294,7 @@ class MoveGesture implements GestureHandler {
   }
 
   wheel(intent: WheelIntent): boolean {
-    this.#depth -= intent.deltaY * this.#session.settings.wheelDepthPerPixel;
+    this.#depth -= wheelTurn(intent) * this.#session.settings.wheelDepthPerPixel;
     if (this.#pointer === null) {
       this.#propose(
         withDepth(this.#frame.eye, this.#frame.anchor, this.#depth, this.#frame.minDistance),

@@ -7,10 +7,10 @@
     }
   },
   "@swf/models": {
-    "budget": 55296,
+    "budget": 55808,
     "recorded": {
-      "minified": 331615,
-      "gzip": 55111
+      "minified": 334148,
+      "gzip": 55580
     }
   },
   "@swf/core": {
@@ -44,8 +44,8 @@
   "@swf/interaction": {
     "budget": 17408,
     "recorded": {
-      "minified": 49761,
-      "gzip": 15907
+      "minified": 49830,
+      "gzip": 15931
     }
   },
   "@swf/backend-dom": {

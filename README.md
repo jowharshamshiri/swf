@@ -360,7 +360,12 @@ rather than starting a second one.
 
 A window drag keeps the grabbed point under the pointer on a plane facing the camera (or on a
 world plane, or around the camera at a constant distance), with depth changed only by the wheel
-during the drag. It previews on every move, keeps its capture across the seam, outside the
+during the drag. The wheel with the depth modifier held, during a drag or over a window, reads its
+turn one way on every platform (`wheelTurn`): from `deltaY`, or from `deltaX` when `deltaY` is
+zero, since browsers on Windows and Linux, and macOS itself, turn a wheel with Shift held into a
+sideways scroll that keeps its sign. Turned up (away from the user) takes the window farther from
+the camera, turned down brings it nearer, `wheelDepthPerPixel` world units per pixel; a scroll
+with a vertical part, a trackpad's diagonal included, is read by that part alone. It previews on every move, keeps its capture across the seam, outside the
 viewport and through viewport resizes, and commits once on release. Escape, a lost capture, a
 deleted viewport or target, a rejected commit, a host `cancel()`, an invalidated preview and
 workspace disposal each end it without a change, release its pointers (`capture.released`) and
@@ -1315,7 +1320,7 @@ attachments); the model decides each state it passes through and each request it
 | `Swf.Kernel`         | The workspace lifecycle (§13.1); a transaction's admission, idempotent replay and refusals in order; what a commit, undo, redo or restore does to the revision, the history and the idempotency cache |
 | `Swf.Hierarchy`      | That a node never becomes its own ancestor (reparenting, grouping), and which commands a lock refuses                                                                                                 |
 | `Swf.Surface`        | Every surface presentation state and its announcement (§13.2), and the bind, unbind, present, replace, move and hide requests each state admits, single-owner mounts and handovers included           |
-| `Swf.Gesture`        | Where each pointer sample, press and key goes; each gesture phase from press to commit or cancel (§13.3); the keyboard hold's admission                                                               |
+| `Swf.Gesture`        | Where each pointer sample, press and key goes; each gesture phase from press to commit or cancel (§13.3); the keyboard hold's admission; how far a wheel turned, upright or turned sideways           |
 | `Swf.Arbitration`    | Which gesture wins a press, and which hit under a pointer is the target, in what order and whether ambiguously                                                                                        |
 | `Swf.Save`           | The snapshot save states (§13.4), which acknowledgements count, and that the saved revision never goes back                                                                                           |
 | `Swf.Migration`      | The steps that bring a snapshot of an older format to the current one, without cycles                                                                                                                 |
@@ -1399,9 +1404,9 @@ release` builds a versioned release from a commit ([Release the packages](docs/h
 A budget is raised only deliberately, by hand, to the package's measured gzip size rounded up to the
 next 256 bytes, so it leaves no room for growth nobody looked at; the measured sizes are recorded
 with `npm run size -- --record` in the same commit, whose message gives the old and the new budget.
-`@swf/models` is at 55296 bytes: it is the compiled program of every proved decision model the
-framework and the reference application run, so it grows with each model, the experiments the
-latest (55111 bytes measured).
+`@swf/models` is at 55808 bytes: it is the compiled program of every proved decision model the
+framework and the reference application run, so it grows with each model, the wheel's turn read
+upright or sideways the latest (55580 bytes measured).
 
 Tests run against each package's TypeScript source, so they need no build first.
 

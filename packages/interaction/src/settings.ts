@@ -95,9 +95,9 @@ export interface InteractionSettings {
    */
   readonly worldPlaneNormal: Vec3;
   /**
-   * Depth change per CSS px of wheel scroll, in world units: positive. Scrolling up (negative
-   * `deltaY`) moves the window away from the camera, scrolling down brings it nearer. Default
-   * 0.002.
+   * Depth change per CSS px the wheel turns (`wheelTurn`: `deltaY`, or `deltaX` when the
+   * platform turns the scroll sideways), in world units: positive. Turning up (negative) moves the
+   * window away from the camera, turning down brings it nearer. Default 0.002.
    */
   readonly wheelDepthPerPixel: number;
   /**

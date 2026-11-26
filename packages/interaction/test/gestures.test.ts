@@ -157,6 +157,28 @@ describe('window drags (§13.3, FR-105, BR-004)', () => {
     expect(length(moved)).toBeGreaterThan(lateral + 0.19);
   });
 
+  it('change depth as far from a wheel turned sideways as from one turned upright', () => {
+    /** Where a drag 30 px across leaves the window after one wheel scroll with Shift held. */
+    const after = (deltaX: number, deltaY: number) => {
+      const w = world([ahead]);
+      const { x, y } = drag(w, 30, 0);
+      expect(
+        w.input.wheel('v', x + 30, y, deltaY, { deltaX, modifiers: { shift: true } }),
+      ).toMatchObject({ consumed: true, route: 'gesture' });
+      w.input.pointer('up', 'v', x + 30, y);
+      return length(anchorOf(w.ws));
+    };
+    const still = after(0, 0);
+    const upright = after(0, -100);
+    // 100 px turned up: 0.2 farther, whether in deltaY or, as browsers on Windows and Linux turn
+    // a wheel with Shift held, in deltaX with deltaY zero (or minus zero).
+    expect(upright).toBeGreaterThan(still + 0.19);
+    expect(after(-100, 0)).toBeCloseTo(upright, 9);
+    expect(after(-100, -0)).toBeCloseTo(upright, 9);
+    // A scroll with a vertical part is read by that part alone.
+    expect(after(40, -100)).toBeCloseTo(upright, 9);
+  });
+
   it('commit only what constraints allow, and cancel when the commit is refused', () => {
     let allowed = true;
     const gate: Constraint = {
@@ -439,6 +461,19 @@ describe('native content and takeover (FR-103, FR-108, FR-110)', () => {
     });
     // 100 px of wheel at 0.002 per px: 0.2 farther, straight back from the camera.
     expect(transformOf(w.ws, 'a')?.position[2]).toBeCloseTo(-3.2, 9);
+  });
+
+  it('moves a window as far by the wheel turned sideways with the depth modifier as upright', () => {
+    const w = world([ahead]);
+    const [x, y] = contentOf(w.ws, 'a');
+    // Browsers on Windows and Linux deliver a wheel turned with Shift held sideways: deltaX, with
+    // deltaY zero. 100 px up, then 100 px down: 0.2 farther, then back.
+    expect(w.input.wheel('v', x, y, 0, { deltaX: -100, modifiers: { shift: true } })).toMatchObject(
+      { consumed: true, route: 'command', operation: { name: 'node.move' } },
+    );
+    expect(transformOf(w.ws, 'a')?.position[2]).toBeCloseTo(-3.2, 9);
+    w.input.wheel('v', x, y, 0, { deltaX: 100, modifiers: { shift: true } });
+    expect(transformOf(w.ws, 'a')?.position[2]).toBeCloseTo(-3, 9);
   });
 
   it('stops presses outside an active modal', () => {

@@ -1,6 +1,6 @@
 import type { PointerIntent } from '@swf/interaction';
 import { afterEach, describe, expect, it } from 'vitest';
-import { commands, server } from 'vitest/browser';
+import { commands, server, userEvent } from 'vitest/browser';
 import type { Stage } from './fixture.js';
 import { onWindow, pageOf, screenOf, stage } from './fixture.js';
 
@@ -100,6 +100,57 @@ describe('input devices end to end (QA-006, FR-100, FR-101)', () => {
     await commands.wheel(fx, fy, 0, 200, ['Shift']);
     await expect.poll(() => current?.ws.history().length).toBe(history + 2);
     expect(distance(current)).toBeCloseTo(near, 6);
+  });
+
+  it('changes a dragged window’s depth by Shift and the wheel as far whether the browser delivers the turn upright or sideways', async () => {
+    current = await stage([framed]);
+    const s = current;
+    const view = viewOf(s);
+    view.root.tabIndex = 0;
+    const delivered: [number, number][] = [];
+    view.root.addEventListener('wheel', (e) => delivered.push([e.deltaX, e.deltaY]), {
+      capture: true,
+    });
+    // On the frame, clear of its resize edges.
+    const [x, y] = pageOf(view.root, ...screenOf(s, onWindow(s, 'a', [0, 0.6, 0])));
+    const history = s.ws.history().length;
+    /** Where the drag shows the window, from the camera. */
+    const shown = () => {
+      const p = s.ws.getPresented().nodes.get('a')?.transform.position;
+      return p === undefined ? NaN : Math.hypot(...p);
+    };
+    /** How much farther one Shift+wheel turn takes the window in the middle of a drag. */
+    const farther = async (deltaX: number, deltaY: number) => {
+      await commands.mouse('move', x, y);
+      await commands.mouse('down', x, y);
+      await commands.mouse('move', x + 30, y);
+      expect(s.router.captures()).toHaveLength(1);
+      const before = shown();
+      await commands.wheel(x + 30, y, deltaX, deltaY, ['Shift']);
+      await expect.poll(() => delivered.length).toBe(1);
+      const after = shown();
+      view.root.focus();
+      await userEvent.keyboard('{Escape}');
+      await commands.mouse('up', x + 30, y);
+      expect(s.router.captures()).toEqual([]);
+      return { delivered: delivered.splice(0), change: after - before };
+    };
+    // Turned up (away from the user) once as the turn comes upright, in deltaY, and once as
+    // browsers on Windows and Linux deliver a turn with Shift held: sideways, in deltaX, with
+    // deltaY zero and the same sign.
+    const upright = await farther(0, -200);
+    const sideways = await farther(-200, 0);
+    expect(upright.delivered).toEqual([[0, -200]]);
+    expect(sideways.delivered).toEqual([[-200, 0]]);
+    expect(upright.change).toBeGreaterThan(0.1);
+    expect(sideways.change).toBeCloseTo(upright.change, 6);
+    expect(story(s)).toEqual([
+      'start node.move',
+      'end cancelled',
+      'start node.move',
+      'end cancelled',
+    ]);
+    expect(s.ws.history()).toHaveLength(history);
   });
 
   it('cancels a drag whose pointer capture the browser takes away, leaving the window where it was', async () => {

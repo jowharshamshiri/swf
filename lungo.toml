@@ -54,6 +54,7 @@ exports = [
   "Swf.Gesture.pointerRoute",
   "Swf.Gesture.pressRoute",
   "Swf.Gesture.beyondSlop",
+  "Swf.Gesture.wheelTurn",
   "Swf.Gesture.gestureStep",
   "Swf.Gesture.keyRoute",
   "Swf.Gesture.holdGate",

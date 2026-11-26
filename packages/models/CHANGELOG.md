@@ -34,3 +34,6 @@ modules' switches is, or none for a custom combination.
 under way, and takes the new `failed` event, which returns a handoff under way to the previous
 backend: `active` when it still works, `degraded` otherwise. `viewportOpened` is the state a
 viewport opens in, `degraded`, with no backend yet.
+
+`wheelTurn` says how far a wheel turned from its scroll's deltas: `deltaY`, or `deltaX` when
+`deltaY` is zero, so a wheel the platform turned sideways reads as it does upright.

@@ -1,5 +1,5 @@
 {
-  "build_key": "d2664a472dcb8ac0f74735c3b9888b736893e05045713e23205fe15931def2fe",
+  "build_key": "52278ed46ae995aa95142192dbdce33ae5abc56f90da2c0524dd18f012b578ac",
   "lean_version": "4.35.0",
   "lean_githash": "eb6cafb7290e8bd5f2937522d8d804f58f02bafc",
   "bir_version": 3,
@@ -24,7 +24,7 @@
     "Swf/AppWorkspaces.lean": "44b79442c01be58764578405e8d63024e287c856db6d080c394be4652d859b18",
     "Swf/Arbitration.lean": "47ef2f12b3479a3ca4a066653f2c8f5010b5cea840dd1c0fa40d69bca01a8de0",
     "Swf/Fallback.lean": "f277e41e454875b6f9e1a8eb2aa78ffdcfd31ad7e79dbef09d3e3654e20eeba9",
-    "Swf/Gesture.lean": "e3633d7e629d5a80960ae942f60f964124b64cac488a864a9b639a12dfb864d7",
+    "Swf/Gesture.lean": "f8aebfeabf597b50b8ba5baf5512657b3343a991f7cebbbe632440e2eb2d368a",
     "Swf/Handoff.lean": "36619e1132d6c8a9966e96c19b2850897a347505e70c955336d62e38031c34d1",
     "Swf/Hierarchy.lean": "7f30f759bfb333e8ed5fae95c977f7afbe907b1f054e782f5c9572ba6efc94ec",
     "Swf/Json.lean": "efdc7f4f6f6e1c84ebac2b3fc39f887f8c3634cb87b10d5fe298635fa5a26631",
@@ -42,9 +42,9 @@
   "project": ".",
   "link_directives": [],
   "output_digests": {
-    "assurance.json": "3430fdc9fe613dd0af6b6d4311fe10ac3201d1f31f7018a50d1b32452a76f679",
-    "index.d.ts": "09fa74b9cf1f6b753ebc2113b8694ae83f22bf01dcec808faa68d340ae1c2a98",
-    "index.js": "24fab11155f886923e214317233a503c1372a69462321d80485333deae1b90a2"
+    "assurance.json": "b8b811839ad92a695f4835d3cb3e9f9f7f6d75bf0315845f3e037f93cd5c3238",
+    "index.d.ts": "2e7e65ec67399cc8cb2632c79f78fc080826e71dcc239ffd3f4fc0d27464b4c6",
+    "index.js": "9377fb18647da40559a8a0519be9a8fdd1dc3f4b14363d0b4a2d11b510bea970"
   },
   "platform_products": [
     "program.wasm"
