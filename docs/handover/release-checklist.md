@@ -23,7 +23,8 @@ Tick each step for every release. [Release the packages](../how-to/release.md) e
 ## Build
 
 - [ ] `npm run release -- --conformance <folder> --bench <folder>` finished, which means:
-  - [ ] every package's version, changelog section, sibling pins and licence field were in order,
+  - [ ] every package's version, changelog section, sibling pins and licence were in order, and
+        every ref carries the repository's `LICENSE` and `NOTICE`,
         and every development tool is pinned exactly;
   - [ ] `npm run check` passed (models, formatting, types, lint, tests, sizes, builds);
   - [ ] the bundle sizes equal those recorded, within budget, every package tree-shaking;

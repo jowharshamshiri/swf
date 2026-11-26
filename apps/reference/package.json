@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "The Spatial Workspace Framework's reference application: a 360° panorama of seeded demo scenes, built only on the framework's public packages.",
+  "license": "Apache-2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",

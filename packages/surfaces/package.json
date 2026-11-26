@@ -2,7 +2,7 @@
   "name": "@swf/surfaces",
   "version": "0.1.0",
   "description": "Opaque presentation surfaces for the Spatial Workspace Framework: adapter registration, capability negotiation, binding resolution and the presentation lifecycle.",
-  "license": "UNLICENSED",
+  "license": "Apache-2.0",
   "private": true,
   "repository": {
     "type": "git",
@@ -20,7 +20,9 @@
   "files": [
     "dist",
     "src",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "LICENSE",
+    "NOTICE"
   ],
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"

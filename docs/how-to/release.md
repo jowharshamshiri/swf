@@ -54,7 +54,8 @@ npm run release -- --conformance /path/to/records/conformance --bench /path/to/r
 
 It refuses an uncommitted tree, and then:
 
-1. checks every package's version, changelog, pins and licence field, and that every
+1. checks every package's version, changelog, pins and licence (the repository's), that `LICENSE`
+   and `NOTICE` are at the root, and that every
    development tool is pinned to an exact version;
 2. reads the conformance record (every scenario passed in every browser) and the benchmark
    (no budget missed), refusing either if it was recorded before the commit;
@@ -96,8 +97,10 @@ The first command pushes each package's ref (a ref already released is pushed un
 check that a host installs from the remote: in an empty project, `npm install` the URL of one
 package from `COMPATIBILITY.md`, and compare the commit its lock records with `release.json`.
 
-Every package stays `"private": true`, so npm refuses to publish one to a registry by mistake,
-and `"license": "UNLICENSED"` until a licence is chosen.
+Every package stays `"private": true`, so npm refuses to publish one to a registry by mistake.
+Every package is licensed under the Apache License 2.0, as the repository is, and its ref carries
+the repository's `LICENSE` and `NOTICE`; the release refuses a package declaring another licence
+and a ref without them.
 
 The reference application's static page (`reference-app/index.html`) is one self-contained file:
 deploy it to any static host as it is.

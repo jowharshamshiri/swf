@@ -149,6 +149,19 @@ if (root.version !== version) {
 }
 // Where hosts install the packages from: the repository's git URL (package.json `repository`).
 const repository = await attempt(() => repositoryOf(root.repository?.url));
+// The licence and the notice every package carries beside its own files.
+const legal = [path.join(ROOT, 'LICENSE'), path.join(ROOT, 'NOTICE')];
+for (const file of legal) {
+  if (
+    !(await stat(file).then(
+      (s) => s.isFile(),
+      () => false,
+    ))
+  ) {
+    fail(`${path.basename(file)} is missing at the repository's root`);
+  }
+}
+if (typeof root.license !== 'string') fail('package.json declares no license');
 const out = path.join(ROOT, 'release', version);
 if (
   await stat(out).then(
@@ -175,7 +188,11 @@ const notes = new Map();
 for (const { dir, manifest } of packages) {
   const { name } = manifest;
   if (!exact.test(manifest.version)) problems.push(`${name} has version "${manifest.version}"`);
-  if (typeof manifest.license !== 'string') problems.push(`${name} declares no license`);
+  if (manifest.license !== root.license) {
+    problems.push(
+      `${name} declares license ${String(manifest.license)}, not the repository's ${root.license}`,
+    );
+  }
   if (manifest.sideEffects === undefined) problems.push(`${name} declares no sideEffects`);
   if (!manifest.files.includes('CHANGELOG.md')) problems.push(`${name} does not ship CHANGELOG.md`);
   for (const [dep, range] of Object.entries(manifest.dependencies ?? {})) {
@@ -297,6 +314,7 @@ const made = await attempt(async () =>
       ),
     ),
     staging,
+    legal,
   }),
 );
 const released = [];
@@ -333,6 +351,7 @@ await attempt(() =>
     repo: refsRepository,
     released: released.map((p) => ({ ...p, tarball: path.join(out, p.file) })),
     staging,
+    legal,
   }),
 );
 
@@ -348,6 +367,16 @@ const host = await installHost(
 process.on('exit', () => {
   rmSync(host, { recursive: true, force: true });
 });
+for (const p of released) {
+  for (const file of legal) {
+    const installed = path.join(host, 'node_modules', p.name, path.basename(file));
+    if ((await readFile(installed, 'utf8').catch(() => null)) !== (await readFile(file, 'utf8'))) {
+      fail(
+        `${p.name} as a host installs it does not carry the repository's ${path.basename(file)}`,
+      );
+    }
+  }
+}
 process.stdout.write(
   await smokeHost(
     host,
@@ -566,6 +595,11 @@ function compatibilityMarkdown({ released: list, engines, typescript, browsers, 
     `| TypeScript | ${typescript} | the declarations compile under strict options, libraries checked |`,
     '',
     'The packages are ES2022 modules: a bundler or a browser loads them as they are.',
+    '',
+    '## Licence',
+    '',
+    `Every package is licensed under ${root.license}, and carries the licence (\`LICENSE\`) and the`,
+    'notice (`NOTICE`) itself.',
     '',
     '## Snapshot formats',
     '',

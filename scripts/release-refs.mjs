@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { pathToFileURL } from 'node:url';
@@ -87,10 +87,19 @@ export function publishedRefs(repository, names, env = {}) {
  * `{ name, version, workspace, tarball }`; `published` the refs the repository already has
  * (`publishedRefs`). A package whose ref is already published must have the very same files:
  * its published commit is reused; other files under a released version are refused, naming it.
- * `env` is added to git's environment. Returns, for each package, its ref, URL, commit, tree and the folder holding its files with
- * the siblings required by their refs.
+ * `legal` are the files every package carries beside its own (the licence and the notice), copied
+ * in by their names. `env` is added to git's environment. Returns, for each package, its ref,
+ * URL, commit, tree and the folder holding its files with the siblings required by their refs.
  */
-export async function makeRefs({ repo, repository, packages, published, staging, env = {} }) {
+export async function makeRefs({
+  repo,
+  repository,
+  packages,
+  published,
+  staging,
+  legal = [],
+  env = {},
+}) {
   const refs = new Map(packages.map((p) => [p.name, refOf(p.workspace, p.version)]));
   const made = [];
   for (const p of packages) {
@@ -103,6 +112,7 @@ export async function makeRefs({ repo, repository, packages, published, staging,
       if (refs.has(dep)) manifest.dependencies[dep] = urlOf(repository, refs.get(dep));
     }
     await writeFile(path.join(dir, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`);
+    for (const file of legal) await copyFile(file, path.join(dir, path.basename(file)));
 
     const tree = treeOf(repo, dir, `${dir}.index`);
     let commit = published.get(ref);
@@ -138,10 +148,11 @@ export async function makeRefs({ repo, repository, packages, published, staging,
 /**
  * Checks each ref as a host reads it: its tree is exactly the files of `tarball` (the package as
  * released beside it), and every sibling it requires is required by that sibling's own ref,
- * which names the commit released for it. `released` are `{ name, ref, url, commit, tarball }`.
- * Throws, naming the ref, otherwise.
+ * which names the commit released for it, and it carries each of `legal` by its name, the same
+ * as the given file. `released` are `{ name, ref, url, commit, tarball }`. Throws, naming the ref,
+ * otherwise.
  */
-export async function verifyRefs({ repo, released, staging }) {
+export async function verifyRefs({ repo, released, staging, legal = [] }) {
   for (const p of released) {
     const dir = path.join(staging, `verify-${p.ref.replaceAll('/', '-')}`);
     await mkdir(dir);
@@ -149,6 +160,18 @@ export async function verifyRefs({ repo, released, staging }) {
     const tree = treeOf(repo, dir, `${dir}.index`);
     if (git(repo, ['rev-parse', `refs/tags/${p.ref}^{tree}`]).trim() !== tree) {
       throw new Error(`${p.ref} does not hold exactly the files of ${path.basename(p.tarball)}`);
+    }
+    for (const file of legal) {
+      const name = path.basename(file);
+      let carried;
+      try {
+        carried = git(repo, ['show', `refs/tags/${p.ref}:${name}`]);
+      } catch {
+        throw new Error(`${p.ref} does not carry ${name}`);
+      }
+      if (carried !== (await readFile(file, 'utf8'))) {
+        throw new Error(`${p.ref} carries a ${name} other than the repository's`);
+      }
     }
     const manifest = JSON.parse(git(repo, ['show', `refs/tags/${p.ref}:package.json`]));
     for (const [dep, spec] of Object.entries(manifest.dependencies ?? {})) {

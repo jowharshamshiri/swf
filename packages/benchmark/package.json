@@ -2,7 +2,7 @@
   "name": "@swf/benchmark",
   "version": "0.1.0",
   "description": "The Spatial Workspace Framework's performance benchmark: seeded standard and stress fixtures, a host that presents them, in-page measures, statistics and a resource probe for disposal soaks.",
-  "license": "UNLICENSED",
+  "license": "Apache-2.0",
   "private": true,
   "repository": {
     "type": "git",
@@ -20,7 +20,9 @@
   "files": [
     "dist",
     "src",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "LICENSE",
+    "NOTICE"
   ],
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"

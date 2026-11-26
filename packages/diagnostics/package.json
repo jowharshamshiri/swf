@@ -2,7 +2,7 @@
   "name": "@swf/diagnostics",
   "version": "0.1.0",
   "description": "Diagnostics for the Spatial Workspace Framework: backend capabilities, fallback reasons, frame and attachment measures, resource health and the last typed errors, all local.",
-  "license": "UNLICENSED",
+  "license": "Apache-2.0",
   "private": true,
   "repository": {
     "type": "git",
@@ -20,7 +20,9 @@
   "files": [
     "dist",
     "src",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "LICENSE",
+    "NOTICE"
   ],
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"

@@ -2,7 +2,7 @@
   "name": "@swf/backend-geometry",
   "version": "0.1.0",
   "description": "A geometry presentation backend for the Spatial Workspace Framework: drawn content, proxies, placeholders, window chrome and spatial indicators on canvases, a layered renderer pairing it with a native renderer, and a compositor stacking live and drawn layers in one explicit order.",
-  "license": "UNLICENSED",
+  "license": "Apache-2.0",
   "private": true,
   "repository": {
     "type": "git",
@@ -20,7 +20,9 @@
   "files": [
     "dist",
     "src",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "LICENSE",
+    "NOTICE"
   ],
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"

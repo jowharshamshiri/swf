@@ -1288,3 +1288,8 @@ WebKit:
 ```sh
 npx playwright install --with-deps chromium firefox webkit && npm run test:build
 ```
+
+## Licence
+
+SWF is licensed under the [Apache License, Version 2.0](LICENSE); [`NOTICE`](NOTICE) holds its
+copyright notice. Every package carries both.

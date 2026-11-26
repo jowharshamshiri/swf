@@ -2,7 +2,7 @@
   "name": "@swf/persistence",
   "version": "0.1.0",
   "description": "Versioned, canonical workspace snapshots for the Spatial Workspace Framework: a published JSON Schema with its validator, extension and policy state, a storage interface with an in-memory store, and the save state machine.",
-  "license": "UNLICENSED",
+  "license": "Apache-2.0",
   "private": true,
   "repository": {
     "type": "git",
@@ -21,7 +21,9 @@
   "files": [
     "dist",
     "src",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "LICENSE",
+    "NOTICE"
   ],
   "scripts": {
     "typecheck": "tsc -p tsconfig.json && tsc -p test/browser/tsconfig.json"

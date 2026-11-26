@@ -74,6 +74,15 @@ async function packages(alphaSource = 'export const alpha = 1;\n') {
   ];
 }
 
+/** The licence and the notice every package carries, as files of the fixture repository. */
+async function legalFiles() {
+  const licence = path.join(work, 'LICENSE');
+  const notice = path.join(work, 'NOTICE');
+  await writeFile(licence, 'Fixture licence text.\n');
+  await writeFile(notice, 'Fixture\nCopyright the fixture owner\n');
+  return [licence, notice];
+}
+
 async function bare(name) {
   const repo = path.join(work, name);
   git(['init', '--quiet', '--bare', repo]);
@@ -102,11 +111,13 @@ async function asReleased(made) {
 describe('per-package release refs', () => {
   it('make a ref per package holding exactly it, requiring siblings by their refs, which a host installs by git URL', async () => {
     const repo = await bare('refs.git');
+    const legal = await legalFiles();
     const made = await makeRefs({
       repo,
       repository: REPOSITORY,
       packages: await packages(),
       published: new Map(),
+      legal,
       staging: await staging('staging'),
     });
     expect(made.map((m) => m.ref)).toEqual(['alpha/v1.0.0', 'beta/v2.0.0']);
@@ -114,7 +125,7 @@ describe('per-package release refs', () => {
       '@fixture/alpha': 'git+https://git.example/fixture/packages.git#alpha/v1.0.0',
     });
     const released = await asReleased(made);
-    await verifyRefs({ repo, released, staging: await staging('verify') });
+    await verifyRefs({ repo, released, legal, staging: await staging('verify') });
 
     // A host installs beta alone by its git URL, and npm brings alpha by alpha's ref.
     const host = await staging('host');
@@ -136,7 +147,33 @@ describe('per-package release refs', () => {
       { cwd: host, encoding: 'utf8' },
     );
     expect(said.trim()).toBe('2');
+    // Each package as installed carries the licence and the notice.
+    for (const name of ['alpha', 'beta']) {
+      for (const file of legal) {
+        expect(
+          await readFile(
+            path.join(host, 'node_modules/@fixture', name, path.basename(file)),
+            'utf8',
+          ),
+        ).toBe(await readFile(file, 'utf8'));
+      }
+    }
   }, 120_000);
+
+  it('refuse a ref that does not carry the licence and the notice', async () => {
+    const repo = await bare('refs.git');
+    const made = await makeRefs({
+      repo,
+      repository: REPOSITORY,
+      packages: await packages(),
+      published: new Map(),
+      staging: await staging('staging'),
+    });
+    const released = await asReleased(made);
+    await expect(
+      verifyRefs({ repo, released, legal: await legalFiles(), staging: await staging('verify') }),
+    ).rejects.toThrow('alpha/v1.0.0 does not carry LICENSE');
+  }, 60_000);
 
   it('refuse a ref whose tree is not exactly its package', async () => {
     const repo = await bare('refs.git');

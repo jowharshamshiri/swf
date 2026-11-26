@@ -2,7 +2,7 @@
   "name": "@swf/models",
   "version": "0.1.0",
   "description": "The Spatial Workspace Framework's state machines and decision logic, written and proved in Lean and run as WebAssembly: the program lungo generates from models/, loaded once.",
-  "license": "UNLICENSED",
+  "license": "Apache-2.0",
   "private": true,
   "repository": {
     "type": "git",
@@ -23,7 +23,9 @@
     "dist",
     "program",
     "src",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "LICENSE",
+    "NOTICE"
   ],
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"
