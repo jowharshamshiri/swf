@@ -17,7 +17,7 @@ import { projectionFor } from '@swf/projections';
 import type { FeaturePatch, FeatureSettings } from './features.js';
 import { DEFAULT_FEATURES, ringsOf, updateFeatures } from './features.js';
 import type { Snap } from './magnetic.js';
-import { magneticMovePolicy } from './magnetic-policy.js';
+import { MAGNETIC_POLICY_ID, magneticMovePolicy } from './magnetic-policy.js';
 import type { OrbitEvent, OrbitState } from './orbit.js';
 import { orbitHeading, orbitKeymap, orbitRepair, orbitStateOf, orbitTransition } from './orbit.js';
 import { semanticDepth } from './semantic-depth.js';
@@ -64,6 +64,10 @@ export interface RunningGesture {
   /** The command it does, such as `node.move`, `orbit.turn` or `camera.turn`. */
   readonly operation: string;
   readonly nodeId: Id | null;
+  /** Whether magnetic positioning weighs where it puts the window: a magnetic move. */
+  readonly snaps: boolean;
+  /** Whether it is a burst of the wheel, the application's own, rather than the framework's. */
+  readonly wheel: boolean;
   /** The snap in force, while a magnetic move previews one. */
   readonly snap: Snap | null;
 }
@@ -259,13 +263,15 @@ export function createPolicies(options: PolicyOptions): Policies {
     workspace,
     router,
     viewportId,
-    gestureRunning: () => gesture !== null && !gesture.gestureId.startsWith('wheel-'),
+    gestureRunning: () => gesture !== null && !gesture.wheel,
     report(report) {
       if (report.kind === 'started') {
         gesture = Object.freeze({
           gestureId: report.burstId,
           operation: 'node.move',
           nodeId: report.nodeId,
+          snaps: false,
+          wheel: true,
           snap: null,
         });
       } else if (gesture?.gestureId === report.burstId) {
@@ -298,6 +304,8 @@ export function createPolicies(options: PolicyOptions): Policies {
         gestureId: event.gestureId,
         operation: event.operation,
         nodeId: event.nodeId,
+        snaps: event.policyId === MAGNETIC_POLICY_ID,
+        wheel: false,
         snap: null,
       });
       tell();

@@ -148,7 +148,7 @@
             : held
               ? t('gesture.gesture.grab', { label })
               : t('gesture.orbit.turn');
-    const snapping = model.policies?.features.enabled.snap === true && gesture.operation === 'node.move';
+    const snapping = gesture.snaps;
     return {
       what,
       held,

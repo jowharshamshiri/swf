@@ -191,6 +191,9 @@ describe('a window handled directly in the panorama', () => {
     expect(away.every((s, i) => s.reach > (away[i - 1]?.reach ?? start))).toBe(true);
     expect(away.map((s) => s.slider)).toEqual(away.map((s) => Number(s.reach.toFixed(1))));
     expect(away.every((s) => s.bar.includes('units away'))).toBe(true);
+    // A depth drag never snaps: the bar says it previews, not that nothing snapped.
+    expect(away.every((s) => s.bar.includes(ENGLISH['gesture.preview']))).toBe(true);
+    expect(away.some((s) => s.bar.includes(ENGLISH['gesture.free']))).toBe(false);
     expect(app.workspace.history()).toHaveLength(history + 1);
     const farther = poseIn(app.workspace.getState(), 'window-01');
     expect(farther.reach).toBeGreaterThan(start * 1.3);
