@@ -94,8 +94,10 @@ describe('the application uses only the public API (FR-185, ARCH-020)', () => {
           framework.has(specifier) ||
           kit.has(specifier) ||
           specifier === 'svelte' ||
-          // The build's own module saying which debug overlay it carries.
-          specifier === 'virtual:reference/debug';
+          // The build's own modules saying which optional views it carries: the debug overlay and
+          // the experiment panel.
+          specifier === 'virtual:reference/debug' ||
+          specifier === 'virtual:reference/experiments';
         if (!fine) {
           violations.push(`${path}: ${specifier}`);
         }
