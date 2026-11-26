@@ -1,0 +1,1 @@
+{"version":3,"file":"layer.js","sourceRoot":"","sources":["../src/layer.ts"],"names":[],"mappings":"AAAA,wFAAwF;AACxF,MAAM,CAAC,MAAM,cAAc,GAAG,oBAAoB,CAAC;AAqBnD;;;GAGG;AACH,MAAM,UAAU,eAAe,CAAC,OAAgB;IAC9C,OAAO,CACL,OAAO,OAAO,KAAK,QAAQ;QAC3B,OAAO,KAAK,IAAI;QACf,OAA8B,CAAC,IAAI,KAAK,cAAc,CACxD,CAAC;AACJ,CAAC"}
