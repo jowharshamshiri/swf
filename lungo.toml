@@ -82,6 +82,8 @@ exports = [
   "Swf.AppScenarios.guideStep",
   "Swf.AppChallenge.challengeTarget",
   "Swf.AppChallenge.challengeStep",
+  "Swf.AppOverview.overviewLayout",
+  "Swf.AppOverview.labelsShown",
 ]
 
 [assurance]

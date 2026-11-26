@@ -12,6 +12,7 @@ import type { ReferenceApp } from '../../src/app.js';
 import { parseConfig } from '../../src/config.js';
 import { MAP_SCALE, toMap } from '../../src/map.js';
 import { createMessages, ENGLISH } from '../../src/messages.js';
+import { overviewScene } from '../../src/overview.js';
 import { ShellModel } from '../../src/shell/model.svelte.js';
 import Shell from '../../src/shell/Shell.svelte';
 
@@ -235,6 +236,54 @@ describe('the spatial map (FR-124, UX-004, WF-05)', () => {
     expect(app.workspace.history()).toHaveLength(history);
   });
 
+  it('names every window, the ground in front and behind at its edges, and its rings by distance', async () => {
+    const { app, root, driver, settle } = await start('?preset=studio');
+    driver.act('editor.actions.mode#map', 'press');
+    await settle();
+    // Out far enough to hold most of the studio.
+    for (let i = 0; i < 3; i++) {
+      driver.act('page.map.zoom-out', 'press');
+      await settle();
+    }
+    const map = reading(driver, 'page.map');
+    const titled = [...root.querySelectorAll('[data-wsb^="page.map.unit#"]')]
+      .filter((unit) => unit.classList.contains('wsb-stage__unit--titled'))
+      .map((unit) => ({
+        key: (unit.getAttribute('data-wsb') ?? '').slice('page.map.unit#'.length),
+        box: unit.getBoundingClientRect(),
+      }));
+    const keys = titled.map((t) => t.key);
+    // Every window whose name falls on the map is named: none is left out for the readings.
+    const placed = [...root.querySelectorAll('[data-wsb^="page.map.unit#"]')]
+      .map((unit) => (unit.getAttribute('data-wsb') ?? '').slice('page.map.unit#'.length))
+      .filter((key) => app.workspace.getState().nodes.get(key)?.kind === 'window');
+    expect(placed.length).toBeGreaterThanOrEqual(8);
+    for (const id of placed) {
+      expect(keys, id).toContain(id);
+    }
+    // In front and behind, each named once, at the map's top and bottom edges as it faces.
+    expect(keys.filter((k) => k === 'region.front')).toHaveLength(1);
+    expect(keys.filter((k) => k === 'region.behind')).toHaveLength(1);
+    const front = titled.find((t) => t.key === 'region.front')?.box;
+    const behind = titled.find((t) => t.key === 'region.behind')?.box;
+    expect((front?.top ?? 0) - map.box.y).toBeLessThan(20);
+    expect(map.box.y + map.box.height - (behind?.bottom ?? 0)).toBeLessThan(20);
+    // A ring's distance is written.
+    expect(keys.some((k) => k.startsWith('ring.'))).toBe(true);
+    // No two names written over each other.
+    for (const a of titled) {
+      for (const b of titled) {
+        if (a === b) continue;
+        const apart =
+          a.box.right <= b.box.left + 0.5 ||
+          b.box.right <= a.box.left + 0.5 ||
+          a.box.bottom <= b.box.top + 0.5 ||
+          b.box.bottom <= a.box.top + 0.5;
+        expect(apart, `${a.key} and ${b.key}`).toBe(true);
+      }
+    }
+  });
+
   it('raises a window with the height control, which a map from above cannot show', async () => {
     const { app, driver, root, settle } = await start('?preset=seam');
     await current?.model.showInMap('window-02');
@@ -254,15 +303,112 @@ describe('the spatial map (FR-124, UX-004, WF-05)', () => {
   });
 });
 
-describe('the tiled overview (FR-128, UX-005)', () => {
-  it('selects and focuses the original windows, sharing focus with every mode', async () => {
+describe('the spatial overview (FR-128, UX-005)', () => {
+  /** A card's box on the page, from the stage's unit for it. */
+  function cardBox(root: HTMLElement, id: string): DOMRect {
+    const unit = root.querySelector(`[data-wsb="page.overview.board.unit#${id}"]`);
+    if (unit === null) throw new Error(`no card for "${id}"`);
+    return unit.getBoundingClientRect();
+  }
+  function boardViewport(root: HTMLElement): HTMLElement {
+    const canvas = root.querySelector('[data-wsb="page.overview.board.surface"]');
+    const viewport = canvas?.parentElement;
+    if (!(viewport instanceof HTMLElement)) throw new Error('no overview board');
+    return viewport;
+  }
+
+  it('lays every window out as a card where it stands, named, with the list beside it', async () => {
+    const { app, driver, root, settle } = await start('?preset=studio');
+    const history = app.workspace.history().length;
+    const before = layout(app);
+    driver.act('editor.actions.mode#overview', 'press');
+    await settle();
+    expect(app.status().mode).toBe('overview');
+    // Every window is a card, its name written on it; the regions are named across the top.
+    const ids = [...app.workspace.getState().nodes.values()]
+      .filter((n) => n.kind === 'window')
+      .map((n) => n.id);
+    expect(ids).toHaveLength(13);
+    for (const id of ids) {
+      const card = reading(driver, `page.overview.board.unit#${id}`);
+      expect(card.visible, id).toBe(true);
+      expect(card.text, id).toContain(app.workspace.getState().nodes.get(id)?.label ?? id);
+    }
+    for (const region of ['ahead', 'left', 'right', 'behind-left', 'behind-right']) {
+      expect(driver.read(`page.overview.board.unit#region.${region}`).present, region).toBe(true);
+    }
+    // Spatially: straight ahead in the middle, left to the left, behind at the edges.
+    const board = boardViewport(root).getBoundingClientRect();
+    const centre = (id: string) => {
+      const box = cardBox(root, id);
+      return (box.left + box.right) / 2 - board.left;
+    };
+    expect(centre('board')).toBeCloseTo(board.width / 2, -1);
+    expect(centre('desk')).toBeLessThan(centre('board'));
+    expect(centre('builds')).toBeGreaterThan(centre('board'));
+    expect(centre('reading')).toBeGreaterThan(board.width * 0.85);
+    expect(centre('calendar')).toBeLessThan(board.width * 0.25);
+    // Above the horizon higher up: the sketches (32° up) over the signal monitor (28° down).
+    expect(cardBox(root, 'sketches').top).toBeLessThan(cardBox(root, 'signals').top);
+    // The searchable list is still there, every window in it.
+    for (const id of ids) {
+      expect(driver.read(`page.overview.tile#${id}`).present, id).toBe(true);
+    }
+    // Looking changed nothing.
+    expect(layout(app)).toBe(before);
+    expect(app.workspace.history()).toHaveLength(history);
+  });
+
+  it('selects from a card, focuses from a double press, and reveals from the selected actions', async () => {
+    const { app, root, driver, settle } = await start('?preset=studio');
+    driver.act('editor.actions.mode#overview', 'press');
+    await settle();
+    const box = cardBox(root, 'metrics');
+    const frame = root.getBoundingClientRect();
+    const [x, y] = [box.left + box.width / 2 - frame.left, box.top + box.height / 2 - frame.top];
+    await commands.mouse('move', x, y);
+    await commands.mouse('down', x, y);
+    await commands.mouse('up', x, y);
+    await settle();
+    expect(app.workspace.getState().selection).toEqual(['metrics']);
+    // The row for it in the list is selected too: one selection, the scene's.
+    expect(reading(driver, 'page.overview.tile#metrics').state['data-selected']).toBe('true');
+    // Centre the view on it: the panorama, turned to face it.
+    driver.act('page.overview.selected.reveal#metrics', 'press');
+    await settle();
+    expect(app.status().mode).toBe('panorama');
+    const metrics = overviewScene(app.workspace.getState(), 'main').entries.find(
+      (e) => e.id === 'metrics',
+    );
+    expect(Math.abs(metrics?.heading ?? 180)).toBeLessThan(1);
+    // Back in the overview its card stands in the middle; a double press on another focuses it.
+    driver.act('editor.actions.mode#overview', 'press');
+    await settle();
+    await expect
+      .poll(() => Math.abs(cardCentre(root, 'metrics') - boardCentre(root)), { timeout: 2000 })
+      .toBeLessThan(4);
+    const archive = cardBox(root, 'archive');
+    boardViewport(root).dispatchEvent(
+      new MouseEvent('dblclick', {
+        bubbles: true,
+        clientX: archive.left + archive.width / 2,
+        clientY: archive.top + archive.height / 2,
+      }),
+    );
+    await settle();
+    expect(app.status().mode).toBe('focus');
+    expect(app.workspace.getState().focusedId).toBe('archive');
+  });
+
+  it('opens a row of the list to focus its window, as before, in a scene of hundreds', async () => {
     const { app, driver, settle } = await start('?preset=dense');
     driver.act('editor.actions.mode#overview', 'press');
     await settle();
     expect(app.status().mode).toBe('overview');
-    // A page of tiles, and the rest a press away.
+    // A page of rows, and the rest a press away; every window a card on the board.
     expect(driver.has('page.overview.tile#window-01')).toBe(true);
     expect(driver.has('page.overview.more')).toBe(true);
+    expect(driver.has('page.overview.board.unit#window-250')).toBe(true);
     driver.act('page.overview.tile#window-11', 'press');
     await settle();
     expect(app.workspace.getState().selection).toEqual(['window-11']);
@@ -271,7 +417,76 @@ describe('the tiled overview (FR-128, UX-005)', () => {
     expect(app.status().mode).toBe('focus');
     expect(app.workspace.getState().focusedId).toBe('window-11');
   });
+
+  it('follows the scene as it changes and keeps nothing of its own', async () => {
+    const { app, root, driver, settle } = await start('?preset=studio');
+    driver.act('editor.actions.mode#overview', 'press');
+    await settle();
+    const wasBehind = cardCentre(root, 'reading');
+    // The reading list, behind the camera, brought in front: its card moves to the middle.
+    await app.commands.run('reference.window.bringFront', { id: 'reading' });
+    await settle();
+    await expect
+      .poll(() => Math.abs(cardCentre(root, 'reading') - boardCentre(root)), { timeout: 2000 })
+      .toBeLessThan(60);
+    // Undone, it is back where it was.
+    app.workspace.undo();
+    await settle();
+    await expect
+      .poll(() => cardCentre(root, 'reading'), { timeout: 2000 })
+      .toBeCloseTo(wasBehind, 0);
+    // Searching fades the cards it leaves out and never takes one off the board.
+    driver.act('page.overview.search.field', 'type', 'research');
+    await expect.poll(() => app.search.query().text, { timeout: 2000 }).toBe('research');
+    await settle();
+    expect(driver.has('page.overview.tile#board')).toBe(false);
+    expect(driver.has('page.overview.tile#reading')).toBe(true);
+    expect(driver.has('page.overview.board.unit#board')).toBe(true);
+    const quiet = (id: string) =>
+      root
+        .querySelector(`[data-wsb="page.overview.board.unit#${id}"]`)
+        ?.classList.contains('wsb-stage__unit--quiet');
+    expect(quiet('board')).toBe(true);
+    expect(quiet('reading')).toBe(false);
+    // Into a group of its own, a window's card says so, and the group is named beside the board.
+    await app.commands.run('reference.window.regroup', {
+      id: 'reading',
+      groupId: null,
+      label: 'Research',
+    });
+    await settle();
+    const groups = [...root.querySelectorAll('[data-wsb^="page.overview.group#"]')];
+    expect(groups.map((tag) => tag.textContent.trim())).toEqual(['Research']);
+    // Away and back: the same cards in the same places, read again from the scene.
+    const places = () =>
+      [...root.querySelectorAll('[data-wsb^="page.overview.board.unit#"]')].map(
+        (unit) => `${unit.getAttribute('data-wsb') ?? ''} ${(unit as HTMLElement).style.transform}`,
+      );
+    const shown = places();
+    driver.act('editor.actions.mode#panorama', 'press');
+    await settle();
+    expect(driver.has('page.overview.board')).toBe(false);
+    driver.act('editor.actions.mode#overview', 'press');
+    await settle();
+    await expect.poll(places, { timeout: 2000 }).toEqual(shown);
+  });
 });
+
+/** Where a card's middle is across the overview's board, in CSS pixels. */
+function cardCentre(root: HTMLElement, id: string): number {
+  const unit = root.querySelector(`[data-wsb="page.overview.board.unit#${id}"]`);
+  const canvas = root.querySelector('[data-wsb="page.overview.board.surface"]');
+  if (unit === null || canvas === null) throw new Error(`no card for "${id}"`);
+  const box = unit.getBoundingClientRect();
+  return (box.left + box.right) / 2 - canvas.getBoundingClientRect().left;
+}
+
+/** The middle of the overview's board, across. */
+function boardCentre(root: HTMLElement): number {
+  const canvas = root.querySelector('[data-wsb="page.overview.board.surface"]');
+  if (canvas === null) throw new Error('no overview board');
+  return canvas.getBoundingClientRect().width / 2;
+}
 
 describe('search (§19, FR-190–FR-193)', () => {
   it('finds windows by metadata after typing pauses, lists hundreds without drawing them all, and acts on one', async () => {

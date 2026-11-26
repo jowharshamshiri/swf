@@ -1011,9 +1011,15 @@ content is attached or detached by a switch.
   camera it was entered from, and leaving it for any other mode puts the camera back too.
 - **Map**: the scene from above, with straight ahead of the default camera up the page: the
   camera and its heading, the ground in front of it and behind it shaded apart, the wedge the
-  panorama shows while its field of view is less than the circle, rings a world unit apart, and
-  each window as the line it stands on, filled in front and hollow and dashed behind, faded while
-  the panorama does not show it, ringed while it is focused, with its name.
+  panorama shows while its field of view is less than the circle, rings a world unit apart (five
+  zoomed out), their distances written down the line behind the camera every ring or every second,
+  fifth or tenth as room allows, and each window as the line it stands on, filled in front and
+  hollow and dashed behind, faded while the panorama does not show it, ringed while it is focused,
+  with its name. In front and behind are named where the line through the camera meets the map's
+  edges. A name is the size the kit writes it, to the right of its window's mark, or to its left,
+  above or below it where that runs off the map or onto another name; it is dropped only where
+  every one of those places overlaps a name already written, and the selected and the focused
+  windows' names are always written (the Lean model `Swf.AppOverview`).
   Pressing a window selects it; dragging it (past the same slop as the panorama's) moves it on the
   ground as far as the pointer moves, the point it was grabbed by staying under the pointer,
   previewed in every view as it goes (the panorama below the map shows it move) and committed once
@@ -1022,9 +1028,22 @@ content is attached or detached by a switch.
   snaps to the windows beside it as a move in the panorama does. Dragging the ground pans, the wheel and
   the zoom buttons zoom, and the fields beside the map place the selected window exactly, its
   height (which a map from above cannot show) included.
-- **Overview**: every window the search finds, as tiles, a page at a time with the rest a press
-  away. A tile is the window itself: pressing it selects that window's ID, opening it (a double
-  press or Enter) focuses it.
+- **Overview**: every window at once, as a card on a board that is the whole sphere round the
+  camera unrolled as the panorama unrolls it: straight ahead in the middle, left and right a
+  quarter of the way to each edge, behind at both edges (shaded), overhead at the top, the horizon
+  dashed across, the regions named along the top. A card stands across the board exactly at its
+  window's heading, and down it as near its elevation as the cards beside it allow, never
+  overlapping one, the higher window's above; the board takes the largest card size that holds
+  every window, and says so where none does, drawing each window as a dot where it stands (the
+  Lean model `Swf.AppOverview`). A card names its window and, large enough, says where it is
+  (heading and distance), its group, what it shows and how many parts it is composed of; its strip
+  is its group's colour, named beside the board. It is selected in the selection's colour, ringed
+  while focused, and faded while the panorama does not show it or the search leaves it out.
+  Pressing a card selects its window, a double press focuses it. Beside the board, the search and
+  the windows it finds, as a list, a page at a time with the rest a press away: pressing a row
+  selects it, opening it (a double press or Enter) focuses it, and the selected window's actions
+  stand at the head. The board and the list are read from the scene each time it changes and keep
+  nothing of their own: a card and a row are the window's own ID.
 
 The map and the overview take the top of the centre over the live panorama, with a movable edge
 between them.
@@ -1267,6 +1286,7 @@ attachments); the model decides each state it passes through and each request it
 | `Swf.AppWorkspaces`  | Named workspaces: valid names, autosave, saving now, restoring the newest visit, the stale visits, save times and which files import                                                                  |
 | `Swf.AppScenarios`   | How a guided scenario advances: from its first step, one step at a time and in order, each only once its condition holds while it is due, never undone                                                |
 | `Swf.AppChallenge`   | The timed window-finding task: which window a run names (never the selected one, behind the camera when any is), what it counts, when it ends and the records it keeps                                |
+| `Swf.AppOverview`    | Where each window's card stands on the overview's board (across at its heading, never overlapping, the higher above, at the largest size that holds them all), and which names the map writes         |
 
 `lungo.toml` names the exports and requires a proved claim of every one (`require-claims`); a claim
 proved with `sorry` fails the build. Read what was proved of an export with

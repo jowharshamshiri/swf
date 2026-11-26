@@ -19,6 +19,7 @@ import {
 import type { Messages } from '../messages.js';
 import { ringsOf } from '../features.js';
 import { fieldOfViewOf } from '../modes.js';
+import { models } from '@swf/models';
 
 /**
  * Draws the map on the kit's stage and works it: the ground split into what lies in front of the
@@ -52,8 +53,12 @@ const READING = Object.freeze({ width: 60, height: 22 });
 
 /** How near a press must be to a window's dot to take it, in CSS pixels. */
 const REACH = 12;
-/** Room for a window's name beside its dot, in CSS pixels. */
+/** Room for a window's name beside its dot on the radar, and the gap between dot and name, in CSS pixels. */
 const LABEL = Object.freeze({ width: 132, height: 30, gap: 8 });
+/** How far inside the map's edges its front and behind are named, in CSS pixels. */
+const EDGE = 8;
+/** The least room between two rings' distances written on the map, in CSS pixels. */
+const RING_ROOM = 100;
 
 /** The palette colours the map is drawn in, by their VS Code names. */
 const INKS = Object.freeze({
@@ -68,6 +73,39 @@ const INKS = Object.freeze({
 });
 type Inks = { readonly [K in keyof typeof INKS]: string };
 
+/** A name or a reading as the drawer places it, before the stage is told of it. */
+interface Label {
+  readonly key: string;
+  readonly title: string;
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+  readonly depth: number;
+  readonly emphasis: 'quiet' | 'prominent' | undefined;
+  readonly titled: boolean;
+}
+
+/** A name or a reading as the stage lays it over the drawing. */
+function stageUnit(label: Label): StageUnit {
+  return {
+    key: label.key,
+    title: label.title,
+    x: label.x,
+    y: label.y,
+    width: label.width,
+    height: label.height,
+    scale: 1,
+    depth: label.depth,
+    container: false,
+    band: 0,
+    emphasis: label.emphasis,
+    titled: label.titled,
+    open: false,
+    interactive: false,
+  };
+}
+
 export interface MapDrawerOptions {
   /** Default `map`. */
   readonly kind?: MapKind;
@@ -75,6 +113,8 @@ export interface MapDrawerOptions {
   readonly messages: Messages;
   readonly viewport: HTMLElement;
   readonly canvas: HTMLCanvasElement;
+  /** The stage's layer of units, where a name is measured before it is placed. */
+  readonly layer: HTMLElement;
   /** The names to lay over the drawing, as the stage shows them. */
   readonly onunits: (units: StageUnit[]) => void;
   /** The map's view changed (its scale, for the scale's reading). */
@@ -101,6 +141,8 @@ export class MapDrawer {
   #pan: { readonly pointer: number; x: number; y: number } | null = null;
   #frame: number | null = null;
   readonly #stops: (() => void)[] = [];
+  /** Each name's size as the stage writes it, by its text, until the appearance changes. */
+  #measured = new Map<string, { width: number; height: number }>();
 
   constructor(options: MapDrawerOptions) {
     this.#options = options;
@@ -134,12 +176,14 @@ export class MapDrawer {
     // An appearance or theme changes the palette.
     const appearance = new MutationObserver(() => {
       this.#inks = this.#readInks();
+      this.#measured.clear();
       this.#schedule();
     });
     appearance.observe(document.documentElement, { attributes: true });
     const scheme = window.matchMedia('(prefers-color-scheme: dark)');
     const onScheme = () => {
       this.#inks = this.#readInks();
+      this.#measured.clear();
       this.#schedule();
     };
     scheme.addEventListener('change', onScheme);
@@ -562,58 +606,94 @@ export class MapDrawer {
   }
 
   /**
-   * The names laid over the drawing: the two halves of the ground first, beside the camera, then
-   * the selected and focused windows', then the nearest to the camera, each only where it
-   * overlaps no name already placed.
+   * A name's size as the stage writes it, in CSS pixels: measured once, by writing it as a unit
+   * is written, out of sight in the stage's layer.
+   */
+  #measure(title: string): { width: number; height: number } {
+    const known = this.#measured.get(title);
+    if (known !== undefined) {
+      return known;
+    }
+    const { layer } = this.#options;
+    const document = layer.ownerDocument;
+    const unit = document.createElement('article');
+    unit.className = 'wsb-stage__unit wsb-stage__unit--titled';
+    unit.style.setProperty('visibility', 'hidden');
+    unit.style.setProperty('width', 'max-content');
+    const head = document.createElement('header');
+    head.className = 'wsb-stage__unit-title';
+    head.textContent = title;
+    unit.append(head);
+    layer.append(unit);
+    try {
+      const box = head.getBoundingClientRect();
+      const size = { width: Math.ceil(box.width) + 1, height: Math.ceil(box.height) };
+      this.#measured.set(title, size);
+      return size;
+    } finally {
+      unit.remove();
+    }
+  }
+
+  /**
+   * The names laid over the drawing. On the radar: each ring's distance and the bearings round its
+   * rim, then the selected and the focused windows' names alone. On the map: the selected and the
+   * focused windows' names, each written whatever it overlaps; every other window's name, nearest
+   * the camera first; in front and behind, where the ground's halves meet the map's edges (or
+   * beside that point along the edge); and each fifth ring's distance. Each is written where it
+   * overlaps nothing written before it (the overview model's `labelsShown`), its box the size the
+   * stage writes it, so a window's name is dropped only where another window's name is.
    */
   #units(scene: MapScene, view: MapView): StageUnit[] {
-    const units: StageUnit[] = [];
-    const placed: { x: number; y: number }[] = [];
-    const free = (x: number, y: number) =>
-      placed.every((p) => Math.abs(p.x - x) >= LABEL.width || Math.abs(p.y - y) >= LABEL.height);
-    const order = [...scene.markers].sort(
-      (a, b) =>
-        Number(b.selected || b.focused) - Number(a.selected || a.focused) ||
-        a.distance - b.distance ||
-        (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
-    );
     const { messages } = this.#options;
     const [cx, cy] = toMap(view, scene.camera.x, scene.camera.z);
     const ahead: [number, number] = [
       Math.sin(scene.camera.heading),
       -Math.cos(scene.camera.heading),
     ];
-    const reading = (key: string, title: string, x: number, y: number) => {
-      placed.push({ x, y });
-      units.push({
-        key,
-        title,
-        x,
-        y,
-        width: READING.width,
-        height: READING.height,
-        scale: 1,
-        depth: 0,
-        container: false,
-        band: 0,
-        emphasis: 'quiet',
-        titled: true,
-        open: false,
-        interactive: false,
-      });
-    };
+    const unit = (
+      key: string,
+      title: string,
+      x: number,
+      y: number,
+      size: { readonly width: number; readonly height: number },
+      look: Partial<Pick<Label, 'depth' | 'emphasis' | 'titled'>> = {},
+    ): Label => ({
+      key,
+      title,
+      x,
+      y,
+      width: size.width,
+      height: size.height,
+      depth: look.depth ?? 0,
+      emphasis: 'emphasis' in look ? look.emphasis : 'quiet',
+      titled: look.titled ?? true,
+    });
+    const order = [...scene.markers].sort(
+      (a, b) =>
+        Number(b.selected || b.focused) - Number(a.selected || a.focused) ||
+        a.distance - b.distance ||
+        (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+    );
+    const onScreen = (x: number, y: number, size: { width: number; height: number }) =>
+      x <= view.width && y <= view.height && x + size.width >= 0 && y + size.height >= 0;
+
     if (this.#kind === 'radar') {
+      const units: Label[] = [];
       // Each ring's distance, down the line straight behind as the scene was made; each bearing,
       // at the rim.
       const reach = radarReach(scene);
       const step = ringStep(reach);
       for (let r = step; r <= reach + 1e-9; r += step) {
         const value = Number(r.toFixed(2));
-        reading(
-          `ring.${String(value)}`,
-          messages.format('radar.ring', { value }),
-          cx + 3,
-          cy + r * view.scale - READING.height + 4,
+        units.push(
+          unit(
+            `ring.${String(value)}`,
+            messages.format('radar.ring', { value }),
+            cx + 3,
+            cy + r * view.scale - READING.height + 4,
+            READING,
+          ),
         );
       }
       // Straight ahead and behind outside the rim; the sides just inside it, above their ticks,
@@ -626,64 +706,186 @@ export class MapDrawer {
           side === 0
             ? [cx - READING.width / 2, degrees === 0 ? cy - rim - READING.height : cy + rim]
             : [side > 0 ? cx + rim - READING.width - 2 : cx - rim + 2, cy - READING.height - 2];
-        reading(`bearing.${String(degrees)}`, title, x, y);
+        units.push(unit(`bearing.${String(degrees)}`, title, x, y, READING));
       }
+      // Only the selected and the focused window are named on the radar: it is small.
+      for (const marker of order) {
+        const [mx, my] = toMap(view, marker.x, marker.z);
+        const x = mx + LABEL.gap;
+        const y = my - LABEL.height / 2;
+        if (!onScreen(x, y, LABEL)) {
+          continue;
+        }
+        units.push(
+          unit(marker.id, marker.label, x, y, LABEL, {
+            depth: marker.selected ? 3 : marker.focused ? 2 : 1,
+            emphasis: marker.selected
+              ? 'prominent'
+              : marker.side === 'behind'
+                ? 'quiet'
+                : undefined,
+            titled: marker.selected || marker.focused,
+          }),
+        );
+      }
+      return units.map(stageUnit);
     }
-    for (const [key, sign, label] of this.#kind === 'radar'
-      ? []
-      : ([
-          ['region.front', 1, messages.format('map.front')],
-          ['region.behind', -1, messages.format('map.behind')],
-        ] as const)) {
-      const x = cx + sign * ahead[0] * 48 - LABEL.width / 2;
-      const y = cy + sign * ahead[1] * 48 - LABEL.height / 2;
-      placed.push({ x, y });
-      units.push({
-        key,
-        title: label,
-        x,
-        y,
-        width: LABEL.width,
-        height: LABEL.height,
-        scale: 1,
-        depth: 0,
-        container: false,
-        band: 0,
-        emphasis: 'quiet',
-        titled: true,
-        open: false,
-        interactive: false,
-      });
-    }
-    for (const marker of order) {
+
+    // Every place a name may be written, in the order weighed: the name it is a place for (the
+    // places for one name share it), and whether it must be written.
+    const candidates: { unit: Label; name: number; kept: boolean }[] = [];
+    // A window's name to the right of its mark; where that runs off the map or onto another
+    // name, to its left, above it or below it. One that must be written takes the first of those
+    // that lies wholly on the map; a name with no such place keeps the first, partly off the map.
+    const whole = (x: number, y: number, size: { width: number; height: number }) =>
+      x >= 0 && y >= 0 && x + size.width <= view.width && y + size.height <= view.height;
+    order.forEach((marker, i) => {
       const [mx, my] = toMap(view, marker.x, marker.z);
-      const x = mx + LABEL.gap;
-      const y = my - LABEL.height / 2;
-      if (x > view.width || y > view.height || x + LABEL.width < 0 || y + LABEL.height < 0) {
-        continue;
+      const size = this.#measure(marker.label);
+      const beside = my - size.height / 2;
+      const centred = mx - size.width / 2;
+      const offered: [number, number][] = [
+        [mx + LABEL.gap, beside],
+        [mx - LABEL.gap - size.width, beside],
+        [centred, my - LABEL.gap - size.height],
+        [centred, my + LABEL.gap],
+      ];
+      const places = offered.filter(([x, y]) => whole(x, y, size));
+      const kept = marker.selected || marker.focused;
+      const first = offered[0];
+      if (first === undefined) {
+        throw new Error('a name has nowhere to go');
       }
-      // On the radar, only the selected and the focused window are named: it is small.
-      const titled = marker.selected || marker.focused || (this.#kind === 'map' && free(x, y));
-      if (titled) {
-        placed.push({ x, y });
+      for (const [x, y] of places.length === 0 ? [first] : kept ? places.slice(0, 1) : places) {
+        candidates.push({
+          unit: unit(marker.id, marker.label, x, y, size, {
+            depth: marker.selected ? 3 : marker.focused ? 2 : 1,
+            emphasis: marker.selected
+              ? 'prominent'
+              : marker.side === 'behind'
+                ? 'quiet'
+                : undefined,
+          }),
+          name: i,
+          kept,
+        });
       }
-      units.push({
-        key: marker.id,
-        title: marker.label,
-        x,
-        y,
-        width: LABEL.width,
-        height: LABEL.height,
-        scale: 1,
-        depth: marker.selected ? 3 : marker.focused ? 2 : 1,
-        container: false,
-        band: 0,
-        emphasis: marker.selected ? 'prominent' : marker.side === 'behind' ? 'quiet' : undefined,
-        titled,
-        open: false,
-        interactive: false,
-      });
+    });
+    let next = order.length;
+    // In front and behind: where the line through the camera along its heading meets the map's
+    // edges (EDGE inside them), ahead of it and behind it, or beside that point along the edge
+    // where a window's name is there already. A camera off the map names them at the edge nearest
+    // that line, as far along it as the map's half diagonal.
+    const inside = (x: number, y: number) =>
+      x >= EDGE && x <= view.width - EDGE && y >= EDGE && y <= view.height - EDGE;
+    const edgeAlong = (dx: number, dy: number): [number, number] => {
+      if (inside(cx, cy)) {
+        const limits = [
+          dx > 0 ? (view.width - EDGE - cx) / dx : dx < 0 ? (EDGE - cx) / dx : Infinity,
+          dy > 0 ? (view.height - EDGE - cy) / dy : dy < 0 ? (EDGE - cy) / dy : Infinity,
+        ];
+        const t = Math.min(...limits);
+        return [cx + dx * t, cy + dy * t];
+      }
+      const far = Math.hypot(view.width, view.height) / 2;
+      return [
+        Math.min(view.width - EDGE, Math.max(EDGE, cx + dx * far)),
+        Math.min(view.height - EDGE, Math.max(EDGE, cy + dy * far)),
+      ];
+    };
+    for (const [key, sign, id] of [
+      ['region.front', 1, 'map.front'],
+      ['region.behind', -1, 'map.behind'],
+    ] as const) {
+      const title = messages.format(id);
+      const size = this.#measure(title);
+      const [ex, ey] = edgeAlong(sign * ahead[0], sign * ahead[1]);
+      // On the top or bottom edge it moves across; on a side, up and down.
+      const across = ey <= EDGE + 0.5 || ey >= view.height - EDGE - 0.5;
+      const name = next++;
+      for (const shift of [0, -1, 1, -2, 2]) {
+        const x = across
+          ? ex - size.width / 2 + shift * (size.width + LABEL.gap)
+          : ex - size.width / 2;
+        const y = across ? ey - size.height / 2 : ey - size.height / 2 + shift * (size.height + 2);
+        // Wholly inside the map.
+        candidates.push({
+          unit: unit(
+            key,
+            title,
+            Math.min(view.width - EDGE - size.width, Math.max(EDGE, x)),
+            Math.min(view.height - EDGE - size.height, Math.max(EDGE, y)),
+            size,
+          ),
+          name,
+          kept: false,
+        });
+      }
     }
-    return units;
+    // Rings' distances: on every ring, or every second, fifth or tenth, whichever first leaves
+    // room between two readings; each down the line straight behind the camera, or where a name
+    // is there, on the line to its right, to its left or ahead.
+    const every = view.scale < 20 ? 5 : 1;
+    const reach =
+      Math.hypot(view.width, view.height) / view.scale +
+      Math.hypot(view.centre[0] - scene.camera.x, view.centre[1] - scene.camera.z);
+    const labelled = every * ([1, 2, 5, 10].find((n) => n * every * view.scale >= RING_ROOM) ?? 10);
+    const across: [number, number] = [-ahead[1], ahead[0]];
+    const lines: readonly [number, number][] = [
+      [-ahead[0], -ahead[1]],
+      across,
+      [-across[0], -across[1]],
+      ahead,
+    ];
+    for (let r = labelled; r <= reach; r += labelled) {
+      const title = messages.format('map.ring', { value: r });
+      const size = this.#measure(title);
+      const name = next++;
+      for (const [dx, dy] of lines) {
+        const x = cx + dx * r * view.scale + 3;
+        const y = cy + dy * r * view.scale - size.height;
+        if (whole(x, y, size)) {
+          candidates.push({
+            unit: unit(`ring.${String(r)}`, title, x, y, size),
+            name,
+            kept: false,
+          });
+        }
+      }
+    }
+    const visible = candidates.filter(({ unit: u }) => onScreen(u.x, u.y, u));
+    const shown = models.labelsShown(
+      visible.map(({ unit: u, name, kept }) => ({
+        name: BigInt(name),
+        x: BigInt(Math.round(u.x)),
+        y: BigInt(Math.round(u.y)),
+        width: BigInt(Math.ceil(u.width)),
+        height: BigInt(Math.ceil(u.height)),
+        kept,
+      })),
+    );
+    if (shown.length !== visible.length) {
+      throw new Error('the map was told about some of its names only');
+    }
+    // A window's name not written stays a unit, untitled, so it is written once it has room.
+    // Each window's name where it is written; a window whose name is written nowhere keeps its
+    // first place, untitled, so it is written once it has room. A reading not written, and a place
+    // passed over, is no unit at all.
+    const units: Label[] = [];
+    const written = new Set<number>();
+    visible.forEach(({ unit: u, name }, i) => {
+      if (shown[i] === true) {
+        units.push(u);
+        written.add(name);
+      }
+    });
+    const untitled = new Set<number>();
+    for (const { unit: u, name } of visible) {
+      if (name < order.length && !written.has(name) && !untitled.has(name)) {
+        untitled.add(name);
+        units.push({ ...u, titled: false });
+      }
+    }
+    return units.map(stageUnit);
   }
 }

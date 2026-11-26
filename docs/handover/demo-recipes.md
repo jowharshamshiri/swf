@@ -82,7 +82,10 @@ in the command list (Ctrl+Shift+P or F1).
 2. In Map, drag a window on the ground: the panorama below the map shows it move as you drag.
 3. Select a window and choose Focus: it is framed readably, with its neighbours in a row below;
    Escape returns to the mode, camera and projection it was entered from.
-4. In Overview, every window is a tile; pressing one selects it. No mode moves a window.
+4. In Overview, every window is a card where it stands round the camera: straight ahead in the
+   middle, behind at both edges, higher windows above. Press a card to select it, double-press it
+   to focus it; type in the search beside it to fade the cards it leaves out. No mode moves a
+   window.
 
 ## Navigating with the radar
 

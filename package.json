@@ -1,5 +1,5 @@
 {
-  "version": "0.96.284",
+  "version": "0.97.293",
   "name": "swf",
   "private": true,
   "description": "Spatial Workspace Framework: a browser-first TypeScript framework for spatial presentation and window management.",

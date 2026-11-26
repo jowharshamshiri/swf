@@ -25,6 +25,7 @@
 
   let viewport: HTMLElement | undefined = $state();
   let canvas: HTMLCanvasElement | undefined = $state();
+  let layer: HTMLElement | undefined = $state();
   let units = $state<StageUnit[]>([]);
   let view = $state<MapView | null>(null);
   let drawer: MapDrawer | null = null;
@@ -35,7 +36,13 @@
 
   $effect(() => {
     const app = model.app;
-    if (app === null || viewport === undefined || canvas === undefined || drawer !== null) {
+    if (
+      app === null ||
+      viewport === undefined ||
+      canvas === undefined ||
+      layer === undefined ||
+      drawer !== null
+    ) {
       return;
     }
     drawer = new MapDrawer({
@@ -43,6 +50,7 @@
       messages: model.messages,
       viewport,
       canvas,
+      layer,
       onunits: (next) => {
         units = next;
       },
@@ -223,4 +231,5 @@
   asideLabel={t('map.placement')}
   bind:viewport
   bind:canvas
+  bind:layer
 />

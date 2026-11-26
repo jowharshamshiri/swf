@@ -534,6 +534,86 @@ export type OrbitStep =
 /** The descriptor of Swf.AppOrbit.OrbitStep: how its values cross the boundary. */
 export function orbitStepType(): L.Type<OrbitStep>;
 
+/**
+ * A place for a name on the map: its box, in pixels, which name it is a place for, and whether it
+ * must be written.
+ */
+export interface LabelBox {
+  /** Which name it is a place for: the places for one name share it. */
+  readonly name: bigint;
+  /** Lean's Swf.AppOverview.LabelBox.x. */
+  readonly x: bigint;
+  /** Lean's Swf.AppOverview.LabelBox.y. */
+  readonly y: bigint;
+  /** Lean's Swf.AppOverview.LabelBox.width. */
+  readonly width: bigint;
+  /** Lean's Swf.AppOverview.LabelBox.height. */
+  readonly height: bigint;
+  /** It is written whatever it overlaps. */
+  readonly kept: boolean;
+}
+/** The descriptor of Swf.AppOverview.LabelBox: how its values cross the boundary. */
+export function labelBoxType(): L.Type<LabelBox>;
+
+/** The board the cards stand on, in pixels. */
+export interface OverviewBoard {
+  /** Lean's Swf.AppOverview.OverviewBoard.width. */
+  readonly width: bigint;
+  /** Lean's Swf.AppOverview.OverviewBoard.height. */
+  readonly height: bigint;
+}
+/** The descriptor of Swf.AppOverview.OverviewBoard: how its values cross the boundary. */
+export function overviewBoardType(): L.Type<OverviewBoard>;
+
+/** A window as the overview places it: where it is round the camera, in tenths of a degree. */
+export interface OverviewWindow {
+  /** How far round from straight behind on the left (−180°) to the right: 0 to 3600. */
+  readonly along: bigint;
+  /** How far down from straight overhead (90° up) to straight underfoot: 0 to 1800. */
+  readonly down: bigint;
+}
+/** The descriptor of Swf.AppOverview.OverviewWindow: how its values cross the boundary. */
+export function overviewWindowType(): L.Type<OverviewWindow>;
+
+/** A card size the board may take, in pixels, with the least room between two cards. */
+export interface OverviewSize {
+  /** Lean's Swf.AppOverview.OverviewSize.width. */
+  readonly width: bigint;
+  /** Lean's Swf.AppOverview.OverviewSize.height. */
+  readonly height: bigint;
+  /** Lean's Swf.AppOverview.OverviewSize.gap. */
+  readonly gap: bigint;
+}
+/** The descriptor of Swf.AppOverview.OverviewSize: how its values cross the boundary. */
+export function overviewSizeType(): L.Type<OverviewSize>;
+
+/** Where the cards stand, or why they cannot. */
+export type OverviewAnswer =
+  | {
+      /**
+       * At the size at this place in the sizes, every card stands on the board: the cards, highest
+       * window first.
+       */
+      readonly kind: "laid";
+      /** The field `size` of Lean's Swf.AppOverview.OverviewAnswer.laid. */
+      readonly size: bigint;
+      /** The field `cards` of Lean's Swf.AppOverview.OverviewAnswer.laid. */
+      readonly cards: Array<OverviewCard>;
+    }
+  | {
+      /** At no size offered does every card stand on the board. */
+      readonly kind: "crowded";
+    }
+  | {
+      /** The number at this field is out of range. */
+      readonly kind: "invalid";
+      /** The field `field` of Lean's Swf.AppOverview.OverviewAnswer.invalid. */
+      readonly field: string;
+    }
+;
+/** The descriptor of Swf.AppOverview.OverviewAnswer: how its values cross the boundary. */
+export function overviewAnswerType(): L.Type<OverviewAnswer>;
+
 /** A scenario under way. */
 export interface Guide {
   /** Which scenario, by its ID. */
@@ -2313,6 +2393,18 @@ export type OrbitCommand =
 /** The descriptor of Swf.AppOrbit.OrbitCommand: how its values cross the boundary. */
 export function orbitCommandType(): L.Type<OrbitCommand>;
 
+/** Where a window's card stands: its top-left corner on the board, in pixels. */
+export interface OverviewCard {
+  /** The window's place in the windows asked about. */
+  readonly index: bigint;
+  /** Lean's Swf.AppOverview.OverviewCard.x. */
+  readonly x: bigint;
+  /** Lean's Swf.AppOverview.OverviewCard.y. */
+  readonly y: bigint;
+}
+/** The descriptor of Swf.AppOverview.OverviewCard: how its values cross the boundary. */
+export function overviewCardType(): L.Type<OverviewCard>;
+
 /** A snap on one axis: how far to turn or move the window, and why. */
 export interface SnapCandidate {
   /**
@@ -3045,6 +3137,19 @@ export class SwfModels {
    * Lean's Swf.AppOrbit.orbitStep : Swf.AppOrbit.OrbitState → Swf.AppOrbit.OrbitEvent → Swf.AppOrbit.OrbitStep
    */
   orbitStep(s: OrbitState, e: OrbitEvent): OrbitStep;
+  /**
+   * Which places are written, in the order asked: each in turn is written when it must be, or
+   * when no box written before it overlaps it or writes its name.
+   *
+   * Lean's Swf.AppOverview.labelsShown : Array Swf.AppOverview.LabelBox → Array Bool
+   */
+  labelsShown(boxes: Array<LabelBox>): Array<boolean>;
+  /**
+   * Where every window's card stands on the board, at the largest size offered that holds them.
+   *
+   * Lean's Swf.AppOverview.overviewLayout : Swf.AppOverview.OverviewBoard →   Array Swf.AppOverview.OverviewWindow → Array Swf.AppOverview.OverviewSize → Swf.AppOverview.OverviewAnswer
+   */
+  overviewLayout(board: OverviewBoard, windows: Array<OverviewWindow>, sizes: Array<OverviewSize>): OverviewAnswer;
   /**
    * The scenario under way after an event.
    *

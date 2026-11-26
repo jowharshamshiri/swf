@@ -1577,6 +1577,392 @@
       }
     },
     {
+      "name": "Swf.AppOverview.card_at_heading",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppOverview.overviewLayout"
+      ],
+      "specifications": [],
+      "statement": "∀ (board : Swf.AppOverview.OverviewBoard) (windows : Array Swf.AppOverview.OverviewWindow)\n  (sizes : Array Swf.AppOverview.OverviewSize) (k : Nat) (cards : Array Swf.AppOverview.OverviewCard),\n  Swf.AppOverview.overviewLayout board windows sizes = Swf.AppOverview.OverviewAnswer.laid k cards →\n    ∃ s,\n      sizes[k]? = some s ∧\n        ∀ (p : Swf.AppOverview.OverviewCard),\n          p ∈ cards.toList → p.x = Swf.AppOverview.acrossAt board s windows[p.index]!",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "92ab1497cea0d892151bfa68df79062109572a6d97c61ef81ee6f31e39935005",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppOverview.lean",
+        "start": {
+          "line": 420,
+          "column": 1
+        },
+        "end": {
+          "line": 427,
+          "column": 64
+        }
+      }
+    },
+    {
+      "name": "Swf.AppOverview.cards_never_overlap",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppOverview.overviewLayout"
+      ],
+      "specifications": [],
+      "statement": "∀ (board : Swf.AppOverview.OverviewBoard) (windows : Array Swf.AppOverview.OverviewWindow)\n  (sizes : Array Swf.AppOverview.OverviewSize) (k : Nat) (cards : Array Swf.AppOverview.OverviewCard),\n  Swf.AppOverview.overviewLayout board windows sizes = Swf.AppOverview.OverviewAnswer.laid k cards →\n    ∃ s,\n      sizes[k]? = some s ∧\n        List.Pairwise (fun p q => Swf.AppOverview.crowds s p.x q.x = true → p.y + ↑s.height + ↑s.gap ≤ q.y) cards.toList",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "507757c22cf6357a3916a53ae81080c28743d488fea7ed2c79d561d023cff806",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppOverview.lean",
+        "start": {
+          "line": 429,
+          "column": 1
+        },
+        "end": {
+          "line": 438,
+          "column": 54
+        }
+      }
+    },
+    {
+      "name": "Swf.AppOverview.cards_on_board",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppOverview.overviewLayout"
+      ],
+      "specifications": [],
+      "statement": "∀ (board : Swf.AppOverview.OverviewBoard) (windows : Array Swf.AppOverview.OverviewWindow)\n  (sizes : Array Swf.AppOverview.OverviewSize) (k : Nat) (cards : Array Swf.AppOverview.OverviewCard),\n  Swf.AppOverview.overviewLayout board windows sizes = Swf.AppOverview.OverviewAnswer.laid k cards →\n    ∃ s,\n      sizes[k]? = some s ∧\n        ∀ (p : Swf.AppOverview.OverviewCard),\n          p ∈ cards.toList → 0 ≤ p.x ∧ p.x + ↑s.width ≤ ↑board.width ∧ 0 ≤ p.y ∧ p.y + ↑s.height ≤ ↑board.height",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "639b20b3466b6764dff61d640a0c41e22b973a7e882731f38cc3b4a82df4e928",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppOverview.lean",
+        "start": {
+          "line": 467,
+          "column": 1
+        },
+        "end": {
+          "line": 487,
+          "column": 44
+        }
+      }
+    },
+    {
+      "name": "Swf.AppOverview.crowded_only_when_none_holds",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppOverview.overviewLayout"
+      ],
+      "specifications": [],
+      "statement": "∀ (board : Swf.AppOverview.OverviewBoard) (windows : Array Swf.AppOverview.OverviewWindow)\n  (sizes : Array Swf.AppOverview.OverviewSize),\n  Swf.AppOverview.overviewLayout board windows sizes = Swf.AppOverview.OverviewAnswer.crowded →\n    ∀ (t : Swf.AppOverview.OverviewSize), t ∈ sizes.toList → Swf.AppOverview.laysAt board windows t = false",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "4273ac80c272bbe25b6d07ad48b47d5f039bba8b9767ed6dae0ce964a36933a8",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppOverview.lean",
+        "start": {
+          "line": 499,
+          "column": 1
+        },
+        "end": {
+          "line": 510,
+          "column": 59
+        }
+      }
+    },
+    {
+      "name": "Swf.AppOverview.dropped_only_on_collision",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppOverview.labelsShown"
+      ],
+      "specifications": [],
+      "statement": "∀ (boxes : Array Swf.AppOverview.LabelBox) (pre post : List (Swf.AppOverview.LabelBox × Bool))\n  (b : Swf.AppOverview.LabelBox × Bool),\n  boxes.toList.zip (Swf.AppOverview.labelsShown boxes).toList = pre ++ b :: post →\n    b.snd = false →\n      ∃ a, a ∈ pre ∧ a.snd = true ∧ (Swf.AppOverview.overlaps a.fst b.fst = true ∨ a.fst.name = b.fst.name)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "cf8539f755cce67882770e04cbddb4e86c517f6fcb50ad1a99602157c9916ccc",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppOverview.lean",
+        "start": {
+          "line": 628,
+          "column": 1
+        },
+        "end": {
+          "line": 640,
+          "column": 13
+        }
+      }
+    },
+    {
+      "name": "Swf.AppOverview.every_window_once",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppOverview.overviewLayout"
+      ],
+      "specifications": [],
+      "statement": "∀ (board : Swf.AppOverview.OverviewBoard) (windows : Array Swf.AppOverview.OverviewWindow)\n  (sizes : Array Swf.AppOverview.OverviewSize) (k : Nat) (cards : Array Swf.AppOverview.OverviewCard),\n  Swf.AppOverview.overviewLayout board windows sizes = Swf.AppOverview.OverviewAnswer.laid k cards →\n    (List.map (fun x => x.index) cards.toList).Perm (List.range windows.size)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "9095d275573a12dac06a64092078687d3c7c415e43a9c34c9133621c4bc61f14",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppOverview.lean",
+        "start": {
+          "line": 410,
+          "column": 1
+        },
+        "end": {
+          "line": 418,
+          "column": 32
+        }
+      }
+    },
+    {
+      "name": "Swf.AppOverview.higher_window_above",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppOverview.overviewLayout"
+      ],
+      "specifications": [],
+      "statement": "∀ (board : Swf.AppOverview.OverviewBoard) (windows : Array Swf.AppOverview.OverviewWindow)\n  (sizes : Array Swf.AppOverview.OverviewSize) (k : Nat) (cards : Array Swf.AppOverview.OverviewCard),\n  Swf.AppOverview.overviewLayout board windows sizes = Swf.AppOverview.OverviewAnswer.laid k cards →\n    List.Pairwise (fun p q => windows[p.index]!.down ≤ windows[q.index]!.down) cards.toList",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "ea81642e4fd3906f3658948b28f92c83017950f02cdd70eb4bd0d0b4cbda498e",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppOverview.lean",
+        "start": {
+          "line": 440,
+          "column": 1
+        },
+        "end": {
+          "line": 453,
+          "column": 56
+        }
+      }
+    },
+    {
+      "name": "Swf.AppOverview.kept_written",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppOverview.labelsShown"
+      ],
+      "specifications": [],
+      "statement": "∀ (boxes : Array Swf.AppOverview.LabelBox) (b : Swf.AppOverview.LabelBox × Bool),\n  b ∈ boxes.toList.zip (Swf.AppOverview.labelsShown boxes).toList → b.fst.kept = true → b.snd = true",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "0761477ca54d870255d0706c696d42a6885ff14387a36010220abfd316326c5a",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppOverview.lean",
+        "start": {
+          "line": 608,
+          "column": 1
+        },
+        "end": {
+          "line": 613,
+          "column": 29
+        }
+      }
+    },
+    {
+      "name": "Swf.AppOverview.labels_answered",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppOverview.labelsShown"
+      ],
+      "specifications": [],
+      "statement": "∀ (boxes : Array Swf.AppOverview.LabelBox), (Swf.AppOverview.labelsShown boxes).size = boxes.size",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "ca6edd35df2030b4f75db6b1d031cc684eae385bba0e78dcef64e8206fbfb22c",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppOverview.lean",
+        "start": {
+          "line": 588,
+          "column": 1
+        },
+        "end": {
+          "line": 593,
+          "column": 27
+        }
+      }
+    },
+    {
+      "name": "Swf.AppOverview.largest_size_that_holds",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppOverview.overviewLayout"
+      ],
+      "specifications": [],
+      "statement": "∀ (board : Swf.AppOverview.OverviewBoard) (windows : Array Swf.AppOverview.OverviewWindow)\n  (sizes : Array Swf.AppOverview.OverviewSize) (k : Nat) (cards : Array Swf.AppOverview.OverviewCard),\n  Swf.AppOverview.overviewLayout board windows sizes = Swf.AppOverview.OverviewAnswer.laid k cards →\n    ∀ (j : Nat),\n      j < k → ∀ (t : Swf.AppOverview.OverviewSize), sizes[j]? = some t → Swf.AppOverview.laysAt board windows t = false",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "2474fe1d167dfd03487b408923313dceef128ef75602fcaae2e12ca5a5ccbf18",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppOverview.lean",
+        "start": {
+          "line": 489,
+          "column": 1
+        },
+        "end": {
+          "line": 497,
+          "column": 15
+        }
+      }
+    },
+    {
+      "name": "Swf.AppOverview.out_of_range_refused",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppOverview.overviewLayout"
+      ],
+      "specifications": [],
+      "statement": "∀ (board : Swf.AppOverview.OverviewBoard) (windows : Array Swf.AppOverview.OverviewWindow)\n  (sizes : Array Swf.AppOverview.OverviewSize) (field : String),\n  Swf.AppOverview.overviewInvalid windows sizes = some field →\n    Swf.AppOverview.overviewLayout board windows sizes = Swf.AppOverview.OverviewAnswer.invalid field",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "0851ac1a58051ec3a853485c2c7d1fbc78e22187cd38b8044c4fefd3a225c4fb",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppOverview.lean",
+        "start": {
+          "line": 512,
+          "column": 1
+        },
+        "end": {
+          "line": 517,
+          "column": 27
+        }
+      }
+    },
+    {
+      "name": "Swf.AppOverview.written_names_clear",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppOverview.labelsShown"
+      ],
+      "specifications": [],
+      "statement": "∀ (boxes : Array Swf.AppOverview.LabelBox),\n  List.Pairwise\n    (fun a b =>\n      a.snd = true →\n        b.snd = true → b.fst.kept = false → Swf.AppOverview.overlaps a.fst b.fst = false ∧ a.fst.name ≠ b.fst.name)\n    (boxes.toList.zip (Swf.AppOverview.labelsShown boxes).toList)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "d9df1094bdf77fdcbe3fa79ef9e5a9cf150c94aa3d1407b3eb4972ea417f8638",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppOverview.lean",
+        "start": {
+          "line": 615,
+          "column": 1
+        },
+        "end": {
+          "line": 626,
+          "column": 13
+        }
+      }
+    },
+    {
       "name": "Swf.AppScenarios.done_within_steps",
       "relation": "lungo.law",
       "subjects": [
@@ -6430,6 +6816,112 @@
         "end": {
           "line": 105,
           "column": 84
+        }
+      }
+    },
+    {
+      "name": "Swf.AppOverview.labelsShown",
+      "module": "Swf.AppOverview",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_array_mk",
+          "lean_array_to_list",
+          "lean_int_add",
+          "lean_int_dec_lt",
+          "lean_nat_dec_eq",
+          "lean_nat_to_int"
+        ]
+      },
+      "claims": [
+        "Swf.AppOverview.dropped_only_on_collision",
+        "Swf.AppOverview.kept_written",
+        "Swf.AppOverview.labels_answered",
+        "Swf.AppOverview.written_names_clear"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppOverview.lean",
+        "start": {
+          "line": 189,
+          "column": 1
+        },
+        "end": {
+          "line": 192,
+          "column": 52
+        }
+      }
+    },
+    {
+      "name": "Swf.AppOverview.overviewLayout",
+      "module": "Swf.AppOverview",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_array_fget_borrowed",
+          "lean_array_get_borrowed",
+          "lean_array_get_size",
+          "lean_array_mk",
+          "lean_array_to_list",
+          "lean_int_add",
+          "lean_int_dec_le",
+          "lean_int_dec_lt",
+          "lean_int_sub",
+          "lean_nat_add",
+          "lean_nat_dec_eq",
+          "lean_nat_dec_le",
+          "lean_nat_dec_lt",
+          "lean_nat_div",
+          "lean_nat_mod",
+          "lean_nat_mul",
+          "lean_nat_pow",
+          "lean_nat_shiftr",
+          "lean_nat_sub",
+          "lean_nat_to_int",
+          "lean_string_append",
+          "lean_string_mk",
+          "lean_string_of_usize",
+          "lean_system_platform_nbits",
+          "lean_usize_of_nat"
+        ]
+      },
+      "claims": [
+        "Swf.AppOverview.card_at_heading",
+        "Swf.AppOverview.cards_never_overlap",
+        "Swf.AppOverview.cards_on_board",
+        "Swf.AppOverview.crowded_only_when_none_holds",
+        "Swf.AppOverview.every_window_once",
+        "Swf.AppOverview.higher_window_above",
+        "Swf.AppOverview.largest_size_that_holds",
+        "Swf.AppOverview.out_of_range_refused"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppOverview.lean",
+        "start": {
+          "line": 148,
+          "column": 1
+        },
+        "end": {
+          "line": 156,
+          "column": 23
         }
       }
     },
