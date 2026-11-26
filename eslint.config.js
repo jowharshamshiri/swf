@@ -20,9 +20,9 @@ export default defineConfig(
       // The pinned checkout of wsb, for its UI kit, and the dev-server test's copy of the app.
       'wsb/**',
       'apps/reference/.dev-test-*/**',
-      // The reference application and the navigation controls need the wsb UI kit to be checked;
-      // without it, they are left out.
-      ...(withReferenceApp() ? [] : ['apps/reference/**', 'ui/**']),
+      // The reference application, the navigation controls and the navigation host need the wsb
+      // UI kit to be checked; without it, they are left out.
+      ...(withReferenceApp() ? [] : ['apps/reference/**', 'ui/**', 'examples/navigation-host/**']),
     ],
   },
   js.configs.recommended,

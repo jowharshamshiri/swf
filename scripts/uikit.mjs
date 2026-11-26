@@ -27,7 +27,10 @@ export const UIKIT_MISSING =
   'and then `npm install`.';
 
 /** What the package checks say when they leave the reference application out. */
-export const UIKIT_SKIPPED = `${UIKIT_MISSING} Until then the reference application is skipped; every package and the examples are checked.`;
+export const UIKIT_SKIPPED = `${UIKIT_MISSING} Until then the reference application, the navigation controls (ui/navigation) and the navigation host (examples/navigation-host) are skipped; every framework package and the other examples are checked.`;
+
+/** Set in the environment of a process whose parent has said the kit is missing already. */
+export const UIKIT_SAID = 'SWF_UIKIT_SKIP_SAID';
 
 /**
  * Whether the kit is present; when it is not, says once in this process that the reference
@@ -36,7 +39,7 @@ export const UIKIT_SKIPPED = `${UIKIT_MISSING} Until then the reference applicat
 export function withReferenceApp() {
   const present = uikitPresent();
   const said = Symbol.for('swf.uikit.skipped');
-  if (!present && globalThis[said] !== true) {
+  if (!present && globalThis[said] !== true && process.env[UIKIT_SAID] !== '1') {
     globalThis[said] = true;
     process.stderr.write(`${UIKIT_SKIPPED}\n`);
   }

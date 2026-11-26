@@ -7,13 +7,13 @@ import { UIKIT_SKIPPED, uikitPresent } from './uikit.mjs';
 /**
  * The local check, in order: the models match their proofs, formatting, the packages' build,
  * their bundle sizes and their packed install, types, lint, the API reference, every test, and the
- * reference application's build. Stops at the first step that fails.
+ * builds of the reference application and the navigation host. Stops at the first step that fails.
  *
  *   npm run check
  *
- * The reference application is built from the wsb UI kit, whose repository is not public. A
- * checkout without it checks every package and the examples, leaves the reference application
- * out, and says so before and after.
+ * The reference application, the navigation controls and the navigation host are built from the
+ * wsb UI kit, whose repository is not public. A checkout without it checks every framework package
+ * and the other examples, leaves those three out, and says so before and after.
  */
 
 const ROOT = path.resolve(import.meta.dirname, '..');
@@ -32,13 +32,21 @@ const steps = [
         'run',
         'typecheck',
         ...workspaces
-          .filter((w) => w !== 'apps/reference' && !w.startsWith('ui/'))
+          .filter(
+            (w) =>
+              w !== 'apps/reference' && w !== 'examples/navigation-host' && !w.startsWith('ui/'),
+          )
           .flatMap((w) => ['--workspace', w]),
       ],
   ['run', 'lint'],
   ['run', 'api-reference', '--', '--check'],
   ['run', 'test'],
-  ...(withApp ? [['run', 'build', '--workspace', '@swf/reference']] : []),
+  ...(withApp
+    ? [
+        ['run', 'build', '--workspace', '@swf/reference'],
+        ['run', 'build', '--workspace', '@swf/example-navigation-host'],
+      ]
+    : []),
 ];
 
 if (!withApp) process.stderr.write(`${UIKIT_SKIPPED}\n\n`);
@@ -53,5 +61,5 @@ for (const step of steps) {
 process.stdout.write(
   withApp
     ? '\ncheck: every step passed.\n'
-    : '\ncheck: every step passed for the packages and the examples; the reference application was skipped (see above).\n',
+    : '\ncheck: every step passed for the framework packages and the other examples; the reference application, the navigation controls and the navigation host were skipped (see above).\n',
 );

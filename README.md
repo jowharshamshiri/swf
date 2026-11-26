@@ -1452,6 +1452,13 @@ npm run api-reference   # the API reference in api-reference/, failing on an und
                         # public declaration
 ```
 
+`npm run lint` runs ESLint over each workspace in a process of its own, and over the rest of the
+repository in one more, a few at a time (`scripts/lint.mjs`). Type-aware linting builds a
+TypeScript program for every tsconfig it meets and keeps each for the whole run: one process over
+the whole repository held twenty-one at once and needed 2.3 to 2.6 GB of heap (3.0 GB at its peak),
+past Node's default on a machine of 16 GB (2.24 GB); one a workspace needs only its own, the
+reference application's the largest at 1.2 GB at its peak, however many workspaces there are.
+
 `npm run check` runs `npm run size` and `npm run smoke:packages` after building the packages, and
 `npm run api-reference -- --check` after the lint. The first fails a package over its budget in
 `size-budgets.json`, or one that leaves code behind when imported for nothing, and reports each
