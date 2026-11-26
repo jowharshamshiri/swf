@@ -1,0 +1,1964 @@
+import type {
+  BindingRef,
+  EventSource,
+  Id,
+  SurfaceRecord,
+  SwfError,
+  SwfErrorCode,
+  TxOutcome,
+  Workspace,
+  WorkspaceEvent,
+} from '@swf/core';
+import { makeError, surfaceEffectiveState, SwfFailure } from '@swf/core';
+import type {
+  Presentation,
+  SurfaceEvent,
+  SurfaceRefusal,
+  SurfaceStep,
+  UnboundReason as LeanUnboundReason,
+} from '@swf/models';
+import { models } from '@swf/models';
+import type {
+  BindingContext,
+  PresentationHint,
+  PresentationTarget,
+  SurfaceAdapter,
+} from './adapter.js';
+import { adapterIssue } from './adapter.js';
+import type { SurfaceCapabilities } from './capabilities.js';
+import { capabilitiesIssue, exceededCapabilities, freezeCapabilities } from './capabilities.js';
+import type {
+  PresentationState,
+  RuntimeEvent,
+  RuntimeEventPayload,
+  RuntimeEventType,
+  UnboundReason,
+} from './events.js';
+
+/**
+ * How to make a surface runtime. The options are checked at run time: an unknown option or an
+ * invalid value throws {@link SwfFailure} (`INVALID_INPUT`) with the path `options.<field>`.
+ */
+export interface SurfaceRuntimeOptions {
+  /**
+   * How long resolving a binding may take before it fails as retryable (`BIND_FAILED`, with
+   * `details.reason` `timeout`) and its signal aborts: a positive, finite number of milliseconds.
+   * Adapters that declare `untimedBinding` are never timed out. Default 15000.
+   */
+  readonly bindingTimeoutMs?: number;
+  /**
+   * Whether surfaces start binding as soon as they appear, their binding changes or their
+   * adapter is registered. Default true. Failed bindings are never retried automatically.
+   */
+  readonly autoBind?: boolean;
+  /** The clock for timestamps, in milliseconds. Default `Date.now`. */
+  readonly now?: () => number;
+  /** How many diagnostics `getDiagnostics` keeps: at least 1. Default 100. */
+  readonly diagnosticsCapacity?: number;
+  /** Receives every diagnostic as it is recorded. A sink that throws is ignored. */
+  readonly onDiagnostic?: (diagnostic: RuntimeDiagnostic) => void;
+}
+
+/** A surface's presence in one viewport: an attachment, shown or hidden. Frozen. */
+export interface ViewportAttachment {
+  /** The viewport the surface is attached in. */
+  readonly viewportId: Id;
+  /** True when it is shown there; false when it is attached but hidden. */
+  readonly visible: boolean;
+}
+
+/**
+ * What the runtime knows of one surface's presentation: a frozen snapshot, taken when it is
+ * returned, that does not follow later changes.
+ */
+export interface SurfacePresentation {
+  /** The surface. */
+  readonly surfaceId: Id;
+  /** Where it is in the presentation lifecycle. */
+  readonly state: PresentationState;
+  /**
+   * Increases with every binding attempt, every committed replacement, every failure and every
+   * release; completions of an older generation are discarded.
+   */
+  readonly generation: number;
+  /** The binding it presents, or is to bind, as the scene names it; frozen. */
+  readonly binding: BindingRef;
+  /** The negotiated capabilities of the bound handle, or null when none is bound; frozen. */
+  readonly capabilities: SurfaceCapabilities | null;
+  /** Why it is unbound while `state` is `unbound`; null in every other state. */
+  readonly unboundReason: UnboundReason | null;
+  /** Why it failed while `state` is `error`; null in every other state. */
+  readonly error: SwfError | null;
+  /** Its attachment in each viewport it is attached in, in the order they were made. */
+  readonly viewports: readonly ViewportAttachment[];
+  /** A binding replacement is in progress. */
+  readonly replacing: boolean;
+}
+
+/**
+ * What a presentation operation of {@link SurfaceRuntime} came to. A refusal is returned, never
+ * thrown, and the promise is never rejected for one. The outcome is frozen.
+ */
+export type PresentationOutcome =
+  | {
+      /** The operation did what was asked, or there was nothing to do. */
+      readonly status: 'ok';
+      /** The surface's presentation after the operation. */
+      readonly presentation: SurfacePresentation;
+    }
+  | {
+      /** The operation was refused or failed. */
+      readonly status: 'rejected';
+      /**
+       * Why: `UNKNOWN_ENTITY` for a surface the runtime does not track, `INVALID_TRANSITION` for
+       * an operation its state does not allow, `WORKSPACE_DISPOSED` once the runtime is disposed,
+       * `CANCELLED` when the surface changed while the operation waited, or the operation's own
+       * failure as each method states.
+       */
+      readonly error: SwfError;
+    };
+
+/** What delivering a presentation hint came to. Returned, never thrown. */
+export type HintOutcome =
+  | {
+      /** The hint was taken. */
+      readonly status: 'ok';
+      /** False when the hint repeated the last one for that viewport and was coalesced away. */
+      readonly delivered: boolean;
+    }
+  | {
+      /** The hint was refused; the adapter did not see it. */
+      readonly status: 'rejected';
+      /**
+       * Why: `UNKNOWN_ENTITY` for a surface the runtime does not track, `INVALID_TRANSITION` for
+       * one not attached in the hint's viewport.
+       */
+      readonly error: SwfError;
+    };
+
+/**
+ * Something the runtime noticed and dealt with that no operation reports: a failure it absorbed or
+ * a late completion it discarded. Diagnostics are frozen.
+ */
+export interface RuntimeDiagnostic {
+  /**
+   * What happened: an adapter's `detach` threw (`ADAPTER_THREW`), a listener threw
+   * (`LISTENER_THREW`), a resolve or attach completed after the surface changed and was discarded
+   * or released (`STALE_COMPLETION`), a bound handle's capabilities changed
+   * (`CAPABILITIES_CHANGED`), or an adapter threw on a hint (`HINT_IGNORED`).
+   */
+  readonly code:
+    | 'ADAPTER_THREW'
+    | 'LISTENER_THREW'
+    | 'STALE_COMPLETION'
+    | 'CAPABILITIES_CHANGED'
+    | 'HINT_IGNORED';
+  /** A readable account, for logs; not meant to be parsed. */
+  readonly message: string;
+  /** When it was recorded, in milliseconds by the runtime's clock. */
+  readonly timestamp: number;
+  /** The surface concerned, or null when there is none (a listener that threw). */
+  readonly surfaceId: Id | null;
+  /**
+   * Particulars by code, all strings: `phase` (`resolve`, `attach` or `detach`) and `reason` (what
+   * was thrown, as text), `adapterId`, or `eventId`.
+   */
+  readonly details: Readonly<Record<string, string>>;
+}
+
+/**
+ * Receives every runtime event, in order. An exception it throws is recorded as a
+ * `LISTENER_THREW` diagnostic; other listeners still receive the event.
+ */
+export type RuntimeListener = (event: RuntimeEvent) => void;
+
+/**
+ * Binds a workspace's surface associations to live endpoints through registered adapters and
+ * drives each surface through the presentation lifecycle. It changes no scene state except when
+ * asked to replace a binding, and it never manages the endpoints' producers.
+ *
+ * The runtime follows the workspace's events: it tracks every surface association in the scene
+ * (from creation), binds a new or rebound one when `autoBind` is on, releases a removed one, and
+ * passes changed bounds on to the adapter as hints. The host owns the runtime and disposes it
+ * with {@link SurfaceRuntime.dispose}; disposing the workspace disposes it too.
+ *
+ * Presentation operations return a {@link PresentationOutcome} and never throw for a refusal;
+ * operations run while another on the same surface is in flight are refused or superseded as each
+ * method states.
+ */
+export interface SurfaceRuntime {
+  /** The workspace whose surfaces the runtime presents. */
+  readonly workspaceId: Id;
+  /** True once {@link SurfaceRuntime.dispose} has been called, while it runs as well as after. */
+  readonly disposed: boolean;
+  /**
+   * Registers an adapter. Throws {@link SwfFailure}: `INVALID_INPUT` for a malformed adapter or a
+   * taken ID, `UNSUPPORTED_CAPABILITY` for an incompatible contract version or contradictory
+   * capabilities, `WORKSPACE_DISPOSED` once the runtime is disposed. Registering sends
+   * `adapter.registered`, and with `autoBind` starts binding every surface that was waiting for
+   * an adapter of this type.
+   *
+   * @returns A function that unregisters the adapter: every surface holding or acquiring a binding
+   *   through it releases its attachments (through the adapter's `detach`) and its handle, and
+   *   becomes `unbound` (`adapter-unavailable`). `adapter.unregistered` is sent without waiting
+   *   for those releases to finish. The endpoints are left as they are. Calling it again, or
+   *   after the runtime is disposed, does nothing.
+   */
+  registerAdapter<THandle>(adapter: SurfaceAdapter<THandle>): () => void;
+  /** The surface's presentation now, or undefined when the runtime does not track it. */
+  get(surfaceId: Id): SurfacePresentation | undefined;
+  /** Every tracked surface's presentation now, in the order the runtime began tracking them. */
+  list(): SurfacePresentation[];
+  /**
+   * The bound handle, for a presentation backend; undefined when the surface is unknown or has no
+   * bound handle. The handle is the adapter's, opaque to the framework: the caller must not
+   * dispose it, and must not keep it past the surface's next release.
+   */
+  handleOf(surfaceId: Id): unknown;
+  /**
+   * Starts binding an unbound or failed surface; the promise settles when the attempt does. A
+   * surface with no binding key or no registered adapter stays `unbound`, with that reason, and
+   * the outcome is `ok`; so is one whose key the adapter does not know (`unknown-binding-key`).
+   * A failed resolve leaves the surface in `error`, and the outcome is still `ok`, its
+   * presentation carrying the error. Refused with `INVALID_TRANSITION` in any other state.
+   */
+  bind(surfaceId: Id): Promise<PresentationOutcome>;
+  /**
+   * Releases the surface's presentation attachments and handle, keeping the association: it ends
+   * `unbound` (`released`). A binding in flight is aborted. The endpoint is left as it is. An
+   * unbound surface is left as it is; one that is detaching or replacing its binding is refused
+   * with `INVALID_TRANSITION`.
+   */
+  unbind(surfaceId: Id): Promise<PresentationOutcome>;
+  /**
+   * Attaches a bound surface to a viewport (or reveals it there again), handing the adapter a
+   * {@link PresentationTarget} with `container`, which stays the caller's. A surface whose handle
+   * has a single owner cannot be presented in a second viewport, nor can two surfaces present the
+   * same single-owner endpoint: such requests are rejected with `UNSUPPORTED_CAPABILITY`, so the
+   * caller shows a proxy instead.
+   *
+   * Refused with `INVALID_INPUT` for a blank viewport ID, and with `INVALID_TRANSITION` when the
+   * surface is not bound, is replacing its binding, or is already shown or attaching there. When
+   * the adapter's `attach` fails, the surface goes to `error` (every attachment released) and
+   * `BIND_FAILED` is returned; when the surface changes while attaching, the late attachment is
+   * released and `CANCELLED` is returned.
+   */
+  present(surfaceId: Id, viewportId: Id, container: unknown): Promise<PresentationOutcome>;
+  /**
+   * Hides a surface in a viewport. With `release`, the attachment is released, but only when the
+   * handle declares safe detachment; otherwise it stays attached and hidden. When the surface was
+   * shown there, the adapter first receives a hint that it is hidden. Refused with
+   * `INVALID_TRANSITION` when the surface is not attached there or is replacing its binding.
+   * Hiding a hidden attachment without releasing it does nothing.
+   */
+  hide(
+    surfaceId: Id,
+    viewportId: Id,
+    options?: {
+      /** Release the attachment too, when the handle declares safe detachment. Default false. */
+      release?: boolean;
+    },
+  ): Promise<PresentationOutcome>;
+  /**
+   * Moves a surface's attachment in a viewport to another container, as when the viewport's
+   * presentation resources are replaced: it is released from the old container and attached to
+   * the new one, shown or hidden as it was. Only a handle that declares safe detachment moves
+   * (`UNSUPPORTED_CAPABILITY` otherwise). When the new attachment fails, the attachment goes back
+   * where it was and `BIND_FAILED` is returned; when even that fails, the surface is in error.
+   * Moving to the container it is already in does nothing. Refused with `INVALID_TRANSITION` when
+   * the surface is not attached there (or is still attaching) or is replacing its binding.
+   */
+  move(surfaceId: Id, viewportId: Id, container: unknown): Promise<PresentationOutcome>;
+  /**
+   * Passes an advisory hint to the adapter of the surface it names, for the viewport it names;
+   * a hint equal to the last one for that viewport is coalesced away. The hint is passed as given,
+   * not copied: the caller must not change it afterwards. An adapter that throws on it leaves the
+   * outcome `ok` and records `HINT_IGNORED`.
+   */
+  deliverHint(hint: PresentationHint): HintOutcome;
+  /**
+   * Replaces the surface's binding in place: the new endpoint is resolved and attached to every
+   * viewport first, then the change commits as one transaction, then the old attachment is
+   * released. Any failure before the commit leaves the old binding presented and the scene
+   * unchanged.
+   *
+   * Only a bound surface with no replacement or attachment in flight hands over
+   * (`INVALID_TRANSITION` otherwise). A blank `bindingKey` is refused with `INVALID_INPUT`, an
+   * adapter type with no registered adapter with `ADAPTER_UNAVAILABLE`, a key the adapter does not
+   * know or an endpoint that fails to resolve or attach with `BIND_FAILED`, capabilities that are
+   * malformed or exceed the adapter's declaration, or a single-owner endpoint for a surface
+   * attached in several viewports or that another surface presents (single ownership as
+   * {@link SurfaceRuntime.present} checks it), with `UNSUPPORTED_CAPABILITY`, and a transaction
+   * the workspace rejects (such as `LOCKED`) with that rejection's error. The commit sends
+   * `presentation.replaced`.
+   *
+   * @param binding The endpoint to present: a non-blank binding key, and the adapter type that
+   *   resolves it, by default the surface's own.
+   * @param options `source` is the event source the committed transaction carries; default
+   *   `host`.
+   */
+  replaceBinding(
+    surfaceId: Id,
+    binding: { readonly bindingKey: string; readonly adapterTypeId?: string },
+    options?: { readonly source?: EventSource },
+  ): Promise<PresentationOutcome>;
+  /**
+   * Calls `listener` with every runtime event from now on, in order, until the returned function
+   * is called; that function is safe to call more than once. Disposing the runtime drops every
+   * listener. Throws {@link SwfFailure}: `INVALID_INPUT` when `listener` is not a function,
+   * `WORKSPACE_DISPOSED` once the runtime is disposed.
+   */
+  subscribe(listener: RuntimeListener): () => void;
+  /**
+   * The diagnostics recorded so far, oldest first: the most recent `diagnosticsCapacity`. Returns
+   * a fresh array of frozen diagnostics.
+   */
+  getDiagnostics(): readonly RuntimeDiagnostic[];
+  /**
+   * The binding-management scope: adapters, binding and rebinding, but no presentation. Each
+   * call returns a fresh frozen object that calls this runtime.
+   */
+  binder(): SurfaceBinder;
+  /**
+   * Releases every attachment and stops listening: each surface releases its attachments through
+   * its adapter and ends `detached`, bindings in flight are aborted, and then every adapter is
+   * forgotten (without `adapter.unregistered`) and every listener dropped. The endpoints and the
+   * workspace are left as they are. Every call returns the same promise, which settles once the
+   * release is done. From the first call on, binding, presenting, moving, replacing, registering
+   * and subscribing are refused with `WORKSPACE_DISPOSED`, and a surface already released is
+   * unknown to the runtime.
+   */
+  dispose(): Promise<void>;
+}
+
+/**
+ * What a module that manages surface binding may do: register adapters, bind, unbind and replace
+ * bindings, and observe their state. Presenting in viewports is left to presentation backends.
+ * Like every scope, it makes a module's reach explicit; it is not a security boundary. Its members
+ * behave as the runtime's own.
+ */
+export type SurfaceBinder = Pick<
+  SurfaceRuntime,
+  | 'workspaceId'
+  | 'registerAdapter'
+  | 'get'
+  | 'list'
+  | 'bind'
+  | 'unbind'
+  | 'replaceBinding'
+  | 'subscribe'
+>;
+
+/**
+ * Creates the surface runtime of a workspace. It subscribes to the workspace and starts tracking
+ * every surface in the scene at once, binding each that can bind when `autoBind` is on (as soon as
+ * an adapter of its type is registered).
+ *
+ * The runtime is the caller's: dispose it with {@link SurfaceRuntime.dispose} to release every
+ * attachment and unsubscribe from the workspace; disposing the workspace disposes it too. Neither
+ * stops a host's producer or disposes an endpoint.
+ *
+ * @throws A {@link SwfFailure}: `INVALID_INPUT` for invalid options, naming `options.<field>`, and
+ *   `WORKSPACE_DISPOSED` when the workspace is not `ready`.
+ *
+ * @example
+ * ```ts
+ * const surfaces = createSurfaceRuntime(workspace, { bindingTimeoutMs: 5000 });
+ * const unregister = surfaces.registerAdapter(videoAdapter);
+ * const unsubscribe = surfaces.subscribe((event) => {
+ *   if (event.type === 'presentation.stateChanged') console.log(event.payload.to);
+ * });
+ * // ...
+ * unsubscribe();
+ * unregister();
+ * await surfaces.dispose();
+ * ```
+ */
+export function createSurfaceRuntime(
+  workspace: Workspace,
+  options: SurfaceRuntimeOptions = {},
+): SurfaceRuntime {
+  return new Runtime(workspace, options);
+}
+
+interface Attachment {
+  target: PresentationTarget;
+  visible: boolean;
+  lastHint: PresentationHint | null;
+}
+
+/** One binding attempt: cancelling it aborts the adapter's resolve and stops waiting for it. */
+interface Attempt {
+  readonly controller: AbortController;
+  readonly cancelled: Promise<'cancelled'>;
+  cancel(): void;
+}
+
+type Resolution =
+  | { readonly kind: 'bound'; readonly handle: unknown; readonly capabilities: SurfaceCapabilities }
+  | { readonly kind: 'unknown-key' }
+  | { readonly kind: 'failed'; readonly error: SwfError }
+  | { readonly kind: 'cancelled' };
+
+interface Entry {
+  readonly surfaceId: Id;
+  state: PresentationState;
+  generation: number;
+  binding: BindingRef;
+  adapter: SurfaceAdapter | null;
+  handle: unknown;
+  capabilities: SurfaceCapabilities | null;
+  unboundReason: UnboundReason | null;
+  error: SwfError | null;
+  attachments: Map<Id, Attachment>;
+  /** Viewports whose attachment is in progress. */
+  pending: Set<Id>;
+  /**
+   * The attempt whose handle is (or is being) bound. Its binding context counts only while it is
+   * current; any later attempt, release or failure supersedes it.
+   */
+  attempt: Attempt | null;
+  settled: Promise<void>;
+  /** The binding a replacement in progress will commit, so its rebind event is expected. */
+  replacing: BindingRef | null;
+  removed: boolean;
+}
+
+const OPTION_KEYS = ['bindingTimeoutMs', 'autoBind', 'now', 'diagnosticsCapacity', 'onDiagnostic'];
+
+class Runtime implements SurfaceRuntime {
+  readonly workspaceId: Id;
+  readonly #workspace: Workspace;
+  readonly #timeoutMs: number;
+  readonly #autoBind: boolean;
+  readonly #now: () => number;
+  readonly #diagnosticsCapacity: number;
+  readonly #onDiagnostic: ((d: RuntimeDiagnostic) => void) | undefined;
+  readonly #adapters = new Map<string, SurfaceAdapter>();
+  readonly #entries = new Map<Id, Entry>();
+  readonly #listeners = new Set<RuntimeListener>();
+  readonly #outbox: RuntimeEvent[] = [];
+  #delivering = false;
+  readonly #diagnostics: RuntimeDiagnostic[] = [];
+  #eventSeq = 0;
+  #disposed: Promise<void> | null = null;
+  readonly #unsubscribe: () => void;
+
+  constructor(workspace: Workspace, options: SurfaceRuntimeOptions) {
+    const checked = checkOptions(options, workspace.id);
+    if (workspace.lifecycle !== 'ready') {
+      throw failure(
+        'WORKSPACE_DISPOSED',
+        `workspace "${workspace.id}" is ${workspace.lifecycle}`,
+        workspace.id,
+      );
+    }
+    this.workspaceId = workspace.id;
+    this.#workspace = workspace;
+    this.#timeoutMs = checked.bindingTimeoutMs;
+    this.#autoBind = checked.autoBind;
+    this.#now = checked.now;
+    this.#diagnosticsCapacity = checked.diagnosticsCapacity;
+    this.#onDiagnostic = checked.onDiagnostic;
+    this.#unsubscribe = workspace.subscribe((event) => {
+      this.#onWorkspaceEvent(event);
+    });
+    for (const surface of workspace.getState().surfaces) {
+      this.#track(surface);
+    }
+  }
+
+  get disposed(): boolean {
+    return this.#disposed !== null;
+  }
+
+  // --- queries ----------------------------------------------------------------------------
+
+  get(surfaceId: Id): SurfacePresentation | undefined {
+    const entry = this.#entries.get(surfaceId);
+    return entry === undefined ? undefined : snapshot(entry);
+  }
+
+  list(): SurfacePresentation[] {
+    return [...this.#entries.values()].map(snapshot);
+  }
+
+  handleOf(surfaceId: Id): unknown {
+    const entry = this.#entries.get(surfaceId);
+    return entry === undefined || entry.capabilities === null ? undefined : entry.handle;
+  }
+
+  getDiagnostics(): readonly RuntimeDiagnostic[] {
+    return [...this.#diagnostics];
+  }
+
+  subscribe(listener: RuntimeListener): () => void {
+    if (typeof listener !== 'function') {
+      throw failure('INVALID_INPUT', 'listener must be a function', this.workspaceId);
+    }
+    this.#assertLive();
+    const entry: RuntimeListener = (event) => {
+      listener(event);
+    };
+    this.#listeners.add(entry);
+    return () => {
+      this.#listeners.delete(entry);
+    };
+  }
+
+  // --- adapters ---------------------------------------------------------------------------
+
+  registerAdapter<THandle>(adapter: SurfaceAdapter<THandle>): () => void {
+    this.#assertLive();
+    const issue = adapterIssue(adapter);
+    if (issue !== null) {
+      throw failure(issue.code, issue.message, this.workspaceId);
+    }
+    if (this.#adapters.has(adapter.id)) {
+      throw failure(
+        'INVALID_INPUT',
+        `an adapter "${adapter.id}" is already registered`,
+        this.workspaceId,
+      );
+    }
+    const registered: SurfaceAdapter = Object.freeze({
+      id: adapter.id,
+      apiVersion: adapter.apiVersion,
+      declaredCapabilities: freezeCapabilities(adapter.declaredCapabilities),
+      untimedBinding: adapter.untimedBinding ?? false,
+      resolve: (key: string, signal: AbortSignal, context: BindingContext) =>
+        adapter.resolve(key, signal, context),
+      capabilities: (handle: unknown) => adapter.capabilities(handle as THandle),
+      attach: (handle: unknown, target: PresentationTarget) =>
+        adapter.attach(handle as THandle, target),
+      update: (handle: unknown, hint: PresentationHint) => {
+        adapter.update(handle as THandle, hint);
+      },
+      detach: (handle: unknown, target: PresentationTarget) =>
+        adapter.detach(handle as THandle, target),
+    });
+    this.#adapters.set(adapter.id, registered);
+    this.#emit('adapter.registered', { adapterId: adapter.id });
+    if (this.#autoBind) {
+      for (const entry of this.#entries.values()) {
+        if (
+          entry.binding.adapterTypeId === adapter.id &&
+          models.bindsOnAdapter(presentationOf(entry))
+        ) {
+          this.#startBinding(entry);
+        }
+      }
+    }
+    return () => {
+      if (this.#adapters.get(adapter.id) !== registered) {
+        return;
+      }
+      this.#adapters.delete(adapter.id);
+      for (const entry of this.#entries.values()) {
+        if (
+          entry.binding.adapterTypeId === adapter.id &&
+          models.holdsBinding(presentationOf(entry))
+        ) {
+          void this.#release(entry, 'unbound', 'adapter-unavailable');
+        }
+      }
+      this.#emit('adapter.unregistered', { adapterId: adapter.id });
+    };
+  }
+
+  // --- lifecycle operations ---------------------------------------------------------------
+
+  bind(surfaceId: Id): Promise<PresentationOutcome> {
+    const entry = this.#entries.get(surfaceId);
+    if (entry === undefined) {
+      return this.#rejected(this.#unknown(surfaceId));
+    }
+    const refused = models.bindGate(this.#disposed !== null, presentationOf(entry));
+    if (refused !== null) {
+      return this.#rejected(this.#refusal(entry, refused, 'bind'));
+    }
+    this.#startBinding(entry);
+    return entry.settled.then(() => this.#ok(entry));
+  }
+
+  unbind(surfaceId: Id): Promise<PresentationOutcome> {
+    const entry = this.#entries.get(surfaceId);
+    if (entry === undefined) {
+      return this.#rejected(this.#unknown(surfaceId));
+    }
+    const gate = models.unbindGate(presentationOf(entry), entry.replacing !== null);
+    if (gate.kind === 'refuse') {
+      return this.#rejected(this.#refusal(entry, gate.why, 'unbind'));
+    }
+    if (gate.kind === 'done') {
+      return Promise.resolve(this.#ok(entry));
+    }
+    return this.#release(entry, 'unbound', 'released').then(() => this.#ok(entry));
+  }
+
+  async present(surfaceId: Id, viewportId: Id, container: unknown): Promise<PresentationOutcome> {
+    const entry = this.#entries.get(surfaceId);
+    if (entry === undefined) {
+      return this.#rejected(this.#unknown(surfaceId));
+    }
+    const blocked = this.#presentBlocker(entry, viewportId);
+    if (blocked !== null) {
+      return this.#rejected(blocked);
+    }
+    const existing = entry.attachments.get(viewportId);
+    if (existing !== undefined) {
+      // Hidden but still attached: reveal it, with no new attachment.
+      existing.visible = true;
+      this.#emit('presentation.viewportChanged', {
+        surfaceId,
+        viewportId,
+        attached: true,
+        visible: true,
+      });
+      this.#settleVisibility(entry);
+      return this.#ok(entry);
+    }
+    const adapter = entry.adapter;
+    const geometry = this.#workspace.surfaceGeometry(surfaceId);
+    if (adapter === null || geometry === undefined) {
+      return this.#rejected(this.#unknown(surfaceId));
+    }
+    const target: PresentationTarget = Object.freeze({
+      surfaceId,
+      viewportId,
+      container,
+      geometry,
+    });
+    const generation = entry.generation;
+    const handle = entry.handle;
+    entry.pending.add(viewportId);
+    try {
+      await adapter.attach(handle, target);
+    } catch (error) {
+      entry.pending.delete(viewportId);
+      if (entry.generation !== generation || entry.removed) {
+        return this.#rejected(this.#changedWhile(surfaceId, 'attaching'));
+      }
+      const failed = this.#error(
+        'BIND_FAILED',
+        `adapter "${adapter.id}" could not attach surface "${surfaceId}" in viewport "${viewportId}"`,
+        surfaceId,
+        { retryable: true, details: { phase: 'attach', reason: describeError(error) } },
+      );
+      await this.#fail(entry, failed);
+      return this.#rejected(failed);
+    }
+    entry.pending.delete(viewportId);
+    if (entry.generation !== generation || entry.removed) {
+      // The surface was removed, rebound or unbound meanwhile: release only this attachment.
+      this.#diagnose(
+        'STALE_COMPLETION',
+        `an attachment of surface "${surfaceId}" completed after the surface changed; released`,
+        surfaceId,
+        { phase: 'attach' },
+      );
+      await this.#detachQuietly(adapter, handle, target, surfaceId);
+      return this.#rejected(this.#changedWhile(surfaceId, 'attaching'));
+    }
+    entry.attachments.set(viewportId, { target, visible: true, lastHint: null });
+    this.#emit('presentation.viewportChanged', {
+      surfaceId,
+      viewportId,
+      attached: true,
+      visible: true,
+    });
+    this.#settleVisibility(entry);
+    return this.#ok(entry);
+  }
+
+  async move(surfaceId: Id, viewportId: Id, container: unknown): Promise<PresentationOutcome> {
+    const entry = this.#entries.get(surfaceId);
+    if (entry === undefined) {
+      return this.#rejected(this.#unknown(surfaceId));
+    }
+    const attachment = entry.attachments.get(viewportId);
+    const adapter = entry.adapter;
+    const refused = models.moveGate(
+      this.#disposed !== null,
+      attachment !== undefined && adapter !== null && !entry.pending.has(viewportId),
+      entry.replacing !== null,
+    );
+    if (refused !== null) {
+      return this.#rejected(this.#refusal(entry, refused, 'move', { viewportId }));
+    }
+    if (attachment === undefined || adapter === null) {
+      throw new Error(`the presentation model moved surface "${surfaceId}", which is not attached`);
+    }
+    if (attachment.target.container === container) {
+      return this.#ok(entry);
+    }
+    const geometry = this.#workspace.surfaceGeometry(surfaceId);
+    if (geometry === undefined) {
+      return this.#rejected(this.#unknown(surfaceId));
+    }
+    if (entry.capabilities?.safeDetach !== true) {
+      return this.#rejected(
+        this.#error(
+          'UNSUPPORTED_CAPABILITY',
+          `surface "${surfaceId}" cannot move to another container in viewport "${viewportId}": its endpoint does not allow safe detachment`,
+          surfaceId,
+        ),
+      );
+    }
+    const previous = attachment.target;
+    const target: PresentationTarget = Object.freeze({
+      surfaceId,
+      viewportId,
+      container,
+      geometry,
+    });
+    const generation = entry.generation;
+    const handle = entry.handle;
+    entry.pending.add(viewportId);
+    let failure: unknown = null;
+    try {
+      await this.#detachQuietly(adapter, handle, previous, surfaceId);
+      try {
+        await adapter.attach(handle, target);
+      } catch (error) {
+        failure = error;
+      }
+    } finally {
+      entry.pending.delete(viewportId);
+    }
+    if (entry.generation !== generation || entry.removed) {
+      if (failure === null) {
+        await this.#detachQuietly(adapter, handle, target, surfaceId);
+      }
+      return this.#rejected(this.#changedWhile(surfaceId, 'moving'));
+    }
+    if (failure !== null) {
+      const failed = this.#error(
+        'BIND_FAILED',
+        `adapter "${adapter.id}" could not move surface "${surfaceId}" to another container in viewport "${viewportId}"`,
+        surfaceId,
+        { retryable: true, details: { phase: 'move', reason: describeError(failure) } },
+      );
+      try {
+        await adapter.attach(handle, previous);
+      } catch (error) {
+        await this.#fail(
+          entry,
+          this.#error(
+            'BIND_FAILED',
+            `adapter "${adapter.id}" could not put surface "${surfaceId}" back in viewport "${viewportId}" after a failed move`,
+            surfaceId,
+            { retryable: true, details: { phase: 'move', reason: describeError(error) } },
+          ),
+        );
+      }
+      return this.#rejected(failed);
+    }
+    entry.attachments.set(viewportId, { target, visible: attachment.visible, lastHint: null });
+    return this.#ok(entry);
+  }
+
+  async hide(
+    surfaceId: Id,
+    viewportId: Id,
+    options: { release?: boolean } = {},
+  ): Promise<PresentationOutcome> {
+    const entry = this.#entries.get(surfaceId);
+    if (entry === undefined) {
+      return this.#rejected(this.#unknown(surfaceId));
+    }
+    const attachment = entry.attachments.get(viewportId);
+    const adapter = entry.adapter;
+    const refused = models.hideGate(
+      attachment !== undefined && adapter !== null,
+      entry.replacing !== null,
+    );
+    if (refused !== null) {
+      return this.#rejected(this.#refusal(entry, refused, 'hide', { viewportId }));
+    }
+    if (attachment === undefined || adapter === null) {
+      throw new Error(`the presentation model hid surface "${surfaceId}", which is not attached`);
+    }
+    // Releasing is only safe when the handle says so; otherwise the attachment stays, hidden.
+    const release = models.hideReleases(
+      options.release === true,
+      entry.capabilities?.safeDetach === true,
+    );
+    if (!attachment.visible && !release) {
+      return this.#ok(entry);
+    }
+    if (attachment.visible) {
+      attachment.visible = false;
+      this.#deliver(entry, adapter, hiddenHint(attachment, this.#workspace, surfaceId, viewportId));
+    }
+    if (release) {
+      entry.attachments.delete(viewportId);
+      await this.#detachQuietly(adapter, entry.handle, attachment.target, surfaceId);
+    }
+    this.#emit('presentation.viewportChanged', {
+      surfaceId,
+      viewportId,
+      attached: !release,
+      visible: false,
+    });
+    this.#settleVisibility(entry);
+    return this.#ok(entry);
+  }
+
+  deliverHint(hint: PresentationHint): HintOutcome {
+    const entry = this.#entries.get(hint.surfaceId);
+    if (entry === undefined) {
+      return { status: 'rejected', error: this.#unknown(hint.surfaceId) };
+    }
+    const attachment = entry.attachments.get(hint.viewportId);
+    if (attachment === undefined || entry.adapter === null) {
+      return {
+        status: 'rejected',
+        error: this.#error(
+          'INVALID_TRANSITION',
+          `surface "${hint.surfaceId}" is not attached in viewport "${hint.viewportId}"`,
+          hint.surfaceId,
+        ),
+      };
+    }
+    if (attachment.lastHint !== null && sameHint(attachment.lastHint, hint)) {
+      return { status: 'ok', delivered: false };
+    }
+    attachment.lastHint = hint;
+    this.#deliver(entry, entry.adapter, hint);
+    return { status: 'ok', delivered: true };
+  }
+
+  async replaceBinding(
+    surfaceId: Id,
+    binding: { readonly bindingKey: string; readonly adapterTypeId?: string },
+    options: { readonly source?: EventSource } = {},
+  ): Promise<PresentationOutcome> {
+    const entry = this.#entries.get(surfaceId);
+    if (entry === undefined) {
+      return this.#rejected(this.#unknown(surfaceId));
+    }
+    const refused = models.replaceGate(
+      this.#disposed !== null,
+      presentationOf(entry),
+      entry.replacing !== null,
+      entry.adapter !== null,
+      entry.pending.size > 0,
+    );
+    if (refused !== null) {
+      return this.#rejected(this.#refusal(entry, refused, 'replace'));
+    }
+    if (typeof binding.bindingKey !== 'string' || binding.bindingKey.trim() === '') {
+      return this.#rejected(
+        this.#error('INVALID_INPUT', 'bindingKey must be a non-blank string', surfaceId),
+      );
+    }
+    const next: BindingRef = Object.freeze({
+      bindingKey: binding.bindingKey,
+      adapterTypeId: binding.adapterTypeId ?? entry.binding.adapterTypeId,
+    });
+    const adapter = this.#adapters.get(next.adapterTypeId);
+    if (adapter === undefined) {
+      return this.#rejected(
+        this.#error(
+          'ADAPTER_UNAVAILABLE',
+          `no adapter "${next.adapterTypeId}" is registered`,
+          surfaceId,
+        ),
+      );
+    }
+    const oldAdapter = entry.adapter;
+    if (oldAdapter === null) {
+      throw new Error(
+        `the presentation model handed over surface "${surfaceId}", which has no adapter`,
+      );
+    }
+    const oldHandle = entry.handle;
+    const previous = entry.binding;
+    const generation = entry.generation;
+    // The generation the new binding has once the handoff commits; a change before then cancels it.
+    const nextGeneration = generation + 1;
+    entry.replacing = next;
+    const attempt = newAttempt();
+    const cancelled = () => entry.removed || entry.generation !== generation;
+    const attached: PresentationTarget[] = [];
+    const giveUp = async (error: SwfError, handle?: unknown): Promise<PresentationOutcome> => {
+      if (entry.replacing === next) {
+        entry.replacing = null;
+      }
+      attempt.cancel();
+      for (const target of attached) {
+        await this.#detachQuietly(adapter, handle, target, surfaceId);
+      }
+      return Object.freeze({ status: 'rejected', error });
+    };
+
+    const resolution = await this.#resolve(adapter, next, entry, attempt, nextGeneration);
+    if (cancelled()) {
+      return giveUp(this.#changedWhile(surfaceId, 'replacing its binding'));
+    }
+    if (resolution.kind === 'cancelled') {
+      return giveUp(this.#changedWhile(surfaceId, 'replacing its binding'));
+    }
+    if (resolution.kind === 'unknown-key') {
+      return giveUp(
+        this.#error(
+          'BIND_FAILED',
+          `adapter "${adapter.id}" does not know the new binding key`,
+          surfaceId,
+          {
+            retryable: true,
+            details: { phase: 'resolve', reason: 'unknown binding key' },
+          },
+        ),
+      );
+    }
+    if (resolution.kind === 'failed') {
+      return giveUp(resolution.error);
+    }
+    const handle = resolution.handle;
+    const singleOwner = resolution.capabilities.viewportSharing === 'single-owner';
+    const other = singleOwner ? this.#endpointPresenter(entry, next) : undefined;
+    const overlap = models.handoverGate({
+      singleOwner,
+      severalViewports: entry.attachments.size > 1,
+      endpointElsewhere: other !== undefined,
+    });
+    if (overlap !== null) {
+      return giveUp(
+        this.#refusal(entry, overlap, 'replace', {
+          ...(other === undefined ? {} : { other: other.surfaceId }),
+        }),
+        handle,
+      );
+    }
+    for (const [viewportId, attachment] of entry.attachments) {
+      const geometry = this.#workspace.surfaceGeometry(surfaceId);
+      if (geometry === undefined) {
+        return giveUp(this.#unknown(surfaceId), handle);
+      }
+      const target: PresentationTarget = Object.freeze({
+        surfaceId,
+        viewportId,
+        container: attachment.target.container,
+        geometry,
+      });
+      try {
+        await adapter.attach(handle, target);
+      } catch (error) {
+        attached.push(target);
+        return giveUp(
+          this.#error(
+            'BIND_FAILED',
+            `adapter "${adapter.id}" could not attach the new endpoint of surface "${surfaceId}"`,
+            surfaceId,
+            { retryable: true, details: { phase: 'attach', reason: describeError(error) } },
+          ),
+          handle,
+        );
+      }
+      attached.push(target);
+      if (cancelled()) {
+        return giveUp(this.#changedWhile(surfaceId, 'replacing its binding'), handle);
+      }
+    }
+    const committed = await settleTx(
+      this.#workspace.dispatch(
+        {
+          type: 'surface.rebind',
+          id: surfaceId,
+          bindingKey: next.bindingKey,
+          adapterTypeId: next.adapterTypeId,
+        },
+        { source: options.source ?? 'host' },
+      ),
+    );
+    if (committed.status === 'rejected') {
+      return giveUp(committed.error, handle);
+    }
+    // Committed: hand off. The new attachments take the old ones' places; the old are released.
+    const oldTargets = [...entry.attachments.values()].map((a) => a.target);
+    const previousCapabilities = entry.capabilities;
+    entry.replacing = null;
+    entry.generation = nextGeneration;
+    entry.attempt = attempt;
+    entry.binding = next;
+    entry.adapter = adapter;
+    entry.handle = handle;
+    entry.capabilities = resolution.capabilities;
+    for (const target of attached) {
+      const attachment = entry.attachments.get(target.viewportId);
+      if (attachment !== undefined) {
+        attachment.target = target;
+        attachment.lastHint = null;
+      }
+    }
+    for (const target of oldTargets) {
+      await this.#detachQuietly(oldAdapter, oldHandle, target, surfaceId);
+    }
+    this.#emit('presentation.replaced', { surfaceId, previous, binding: next });
+    if (
+      previousCapabilities !== null &&
+      !sameCapabilities(previousCapabilities, resolution.capabilities)
+    ) {
+      this.#emit('presentation.capabilitiesChanged', {
+        surfaceId,
+        previous: previousCapabilities,
+        capabilities: resolution.capabilities,
+      });
+    }
+    return this.#ok(entry);
+  }
+
+  binder(): SurfaceBinder {
+    return Object.freeze({
+      workspaceId: this.workspaceId,
+      registerAdapter: <THandle>(adapter: SurfaceAdapter<THandle>) => this.registerAdapter(adapter),
+      get: (surfaceId: Id) => this.get(surfaceId),
+      list: () => this.list(),
+      bind: (surfaceId: Id) => this.bind(surfaceId),
+      unbind: (surfaceId: Id) => this.unbind(surfaceId),
+      replaceBinding: (
+        surfaceId: Id,
+        binding: { readonly bindingKey: string; readonly adapterTypeId?: string },
+        options?: { readonly source?: EventSource },
+      ) => this.replaceBinding(surfaceId, binding, options),
+      subscribe: (listener: RuntimeListener) => this.subscribe(listener),
+    });
+  }
+
+  dispose(): Promise<void> {
+    if (this.#disposed !== null) {
+      return this.#disposed;
+    }
+    this.#unsubscribe();
+    this.#disposed = (async () => {
+      for (const entry of [...this.#entries.values()]) {
+        await this.#remove(entry);
+      }
+      this.#adapters.clear();
+      this.#listeners.clear();
+    })();
+    return this.#disposed;
+  }
+
+  // --- workspace events -------------------------------------------------------------------
+
+  #onWorkspaceEvent(event: WorkspaceEvent): void {
+    switch (event.type) {
+      case 'surface.attached': {
+        const surface = this.#workspace.getState().surfaces.get(event.payload.surfaceId);
+        if (surface !== undefined) {
+          this.#track(surface);
+        }
+        return;
+      }
+      case 'surface.detached': {
+        const entry = this.#entries.get(event.payload.surfaceId);
+        if (entry !== undefined) {
+          void this.#remove(entry);
+        }
+        return;
+      }
+      case 'surface.rebound': {
+        const entry = this.#entries.get(event.payload.surfaceId);
+        if (entry === undefined) {
+          return;
+        }
+        const binding = event.payload.binding;
+        if (
+          entry.replacing?.bindingKey === binding.bindingKey &&
+          entry.replacing.adapterTypeId === binding.adapterTypeId
+        ) {
+          return; // The replacement in progress committed this and completes the handoff itself.
+        }
+        void this.#rebound(entry, binding);
+        return;
+      }
+      case 'surface.updated': {
+        const entry = this.#entries.get(event.payload.surfaceId);
+        if (entry !== undefined && event.payload.fields.includes('bounds')) {
+          this.#resendHints(entry);
+        }
+        return;
+      }
+      case 'workspace.disposed':
+        void this.dispose();
+        return;
+      default:
+        return;
+    }
+  }
+
+  #track(surface: SurfaceRecord): void {
+    const entry: Entry = {
+      surfaceId: surface.id,
+      state: 'unbound',
+      generation: 0,
+      binding: Object.freeze({
+        bindingKey: surface.bindingKey,
+        adapterTypeId: surface.adapterTypeId,
+      }),
+      adapter: null,
+      handle: undefined,
+      capabilities: null,
+      unboundReason: null,
+      error: null,
+      attachments: new Map(),
+      pending: new Set(),
+      attempt: null,
+      settled: Promise.resolve(),
+      replacing: null,
+      removed: false,
+    };
+    this.#entries.set(surface.id, entry);
+    entry.unboundReason = this.#unboundReasonFor(entry);
+    this.#emitState(entry, null);
+    if (this.#autoBind && entry.unboundReason === 'released') {
+      this.#startBinding(entry);
+    }
+  }
+
+  async #rebound(entry: Entry, binding: BindingRef): Promise<void> {
+    if (models.holdsBinding(presentationOf(entry))) {
+      await this.#release(entry, 'unbound', 'released');
+    }
+    if (entry.removed) {
+      return;
+    }
+    entry.binding = Object.freeze({ ...binding });
+    const reason = this.#unboundReasonFor(entry);
+    const step = this.#decide(entry, { kind: 'rebound', reason: leanReason(reason) });
+    if (step.announce) {
+      entry.error = null;
+    }
+    this.#apply(entry, step);
+    if (this.#autoBind && reason === 'released') {
+      this.#startBinding(entry);
+    }
+  }
+
+  /** The placeholder reason a surface would show now, or `released` when it could bind. */
+  #unboundReasonFor(entry: Entry): UnboundReason {
+    if (entry.binding.bindingKey === null) {
+      return 'no-binding-key';
+    }
+    return this.#adapters.has(entry.binding.adapterTypeId) ? 'released' : 'adapter-unavailable';
+  }
+
+  async #remove(entry: Entry): Promise<void> {
+    if (entry.removed) {
+      return;
+    }
+    entry.removed = true;
+    await this.#release(entry, 'detached', null);
+    this.#entries.delete(entry.surfaceId);
+  }
+
+  // --- binding ----------------------------------------------------------------------------
+
+  #startBinding(entry: Entry): void {
+    const reason = this.#unboundReasonFor(entry);
+    const step = this.#decide(entry, { kind: 'bindingStarts', reason: leanReason(reason) });
+    entry.error = null;
+    if (step.next.kind !== 'binding') {
+      this.#apply(entry, step);
+      entry.settled = Promise.resolve();
+      return;
+    }
+    const adapter = this.#adapters.get(entry.binding.adapterTypeId);
+    if (adapter === undefined) {
+      throw new Error(`surface "${entry.surfaceId}" started binding with no adapter registered`);
+    }
+    entry.generation += 1;
+    const generation = entry.generation;
+    const attempt = newAttempt();
+    entry.attempt = attempt;
+    entry.adapter = adapter;
+    this.#apply(entry, step);
+    entry.settled = this.#resolve(adapter, entry.binding, entry, attempt, generation).then(
+      (resolution) => {
+        if (entry.removed || entry.generation !== generation) {
+          if (resolution.kind === 'bound') {
+            // Never attached, so there is nothing of ours to release: the handle is dropped.
+            this.#diagnose(
+              'STALE_COMPLETION',
+              `a binding of surface "${entry.surfaceId}" completed after the surface changed; discarded`,
+              entry.surfaceId,
+              { phase: 'resolve' },
+            );
+          }
+          return;
+        }
+        switch (resolution.kind) {
+          case 'bound':
+            entry.handle = resolution.handle;
+            entry.capabilities = resolution.capabilities;
+            this.#step(entry, { kind: 'resolved', r: { kind: 'bound' } });
+            return;
+          case 'unknown-key':
+            entry.attempt = null;
+            entry.adapter = null;
+            this.#step(entry, { kind: 'resolved', r: { kind: 'unknownKey' } });
+            return;
+          case 'failed':
+            entry.attempt = null;
+            entry.adapter = null;
+            entry.error = resolution.error;
+            this.#step(entry, { kind: 'resolved', r: { kind: 'failed' } });
+            return;
+          case 'cancelled':
+            return;
+        }
+      },
+    );
+  }
+
+  /**
+   * Resolves a binding through its adapter, with the attempt's abort signal and the timeout, and
+   * negotiates the handle's capabilities against the adapter's declaration. The binding context
+   * it hands the adapter carries `generation`, the one the binding has once it holds, and acts
+   * only while `attempt` is the surface's current attempt.
+   */
+  async #resolve(
+    adapter: SurfaceAdapter,
+    binding: BindingRef,
+    entry: Entry,
+    attempt: Attempt,
+    generation: number,
+  ): Promise<Resolution> {
+    const surfaceId = entry.surfaceId;
+    const current = () => entry.attempt === attempt && !entry.removed;
+    const context: BindingContext = Object.freeze({
+      surfaceId,
+      generation,
+      announceCapabilities: (capabilities: SurfaceCapabilities) => {
+        if (current() && entry.capabilities !== null) {
+          void this.#capabilitiesChanged(entry, adapter, capabilities);
+        }
+      },
+      reportUnavailable: (reason: string) => {
+        if (current() && entry.capabilities !== null) {
+          void this.#fail(
+            entry,
+            this.#error(
+              'BIND_FAILED',
+              `the endpoint of surface "${surfaceId}" became unavailable`,
+              surfaceId,
+              // Adapters are often plain JavaScript: describe whatever they pass as text.
+              {
+                retryable: true,
+                details: { phase: 'presentation', reason: describeError(reason) },
+              },
+            ),
+          );
+        }
+      },
+    });
+    let stopTimer = (): void => undefined;
+    const timedOut = new Promise<'timeout'>((resolve) => {
+      if (adapter.untimedBinding !== true) {
+        const timer = setTimeout(() => {
+          resolve('timeout');
+        }, this.#timeoutMs);
+        stopTimer = () => {
+          clearTimeout(timer);
+        };
+      }
+    });
+    let outcome: unknown;
+    try {
+      outcome = await Promise.race([
+        // An attempt cancelled before it starts never reaches the adapter.
+        Promise.resolve().then(() =>
+          attempt.controller.signal.aborted
+            ? attempt.cancelled
+            : adapter.resolve(binding.bindingKey ?? '', attempt.controller.signal, context),
+        ),
+        timedOut,
+        attempt.cancelled,
+      ]);
+    } catch (error) {
+      return {
+        kind: 'failed',
+        error: this.#error(
+          'BIND_FAILED',
+          `adapter "${adapter.id}" failed to resolve the binding of surface "${surfaceId}"`,
+          surfaceId,
+          { retryable: true, details: { phase: 'resolve', reason: describeError(error) } },
+        ),
+      };
+    } finally {
+      stopTimer();
+    }
+    if (outcome === 'cancelled') {
+      return { kind: 'cancelled' };
+    }
+    if (outcome === 'timeout') {
+      attempt.controller.abort('timeout');
+      return {
+        kind: 'failed',
+        error: this.#error(
+          'BIND_FAILED',
+          `the binding of surface "${surfaceId}" timed out after ${String(this.#timeoutMs)} ms`,
+          surfaceId,
+          { retryable: true, details: { phase: 'resolve', reason: 'timeout' } },
+        ),
+      };
+    }
+    if (outcome === null) {
+      return { kind: 'unknown-key' };
+    }
+    let capabilities: unknown;
+    try {
+      capabilities = adapter.capabilities(outcome);
+    } catch (error) {
+      return {
+        kind: 'failed',
+        error: this.#error(
+          'BIND_FAILED',
+          `adapter "${adapter.id}" failed to report capabilities for surface "${surfaceId}"`,
+          surfaceId,
+          { retryable: true, details: { phase: 'capabilities', reason: describeError(error) } },
+        ),
+      };
+    }
+    const issue =
+      capabilitiesIssue(capabilities) ??
+      exceeding(adapter.declaredCapabilities, capabilities as SurfaceCapabilities);
+    if (issue !== null) {
+      return {
+        kind: 'failed',
+        error: this.#error(
+          'UNSUPPORTED_CAPABILITY',
+          `adapter "${adapter.id}" reported unusable capabilities for surface "${surfaceId}": ${issue}`,
+          surfaceId,
+        ),
+      };
+    }
+    return {
+      kind: 'bound',
+      handle: outcome,
+      capabilities: freezeCapabilities(capabilities as SurfaceCapabilities),
+    };
+  }
+
+  async #capabilitiesChanged(
+    entry: Entry,
+    adapter: SurfaceAdapter,
+    raw: SurfaceCapabilities,
+  ): Promise<void> {
+    const previous = entry.capabilities;
+    if (previous === null) {
+      return;
+    }
+    const issue = capabilitiesIssue(raw) ?? exceeding(adapter.declaredCapabilities, raw);
+    if (issue !== null) {
+      await this.#fail(
+        entry,
+        this.#error(
+          'UNSUPPORTED_CAPABILITY',
+          `adapter "${adapter.id}" announced unusable capabilities for surface "${entry.surfaceId}": ${issue}`,
+          entry.surfaceId,
+        ),
+      );
+      return;
+    }
+    const capabilities = freezeCapabilities(raw);
+    entry.capabilities = capabilities;
+    this.#diagnose(
+      'CAPABILITIES_CHANGED',
+      `the capabilities of surface "${entry.surfaceId}" changed`,
+      entry.surfaceId,
+      { adapterId: adapter.id },
+    );
+    this.#emit('presentation.capabilitiesChanged', {
+      surfaceId: entry.surfaceId,
+      previous,
+      capabilities,
+    });
+    // A handle that can no longer be shared keeps only its first attachment.
+    if (capabilities.viewportSharing === 'single-owner' && entry.attachments.size > 1) {
+      const [, ...extra] = [...entry.attachments];
+      for (const [viewportId, attachment] of extra) {
+        entry.attachments.delete(viewportId);
+        await this.#detachQuietly(adapter, entry.handle, attachment.target, entry.surfaceId);
+        this.#emit('presentation.viewportChanged', {
+          surfaceId: entry.surfaceId,
+          viewportId,
+          attached: false,
+          visible: false,
+        });
+      }
+      this.#settleVisibility(entry);
+    }
+  }
+
+  /** Releases the surface's attachments and handle and records a typed error. */
+  async #fail(entry: Entry, error: SwfError): Promise<void> {
+    entry.generation += 1;
+    entry.attempt?.cancel();
+    entry.attempt = null;
+    await this.#releaseAttachments(entry);
+    if (entry.removed) {
+      return;
+    }
+    entry.error = error;
+    entry.handle = undefined;
+    entry.capabilities = null;
+    entry.adapter = null;
+    this.#step(entry, { kind: 'fails' });
+  }
+
+  /**
+   * Ends the surface's binding: supersedes any attempt in flight, releases every presentation
+   * attachment through the adapter (never touching the endpoint itself), and leaves the surface
+   * `unbound` (association kept) or `detached` (association removed).
+   */
+  async #release(
+    entry: Entry,
+    final: 'unbound' | 'detached',
+    reason: UnboundReason | null,
+  ): Promise<void> {
+    entry.generation += 1;
+    entry.attempt?.cancel();
+    entry.attempt = null;
+    entry.replacing = null;
+    // Announced only when it held or was acquiring a binding: then there is something to release.
+    if (this.#step(entry, { kind: 'releaseStarts' }).announce) {
+      await this.#releaseAttachments(entry);
+    }
+    entry.error = null;
+    entry.handle = undefined;
+    entry.capabilities = null;
+    entry.adapter = null;
+    entry.settled = Promise.resolve();
+    this.#step(entry, {
+      kind: 'releaseEnds',
+      final:
+        final === 'detached'
+          ? { kind: 'detached' }
+          : { kind: 'unbound', reason: leanReason(reasonOf(entry, reason)) },
+    });
+  }
+
+  async #releaseAttachments(entry: Entry): Promise<void> {
+    const adapter = entry.adapter;
+    const attachments = [...entry.attachments];
+    entry.attachments.clear();
+    for (const [viewportId, attachment] of attachments) {
+      if (adapter !== null) {
+        await this.#detachQuietly(adapter, entry.handle, attachment.target, entry.surfaceId);
+      }
+      this.#emit('presentation.viewportChanged', {
+        surfaceId: entry.surfaceId,
+        viewportId,
+        attached: false,
+        visible: false,
+      });
+    }
+  }
+
+  async #detachQuietly(
+    adapter: SurfaceAdapter,
+    handle: unknown,
+    target: PresentationTarget,
+    surfaceId: Id,
+  ): Promise<void> {
+    try {
+      await adapter.detach(handle, target);
+    } catch (error) {
+      this.#diagnose(
+        'ADAPTER_THREW',
+        `adapter "${adapter.id}" failed to detach surface "${surfaceId}"`,
+        surfaceId,
+        { phase: 'detach', reason: describeError(error) },
+      );
+    }
+  }
+
+  /**
+   * Why the surface cannot be presented in the viewport now, or null: the presentation model
+   * decides, from the surface's state and attachments and the single-owner endpoint's.
+   */
+  #presentBlocker(entry: Entry, viewportId: unknown): SwfError | null {
+    const valid = typeof viewportId === 'string' && viewportId.trim() !== '';
+    const existing = valid ? entry.attachments.get(viewportId) : undefined;
+    const singleOwner = entry.capabilities?.viewportSharing === 'single-owner';
+    const other = singleOwner ? this.#endpointPresenter(entry, entry.binding) : undefined;
+    const refused = models.presentGate({
+      disposed: this.#disposed !== null,
+      viewportValid: valid,
+      replacing: entry.replacing !== null,
+      phase: presentationOf(entry),
+      existing: existing === undefined ? null : existing.visible,
+      pending: valid && entry.pending.has(viewportId),
+      singleOwner,
+      attachedAnywhere: entry.attachments.size > 0 || entry.pending.size > 0,
+      endpointElsewhere: other !== undefined,
+    });
+    return refused === null
+      ? null
+      : this.#refusal(entry, refused, 'present', {
+          viewportId: String(viewportId),
+          ...(other === undefined ? {} : { other: other.surfaceId }),
+        });
+  }
+
+  /**
+   * Another surface than `entry` presenting, attaching or handing over to `endpoint` through the
+   * same adapter: one attached or attaching somewhere whose binding, or the binding it is handing
+   * over to, is that endpoint.
+   */
+  #endpointPresenter(entry: Entry, endpoint: BindingRef): Entry | undefined {
+    const same = (ref: BindingRef | null) =>
+      ref !== null &&
+      ref.bindingKey === endpoint.bindingKey &&
+      ref.adapterTypeId === endpoint.adapterTypeId;
+    for (const other of this.#entries.values()) {
+      if (
+        other !== entry &&
+        (same(other.binding) || same(other.replacing)) &&
+        (other.attachments.size > 0 || other.pending.size > 0)
+      ) {
+        return other;
+      }
+    }
+    return undefined;
+  }
+
+  /** The error a refusal of the presentation model stands for. */
+  #refusal(
+    entry: Entry,
+    why: SurfaceRefusal,
+    request: 'bind' | 'unbind' | 'present' | 'replace' | 'move' | 'hide',
+    at: { readonly viewportId?: string; readonly other?: Id } = {},
+  ): SwfError {
+    const id = entry.surfaceId;
+    const transition = (message: string) => this.#error('INVALID_TRANSITION', message, id);
+    const handOff = 'a replacement hands off from a bound surface (use surface.rebind otherwise)';
+    switch (why.kind) {
+      case 'disposed':
+        return this.#disposedError();
+      case 'invalidViewport':
+        return this.#error('INVALID_INPUT', 'viewportId must be a non-blank string', id);
+      case 'notUnboundOrFailed':
+        return transition(
+          `surface "${id}" is ${entry.state}; only an unbound or failed surface can bind`,
+        );
+      case 'detaching':
+        return transition(`surface "${id}" is detaching`);
+      case 'replacing':
+        return request === 'replace'
+          ? transition(`surface "${id}" is already replacing its binding; ${handOff}`)
+          : transition(`surface "${id}" is replacing its binding`);
+      case 'notBound':
+        return request === 'replace'
+          ? transition(`surface "${id}" is ${entry.state}; ${handOff}`)
+          : transition(`surface "${id}" is ${entry.state}; only a bound surface can be presented`);
+      case 'alreadyPresented':
+        return transition(
+          `surface "${id}" is already presented in viewport "${String(at.viewportId)}"`,
+        );
+      case 'singleOwnerElsewhere':
+        return this.#error(
+          'UNSUPPORTED_CAPABILITY',
+          request === 'replace'
+            ? `the new endpoint of surface "${id}" has a single owner and cannot be shown in the ${String(entry.attachments.size)} viewports it is attached in`
+            : `surface "${id}" has a single-owner handle already presented in another viewport; show a proxy there`,
+          id,
+        );
+      case 'endpointPresented':
+        return this.#error(
+          'UNSUPPORTED_CAPABILITY',
+          `the ${request === 'replace' ? 'new ' : ''}single-owner endpoint of surface "${id}" is already presented by surface "${String(at.other)}"`,
+          id,
+        );
+      case 'notAttached':
+        return transition(`surface "${id}" is not attached in viewport "${String(at.viewportId)}"`);
+    }
+  }
+
+  /** The presentation model's step for an event, not yet applied. */
+  #decide(entry: Entry, event: SurfaceEvent): SurfaceStep {
+    return models.surfaceStep(presentationOf(entry), event);
+  }
+
+  /** Puts the surface in the state a step decided, announcing the change when it says so. */
+  #apply(entry: Entry, step: SurfaceStep): SurfaceStep {
+    const from = entry.state;
+    setPresentation(entry, step.next);
+    if (step.announce) {
+      this.#emitState(entry, from);
+    }
+    return step;
+  }
+
+  /** Moves the surface as the presentation model decides on `event`. */
+  #step(entry: Entry, event: SurfaceEvent): SurfaceStep {
+    return this.#apply(entry, this.#decide(entry, event));
+  }
+
+  /** Sets presented, hidden or ready from the surface's attachments. */
+  #settleVisibility(entry: Entry): void {
+    const attachments = [...entry.attachments.values()];
+    this.#step(entry, {
+      kind: 'attachmentsChanged',
+      visible: attachments.some((a) => a.visible),
+      attached: attachments.length > 0,
+    });
+  }
+
+  /** After the surface's spatial bounds change, re-sends each viewport's last hint with them. */
+  #resendHints(entry: Entry): void {
+    const surface = this.#workspace.getState().surfaces.get(entry.surfaceId);
+    if (surface === undefined || entry.adapter === null) {
+      return;
+    }
+    for (const attachment of entry.attachments.values()) {
+      if (attachment.lastHint !== null) {
+        attachment.lastHint = {
+          ...attachment.lastHint,
+          spatialBounds: surface.bounds,
+          sceneRevision: this.#workspace.getState().revision,
+        };
+        this.#deliver(entry, entry.adapter, attachment.lastHint);
+      }
+    }
+  }
+
+  #deliver(entry: Entry, adapter: SurfaceAdapter, hint: PresentationHint): void {
+    try {
+      adapter.update(entry.handle, hint);
+    } catch (error) {
+      // Hints are advisory: an adapter that cannot take one leaves the surface as it is.
+      this.#diagnose(
+        'HINT_IGNORED',
+        `adapter "${adapter.id}" threw on a hint for surface "${entry.surfaceId}"`,
+        entry.surfaceId,
+        { reason: describeError(error) },
+      );
+    }
+  }
+
+  // --- events and errors ------------------------------------------------------------------
+
+  #emitState(entry: Entry, from: PresentationState | null): void {
+    this.#emit('presentation.stateChanged', {
+      surfaceId: entry.surfaceId,
+      from,
+      to: entry.state,
+      generation: entry.generation,
+      binding: entry.binding,
+      unboundReason: entry.state === 'unbound' ? entry.unboundReason : null,
+      error: entry.state === 'error' ? entry.error : null,
+    });
+  }
+
+  #emit<T extends RuntimeEventType>(type: T, payload: RuntimeEventPayload<T>): void {
+    this.#eventSeq += 1;
+    this.#outbox.push(
+      Object.freeze({
+        id: `${this.workspaceId}/surfaces/ev-${String(this.#eventSeq)}`,
+        type,
+        workspaceId: this.workspaceId,
+        revision: this.#workspace.getState().revision,
+        timestamp: this.#now(),
+        payload,
+      }) as RuntimeEvent,
+    );
+    if (this.#delivering) {
+      return; // Delivered after the event in progress, in order.
+    }
+    this.#delivering = true;
+    try {
+      for (let event = this.#outbox.shift(); event !== undefined; event = this.#outbox.shift()) {
+        for (const listener of [...this.#listeners]) {
+          try {
+            listener(event);
+          } catch (error) {
+            this.#diagnose(
+              'LISTENER_THREW',
+              `a listener threw while handling ${event.type}`,
+              null,
+              {
+                eventId: event.id,
+                reason: describeError(error),
+              },
+            );
+          }
+        }
+      }
+    } finally {
+      this.#delivering = false;
+    }
+  }
+
+  #diagnose(
+    code: RuntimeDiagnostic['code'],
+    message: string,
+    surfaceId: Id | null,
+    details: Record<string, string>,
+  ): void {
+    const diagnostic: RuntimeDiagnostic = Object.freeze({
+      code,
+      message,
+      timestamp: this.#now(),
+      surfaceId,
+      details: Object.freeze(details),
+    });
+    this.#diagnostics.push(diagnostic);
+    if (this.#diagnostics.length > this.#diagnosticsCapacity) {
+      this.#diagnostics.shift();
+    }
+    try {
+      this.#onDiagnostic?.(diagnostic);
+    } catch {
+      // A failing diagnostics sink must not interrupt the runtime.
+    }
+  }
+
+  #error(
+    code: SwfErrorCode,
+    message: string,
+    surfaceId: Id,
+    extra: { retryable?: boolean; details?: Record<string, string> } = {},
+  ): SwfError {
+    return makeError(code, message, {
+      workspaceId: this.workspaceId,
+      entityId: surfaceId,
+      ...(extra.retryable === undefined ? {} : { retryable: extra.retryable }),
+      ...(extra.details === undefined ? {} : { details: Object.freeze(extra.details) }),
+    });
+  }
+
+  #changedWhile(surfaceId: Id, doing: string): SwfError {
+    return this.#error('CANCELLED', `surface "${surfaceId}" changed while ${doing}`, surfaceId);
+  }
+
+  #unknown(surfaceId: Id): SwfError {
+    return this.#error(
+      'UNKNOWN_ENTITY',
+      `no surface "${surfaceId}" in workspace "${this.workspaceId}"`,
+      surfaceId,
+    );
+  }
+
+  #disposedError(): SwfError {
+    return makeError(
+      'WORKSPACE_DISPOSED',
+      `the surface runtime of workspace "${this.workspaceId}" is disposed`,
+      { workspaceId: this.workspaceId },
+    );
+  }
+
+  #assertLive(): void {
+    if (this.#disposed !== null) {
+      throw new SwfFailure(this.#disposedError());
+    }
+  }
+
+  #ok(entry: Entry): PresentationOutcome {
+    return Object.freeze({ status: 'ok', presentation: snapshot(entry) });
+  }
+
+  #rejected(error: SwfError): Promise<PresentationOutcome> {
+    return Promise.resolve(Object.freeze({ status: 'rejected', error }));
+  }
+}
+
+function newAttempt(): Attempt {
+  const controller = new AbortController();
+  let settle: () => void = () => undefined;
+  const cancelled = new Promise<'cancelled'>((resolve) => {
+    settle = () => {
+      resolve('cancelled');
+    };
+  });
+  return {
+    controller,
+    cancelled,
+    cancel() {
+      if (!controller.signal.aborted) {
+        controller.abort('released');
+      }
+      settle();
+    },
+  };
+}
+
+function snapshot(entry: Entry): SurfacePresentation {
+  return Object.freeze({
+    surfaceId: entry.surfaceId,
+    state: entry.state,
+    generation: entry.generation,
+    binding: entry.binding,
+    capabilities: entry.capabilities,
+    unboundReason: entry.state === 'unbound' ? entry.unboundReason : null,
+    error: entry.state === 'error' ? entry.error : null,
+    viewports: Object.freeze(
+      [...entry.attachments].map(([viewportId, a]) =>
+        Object.freeze({ viewportId, visible: a.visible }),
+      ),
+    ),
+    replacing: entry.replacing !== null,
+  });
+}
+
+function exceeding(declared: SurfaceCapabilities, actual: SurfaceCapabilities): string | null {
+  const exceeded = exceededCapabilities(declared, actual);
+  return exceeded.length === 0
+    ? null
+    : `they exceed the declared capabilities (${exceeded.join(', ')})`;
+}
+
+function sameCapabilities(a: SurfaceCapabilities, b: SurfaceCapabilities): boolean {
+  return (Object.keys(a) as (keyof SurfaceCapabilities)[]).every((key) => a[key] === b[key]);
+}
+
+function hiddenHint(
+  attachment: Attachment,
+  workspace: Workspace,
+  surfaceId: Id,
+  viewportId: Id,
+): PresentationHint {
+  const surface = workspace.getState().surfaces.get(surfaceId);
+  if (attachment.lastHint === null && surface === undefined) {
+    throw new Error(`surface "${surfaceId}" is attached but missing from the scene`);
+  }
+  const hint: PresentationHint = {
+    ...(attachment.lastHint ?? {
+      surfaceId,
+      viewportId,
+      sceneRevision: workspace.getState().revision,
+      occlusion: { value: null, confidence: 'unknown' },
+      projectedBounds: null,
+      spatialBounds: surface?.bounds ?? [1, 1, 1],
+      requestedIntrinsicSize: null,
+    }),
+    visible: false,
+    mounted: false,
+    sceneVisible: surfaceEffectiveState(workspace.getState(), surfaceId)?.visible === true,
+    intersectionRatio: 0,
+    tier: 'hidden',
+    attention: 'background',
+  };
+  attachment.lastHint = hint;
+  return hint;
+}
+
+function sameHint(a: PresentationHint, b: PresentationHint): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
+function describeError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function failure(code: SwfErrorCode, message: string, workspaceId: Id): SwfFailure {
+  return new SwfFailure(makeError(code, message, { workspaceId }));
+}
+
+async function settleTx(result: ReturnType<Workspace['dispatch']>): Promise<TxOutcome> {
+  return result.status === 'queued' ? result.completion : result;
+}
+
+function checkOptions(
+  options: SurfaceRuntimeOptions,
+  workspaceId: Id,
+): {
+  bindingTimeoutMs: number;
+  autoBind: boolean;
+  now: () => number;
+  diagnosticsCapacity: number;
+  onDiagnostic: ((d: RuntimeDiagnostic) => void) | undefined;
+} {
+  const fail = (field: string, message: string) =>
+    new SwfFailure(
+      makeError('INVALID_INPUT', `options.${field} ${message}`, {
+        workspaceId,
+        path: `options.${field}`,
+      }),
+    );
+  const raw: unknown = options;
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    throw new SwfFailure(
+      makeError('INVALID_INPUT', 'surface runtime options must be an object', { workspaceId }),
+    );
+  }
+  const record = raw as Record<string, unknown>;
+  for (const key of Object.keys(record)) {
+    if (!OPTION_KEYS.includes(key)) {
+      throw fail(key, `is not a known option (expected one of ${OPTION_KEYS.join(', ')})`);
+    }
+  }
+  const timeout = record['bindingTimeoutMs'] ?? 15_000;
+  if (typeof timeout !== 'number' || !Number.isFinite(timeout) || timeout <= 0) {
+    throw fail('bindingTimeoutMs', 'must be a positive number of milliseconds');
+  }
+  const autoBind = record['autoBind'] ?? true;
+  if (typeof autoBind !== 'boolean') {
+    throw fail('autoBind', 'must be a boolean');
+  }
+  const capacity = record['diagnosticsCapacity'] ?? 100;
+  if (typeof capacity !== 'number' || !Number.isInteger(capacity) || capacity < 1) {
+    throw fail('diagnosticsCapacity', 'must be a positive integer');
+  }
+  for (const key of ['now', 'onDiagnostic']) {
+    if (record[key] !== undefined && typeof record[key] !== 'function') {
+      throw fail(key, 'must be a function');
+    }
+  }
+  return {
+    bindingTimeoutMs: timeout,
+    autoBind,
+    now: options.now ?? Date.now,
+    diagnosticsCapacity: capacity,
+    onDiagnostic: options.onDiagnostic,
+  };
+}
+
+/** Each unbound reason as the presentation model names it. */
+const LEAN_REASONS: Readonly<Record<UnboundReason, LeanUnboundReason['kind']>> = Object.freeze({
+  'no-binding-key': 'noBindingKey',
+  'adapter-unavailable': 'adapterUnavailable',
+  'unknown-binding-key': 'unknownBindingKey',
+  released: 'released',
+});
+
+const REASONS: Readonly<Record<LeanUnboundReason['kind'], UnboundReason>> = Object.freeze({
+  noBindingKey: 'no-binding-key',
+  adapterUnavailable: 'adapter-unavailable',
+  unknownBindingKey: 'unknown-binding-key',
+  released: 'released',
+});
+
+function leanReason(reason: UnboundReason): LeanUnboundReason {
+  return { kind: LEAN_REASONS[reason] };
+}
+
+/** An unbound surface always shows why. */
+function reasonOf(entry: Entry, reason: UnboundReason | null): UnboundReason {
+  if (reason === null) {
+    throw new Error(`surface "${entry.surfaceId}" would be unbound with no reason`);
+  }
+  return reason;
+}
+
+/** The surface's state as the presentation model takes it. */
+function presentationOf(entry: Entry): Presentation {
+  return entry.state === 'unbound'
+    ? { kind: 'unbound', reason: leanReason(reasonOf(entry, entry.unboundReason)) }
+    : { kind: entry.state };
+}
+
+/** Puts the surface in a state the presentation model decided. */
+function setPresentation(entry: Entry, next: Presentation): void {
+  if (next.kind === 'unbound') {
+    entry.state = 'unbound';
+    entry.unboundReason = REASONS[next.reason.kind];
+  } else {
+    entry.state = next.kind;
+    entry.unboundReason = null;
+  }
+}
