@@ -385,6 +385,7 @@ export const ENGLISH = Object.freeze({
   'gesture.done.gesture.grab': 'Put down {label}',
   'gesture.other': 'Working',
   'gesture.preview': 'Preview: nothing is changed until you release.',
+  'gesture.preview.wheel': 'Preview: nothing is changed until the wheel rests.',
   'gesture.snapped': 'Snapped: {constraints}',
   'gesture.free': 'No snap',
   'gesture.cancel': 'Cancel (Esc)',

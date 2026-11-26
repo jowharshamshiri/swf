@@ -228,6 +228,7 @@ describe('a window handled directly in the panorama', () => {
     expect(seen.every((s, i) => s.reach > (seen[i - 1]?.reach ?? start))).toBe(true);
     expect(seen.every((s) => s.committed === history)).toBe(true);
     expect(seen.at(-1)?.bar).toContain('Moving Tile 01');
+    expect(seen.at(-1)?.bar).toContain(ENGLISH['gesture.preview.wheel']);
     // The wheel rests: one change.
     await expect.poll(() => app.workspace.history().length).toBe(history + 1);
     expect(poseIn(app.workspace.getState(), 'window-01').reach).toBeCloseTo(

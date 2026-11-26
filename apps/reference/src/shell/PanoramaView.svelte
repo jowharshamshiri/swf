@@ -159,7 +159,9 @@
           ? snapText(gesture.snap.constraints)
           : snapping
             ? t('gesture.free')
-            : t('gesture.preview'),
+            : gesture.wheel
+              ? t('gesture.preview.wheel')
+              : t('gesture.preview'),
     };
   });
 
