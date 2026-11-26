@@ -194,6 +194,35 @@ describe('placing names as the model places them', () => {
       { numRuns: 300 },
     );
   });
+
+  it('answers as the model does in a crowded view, where names touch and overlap by a pixel', () => {
+    const small = fc.tuple(fc.integer({ min: -4, max: 44 }), fc.integer({ min: -4, max: 24 }));
+    const crowded = fc.record({
+      owner: fc.constantFrom('a', 'b', 'c', 'd'),
+      text: fc.constant('n'),
+      size: fc.tuple(fc.integer({ min: 1, max: 12 }), fc.integer({ min: 1, max: 6 })),
+      places: fc.array(small, { minLength: 1, maxLength: 4 }),
+    });
+    const obstacles = fc.array(
+      fc.record({
+        owner: fc.constantFrom('a', 'b', 'c', 'd'),
+        box: fc.tuple(
+          fc.integer({ min: -4, max: 44 }),
+          fc.integer({ min: -4, max: 24 }),
+          fc.integer({ min: 0, max: 8 }),
+          fc.integer({ min: 0, max: 4 }),
+        ),
+      }),
+      { maxLength: 4 },
+    );
+    const view = { width: 40, height: 20 };
+    fc.assert(
+      fc.property(obstacles, fc.array(crowded, { maxLength: 12 }), (obstacles, requests) => {
+        expect(placeNames(view, obstacles, requests)).toEqual(unpruned(view, obstacles, requests));
+      }),
+      { numRuns: 500 },
+    );
+  });
 });
 
 describe('the names of a frame’s windows', () => {

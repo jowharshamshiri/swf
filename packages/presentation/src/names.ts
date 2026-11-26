@@ -37,6 +37,15 @@ const GAP = 3;
 /** The side of the grid's cells obstacles are filed by, in CSS pixels. */
 const CELL = 64;
 
+/** A box as the whole pixels it covers, and what it belongs to. */
+interface Area {
+  readonly owner: Id;
+  readonly left: number;
+  readonly top: number;
+  readonly right: number;
+  readonly bottom: number;
+}
+
 /**
  * The place each name is written at, in the order asked, or null for a name with no free place.
  * Each place offered is first moved inside the view, as little as it must be; a name larger than
@@ -57,10 +66,17 @@ export function placeNames(
     }
     return BigInt(n);
   };
-  // The cells of a coarse grid over the view, and those a box's whole pixels cover.
+  /** The boxes belong to different owners and share some pixels. */
+  const meets = (a: Area, b: Area) =>
+    a.owner !== b.owner &&
+    a.left < b.right &&
+    b.left < a.right &&
+    a.top < b.bottom &&
+    b.top < a.bottom;
+  // The cells of a coarse grid over the view, and those a box covers.
   const columns = Math.ceil(view.width / CELL);
   const rows = Math.ceil(view.height / CELL);
-  const cellsOf = (left: number, top: number, right: number, bottom: number): number[] => {
+  const cellsOf = ({ left, top, right, bottom }: Area): number[] => {
     const covered: number[] = [];
     for (
       let j = Math.max(0, Math.floor(top / CELL));
@@ -77,24 +93,17 @@ export function placeNames(
     }
     return covered;
   };
-  // Each obstacle as the whole pixels it covers, filed by the cells it covers in the view.
-  const cells: { owner: Id; left: number; top: number; right: number; bottom: number }[][] =
-    Array.from({ length: columns * rows }, () => []);
+  // Each obstacle, filed by the cells it covers in the view.
+  const cells: Area[][] = Array.from({ length: columns * rows }, () => []);
   for (const {
     owner,
     box: [x, y, w, h],
   } of obstacles) {
     const left = Math.floor(x);
     const top = Math.floor(y);
-    const o = {
-      owner,
-      left,
-      top,
-      right: Math.max(left, Math.ceil(x + w)),
-      bottom: Math.max(top, Math.ceil(y + h)),
-    };
-    if (o.right > o.left && o.bottom > o.top) {
-      for (const cell of cellsOf(o.left, o.top, o.right, o.bottom)) {
+    const o = { owner, left, top, right: Math.ceil(x + w), bottom: Math.ceil(y + h) };
+    if (o.right > left && o.bottom > top) {
+      for (const cell of cellsOf(o)) {
         cells[cell]?.push(o);
       }
     }
@@ -105,67 +114,63 @@ export function placeNames(
   // each is left out too, the last first (`answers_skip_harmless`): which places are written is
   // the model's answer for the places that remain, none of which overlaps another owner's
   // obstacle. A place offered again for the same name is the same box, left out with the first.
-  const remaining: { request: number; at: ScreenPoint }[] = [];
-  const boxes: {
-    name: bigint;
-    owner: bigint;
-    x: bigint;
-    y: bigint;
-    width: bigint;
-    height: bigint;
-    kept: boolean;
-  }[] = [];
+  const remaining: (Area & { request: number })[] = [];
   requests.forEach((request, i) => {
     const [w, h] = request.size;
     if (!(w > 0 && h > 0 && w <= view.width && h <= view.height)) {
       return;
     }
-    const first = remaining.length;
-    offers: for (const [px, py] of request.places) {
+    const mine: Area[] = [];
+    for (const [px, py] of request.places) {
       // On whole pixels, wholly inside the view.
-      const x = Math.min(Math.floor(view.width - w), Math.max(0, Math.round(px)));
-      const y = Math.min(Math.floor(view.height - h), Math.max(0, Math.round(py)));
-      const right = x + Math.ceil(w);
-      const bottom = y + Math.ceil(h);
-      for (let k = first; k < remaining.length; k += 1) {
-        const at = remaining[k]?.at;
-        if (at?.[0] === x && at[1] === y) {
-          continue offers;
-        }
+      const left = Math.min(Math.floor(view.width - w), Math.max(0, Math.round(px)));
+      const top = Math.min(Math.floor(view.height - h), Math.max(0, Math.round(py)));
+      const p = {
+        request: i,
+        owner: request.owner,
+        left,
+        top,
+        right: left + Math.ceil(w),
+        bottom: top + Math.ceil(h),
+      };
+      if (
+        !mine.some((q) => q.left === left && q.top === top) &&
+        !cellsOf(p).some((cell) => cells[cell]?.some((o) => meets(o, p)))
+      ) {
+        mine.push(p);
+        remaining.push(p);
       }
-      for (const cell of cellsOf(x, y, right, bottom)) {
-        for (const o of cells[cell] ?? []) {
-          if (
-            o.owner !== request.owner &&
-            o.left < right &&
-            x < o.right &&
-            o.top < bottom &&
-            y < o.bottom
-          ) {
-            continue offers;
-          }
-        }
-      }
-      remaining.push({ request: i, at: [x, y] });
-      boxes.push({
-        name: BigInt(i),
-        owner: ownerOf(request.owner),
-        x: BigInt(x),
-        y: BigInt(y),
-        width: BigInt(Math.ceil(w)),
-        height: BigInt(Math.ceil(h)),
-        kept: false,
-      });
     }
   });
-  const shown = models.labelsShown(boxes);
-  if (shown.length !== boxes.length) {
+  // A name whose first place left overlaps no place left of another owner is written there
+  // (`dropped_only_on_collision`), so none of its later places is (`answers_blocked`) and each is
+  // left out (`answers_skip_unwritten`); written, that place keeps nothing listed after it from
+  // being written, so it is left out too (`answers_skip_harmless`). The model is asked about the
+  // other names' places only.
+  const placed: (ScreenPoint | null)[] = requests.map(() => null);
+  remaining.forEach((p, k) => {
+    if (remaining[k - 1]?.request !== p.request && !remaining.some((o) => meets(o, p))) {
+      placed[p.request] = [p.left, p.top];
+    }
+  });
+  const asked = remaining.filter((p) => placed[p.request] === null);
+  const shown = models.labelsShown(
+    asked.map((p) => ({
+      name: BigInt(p.request),
+      owner: ownerOf(p.owner),
+      x: BigInt(p.left),
+      y: BigInt(p.top),
+      width: BigInt(p.right - p.left),
+      height: BigInt(p.bottom - p.top),
+      kept: false,
+    })),
+  );
+  if (shown.length !== asked.length) {
     throw new Error('the names model answered for some of the boxes only');
   }
-  const placed: (ScreenPoint | null)[] = requests.map(() => null);
-  remaining.forEach(({ request, at }, i) => {
+  asked.forEach((p, i) => {
     if (shown[i] === true) {
-      placed[request] = at;
+      placed[p.request] = [p.left, p.top];
     }
   });
   return placed;

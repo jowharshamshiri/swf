@@ -574,8 +574,10 @@ mark (`data-swf-mark`) in the middle of where it is, named beside it, else above
 selected window's name is placed first, the focused one's next, then nearer windows' before
 farther ones', and a name with no free place is not written. `placeNames` and `windowNames` of
 `@swf/presentation` place them, by the Lean model `Swf.Names`, for any renderer; places over
-another window's frame or mark are left out before the model is asked, which its proofs show
-changes none of its answers. The defaults stand
+another window's frame or mark are left out before the model is asked, and so is every place of a
+name whose first place left overlaps no other window's place (it is written there), which its
+proofs show changes none of its answers. A box with no width or no height covers nothing and keeps
+no name out. The defaults stand
 out on a light page; a host gives the colours its own design system checks against its grounds;
 only the resize handles along a window's edges take input, so a press
 there reaches the framework even over a cross-origin frame. `createDomInput` offers every pointer,
@@ -1471,7 +1473,7 @@ A budget is raised only deliberately, by hand, to the package's measured gzip si
 next 256 bytes, so it leaves no room for growth nobody looked at; the measured sizes are recorded
 with `npm run size -- --record` in the same commit, whose message gives the old and the new budget.
 `@swf/models` is at 56576 bytes: it is the compiled program of every proved decision model the
-framework and the reference application run, so it grows with each model (56428 bytes
+framework and the reference application run, so it grows with each model (56426 bytes
 measured, the names model included).
 `@swf/navigation-ui` starts at 40704 bytes, 10% over its measured size (36801) rounded up to
 the next 256: the navigation controls compiled as a host's build compiles them, with Svelte, the kit

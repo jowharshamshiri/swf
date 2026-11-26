@@ -29,10 +29,12 @@ structure LabelBox where
   kept : Bool
 deriving Inhabited, DecidableEq
 
-/-- The second box overlaps the first. -/
+/-- The second box overlaps the first: they share some area. A box with no width or no height
+covers nothing, so it overlaps nothing. -/
 def overlaps (a b : LabelBox) : Bool :=
-  decide (a.x < b.x + b.width) && decide (b.x < a.x + a.width) && decide (a.y < b.y + b.height) &&
-    decide (b.y < a.y + a.height)
+  decide (0 < a.width) && decide (0 < a.height) && decide (0 < b.width) && decide (0 < b.height) &&
+    decide (a.x < b.x + b.width) && decide (b.x < a.x + a.width) &&
+    decide (a.y < b.y + b.height) && decide (b.y < a.y + a.height)
 
 /-- A box written before keeps this one from being written: it overlaps it and belongs to another
 owner, or its name is already written there. -/
@@ -177,9 +179,10 @@ theorem dropped_only_on_collision (boxes : Array LabelBox) :
 
 /-! ## Leaving out what cannot change the answer
 
-A caller may leave out, before asking, a place listed after an obstacle of another owner that it
-overlaps (it is never written), and an obstacle that keeps nothing listed after it from being
-written: the answers for every other box are the same. -/
+A caller may leave out, before asking, a place that is never written (one listed after an obstacle
+of another owner that it overlaps, or after a place of its name that is written), and a box that is
+written and keeps nothing listed after it from being written (an obstacle, or a place overlapping no
+box of another owner): the answers for every other box are the same. -/
 
 /-- The answers, in the order asked. -/
 def answers (shown l : List LabelBox) : List Bool := (placeLabels shown l).map (·.2)
@@ -231,26 +234,29 @@ theorem answers_skip_unwritten : ∀ (pre post shown : List LabelBox) (b : Label
     simp only [answers] at this
     rw [this]
 
-/-- A box that must be written but keeps no box listed after it from being written can be left
-out: every other box is answered as before. -/
+/-- A box written that keeps no box listed after it from being written can be left out: every
+other box is answered as before. -/
 theorem answers_skip_harmless : ∀ (pre post shown : List LabelBox) (b : LabelBox),
-    b.kept = true → (∀ c ∈ post, blocks b c = false) →
+    (answers shown (pre ++ b :: post))[pre.length]? = some true →
+    (∀ c ∈ post, blocks b c = false) →
     answers shown (pre ++ post) = (answers shown (pre ++ b :: post)).eraseIdx pre.length := by
   intro pre
   induction pre with
   | nil =>
-    intro post shown b hk hb
-    simp only [answers, List.nil_append, placeLabels, hk, Bool.true_or, ↓reduceIte,
+    intro post shown b hw hb
+    have hw' : (b.kept || !shown.any fun a => blocks a b) = true := by
+      simpa [answers, placeLabels] using hw
+    simp only [answers, List.nil_append, placeLabels, hw', ↓reduceIte,
       List.map_cons, List.length_nil, List.eraseIdx_cons_zero]
     have := answers_congr post (b :: shown) shown (fun c hc => by simp [List.any_cons, hb c hc])
     simp only [answers] at this
     rw [this]
   | cons c pre ih =>
-    intro post shown b hk hb
+    intro post shown b hw hb
     simp only [answers, List.cons_append, placeLabels, List.map_cons, List.length_cons,
-      List.eraseIdx_cons_succ]
+      List.eraseIdx_cons_succ, List.getElem?_cons_succ] at hw ⊢
     have := ih post (if (c.kept || !shown.any fun a => blocks a c) = true then c :: shown else shown)
-      b hk hb
+      b (by simpa [answers] using hw) hb
     simp only [answers] at this
     rw [this]
 

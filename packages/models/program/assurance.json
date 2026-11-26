@@ -5945,16 +5945,16 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "66749269fd252f039989de6bfac74aa196e285fd4b7fd872f20c96a9553da3a6",
+      "fingerprint": "2415896bdf2dfae5f945bd8316d73838972c921fe7d6723c97291c901d0bac17",
       "source": {
         "package": "swf_models",
         "file": "Swf/Names.lean",
         "start": {
-          "line": 163,
+          "line": 165,
           "column": 1
         },
         "end": {
-          "line": 176,
+          "line": 178,
           "column": 13
         }
       }
@@ -5977,16 +5977,16 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "37c3e02663ae73ad26b68c52cd82cb88af2b6a67f30d9a18660e7ad2eac58aa7",
+      "fingerprint": "6b5b9622d88f0029119b222c1f91a767cb95140bf03fe5ae7c6c0d0b50a1641f",
       "source": {
         "package": "swf_models",
         "file": "Swf/Names.lean",
         "start": {
-          "line": 142,
+          "line": 144,
           "column": 1
         },
         "end": {
-          "line": 147,
+          "line": 149,
           "column": 29
         }
       }
@@ -6009,16 +6009,16 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "f2b167834d57e27acbc06993cef200297ac52b2f27e29fcac4bce4296d8c440a",
+      "fingerprint": "1ef08a30e7ef93925eeab9c13650450f40dc658efb02added1624a45467fd3d1",
       "source": {
         "package": "swf_models",
         "file": "Swf/Names.lean",
         "start": {
-          "line": 122,
+          "line": 124,
           "column": 1
         },
         "end": {
-          "line": 127,
+          "line": 129,
           "column": 27
         }
       }
@@ -6041,16 +6041,16 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "5b10970dea9c70ba2037487332cbf855bb75fb978c5811a267c4d679f8d8284b",
+      "fingerprint": "dede722f87aa79ad847829a4d7df4fefe8d43e85c8cd3f1679cf64e20c69f75c",
       "source": {
         "package": "swf_models",
         "file": "Swf/Names.lean",
         "start": {
-          "line": 149,
+          "line": 151,
           "column": 1
         },
         "end": {
-          "line": 161,
+          "line": 163,
           "column": 13
         }
       }
@@ -9576,6 +9576,7 @@
           "lean_int_add",
           "lean_int_dec_lt",
           "lean_nat_dec_eq",
+          "lean_nat_dec_lt",
           "lean_nat_to_int"
         ]
       },
@@ -9592,11 +9593,11 @@
         "package": "swf_models",
         "file": "Swf/Names.lean",
         "start": {
-          "line": 48,
+          "line": 50,
           "column": 1
         },
         "end": {
-          "line": 51,
+          "line": 53,
           "column": 52
         }
       }
