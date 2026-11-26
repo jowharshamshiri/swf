@@ -96,6 +96,33 @@ function collisions(written: readonly Written[]): string[] {
   return found;
 }
 
+/**
+ * How many times `run` sets the font of a 2D context of an offscreen canvas (where the renderer
+ * measures names), and what `run` gives.
+ */
+async function fontSettings<T>(run: () => Promise<T>): Promise<{ settings: number; result: T }> {
+  const proto = OffscreenCanvasRenderingContext2D.prototype;
+  const own = Object.getOwnPropertyDescriptor(proto, 'font');
+  const set = own?.set;
+  if (own === undefined || set === undefined) {
+    throw new Error('this browser’s offscreen 2D context has no font to set');
+  }
+  let settings = 0;
+  Object.defineProperty(proto, 'font', {
+    ...own,
+    set(this: OffscreenCanvasRenderingContext2D, value: string) {
+      settings += 1;
+      set.call(this, value);
+    },
+  });
+  try {
+    const result = await run();
+    return { settings, result };
+  } finally {
+    Object.defineProperty(proto, 'font', own);
+  }
+}
+
 async function rendered(placed: readonly Placed[], horizontal: number): Promise<RenderedFrame> {
   const { ws, projections, kinds } = scene(placed, horizontal);
   const renderer = new GeometryRenderer({ drawables: () => drawable, projections });
@@ -160,5 +187,20 @@ describe('names over a drawn view', () => {
     expect(counted).toBeGreaterThan(0);
     expect(named + counted).toBe(crowded.length);
     expect(collisions(written)).toEqual([]);
+  });
+
+  it('measures a frame’s names in one setting of the font, however many names it writes', async () => {
+    // Setting a 2D context's font parses it: in WebKit a frame of sixty names spent more time
+    // setting the font than measuring the names.
+    const many: Placed[] = Array.from({ length: 30 }, (_, i) => ({
+      id: `w-${String(i)}`,
+      kind: 'drawn',
+      heading: -1.2 + i * 0.09,
+      distance: 3 + (i % 4),
+      label: `Window ${String(i + 1)}`,
+    }));
+    const { settings, result } = await fontSettings(() => rendered(many, 90));
+    expect(writtenIn(result).length).toBeGreaterThan(10);
+    expect(settings).toBe(1);
   });
 });

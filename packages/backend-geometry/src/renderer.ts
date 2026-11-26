@@ -765,7 +765,7 @@ export class GeometryRendererSession implements RendererSession {
     return layers;
   }
 
-  /** How wide a text is written in a font: the host's measure, else an offscreen canvas's. */
+  /** How wide a frame's names are written in a font: the host's measure, else an offscreen canvas's. */
   #measure(): (text: string, font: string) => number {
     const given = this.#options.measureText;
     if (given !== undefined) {
@@ -792,8 +792,15 @@ export class GeometryRendererSession implements RendererSession {
       this.#measuring = made;
     }
     const ctx = this.#measuring;
+    // Setting a context's font parses it, which costs more than measuring a name: a frame's
+    // names, all in one font, set it once. It is set afresh each frame, so a
+    // font that has loaded since is measured as it now is.
+    let current: string | null = null;
     return (text, font) => {
-      ctx.font = font;
+      if (font !== current) {
+        ctx.font = font;
+        current = font;
+      }
       return ctx.measureText(text).width;
     };
   }

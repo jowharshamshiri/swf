@@ -54,3 +54,64 @@ describe('labels and host metadata as text (SEC-010, QA-011)', () => {
     expect(current.views.get('v')?.root.querySelector('img')).toBeNull();
   });
 });
+
+/**
+ * How many times `run` sets the font of a 2D context of each kind: of a canvas in a document, and
+ * of an offscreen canvas.
+ */
+async function fontSettings(run: () => Promise<unknown>): Promise<{
+  document: number;
+  offscreen: number;
+}> {
+  const counts = { document: 0, offscreen: 0 };
+  const protos = [
+    ['document', CanvasRenderingContext2D.prototype],
+    ['offscreen', OffscreenCanvasRenderingContext2D.prototype],
+  ] as const;
+  const owns = protos.map(([kind, proto]) => {
+    const own = Object.getOwnPropertyDescriptor(proto, 'font');
+    const set = own?.set;
+    if (own === undefined || set === undefined) {
+      throw new Error(`this browser’s ${kind} 2D context has no font to set`);
+    }
+    Object.defineProperty(proto, 'font', {
+      ...own,
+      set(this: unknown, value: string) {
+        counts[kind] += 1;
+        set.call(this, value);
+      },
+    });
+    return [proto, own] as const;
+  });
+  try {
+    await run();
+  } finally {
+    for (const [proto, own] of owns) {
+      Object.defineProperty(proto, 'font', own);
+    }
+  }
+  return counts;
+}
+
+describe('the names’ cost', () => {
+  it('measures a frame’s names in one setting of the font, on no canvas of the document', async () => {
+    // Setting a context's font parses it; a canvas in the document resolves it against the
+    // document's style, which WebKit then recalculates in the middle of the frame (3 ms a frame
+    // with sixty names over five hundred windows).
+    current = await stage(
+      Array.from({ length: 24 }, (_, i) => ({
+        id: `w${String(i)}`,
+        heading: -2.8 + i * 0.24,
+        distance: 3 + (i % 4),
+        label: `Window ${String(i + 1)}`,
+      })),
+    );
+    const view = current.views.get('v');
+    const settings = await fontSettings(async () => view?.update());
+    const names = view?.root.querySelectorAll(
+      `[${DOM_ATTRIBUTES.layer}="names"] [${DOM_ATTRIBUTES.label}]`,
+    );
+    expect(names?.length).toBeGreaterThan(5);
+    expect(settings).toEqual({ document: 0, offscreen: 1 });
+  });
+});

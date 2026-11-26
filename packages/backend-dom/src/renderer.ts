@@ -294,7 +294,7 @@ export class DomRendererSession implements RendererSession {
   /** The font family names are written in, once read from the view in its document. */
   #family: string | null = null;
   /** The 2D context names are measured with, once made. */
-  #measuring: CanvasRenderingContext2D | null = null;
+  #measuring: OffscreenCanvasRenderingContext2D | null = null;
   #released = false;
 
   /** A session for `view`, as {@link DomRenderer.prepare} makes it. */
@@ -723,20 +723,45 @@ export class DomRendererSession implements RendererSession {
     return family;
   }
 
-  /** How wide a text is written in a font, as a 2D canvas of the document measures it. */
+  /**
+   * How wide a frame's names are written in a font, as a 2D context of an `OffscreenCanvas` of the
+   * document's window measures them: a canvas in the document resolves its font against the
+   * document's style, and setting it after the frame's writes would make WebKit recalculate that
+   * style in the middle of the frame. An offscreen canvas of the same window measures in the
+   * document's fonts to the same width.
+   */
   #measurer(): (text: string, font: string) => number {
     if (this.#measuring === null) {
-      const ctx = this.#document.createElement('canvas').getContext('2d');
+      const view = this.#document.defaultView;
+      if (view === null || typeof view.OffscreenCanvas !== 'function') {
+        throw new SwfFailure(
+          makeError(
+            'UNSUPPORTED_CAPABILITY',
+            'the DOM renderer measures names with an OffscreenCanvas of the document’s window, which it does not have',
+          ),
+        );
+      }
+      const ctx = new view.OffscreenCanvas(1, 1).getContext('2d');
       if (ctx === null) {
         throw new SwfFailure(
-          makeError('UNSUPPORTED_CAPABILITY', 'the document gives no 2D canvas to measure names'),
+          makeError(
+            'UNSUPPORTED_CAPABILITY',
+            'an OffscreenCanvas of the document’s window gives no 2D context to measure names with',
+          ),
         );
       }
       this.#measuring = ctx;
     }
     const ctx = this.#measuring;
+    // Setting a context's font parses it, which costs more than measuring a name: a frame's
+    // names, all in one font, set it once. It is set afresh each frame, so a
+    // font that has loaded since is measured as it now is.
+    let current: string | null = null;
     return (text, font) => {
-      ctx.font = font;
+      if (font !== current) {
+        ctx.font = font;
+        current = font;
+      }
       return ctx.measureText(text).width;
     };
   }
