@@ -37,3 +37,7 @@ viewport opens in, `degraded`, with no backend yet.
 
 `wheelTurn` says how far a wheel turned from its scroll's deltas: `deltaY`, or `deltaX` when
 `deltaY` is zero, so a wheel the platform turned sideways reads as it does upright.
+
+`wheelRoute` says where a wheel goes: to the press held in its viewport whenever one is, pending
+or running, whatever is under it and whatever modifier is held, so nothing else changes the scene
+in the middle of a gesture; with no press held, by what is under it and the depth modifier.

@@ -263,7 +263,9 @@ export function createPolicies(options: PolicyOptions): Policies {
     workspace,
     router,
     viewportId,
-    gestureRunning: () => gesture !== null && !gesture.wheel,
+    gestureHeld: () =>
+      (gesture !== null && !gesture.wheel) ||
+      router.captures().some((capture) => capture.viewportId === viewportId),
     report(report) {
       if (report.kind === 'started') {
         gesture = Object.freeze({

@@ -57,7 +57,9 @@ describe('window drags (§13.3, FR-105, BR-004)', () => {
     const before = transformOf(ws, 'a');
     const [x, y] = titleBar(ws, 'a');
     input.pointer('down', 'v', x, y);
-    expect(router.captures()).toEqual([{ deviceId: 'synthetic', pointerId: 1, gestureId: null }]);
+    expect(router.captures()).toEqual([
+      { deviceId: 'synthetic', pointerId: 1, viewportId: 'v', gestureId: null },
+    ]);
     // Within the slop: still pending, nothing previewed.
     expect(input.pointer('move', 'v', x + 3, y).gestureId).toBeNull();
     const moved = input.pointer('move', 'v', x + 40, y + 10);
@@ -581,6 +583,62 @@ describe('gesture arena (FR-113)', () => {
     expect(node?.bounds[1]).toBe(1.2);
     const westAfter = onWindow(w.ws, 'a', [-(node?.bounds[0] ?? 0) / 2, 0, 0]);
     expect(length(sub(westAfter, west))).toBeLessThan(1e-9);
+  });
+
+  it('keeps every wheel in a viewport for the press held there: a resize commits nothing else mid-gesture', () => {
+    const w = world([ahead, { id: 'b', heading: 1, distance: 3 }]);
+    const before = w.ws.getState();
+    const history = w.ws.history().length;
+    const [x, y] = screenOf(w.ws, onWindow(w.ws, 'a', [0.99, 0, 0]));
+    const [bx, by] = contentOf(w.ws, 'b');
+    const [cx, cy] = contentOf(w.ws, 'a');
+    /** Shift+wheel over the resized window and another, and the plain wheel over content. */
+    const wheels = (px: number) => [
+      w.input.wheel('v', px, y, -100, { modifiers: { shift: true } }),
+      w.input.wheel('v', px, y, 0, { deltaX: -100, modifiers: { shift: true } }),
+      w.input.wheel('v', bx, by, -100, { modifiers: { shift: true } }),
+      w.input.wheel('v', cx, cy, 120),
+    ];
+    const unchanged = () => {
+      expect(w.ws.history()).toHaveLength(history);
+      for (const id of ['a', 'b']) {
+        expect(w.ws.getState().nodes.get(id)).toBe(before.nodes.get(id));
+      }
+    };
+    expect(w.input.pointer('down', 'v', x, y).region).toBe('resize-handle');
+    // Pressed, not yet a drag: the press holds the wheel, which does nothing.
+    for (const result of wheels(x)) {
+      expect(result).toMatchObject({ consumed: true, route: 'gesture', operation: null });
+    }
+    unchanged();
+    const moved = w.input.pointer('move', 'v', x - 40, y);
+    expect(moved.gestureId).not.toBeNull();
+    const shown = w.ws.getPresented().nodes.get('a');
+    // The resize runs and has no use for the wheel: consumed, nothing changed, the resize as shown.
+    for (const result of wheels(x - 40)) {
+      expect(result).toMatchObject({
+        consumed: true,
+        route: 'gesture',
+        gestureId: moved.gestureId,
+        operation: null,
+      });
+    }
+    unchanged();
+    expect(w.ws.getPresented().nodes.get('a')).toEqual(shown);
+    const up = w.input.pointer('up', 'v', x - 40, y);
+    expect(up.operation?.name).toBe('node.resize');
+    // One change, the resize alone; one undo puts the window back.
+    expect(w.ws.history()).toHaveLength(history + 1);
+    expect(w.ws.getState().nodes.get('a')?.bounds).toEqual(shown?.bounds);
+    expect(w.ws.getState().nodes.get('b')).toBe(before.nodes.get('b'));
+    expect(w.ws.undo().status).toBe('committed');
+    expect(w.ws.getState().nodes.get('a')?.bounds).toEqual(before.nodes.get('a')?.bounds);
+    expect(w.ws.getState().nodes.get('a')?.transform).toEqual(before.nodes.get('a')?.transform);
+    // With no press held, the wheel is routed as before.
+    expect(w.input.wheel('v', bx, by, -100, { modifiers: { shift: true } })).toMatchObject({
+      route: 'command',
+      operation: { name: 'node.move' },
+    });
   });
 });
 

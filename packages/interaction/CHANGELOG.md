@@ -24,3 +24,10 @@ window's depth and the wheel's move of a window take it from `deltaY`, or from `
 `deltaY` is zero, as browsers on Windows and Linux deliver a wheel turned with Shift held. Before,
 both read `deltaY` alone, so there the wheel did nothing. `wheelTurn(intent)` reads a wheel intent
 so, for a host's own gestures.
+
+While a press is held in a viewport, every wheel there is its gesture's: a gesture that uses it
+has it, and any other wheel is consumed (`route: 'gesture'`) and does nothing, while the press is
+pending and while a gesture with no `wheel`, or one that returns false, runs. Before, such a wheel
+was routed as if no gesture ran, so Shift and the wheel during a resize, a turn or a pinch moved a
+window in depth as a change of its own in the middle of the gesture. `captures()` names the
+viewport each held pointer was pressed in (`viewportId`).

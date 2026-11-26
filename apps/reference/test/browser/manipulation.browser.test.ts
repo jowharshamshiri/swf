@@ -362,6 +362,81 @@ describe('a window handled directly in the panorama', () => {
     expect(app.workspace.getState().nodes.get('window-01')?.bounds).toEqual(before?.bounds);
   });
 
+  it('takes Shift and the wheel during a resize as nothing: the scene stays as it was until the resize is let go, one undo step', async () => {
+    const m = await visit();
+    const { app } = m;
+    const before = app.workspace.getState();
+    const history = app.workspace.history().length;
+    const width = before.nodes.get('window-01')?.bounds[0] ?? 0;
+    const [x, y] = onPage(app, 'window-01', [width / 2 - 0.01, 0, 0]);
+    const delivered: [number, number][] = [];
+    app.root.addEventListener('wheel', (e) => delivered.push([e.deltaX, e.deltaY]), {
+      capture: true,
+    });
+    /**
+     * Shift+wheel where the pointer is, turned up as it comes upright and as browsers on Windows
+     * and Linux turn it sideways; then longer than a wheel burst waits to commit.
+     */
+    const turnWheel = async (at: number) => {
+      await commands.wheel(at, y, 0, -100, ['Shift']);
+      await commands.wheel(at, y, -100, 0, ['Shift']);
+      await expect.poll(() => delivered.length).toBe(2);
+      delivered.splice(0);
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      await nextFrame();
+      await m.settle();
+    };
+    /** Every node of the committed scene is as it was, and nothing is in its history. */
+    const unchanged = () => {
+      expect(app.workspace.history()).toHaveLength(history);
+      for (const node of before.nodes.values()) {
+        expect(app.workspace.getState().nodes.get(node.id)).toBe(node);
+      }
+    };
+    /** Where the presented window stands and how large. */
+    const presented = () => {
+      const node = app.workspace.getPresented().nodes.get('window-01');
+      return { bounds: node?.bounds, transform: node?.transform };
+    };
+    await commands.mouse('move', x, y);
+    await commands.mouse('down', x, y);
+    // Pressed on the edge, before the drag begins.
+    await turnWheel(x);
+    unchanged();
+    expect(app.workspace.getPresented().nodes.get('window-01')).toBe(before.nodes.get('window-01'));
+    // Narrowed, so the pointer stays over the window as the scene holds it: a Shift+wheel there is
+    // one that would move it in depth with no press held.
+    await commands.mouse('move', x - 24, y);
+    await nextFrame();
+    await m.settle();
+    expect(bar(m)).toContain('Resizing Tile 01');
+    const shown = presented();
+    expect(shown.bounds?.[0]).toBeLessThan(width);
+    // In the middle of the resize: the resize goes on as shown, nothing else moves.
+    await turnWheel(x - 24);
+    unchanged();
+    expect(bar(m)).toContain('Resizing Tile 01');
+    expect(presented()).toEqual(shown);
+    await commands.mouse('up', x - 24, y);
+    await m.settle();
+    // Let go: the resize alone, one change.
+    expect(app.workspace.history()).toHaveLength(history + 1);
+    expect(app.workspace.getState().nodes.get('window-01')?.bounds).toEqual(shown.bounds);
+    for (const node of before.nodes.values()) {
+      if (node.id !== 'window-01') {
+        expect(app.workspace.getState().nodes.get(node.id)).toBe(node);
+      }
+    }
+    expect(bar(m)).toContain('Resized Tile 01');
+    expect(await m.model.run('reference.history.undo', {})).toBe(true);
+    expect(app.workspace.getState().nodes.get('window-01')?.bounds).toEqual(
+      before.nodes.get('window-01')?.bounds,
+    );
+    expect(app.workspace.getState().nodes.get('window-01')?.transform).toEqual(
+      before.nodes.get('window-01')?.transform,
+    );
+  });
+
   it('selects with a click, selects more with Ctrl and click, and groups the selected in one change', async () => {
     const m = await visit();
     const { app, driver, settle } = m;

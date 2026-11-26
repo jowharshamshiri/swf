@@ -126,6 +126,52 @@ part, a trackpad's diagonal included, is read by that part alone. -/
 def wheelTurn (deltaX deltaY : Float) : Float :=
   if magnitudeKey deltaY = 0 then deltaX else deltaY
 
+/-- What a wheel over a viewport is decided from. -/
+structure WheelFacts where
+  /-- A press is held in the viewport: a pointer's gesture there is pending or running. -/
+  pressed : Bool
+  /-- What is under the wheel. -/
+  pick : PressPick
+  /-- The region of what is under it. -/
+  region : Region
+  /-- The depth modifier is held. -/
+  modifier : Bool
+
+/-- Where a wheel goes. -/
+inductive WheelRoute where
+  /-- The press held in the viewport takes it: its running gesture may use it (a move takes it as
+  depth); whether it does or not, the wheel is consumed and nothing else acts on it. -/
+  | press
+  /-- Nothing spatial is under it. -/
+  | ignore
+  /-- A modal blocks it: consumed, acted on by nothing. -/
+  | blocked
+  /-- Content keeps it: it scrolls the content natively. -/
+  | native
+  /-- A window's frame or handle without the depth modifier: nothing takes it. -/
+  | ignored
+  /-- The window under it is moved in depth, as a change of its own. -/
+  | depthMove
+deriving DecidableEq
+
+/-- Where a wheel goes. While a press is held in the viewport, every wheel there is the press's
+(`press`): a gesture is one change, so nothing else may change the scene in the middle of it, and
+a gesture with no use for the wheel (a resize, a turn, a pinch, or a press not yet a drag) takes
+it as nothing, just as a move takes every wheel as its depth. With no press held,
+the wheel goes by what is under it: `ignore` over nothing spatial, `blocked` outside an active
+modal, `depthMove` over a window with the depth modifier held, and otherwise `native` over content
+and `ignored` over a frame. A keyboard hold holds no press: the wheel goes by what is under it,
+and the hold takes a depth move of its own node into itself. -/
+def wheelRoute (f : WheelFacts) : WheelRoute :=
+  if f.pressed then .press
+  else
+    match f.pick, f.region with
+    | .none, _ => .ignore
+    | .background, _ => .ignore
+    | .hit, .modalOverlay => .blocked
+    | .hit, .content => if f.modifier then .depthMove else .native
+    | .hit, _ => if f.modifier then .depthMove else .ignored
+
 /-- Where a pressed target's gesture is. -/
 inductive GesturePhase where
   /-- No gesture. -/
@@ -342,6 +388,39 @@ theorem no_turn_iff_still (deltaX deltaY : Float) :
     magnitudeKey (wheelTurn deltaX deltaY) = 0 ↔
       magnitudeKey deltaX = 0 ∧ magnitudeKey deltaY = 0 := by
   by_cases h : magnitudeKey deltaY = 0 <;> simp [wheelTurn, h]
+
+/-- While a press is held in a viewport, every wheel there is the press's, whatever is under it
+and whatever modifier is held: nothing else changes the scene in the middle of a gesture. -/
+@[lungo_claim "lungo.law" subject wheelRoute]
+theorem pressed_wheel_is_the_press (f : WheelFacts) (h : f.pressed = true) :
+    wheelRoute f = .press := by
+  simp [wheelRoute, h]
+
+/-- A wheel is the press's only while a press is held. -/
+@[lungo_claim "lungo.law" subject wheelRoute]
+theorem press_route_only_pressed (f : WheelFacts) :
+    wheelRoute f = .press ↔ f.pressed = true := by
+  obtain ⟨pressed, pick, region, modifier⟩ := f
+  cases pressed <;> cases pick <;> cases region <;> cases modifier <;> simp [wheelRoute]
+
+/-- The wheel moves a window in depth exactly when no press is held in the viewport, a window
+outside any active modal is under it, and the depth modifier is held. -/
+@[lungo_claim "lungo.law" subject wheelRoute]
+theorem depth_move_iff (f : WheelFacts) :
+    wheelRoute f = .depthMove ↔
+      f.pressed = false ∧ f.pick = .hit ∧ f.region ≠ .modalOverlay ∧ f.modifier = true := by
+  obtain ⟨pressed, pick, region, modifier⟩ := f
+  cases pressed <;> cases pick <;> cases region <;> cases modifier <;> simp [wheelRoute]
+
+/-- With no press held, a wheel outside an active modal is blocked, and content keeps a wheel
+without the depth modifier. -/
+@[lungo_claim "lungo.law" subject wheelRoute]
+theorem free_wheel_routes (pick : PressPick) (region : Region) (modifier : Bool) :
+    wheelRoute ⟨false, .hit, .modalOverlay, modifier⟩ = .blocked ∧
+      wheelRoute ⟨false, .hit, .content, false⟩ = .native ∧
+      (pick ≠ .hit → wheelRoute ⟨false, pick, region, modifier⟩ = .ignore) := by
+  refine ⟨by simp [wheelRoute], by simp [wheelRoute], fun h => ?_⟩
+  cases pick <;> simp_all [wheelRoute]
 
 /-- Escape cancels every gesture whatever has focus; otherwise live content keeps its keys; a held
 node is put down by Enter or Space with no modifier. -/

@@ -461,6 +461,8 @@ export class InteractionRouter {
     readonly deviceId: string;
     /** The pointer's ID on its device. */
     readonly pointerId: number;
+    /** The viewport it was pressed in, which takes every wheel while it is held. */
+    readonly viewportId: Id;
     /** The gesture it drives, or null while its arena is still pending. */
     readonly gestureId: string | null;
   }[] {
@@ -472,6 +474,7 @@ export class InteractionRouter {
       return {
         deviceId: pressed.down.deviceId,
         pointerId: pressed.down.pointerId,
+        viewportId: arena.viewportId,
         gestureId: arena.running?.id ?? null,
       };
     });
@@ -701,10 +704,11 @@ export class InteractionRouter {
    * A pointer `down` picks and opens or joins its target's arena; `move` and `up` go to the arena
    * holding the pointer, and samples of a pointer no arena holds are ignored. A second `down` of a
    * pointer still held, or a `cancel`, cancels its gesture (`capture-lost`). Presses on content
-   * stay native unless a takeover is active or the content is a proxy. A wheel goes to a running
-   * gesture in its viewport that takes it, else moves the window under it in depth when the depth
-   * modifier is held. A key runs the keymap while focus is in the workspace, Escape cancels every
-   * gesture, and Enter or Space puts a held node down. An exception thrown by a gesture's code
+   * stay native unless a takeover is active or the content is a proxy. While a press is held in a
+   * viewport, every wheel there is its gesture's: one that uses it (a move takes it as depth) gets
+   * it, and any other wheel is consumed and does nothing; with no press held, a wheel moves the
+   * window under it in depth when the depth modifier is held. A key runs the keymap while focus is
+   * in the workspace, Escape cancels every gesture, and Enter or Space puts a held node down. An exception thrown by a gesture's code
    * cancels that gesture (`host`) and then reaches the caller.
    */
   dispatch(intent: InputIntent): DispatchResult {
@@ -1166,33 +1170,61 @@ export class InteractionRouter {
 
   #wheel(intent: WheelIntent): Routed {
     const scene = this.#workspace.getState();
-    for (const arena of this.#arenas.values()) {
-      const handler = arena.running?.handler;
-      if (arena.viewportId === intent.viewportId && handler?.wheel !== undefined) {
-        if (this.#guard(arena, () => handler.wheel?.(intent) ?? false)) {
+    const view = viewGeometryOf(scene, intent.viewportId);
+    const result = this.#pickIn(scene, view, intent.x, intent.y);
+    // The pointer gestures pressed in this viewport, pending or running; a keyboard hold has no
+    // pointer and holds no press.
+    const pressed = [...this.#arenas.values()].filter(
+      (arena) => arena.viewportId === intent.viewportId && arena.pointers.size > 0,
+    );
+    const picked = result.kind === 'hit' || result.kind === 'background' ? result : null;
+    const route = models.wheelRoute({
+      pressed: pressed.length > 0,
+      pick: { kind: picked === null ? 'none' : picked.kind },
+      region: { kind: REGIONS[picked?.region ?? 'background'] },
+      modifier: intent.modifiers[this.#settings.depthModifier],
+    });
+    if (route.kind === 'press') {
+      for (const arena of pressed) {
+        const handler = arena.running?.handler;
+        if (
+          handler?.wheel !== undefined &&
+          this.#guard(arena, () => handler.wheel?.(intent) ?? false)
+        ) {
           return this.#handled(arena);
         }
       }
+      const holder = pressed[0];
+      if (holder === undefined) {
+        throw new Error('the gesture model gave a wheel to a press no arena holds');
+      }
+      return { ...this.#handled(holder), reason: 'the press held here takes the wheel as nothing' };
     }
-    const view = viewGeometryOf(scene, intent.viewportId);
-    const result = this.#pickIn(scene, view, intent.x, intent.y);
+    if (route.kind === 'ignore') {
+      if (result.kind === 'hit') {
+        throw new Error('the gesture model ignored a wheel over a window');
+      }
+      return result.kind === 'background'
+        ? NOT_HANDLED('nothing spatial is under the wheel', { region: result.region })
+        : NOT_HANDLED(result.reason);
+    }
     if (result.kind !== 'hit') {
-      return NOT_HANDLED(
-        result.kind === 'background' ? 'nothing spatial is under the wheel' : result.reason,
-        result.kind === 'background' ? { region: result.region } : {},
-      );
+      throw new Error(`the gesture model routed a wheel over no window to ${route.kind}`);
     }
     const base = { region: result.region, target: result.target };
-    if (result.region === 'modal-overlay') {
-      return { ...NOT_HANDLED('a modal is active'), ...base, consumed: true, route: 'blocked' };
-    }
-    // Wheel over a window scrolls its content (or the page) unless the depth modifier is held.
-    if (!intent.modifiers[this.#settings.depthModifier]) {
-      return {
-        ...NOT_HANDLED('the wheel stays with the content without the depth modifier'),
-        ...base,
-        route: result.region === 'content' ? 'native' : 'ignored',
-      };
+    switch (route.kind) {
+      case 'blocked':
+        return { ...NOT_HANDLED('a modal is active'), ...base, consumed: true, route: 'blocked' };
+      // Wheel over a window scrolls its content (or the page) unless the depth modifier is held.
+      case 'native':
+      case 'ignored':
+        return {
+          ...NOT_HANDLED('the wheel stays with the content without the depth modifier'),
+          ...base,
+          route: route.kind,
+        };
+      case 'depthMove':
+        break;
     }
     const outcome = this.#run('node.move', {
       nodeId: result.target.nodeId,

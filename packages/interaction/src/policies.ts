@@ -159,8 +159,10 @@ export interface GestureHandler {
   /** The latest sample of each captured pointer, in the order they went down. */
   update(pointers: readonly PointerIntent[]): void;
   /**
-   * A wheel over the viewport during the gesture; true when the gesture used it, which consumes
-   * it. Optional: without it, the wheel is routed as when no gesture runs.
+   * A wheel over the viewport during the gesture; true when the gesture used it. While a press is
+   * held in a viewport every wheel there is its gesture's, so nothing else changes the scene in
+   * the middle of it: a wheel the gesture does not use (it returns false, or has no `wheel`) is
+   * consumed and does nothing, as is one while the press is still pending.
    */
   wheel?(intent: WheelIntent): boolean;
   /** The pointers were released: commit (once) or report why not. */

@@ -26,7 +26,9 @@ import { models } from '@swf/models';
  * gesture, leaves it where it was. Each step is decided by the Lean model `Swf.AppWheel`
  * (models/Swf/AppWheel.lean); this module measures how far a tick moves the window, keeps the
  * timer, and turns the decision into previews and commits. It sits between the device and the
- * framework, so every other intent passes through as it was.
+ * framework, so every other intent passes through as it was, and so does the wheel while a
+ * gesture of the framework holds the viewport (a press, pending or running, or a keyboard hold):
+ * that gesture's wheel is its own, so no burst changes the scene in the middle of it.
  */
 
 /** How long the wheel rests before its burst is committed, in milliseconds. */
@@ -46,8 +48,12 @@ export interface WheelBurstOptions {
   readonly workspace: Workspace;
   readonly router: InteractionRouter;
   readonly viewportId: Id;
-  /** Whether a gesture of the framework is running: its wheel is its own. */
-  readonly gestureRunning: () => boolean;
+  /**
+   * Whether a gesture of the framework holds the viewport: a press pending or running there, or a
+   * keyboard hold. Its wheel is its own: the framework gives it to that gesture, or takes it as
+   * nothing.
+   */
+  readonly gestureHeld: () => boolean;
   readonly report: (report: BurstReport) => void;
 }
 
@@ -170,7 +176,7 @@ export function createWheelBursts(options: WheelBurstOptions): WheelBursts {
 
   /** The window a wheel tick moves, when it is a burst's: the depth modifier over a movable window. */
   const wheeled = (intent: WheelIntent): Id | null => {
-    if (!intent.modifiers[router.settings().depthModifier] || options.gestureRunning()) {
+    if (!intent.modifiers[router.settings().depthModifier] || options.gestureHeld()) {
       return null;
     }
     const pick = router.pick(intent.viewportId, intent.x, intent.y);

@@ -1514,6 +1514,53 @@ export type PressRoute =
 /** The descriptor of Swf.Gesture.PressRoute: how its values cross the boundary. */
 export function pressRouteType(): L.Type<PressRoute>;
 
+/** What a wheel over a viewport is decided from. */
+export interface WheelFacts {
+  /** A press is held in the viewport: a pointer's gesture there is pending or running. */
+  readonly pressed: boolean;
+  /** What is under the wheel. */
+  readonly pick: PressPick;
+  /** The region of what is under it. */
+  readonly region: Region;
+  /** The depth modifier is held. */
+  readonly modifier: boolean;
+}
+/** The descriptor of Swf.Gesture.WheelFacts: how its values cross the boundary. */
+export function wheelFactsType(): L.Type<WheelFacts>;
+
+/** Where a wheel goes. */
+export type WheelRoute =
+  | {
+      /**
+       * The press held in the viewport takes it: its running gesture may use it (a move takes it as
+       * depth); whether it does or not, the wheel is consumed and nothing else acts on it.
+       */
+      readonly kind: "press";
+    }
+  | {
+      /** Nothing spatial is under it. */
+      readonly kind: "ignore";
+    }
+  | {
+      /** A modal blocks it: consumed, acted on by nothing. */
+      readonly kind: "blocked";
+    }
+  | {
+      /** Content keeps it: it scrolls the content natively. */
+      readonly kind: "native";
+    }
+  | {
+      /** A window's frame or handle without the depth modifier: nothing takes it. */
+      readonly kind: "ignored";
+    }
+  | {
+      /** The window under it is moved in depth, as a change of its own. */
+      readonly kind: "depthMove";
+    }
+;
+/** The descriptor of Swf.Gesture.WheelRoute: how its values cross the boundary. */
+export function wheelRouteType(): L.Type<WheelRoute>;
+
 /** Where a presented viewport is in its backend handoff. */
 export type ViewportState =
   | {
@@ -3537,6 +3584,19 @@ export class SwfModels {
    * Lean's Swf.Gesture.pressRoute : Swf.Gesture.PressFacts → Swf.Gesture.PressRoute
    */
   pressRoute(f: PressFacts): PressRoute;
+  /**
+   * Where a wheel goes. While a press is held in the viewport, every wheel there is the press's
+   * (`press`): a gesture is one change, so nothing else may change the scene in the middle of it, and
+   * a gesture with no use for the wheel (a resize, a turn, a pinch, or a press not yet a drag) takes
+   * it as nothing, just as a move takes every wheel as its depth. With no press held,
+   * the wheel goes by what is under it: `ignore` over nothing spatial, `blocked` outside an active
+   * modal, `depthMove` over a window with the depth modifier held, and otherwise `native` over content
+   * and `ignored` over a frame. A keyboard hold holds no press: the wheel goes by what is under it,
+   * and the hold takes a depth move of its own node into itself.
+   *
+   * Lean's Swf.Gesture.wheelRoute : Swf.Gesture.WheelFacts → Swf.Gesture.WheelRoute
+   */
+  wheelRoute(f: WheelFacts): WheelRoute;
   /**
    * How far a wheel turned, in CSS pixels, from its scroll's deltas: its vertical delta, or its
    * horizontal one when the vertical is zero (plus or minus). Browsers on Windows and Linux, and macOS
