@@ -1,7 +1,6 @@
 import type { SceneCommand } from '@swf/core';
 import { cameraRotation } from '@swf/projections';
 import { WINDOW_FRAME, layoutSurfaces } from '@swf/navigation';
-import type { MessageId } from './messages.js';
 import type { Random } from '@swf/math';
 import { createRandom, seedIssue } from '@swf/math';
 
@@ -63,7 +62,8 @@ export type PresetId = (typeof PRESET_IDS)[number];
 
 export interface Preset {
   readonly id: PresetId;
-  readonly name: MessageId;
+  /** Its name, as the ID of the message that says it. */
+  readonly name: `preset.${PresetId}`;
   readonly defaultSeed: number;
   plan(random: Random, seed: number): PlannedWindow[];
 }
