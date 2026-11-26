@@ -14,7 +14,7 @@ export {
 export type { Drawable, Mesh } from './drawing.js';
 export { affine, drawableIssue, drawMesh, homographyMesh } from './drawing.js';
 export type { WindowFrame } from './frames.js';
-export { FRAME_STROKE, windowFrames } from './frames.js';
+export { windowFrames } from './frames.js';
 export type { GeometryLayer } from './layer.js';
 export { GEOMETRY_LAYER, isGeometryLayer } from './layer.js';
 export type { LayeredRendererOptions, LayeredRendererSession } from './layered.js';

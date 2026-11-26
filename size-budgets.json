@@ -9,8 +9,8 @@
   "@swf/models": {
     "budget": 56576,
     "recorded": {
-      "minified": 339028,
-      "gzip": 56371
+      "minified": 338958,
+      "gzip": 56428
     }
   },
   "@swf/core": {
@@ -28,10 +28,10 @@
     }
   },
   "@swf/presentation": {
-    "budget": 15360,
+    "budget": 14592,
     "recorded": {
-      "minified": 46241,
-      "gzip": 14507
+      "minified": 46362,
+      "gzip": 14545
     }
   },
   "@swf/projections": {
@@ -49,17 +49,17 @@
     }
   },
   "@swf/backend-dom": {
-    "budget": 7680,
+    "budget": 7168,
     "recorded": {
-      "minified": 19965,
-      "gzip": 7077
+      "minified": 20167,
+      "gzip": 7164
     }
   },
   "@swf/backend-geometry": {
     "budget": 8704,
     "recorded": {
-      "minified": 22376,
-      "gzip": 8321
+      "minified": 23210,
+      "gzip": 8642
     }
   },
   "@swf/conformance": {

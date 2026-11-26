@@ -1447,8 +1447,11 @@ A budget is raised only deliberately, by hand, to the package's measured gzip si
 next 256 bytes, so it leaves no room for growth nobody looked at; the measured sizes are recorded
 with `npm run size -- --record` in the same commit, whose message gives the old and the new budget.
 `@swf/models` is at 56576 bytes: it is the compiled program of every proved decision model the
-framework and the reference application run, so it grows with each model, the latest where a wheel
-goes while a press is held in its viewport (56371 bytes measured).
+framework and the reference application run, so it grows with each model (56428 bytes
+measured, the names model included).
+`@swf/presentation` (14592) and `@swf/backend-geometry` (8704) are where placing every window's name
+over a view takes them: `placeNames` and `windowNames`, and the geometry renderer's names, frames
+and edge marks.
 
 Tests run against each package's TypeScript source, so they need no build first.
 

@@ -739,20 +739,15 @@ export class DomRendererSession implements RendererSession {
   #measurer(): (text: string, font: string) => number {
     if (this.#measuring === null) {
       const view = this.#document.defaultView;
-      if (view === null || typeof view.OffscreenCanvas !== 'function') {
-        throw new SwfFailure(
-          makeError(
-            'UNSUPPORTED_CAPABILITY',
-            'the DOM renderer measures names with an OffscreenCanvas of the document’s window, which it does not have',
-          ),
-        );
-      }
-      const ctx = new view.OffscreenCanvas(1, 1).getContext('2d');
+      const ctx =
+        view === null || typeof view.OffscreenCanvas !== 'function'
+          ? null
+          : new view.OffscreenCanvas(1, 1).getContext('2d');
       if (ctx === null) {
         throw new SwfFailure(
           makeError(
             'UNSUPPORTED_CAPABILITY',
-            'an OffscreenCanvas of the document’s window gives no 2D context to measure names with',
+            'the DOM renderer measures names in a 2D context of an OffscreenCanvas of the document’s window, which gives none',
           ),
         );
       }
@@ -760,8 +755,8 @@ export class DomRendererSession implements RendererSession {
     }
     const ctx = this.#measuring;
     // Setting a context's font parses it, which costs more than measuring a name: a frame's
-    // names, all in one font, set it once. It is set afresh each frame, so a
-    // font that has loaded since is measured as it now is.
+    // names, all in one font, set it once. It is set afresh each frame, so a font that has loaded
+    // since is measured as it now is.
     let current: string | null = null;
     return (text, font) => {
       if (font !== current) {
