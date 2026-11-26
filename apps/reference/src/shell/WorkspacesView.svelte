@@ -1,9 +1,10 @@
 <script lang="ts">
-  // THE WORKSPACES SAVED IN THIS BROWSER (FR-127, FR-168, UX-016, PRIV-002): how saving as the
-  // workspace changes stands; saving what is on screen under a name; the named workspaces, each
-  // opened (after its preview is confirmed) or deleted; exporting to a file and importing from
-  // one (previewed and confirmed too); resetting to the demo; and deleting every layout the
-  // application saved here, which says what it does not touch.
+  // THE SPACES SAVED IN THIS BROWSER (FR-127, FR-168, UX-016, PRIV-002): how saving as the
+  // space shown changes stands; saving what is on screen as a space of the operator's; the
+  // spaces, each shown in one press, an operator's deleted and a seeded one reset (after it is
+  // confirmed); exporting to a file and importing from one (previewed and confirmed); resetting to
+  // the demo; and deleting every layout the application saved here, which says what it does not
+  // touch.
   import {
     Button,
     Field,
@@ -18,6 +19,7 @@
     Text,
   } from '@wsb/uikit/components';
   import { handleOf, keyed } from '@wsb/uikit/handles';
+  import type { SpaceEntry } from '@swf/persistence';
   import { DEFAULT_CONFIG } from '../config.js';
   import type { MessageId } from '../messages.js';
   import type { ShellModel } from './model.svelte.js';
@@ -34,6 +36,8 @@
   const status = $derived(model.workspaces);
   let name = $state('');
   let confirmingDelete = $state(false);
+  /** The seeded space whose reset waits to be confirmed, or null. */
+  let confirmingReset = $state<string | null>(null);
   let picker: HTMLInputElement | undefined = $state();
 
   const saveText = $derived.by(() => {
@@ -62,6 +66,11 @@
     }).format(at);
   const size = (bytes: number) =>
     t('workspaces.bytes', { value: Math.max(1, Math.round(bytes / 1024)) });
+  /** When a space was saved and how large it is, or that it is as seeded. */
+  const entryText = (space: SpaceEntry) =>
+    space.stored === null
+      ? t('workspaces.entry.seeded')
+      : t('workspaces.entry', { when: when(space.stored.savedAt), size: size(space.stored.bytes) });
 
   const refusal = $derived(
     model.refusal !== null && model.isWorkspaceRefusal(model.refusal) ? model.refusal : null,
@@ -110,7 +119,11 @@
               ? t('workspaces.saved', { name: note.name })
               : note.kind === 'opened'
                 ? t('restore.done', { name: note.name })
-                : t('workspaces.deleteAll.done')}
+                : note.kind === 'deleted'
+                  ? t('workspaces.deleted', { name: note.name })
+                  : note.kind === 'reset'
+                    ? t('workspaces.reset.done', { name: note.name })
+                    : t('workspaces.deleteAll.done')}
           handle={handleOf`page.workspaces.note`}
         />
       {/if}
@@ -138,43 +151,82 @@
               }}
             />
           </Stack>
-          {#if model.named.length === 0}
-            <Text quiet>{t('workspaces.none')}</Text>
-          {:else}
-            <List ariaLabel={t('workspaces.named')}>
-              {#each model.named as saved (saved.name)}
-                <ListItem
-                  title={saved.name}
-                  detail={t('workspaces.entry', { when: when(saved.savedAt), size: size(saved.bytes) })}
-                  icon="folder"
-                  handle={keyed('page.workspaces.entry', saved.name)}
-                  onpress={() => {
-                    void model.beginOpen(saved.name);
-                  }}
-                >
-                  {#snippet actions()}
+          <List ariaLabel={t('workspaces.named')}>
+            {#each model.spaces as space (space.name)}
+              {@const shown = space.name === status?.space}
+              <ListItem
+                title={space.name}
+                detail={shown
+                  ? t('workspaces.entry.shown', { state: entryText(space) })
+                  : entryText(space)}
+                icon={shown ? 'folder-open' : 'folder'}
+                current={shown}
+                handle={keyed('page.workspaces.entry', space.name)}
+                onpress={() => {
+                  void model.switchTo(space.name);
+                }}
+              >
+                {#snippet actions()}
+                  {#if !shown}
                     <IconButton
-                      handle={keyed('page.workspaces.open', saved.name)}
-                      icon="folder-open"
+                      handle={keyed('page.workspaces.open', space.name)}
+                      icon="show"
                       label={t('workspaces.open')}
                       size="small"
                       onpress={() => {
-                        void model.beginOpen(saved.name);
+                        void model.switchTo(space.name);
                       }}
                     />
+                  {/if}
+                  {#if space.seeded}
                     <IconButton
-                      handle={keyed('page.workspaces.delete', saved.name)}
+                      handle={keyed('page.workspaces.reset', space.name)}
+                      icon="undo"
+                      label={t('workspaces.reset')}
+                      size="small"
+                      onpress={() => {
+                        confirmingReset = space.name;
+                      }}
+                    />
+                  {:else if !shown}
+                    <IconButton
+                      handle={keyed('page.workspaces.delete', space.name)}
                       icon="delete"
                       label={t('workspaces.delete')}
                       size="small"
                       onpress={() => {
-                        void model.deleteNamed(saved.name);
+                        void model.removeSpace(space.name, false);
                       }}
                     />
-                  {/snippet}
-                </ListItem>
-              {/each}
-            </List>
+                  {/if}
+                {/snippet}
+              </ListItem>
+            {/each}
+          </List>
+          {#if confirmingReset !== null}
+            {@const resetting = confirmingReset}
+            <Stack gap="small">
+              <Text>{t('workspaces.reset.confirm', { name: resetting })}</Text>
+              <Stack direction="row" gap="small">
+                <Button
+                  handle={handleOf`page.workspaces.reset.confirm`}
+                  label={t('workspaces.reset')}
+                  variant="danger"
+                  icon="undo"
+                  onpress={() => {
+                    confirmingReset = null;
+                    void model.removeSpace(resetting, true);
+                  }}
+                />
+                <Button
+                  handle={handleOf`page.workspaces.reset.cancel`}
+                  label={t('replace.cancel')}
+                  onpress={() => {
+                    confirmingReset = null;
+                  }}
+                />
+              </Stack>
+            </Stack>
           {/if}
         </Stack>
       </Section>

@@ -3090,16 +3090,16 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "e51a8a2639e63126dd483aa3cafbe5c5be671f9d2d330952686d2329b7b596a9",
+      "fingerprint": "8cbe363c1424614a5064c6ab4c64482f4e8048c2cafacdeaf686594eb62e958a",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 291,
+          "line": 215,
           "column": 1
         },
         "end": {
-          "line": 297,
+          "line": 221,
           "column": 111
         }
       }
@@ -3111,7 +3111,7 @@
         "Swf.AppWorkspaces.workspacesStep"
       ],
       "specifications": [],
-      "statement": "∀ (m : Swf.AppWorkspaces.WorkspacesMachine) (e : Swf.AppWorkspaces.WorkspacesEvent),\n  m.disposed = true →\n    Swf.AppWorkspaces.workspacesStep m e =\n      match e with\n      | Swf.AppWorkspaces.WorkspacesEvent.dispose => Swf.AppWorkspaces.WorkspacesStep.quiet m\n      | x =>\n        have __src := Swf.AppWorkspaces.WorkspacesStep.quiet m;\n        { next := __src.next, cancelTimer := __src.cancelTimer, startTimer := __src.startTimer, save := __src.save,\n          adopt := __src.adopt, announce := __src.announce, refusal := some Swf.AppWorkspaces.disposedRefusal }",
+      "statement": "∀ (m : Swf.AppWorkspaces.WorkspacesMachine) (e : Swf.AppWorkspaces.WorkspacesEvent),\n  m.disposed = true →\n    Swf.AppWorkspaces.workspacesStep m e =\n      match e with\n      | Swf.AppWorkspaces.WorkspacesEvent.dispose => Swf.AppWorkspaces.WorkspacesStep.quiet m\n      | x =>\n        have __src := Swf.AppWorkspaces.WorkspacesStep.quiet m;\n        { next := __src.next, cancelTimer := __src.cancelTimer, startTimer := __src.startTimer, save := __src.save,\n          announce := __src.announce, refusal := some Swf.AppWorkspaces.disposedRefusal }",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -3121,16 +3121,16 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "afbb02c4d51fac97f6c542726bc2b403b37862793fbdd39ff2f392fe65ba7f07",
+      "fingerprint": "a7effbf598ea21c2720f50d90c1f67d66ed9c484f87a3f487cd7ac991c544c70",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 325,
+          "line": 239,
           "column": 1
         },
         "end": {
-          "line": 335,
+          "line": 249,
           "column": 40
         }
       }
@@ -3142,7 +3142,7 @@
         "Swf.AppWorkspaces.workspacesStep"
       ],
       "specifications": [],
-      "statement": "∀ (m : Swf.AppWorkspaces.WorkspacesMachine) (e : Swf.AppWorkspaces.WorkspacesEvent),\n  m.disposed = true →\n    (Swf.AppWorkspaces.workspacesStep m e).startTimer = false ∧\n      (Swf.AppWorkspaces.workspacesStep m e).save = false ∧ (Swf.AppWorkspaces.workspacesStep m e).adopt = false",
+      "statement": "∀ (m : Swf.AppWorkspaces.WorkspacesMachine) (e : Swf.AppWorkspaces.WorkspacesEvent),\n  m.disposed = true →\n    (Swf.AppWorkspaces.workspacesStep m e).startTimer = false ∧ (Swf.AppWorkspaces.workspacesStep m e).save = false",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -3152,16 +3152,16 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "04d70fc8b382ed0f44c0df050c7d2396843d3b66a29f1466e8d8b79f0d53ebc7",
+      "fingerprint": "30a27f33e0884023af85ea7beada38f8a5486b8172788d6e260f48dc81c2a1e2",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 337,
+          "line": 251,
           "column": 1
         },
         "end": {
-          "line": 344,
+          "line": 257,
           "column": 42
         }
       }
@@ -3185,32 +3185,31 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "b7d3a406266939650e3f8b5e2851b3d1284f0d3314a786e14e240e291381c3da",
+      "fingerprint": "d9be7e959feb673d5db4841e5fa179df15f23d30dbf5c6aaf5bf9baadaf0cdf9",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 478,
+          "line": 476,
           "column": 1
         },
         "end": {
-          "line": 486,
+          "line": 484,
           "column": 83
         }
       }
     },
     {
-      "name": "Swf.AppWorkspaces.name_valid",
+      "name": "Swf.AppWorkspaces.migration_from_entries",
       "relation": "lungo.law",
       "subjects": [
-        "Swf.AppWorkspaces.workspacesNameIssue"
+        "Swf.AppWorkspaces.workspacesMigration"
       ],
       "specifications": [],
-      "statement": "∀ (name : Option String),\n  Swf.AppWorkspaces.workspacesNameIssue name = none ↔\n    ∃ s,\n      name = some s ∧\n        s.toList ≠ [] ∧\n          Option.any Swf.AppWorkspaces.jsSpace s.toList.head? = false ∧\n            Option.any Swf.AppWorkspaces.jsSpace s.toList.getLast? = false ∧\n              Swf.AppWorkspaces.utf16Length s ≤ Swf.AppWorkspaces.maxNameLength",
+      "statement": "∀ (visits : Array (String × Int)) (named : Array (String × String × Int)) (visitSpace : String) (stored : Array String)\n  (p : String × String),\n  p ∈ Swf.AppWorkspaces.workspacesMigration visits named visitSpace stored →\n    p.snd = visitSpace ∧ Swf.AppWorkspaces.workspacesNewest visits = some p.fst ∨ ∃ t, (p.fst, p.snd, t) ∈ named",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
-          "Classical.choice",
           "Quot.sound",
           "propext"
         ],
@@ -3218,17 +3217,81 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "47ee0aa71eb319fe73bbed7291702ebe14a94ebda475860d16f0bccea4cc598e",
+      "fingerprint": "60054ba9af8d04dcbc8c54c6c6b1b9eb4b38976540f9009bc7df9f73b333bdbc",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 243,
+          "line": 401,
           "column": 1
         },
         "end": {
-          "line": 254,
-          "column": 36
+          "line": 421,
+          "column": 39
+        }
+      }
+    },
+    {
+      "name": "Swf.AppWorkspaces.migration_keeps_stored",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppWorkspaces.workspacesMigration"
+      ],
+      "specifications": [],
+      "statement": "∀ (visits : Array (String × Int)) (named : Array (String × String × Int)) (visitSpace : String) (stored : Array String)\n  (p : String × String),\n  p ∈ Swf.AppWorkspaces.workspacesMigration visits named visitSpace stored → ¬p.snd ∈ stored.toList",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "8e3fd8452fac798c788179ea8d150018f7743c9f8f1ecb256d4433cfbf681079",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppWorkspaces.lean",
+        "start": {
+          "line": 423,
+          "column": 1
+        },
+        "end": {
+          "line": 440,
+          "column": 21
+        }
+      }
+    },
+    {
+      "name": "Swf.AppWorkspaces.migration_one_per_space",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppWorkspaces.workspacesMigration"
+      ],
+      "specifications": [],
+      "statement": "∀ (visits : Array (String × Int)) (named : Array (String × String × Int)) (visitSpace : String) (stored : Array String),\n  (List.map (fun x => x.snd) (Swf.AppWorkspaces.workspacesMigration visits named visitSpace stored).toList).Nodup",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "fef833542de3e0fe017d9e9cbad5d9744c6e23cf388fb38c4ead6b323135f0d8",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppWorkspaces.lean",
+        "start": {
+          "line": 442,
+          "column": 1
+        },
+        "end": {
+          "line": 474,
+          "column": 32
         }
       }
     },
@@ -3256,11 +3319,11 @@
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 395,
+          "line": 308,
           "column": 1
         },
         "end": {
-          "line": 405,
+          "line": 318,
           "column": 40
         }
       }
@@ -3282,48 +3345,17 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "67c2ada9bde866d73390b66d3cfec8d45404d7c4d332e856409e9cf77d3b4fea",
+      "fingerprint": "88733ab61fbeadec14d0b879df4940b33d8b23df5425c1a331a0d4cf33c14d7b",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 299,
+          "line": 223,
           "column": 1
         },
         "end": {
-          "line": 305,
+          "line": 229,
           "column": 64
-        }
-      }
-    },
-    {
-      "name": "Swf.AppWorkspaces.restore_atomic",
-      "relation": "lungo.law",
-      "subjects": [
-        "Swf.AppWorkspaces.workspacesStep"
-      ],
-      "specifications": [],
-      "statement": "∀ (m : Swf.AppWorkspaces.WorkspacesMachine),\n  m.disposed = false →\n    Swf.AppWorkspaces.workspacesStep m (Swf.AppWorkspaces.WorkspacesEvent.restored false) =\n        Swf.AppWorkspaces.WorkspacesStep.quiet m ∧\n      (Swf.AppWorkspaces.workspacesStep m (Swf.AppWorkspaces.WorkspacesEvent.restored true)).adopt = true ∧\n        (Swf.AppWorkspaces.workspacesStep m (Swf.AppWorkspaces.WorkspacesEvent.restored true)).next = m",
-      "status": "proved",
-      "evidence_trust": {
-        "axioms": [
-          "propext"
-        ],
-        "depends_on_sorry": false
-      },
-      "assumptions": [],
-      "package": "swf_models",
-      "fingerprint": "72cb8229c3ff9e08346f55805654e165a23ad48459bfdb2e1f9c0ec65912e024",
-      "source": {
-        "package": "swf_models",
-        "file": "Swf/AppWorkspaces.lean",
-        "start": {
-          "line": 315,
-          "column": 1
-        },
-        "end": {
-          "line": 323,
-          "column": 60
         }
       }
     },
@@ -3350,11 +3382,11 @@
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 407,
+          "line": 320,
           "column": 1
         },
         "end": {
-          "line": 431,
+          "line": 344,
           "column": 14
         }
       }
@@ -3376,82 +3408,17 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "c5306b7d13b9eb741483007789a115a044a239b87b51f969777b7faef3581966",
+      "fingerprint": "4de5a23b726843065116fce4194633d9180238a6b91baaeae1a349e3f8bd96b6",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 307,
+          "line": 231,
           "column": 1
         },
         "end": {
-          "line": 313,
+          "line": 237,
           "column": 64
-        }
-      }
-    },
-    {
-      "name": "Swf.AppWorkspaces.saved_at_fresh",
-      "relation": "lungo.law",
-      "subjects": [
-        "Swf.AppWorkspaces.workspacesSavedAt"
-      ],
-      "specifications": [],
-      "statement": "∀ (now : Int) (older : Array Int),\n  now ≤ Swf.AppWorkspaces.workspacesSavedAt now older ∧\n    (∀ (o : Int), o ∈ older.toList → o < Swf.AppWorkspaces.workspacesSavedAt now older) ∧\n      (Swf.AppWorkspaces.workspacesSavedAt now older = now ∨\n        ∃ o, o ∈ older.toList ∧ Swf.AppWorkspaces.workspacesSavedAt now older = o + 1)",
-      "status": "proved",
-      "evidence_trust": {
-        "axioms": [
-          "Classical.choice",
-          "Quot.sound",
-          "propext"
-        ],
-        "depends_on_sorry": false
-      },
-      "assumptions": [],
-      "package": "swf_models",
-      "fingerprint": "b2721033a1c30ca58b727650f8e1cfa65912099ed50cc0c7a6c91bc16b791c87",
-      "source": {
-        "package": "swf_models",
-        "file": "Swf/AppWorkspaces.lean",
-        "start": {
-          "line": 470,
-          "column": 1
-        },
-        "end": {
-          "line": 476,
-          "column": 32
-        }
-      }
-    },
-    {
-      "name": "Swf.AppWorkspaces.stale_is_every_other_visit",
-      "relation": "lungo.law",
-      "subjects": [
-        "Swf.AppWorkspaces.workspacesStale"
-      ],
-      "specifications": [],
-      "statement": "∀ (current : String) (visits : Array String) (k : String),\n  k ∈ Swf.AppWorkspaces.workspacesStale current visits ↔ k ∈ visits ∧ k ≠ current",
-      "status": "proved",
-      "evidence_trust": {
-        "axioms": [
-          "Quot.sound",
-          "propext"
-        ],
-        "depends_on_sorry": false
-      },
-      "assumptions": [],
-      "package": "swf_models",
-      "fingerprint": "e7df805403bbf914bf5f713278651cb4dcf716d1f58e6423221362887d410f32",
-      "source": {
-        "package": "swf_models",
-        "file": "Swf/AppWorkspaces.lean",
-        "start": {
-          "line": 433,
-          "column": 1
-        },
-        "end": {
-          "line": 437,
-          "column": 25
         }
       }
     },
@@ -3472,16 +3439,16 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "ac05cca1d75a47fd76f52bf8f22f812af2df9100c4f1c18b9140d14bff98f822",
+      "fingerprint": "08532953c9c7c78ddaeedfeac8507df53cc389ec7eca768c2b576f2fb3c0136e",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 260,
+          "line": 187,
           "column": 1
         },
         "end": {
-          "line": 289,
+          "line": 213,
           "column": 64
         }
       }
@@ -6368,6 +6335,259 @@
       }
     },
     {
+      "name": "Swf.Spaces.active_changes_only_when_opened",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Spaces.spacesStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (m : Swf.Spaces.SpacesMachine) (e : Swf.Spaces.SpacesEvent),\n  (Swf.Spaces.spacesStep m e).next.active ≠ m.active →\n    (∃ t,\n        e = Swf.Spaces.SpacesEvent.opened true ∧\n          m.phase = Swf.Spaces.Phase.opening t ∧ (Swf.Spaces.spacesStep m e).next.active = some t) ∨\n      ∃ n,\n        e = Swf.Spaces.SpacesEvent.forked true ∧\n          m.phase = Swf.Spaces.Phase.forking n ∧ (Swf.Spaces.spacesStep m e).next.active = some n",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "bca089ebb13623c82eb094e195c2b1a08f8352e3bf7cb78cbae97cddd0fcf57f",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Spaces.lean",
+        "start": {
+          "line": 376,
+          "column": 1
+        },
+        "end": {
+          "line": 410,
+          "column": 97
+        }
+      }
+    },
+    {
+      "name": "Swf.Spaces.disposed_refuses",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Spaces.spacesStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (m : Swf.Spaces.SpacesMachine) (e : Swf.Spaces.SpacesEvent),\n  m.disposed = true →\n    Swf.Spaces.spacesStep m e =\n      match e with\n      | Swf.Spaces.SpacesEvent.dispose => Swf.Spaces.SpacesStep.quiet m\n      | x => Swf.Spaces.SpacesStep.refuse m Swf.Spaces.SpacesRefusal.disposed",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "72c0cae02943bad880b3f717419f57f28ab8a96c989dfc37b3bda07d6e970894",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Spaces.lean",
+        "start": {
+          "line": 448,
+          "column": 1
+        },
+        "end": {
+          "line": 455,
+          "column": 36
+        }
+      }
+    },
+    {
+      "name": "Swf.Spaces.initial_idle",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Spaces.spacesInitial"
+      ],
+      "specifications": [],
+      "statement": "Swf.Spaces.spacesInitial.active = none ∧\n  Swf.Spaces.spacesInitial.phase = Swf.Spaces.Phase.idle ∧ Swf.Spaces.spacesInitial.disposed = false",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "75f5f3e655a3ae545f6ce77d7123eb512d4b6afbac6ae98a2f3b1b428481fb7b",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Spaces.lean",
+        "start": {
+          "line": 457,
+          "column": 1
+        },
+        "end": {
+          "line": 461,
+          "column": 23
+        }
+      }
+    },
+    {
+      "name": "Swf.Spaces.name_valid",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Spaces.spacesNameIssue"
+      ],
+      "specifications": [],
+      "statement": "∀ (name : Option String),\n  Swf.Spaces.spacesNameIssue name = none ↔\n    ∃ s,\n      name = some s ∧\n        s.toList ≠ [] ∧\n          Option.any Swf.Spaces.jsSpace s.toList.head? = false ∧\n            Option.any Swf.Spaces.jsSpace s.toList.getLast? = false ∧\n              Swf.Spaces.utf16Length s ≤ Swf.Spaces.maxNameLength",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "5a0607e8e029109fc15f92e5d7a74e0363bf8aa6901be62d195479933d0d5410",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Spaces.lean",
+        "start": {
+          "line": 291,
+          "column": 1
+        },
+        "end": {
+          "line": 302,
+          "column": 36
+        }
+      }
+    },
+    {
+      "name": "Swf.Spaces.off_keeps_space",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Spaces.spacesStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (m : Swf.Spaces.SpacesMachine) (t s : String) (known : Bool) (saver : Swf.Spaces.SaverState),\n  m.disposed = false →\n    m.active = some s →\n      s ≠ t →\n        m.phase = Swf.Spaces.Phase.idle →\n          known = true →\n            Swf.Spaces.spacesStep m (Swf.Spaces.SpacesEvent.request t known false saver) =\n              Swf.Spaces.SpacesStep.refuse m Swf.Spaces.SpacesRefusal.off",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "8ff962526b23776dee3e55038fcafe09187b90e9a2a7f983037b2520ae5f4132",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Spaces.lean",
+        "start": {
+          "line": 426,
+          "column": 1
+        },
+        "end": {
+          "line": 433,
+          "column": 51
+        }
+      }
+    },
+    {
+      "name": "Swf.Spaces.open_only_when_saved_or_given_up",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Spaces.spacesStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (m : Swf.Spaces.SpacesMachine) (e : Swf.Spaces.SpacesEvent) (t : String),\n  (Swf.Spaces.spacesStep m e).openTarget = some t →\n    (∃ known on saver,\n        e = Swf.Spaces.SpacesEvent.request t known on saver ∧ (m.active = none ∨ saver = Swf.Spaces.SaverState.clean)) ∨\n      e = Swf.Spaces.SpacesEvent.saved true ∧ m.phase = Swf.Spaces.Phase.saving t ∨\n        e = Swf.Spaces.SpacesEvent.answer true ∧ m.phase = Swf.Spaces.Phase.asking t",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "b8989b51beee35e2888deac85021da583f08b8e4477c35fe6c02dea054ef689e",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Spaces.lean",
+        "start": {
+          "line": 304,
+          "column": 1
+        },
+        "end": {
+          "line": 374,
+          "column": 56
+        }
+      }
+    },
+    {
+      "name": "Swf.Spaces.refused_changes_nothing",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Spaces.spacesStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (m : Swf.Spaces.SpacesMachine) (e : Swf.Spaces.SpacesEvent) (r : Swf.Spaces.SpacesRefusal),\n  (Swf.Spaces.spacesStep m e).refusal = some r → Swf.Spaces.spacesStep m e = Swf.Spaces.SpacesStep.refuse m r",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "98a6ef71ea64306c191172f0e9f24043e53d2c327d0da82f18b00cb12cfb58b5",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Spaces.lean",
+        "start": {
+          "line": 435,
+          "column": 1
+        },
+        "end": {
+          "line": 446,
+          "column": 106
+        }
+      }
+    },
+    {
+      "name": "Swf.Spaces.request_shown_or_busy",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Spaces.spacesStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (m : Swf.Spaces.SpacesMachine) (t : String) (known on : Bool) (saver : Swf.Spaces.SaverState),\n  m.disposed = false →\n    (m.phase = Swf.Spaces.Phase.idle →\n        m.active = some t →\n          Swf.Spaces.spacesStep m (Swf.Spaces.SpacesEvent.request t known on saver) = Swf.Spaces.SpacesStep.quiet m) ∧\n      (m.phase ≠ Swf.Spaces.Phase.idle →\n        Swf.Spaces.spacesStep m (Swf.Spaces.SpacesEvent.request t known on saver) =\n          Swf.Spaces.SpacesStep.refuse m Swf.Spaces.SpacesRefusal.busy)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "b5e1c51ce575c4ec1c8357e0e9b7876647a75ad0abe9667f7f4dfbbd45881c39",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Spaces.lean",
+        "start": {
+          "line": 412,
+          "column": 1
+        },
+        "end": {
+          "line": 424,
+          "column": 40
+        }
+      }
+    },
+    {
       "name": "Swf.Surface.announces_exactly",
       "relation": "lungo.law",
       "subjects": [
@@ -8033,58 +8253,17 @@
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 205,
+          "line": 174,
           "column": 1
         },
         "end": {
-          "line": 210,
+          "line": 179,
           "column": 26
         }
       }
     },
     {
-      "name": "Swf.AppWorkspaces.workspacesNameIssue",
-      "module": "Swf.AppWorkspaces",
-      "async": false,
-      "trust": {
-        "axioms": [
-          "Classical.choice",
-          "Quot.sound",
-          "propext"
-        ],
-        "depends_on_sorry": false,
-        "unsafe_dependencies": [],
-        "partial_dependencies": [],
-        "extern_dependencies": [
-          "lean_nat_add",
-          "lean_nat_dec_lt",
-          "lean_string_data",
-          "lean_uint32_dec_eq",
-          "lean_uint32_dec_le",
-          "lean_uint32_dec_lt"
-        ]
-      },
-      "claims": [
-        "Swf.AppWorkspaces.name_valid"
-      ],
-      "assumptions": [],
-      "facilities": [],
-      "roles": [],
-      "source": {
-        "package": "swf_models",
-        "file": "Swf/AppWorkspaces.lean",
-        "start": {
-          "line": 46,
-          "column": 1
-        },
-        "end": {
-          "line": 51,
-          "column": 35
-        }
-      }
-    },
-    {
-      "name": "Swf.AppWorkspaces.workspacesNewest",
+      "name": "Swf.AppWorkspaces.workspacesMigration",
       "module": "Swf.AppWorkspaces",
       "async": false,
       "trust": {
@@ -8093,13 +8272,16 @@
         "unsafe_dependencies": [],
         "partial_dependencies": [],
         "extern_dependencies": [
+          "lean_array_mk",
           "lean_array_to_list",
-          "lean_int_dec_lt"
+          "lean_int_dec_lt",
+          "lean_string_dec_eq"
         ]
       },
       "claims": [
-        "Swf.AppWorkspaces.newest_is_latest",
-        "Swf.AppWorkspaces.restores_when_stored"
+        "Swf.AppWorkspaces.migration_from_entries",
+        "Swf.AppWorkspaces.migration_keeps_stored",
+        "Swf.AppWorkspaces.migration_one_per_space"
       ],
       "assumptions": [],
       "facilities": [],
@@ -8108,90 +8290,12 @@
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 172,
+          "line": 143,
           "column": 1
         },
         "end": {
-          "line": 178,
-          "column": 70
-        }
-      }
-    },
-    {
-      "name": "Swf.AppWorkspaces.workspacesSavedAt",
-      "module": "Swf.AppWorkspaces",
-      "async": false,
-      "trust": {
-        "axioms": [],
-        "depends_on_sorry": false,
-        "unsafe_dependencies": [],
-        "partial_dependencies": [],
-        "extern_dependencies": [
-          "lean_array_to_list",
-          "lean_int_add",
-          "lean_int_dec_le",
-          "lean_nat_to_int"
-        ]
-      },
-      "claims": [
-        "Swf.AppWorkspaces.saved_at_fresh"
-      ],
-      "assumptions": [],
-      "facilities": [],
-      "roles": [],
-      "source": {
-        "package": "swf_models",
-        "file": "Swf/AppWorkspaces.lean",
-        "start": {
-          "line": 184,
-          "column": 1
-        },
-        "end": {
-          "line": 187,
-          "column": 65
-        }
-      }
-    },
-    {
-      "name": "Swf.AppWorkspaces.workspacesStale",
-      "module": "Swf.AppWorkspaces",
-      "async": false,
-      "trust": {
-        "axioms": [],
-        "depends_on_sorry": false,
-        "unsafe_dependencies": [
-          "_private.Init.Data.Array.Basic.0.Array.foldlMUnsafe.fold"
-        ],
-        "partial_dependencies": [],
-        "extern_dependencies": [
-          "lean_array_get_size",
-          "lean_array_push",
-          "lean_array_uget_borrowed",
-          "lean_mk_empty_array_with_capacity",
-          "lean_nat_dec_le",
-          "lean_nat_dec_lt",
-          "lean_string_dec_eq",
-          "lean_usize_add",
-          "lean_usize_dec_eq",
-          "lean_usize_of_nat"
-        ]
-      },
-      "claims": [
-        "Swf.AppWorkspaces.stale_is_every_other_visit"
-      ],
-      "assumptions": [],
-      "facilities": [],
-      "roles": [],
-      "source": {
-        "package": "swf_models",
-        "file": "Swf/AppWorkspaces.lean",
-        "start": {
-          "line": 180,
-          "column": 1
-        },
-        "end": {
-          "line": 182,
-          "column": 31
+          "line": 156,
+          "column": 54
         }
       }
     },
@@ -8215,7 +8319,6 @@
         "Swf.AppWorkspaces.disposed_refuses_events",
         "Swf.AppWorkspaces.disposed_schedules_nothing",
         "Swf.AppWorkspaces.off_cancels_scheduled_save",
-        "Swf.AppWorkspaces.restore_atomic",
         "Swf.AppWorkspaces.save_now_needs_autosave",
         "Swf.AppWorkspaces.timer_only_while_saving"
       ],
@@ -8226,11 +8329,11 @@
         "package": "swf_models",
         "file": "Swf/AppWorkspaces.lean",
         "start": {
-          "line": 159,
+          "line": 110,
           "column": 1
         },
         "end": {
-          "line": 168,
+          "line": 119,
           "column": 20
         }
       }
@@ -9827,6 +9930,117 @@
         "end": {
           "line": 43,
           "column": 14
+        }
+      }
+    },
+    {
+      "name": "Swf.Spaces.spacesInitial",
+      "module": "Swf.Spaces",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": []
+      },
+      "claims": [
+        "Swf.Spaces.initial_idle"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Spaces.lean",
+        "start": {
+          "line": 257,
+          "column": 1
+        },
+        "end": {
+          "line": 258,
+          "column": 91
+        }
+      }
+    },
+    {
+      "name": "Swf.Spaces.spacesNameIssue",
+      "module": "Swf.Spaces",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_nat_add",
+          "lean_nat_dec_lt",
+          "lean_string_data",
+          "lean_uint32_dec_eq",
+          "lean_uint32_dec_le",
+          "lean_uint32_dec_lt"
+        ]
+      },
+      "claims": [
+        "Swf.Spaces.name_valid"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Spaces.lean",
+        "start": {
+          "line": 48,
+          "column": 1
+        },
+        "end": {
+          "line": 53,
+          "column": 35
+        }
+      }
+    },
+    {
+      "name": "Swf.Spaces.spacesStep",
+      "module": "Swf.Spaces",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_nat_dec_eq",
+          "lean_string_dec_eq"
+        ]
+      },
+      "claims": [
+        "Swf.Spaces.active_changes_only_when_opened",
+        "Swf.Spaces.disposed_refuses",
+        "Swf.Spaces.off_keeps_space",
+        "Swf.Spaces.open_only_when_saved_or_given_up",
+        "Swf.Spaces.refused_changes_nothing",
+        "Swf.Spaces.request_shown_or_busy"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Spaces.lean",
+        "start": {
+          "line": 248,
+          "column": 1
+        },
+        "end": {
+          "line": 255,
+          "column": 20
         }
       }
     },

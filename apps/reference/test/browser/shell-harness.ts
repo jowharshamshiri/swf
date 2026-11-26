@@ -11,6 +11,7 @@ import { parseConfig } from '../../src/config.js';
 import { createMessages } from '../../src/messages.js';
 import type { ShellAppOptions } from '../../src/shell/model.svelte.js';
 import { ShellModel } from '../../src/shell/model.svelte.js';
+import type { SpaceMemory } from '../../src/workspaces.js';
 import DeveloperView from '../../src/shell/DeveloperView.svelte';
 import { ExperimentPanel } from '@swf/navigation-ui';
 import Shell from '../../src/shell/Shell.svelte';
@@ -29,6 +30,26 @@ export interface Mounted {
 }
 
 const mounted: { model: ShellModel; shell: ReturnType<typeof mount>; root: HTMLElement }[] = [];
+
+/**
+ * The space shown last, remembered per store as a browser remembers it beside its storage: a
+ * test's next visit to the same store finds it, and no test finds another's.
+ */
+const memories = new WeakMap<object, SpaceMemory>();
+function memoryOf(store: object): SpaceMemory {
+  let memory = memories.get(store);
+  if (memory === undefined) {
+    let shown: string | null = null;
+    memory = {
+      get: () => shown,
+      set: (name) => {
+        shown = name;
+      },
+    };
+    memories.set(store, memory);
+  }
+  return memory;
+}
 
 /**
  * Ends every visit mounted: a page holds one application at a time, with its one announcer, so
@@ -70,7 +91,10 @@ export async function start(
   root.style.setProperty('width', `${String(size.width)}px`);
   root.style.setProperty('height', `${String(size.height)}px`);
   document.body.append(root);
-  const model = new ShellModel(createMessages(), parseConfig(search), appOptions);
+  const model = new ShellModel(createMessages(), parseConfig(search), {
+    ...appOptions,
+    spaceMemory: appOptions.spaceMemory ?? memoryOf(appOptions.store ?? {}),
+  });
   const shell = mount(Shell, {
     target: root,
     props: { model, developer: DeveloperView, experiments: experiments ? ExperimentPanel : null },

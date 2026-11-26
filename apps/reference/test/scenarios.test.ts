@@ -4,7 +4,14 @@ import { describe, expect, it } from 'vitest';
 import { planPreset, presetCommands } from '../src/presets.js';
 import { CAMERA_ID, DEFAULT_FEATURES, FOCUS_ID, poseOf } from '@swf/navigation';
 import type { ScenarioWorld } from '../src/scenarios.js';
-import { createScenarios, SCENARIO_IDS, SCENARIOS, ScenarioRefusal } from '../src/scenarios.js';
+import {
+  createScenarios,
+  SCENARIO_IDS,
+  SCENARIO_LAYOUT,
+  SCENARIOS,
+  ScenarioRefusal,
+} from '../src/scenarios.js';
+import type { SpaceEntry } from '@swf/persistence';
 
 /** The studio in a workspace of its own, changed by the test as an operator would. */
 function studio() {
@@ -18,6 +25,9 @@ function studio() {
   }
   let mode = 'panorama';
   let heading = 0;
+  let spaces: SpaceEntry[] = [];
+  let space = 'Studio';
+  let switches = 1;
   const world = (): ScenarioWorld => {
     const scene: SceneState = ws.getState();
     return {
@@ -27,8 +37,9 @@ function studio() {
       pose: (id) =>
         scene.nodes.get(id)?.status === 'active' ? poseOf(scene, id, [0, 0, 0]) : null,
       depth: DEFAULT_FEATURES.depth,
-      named: [],
-      restores: 0,
+      spaces,
+      space,
+      switches,
     };
   };
   const change = (...commands: SceneCommand[]) => {
@@ -46,15 +57,75 @@ function studio() {
     face(degrees: number) {
       heading = degrees;
     },
+    /** Stores what is shown as a space, at a time, and shows it. */
+    saveAs(name: string, at: number) {
+      spaces = [
+        ...spaces.filter((e) => e.name !== name),
+        { name, seeded: false, stored: { savedAt: at, bytes: 1 } },
+      ];
+      space = name;
+    },
+    /** Shows another space; the scene stands as the test leaves it. */
+    switchTo(name: string) {
+      space = name;
+      switches += 1;
+    },
   };
 }
 
 describe('guided scenarios', () => {
-  it('each start from their first step and have three steps the studio can do', () => {
+  it('each start from their first step and have three steps the studio can do, four to save and restore', () => {
     for (const id of SCENARIO_IDS) {
-      expect(SCENARIOS[id].steps).toHaveLength(3);
+      expect(SCENARIOS[id].steps).toHaveLength(id === 'restore' ? 4 : 3);
       expect(SCENARIOS[id].id).toBe(id);
     }
+  });
+
+  it('saves the layout as a space of its own, changes it, and finds it as left after switching away and back', async () => {
+    const s = studio();
+    const scenarios = createScenarios({ world: () => Promise.resolve(s.world()) });
+    scenarios.start('restore');
+    await scenarios.observe();
+    expect(await scenarios.demonstration()).toEqual({
+      kind: 'command',
+      command: { id: 'reference.space.saveAs', params: { name: SCENARIO_LAYOUT } },
+    });
+    s.saveAs(SCENARIO_LAYOUT, 10);
+    await scenarios.observe();
+    expect(scenarios.status()?.done).toBe(1);
+    // Moving a window is the change.
+    s.change({
+      type: 'node.patch',
+      id: 'builds',
+      transform: { position: [2, 0, -3], rotation: [0, 0, 0, 1], scale: [1, 1, 1] },
+    });
+    await scenarios.observe();
+    expect(scenarios.status()?.done).toBe(2);
+    expect(await scenarios.demonstration()).toEqual({
+      kind: 'command',
+      command: { id: 'reference.space.switch', params: { name: 'Studio' } },
+    });
+    s.switchTo('Studio');
+    await scenarios.observe();
+    expect(scenarios.status()?.done).toBe(3);
+    // Back, but changed since it was left: not as left.
+    const desk = s.world().scene.nodes.get('desk')?.transform;
+    s.change({
+      type: 'node.patch',
+      id: 'desk',
+      transform: { position: [-2, 0, -3], rotation: [0, 0, 0, 1], scale: [1, 1, 1] },
+    });
+    s.switchTo(SCENARIO_LAYOUT);
+    await scenarios.observe();
+    expect(scenarios.status()?.done).toBe(3);
+    if (desk === undefined) {
+      throw new Error('the studio has its desk');
+    }
+    s.change({ type: 'node.patch', id: 'desk', transform: desk });
+    s.switchTo('Studio');
+    s.switchTo(SCENARIO_LAYOUT);
+    await scenarios.observe();
+    expect(scenarios.status()).toMatchObject({ steps: 4, done: 4, finished: true });
   });
 
   it('tick steps off in order, each once it is done while due, and stay finished', async () => {

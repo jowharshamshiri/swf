@@ -559,7 +559,7 @@ export interface Transition {
   /** Lean's Swf.AppFocus.Transition.framing. */
   readonly framing: Framing;
   /** Lean's Swf.AppFocus.Transition.phase. */
-  readonly phase: Phase;
+  readonly phase: AppFocusPhase;
   /** Lean's Swf.AppFocus.Transition.duration. */
   readonly duration: bigint;
 }
@@ -943,26 +943,6 @@ export type ImportIssue =
 /** The descriptor of Swf.AppWorkspaces.ImportIssue: how its values cross the boundary. */
 export function importIssueType(): L.Type<ImportIssue>;
 
-/** Why a name cannot name a workspace. */
-export type NameIssue =
-  | {
-      /** There is no name: none given, or only spaces. */
-      readonly kind: "missing";
-    }
-  | {
-      /** It starts or ends with spaces. */
-      readonly kind: "padded";
-    }
-  | {
-      /** It is longer than `max` characters. */
-      readonly kind: "tooLong";
-      /** The field `max` of Lean's Swf.AppWorkspaces.NameIssue.tooLong. */
-      readonly max: bigint;
-    }
-;
-/** The descriptor of Swf.AppWorkspaces.NameIssue: how its values cross the boundary. */
-export function nameIssueType(): L.Type<NameIssue>;
-
 /** How saving the workspace as it changes stands. */
 export interface WorkspacesMachine {
   /** The workspace is saved as it changes. */
@@ -983,7 +963,7 @@ export type WorkspacesEvent =
       /** The field `on` of Lean's Swf.AppWorkspaces.WorkspacesEvent.setAutosave. */
       readonly on: boolean;
       /** The field `saver` of Lean's Swf.AppWorkspaces.WorkspacesEvent.setAutosave. */
-      readonly saver: SaverState;
+      readonly saver: AppWorkspacesSaverState;
     }
   | {
       /** The workspace, its policies or the host's state changed. */
@@ -998,14 +978,8 @@ export type WorkspacesEvent =
       readonly kind: "saveNow";
     }
   | {
-      /** Every saved layout was deleted: the workspace on screen counts as unsaved, a visit afresh. */
+      /** Every saved layout was deleted: the workspace on screen counts as unsaved. */
       readonly kind: "cleared";
-    }
-  | {
-      /** A restore of the saved visit ended, restoring it or not. */
-      readonly kind: "restored";
-      /** The field `ok` of Lean's Swf.AppWorkspaces.WorkspacesEvent.restored. */
-      readonly ok: boolean;
     }
   | {
       /** The workspaces are disposed: a scheduled save is stopped. */
@@ -1025,8 +999,6 @@ export interface WorkspacesStep {
   readonly startTimer: boolean;
   /** Save the workspace now. */
   readonly save: boolean;
-  /** Go on saving under the restored visit's key, as saved at its revision. */
-  readonly adopt: boolean;
   /** Tell the listeners how saving stands. */
   readonly announce: boolean;
   /** Why the event is refused, if it is. */
@@ -2054,6 +2026,156 @@ export interface SaveEnd {
 /** The descriptor of Swf.Save.SaveEnd: how its values cross the boundary. */
 export function saveEndType(): L.Type<SaveEnd>;
 
+/** The spaces. */
+export interface SpacesMachine {
+  /** The space shown: none until the first is opened. */
+  readonly active: L.Option<string>;
+  /** Lean's Swf.Spaces.SpacesMachine.phase. */
+  readonly phase: SpacesPhase;
+  /** The spaces are disposed: nothing more is done. */
+  readonly disposed: boolean;
+}
+/** The descriptor of Swf.Spaces.SpacesMachine: how its values cross the boundary. */
+export function spacesMachineType(): L.Type<SpacesMachine>;
+
+/** Why a name cannot name a space. */
+export type NameIssue =
+  | {
+      /** There is no name: none given, or only spaces. */
+      readonly kind: "missing";
+    }
+  | {
+      /** It starts or ends with spaces. */
+      readonly kind: "padded";
+    }
+  | {
+      /** It is longer than `max` characters. */
+      readonly kind: "tooLong";
+      /** The field `max` of Lean's Swf.Spaces.NameIssue.tooLong. */
+      readonly max: bigint;
+    }
+;
+/** The descriptor of Swf.Spaces.NameIssue: how its values cross the boundary. */
+export function nameIssueType(): L.Type<NameIssue>;
+
+/** What happens to the spaces. */
+export type SpacesEvent =
+  | {
+      /**
+       * The person asks to show `target`. `known`: it is one of the spaces (stored or seeded).
+       * `on`: saving is on. `saver`: how the space shown is saved.
+       */
+      readonly kind: "request";
+      /** The field `target` of Lean's Swf.Spaces.SpacesEvent.request. */
+      readonly target: string;
+      /** The field `known` of Lean's Swf.Spaces.SpacesEvent.request. */
+      readonly known: boolean;
+      /** The field `on` of Lean's Swf.Spaces.SpacesEvent.request. */
+      readonly on: boolean;
+      /** The field `saver` of Lean's Swf.Spaces.SpacesEvent.request. */
+      readonly saver: SpacesSaverState;
+    }
+  | {
+      /** The save of the space shown, before a switch, ended. */
+      readonly kind: "saved";
+      /** The field `ok` of Lean's Swf.Spaces.SpacesEvent.saved. */
+      readonly ok: boolean;
+    }
+  | {
+      /** The person answered: `discard` opens the target, giving up the unsaved changes. */
+      readonly kind: "answer";
+      /** The field `discard` of Lean's Swf.Spaces.SpacesEvent.answer. */
+      readonly discard: boolean;
+    }
+  | {
+      /** Opening the target ended: restored, or not (nothing changed). */
+      readonly kind: "opened";
+      /** The field `ok` of Lean's Swf.Spaces.SpacesEvent.opened. */
+      readonly ok: boolean;
+    }
+  | {
+      /**
+       * The person asks to keep what is shown as the space `name`, replacing a space of the person's
+       * of that name once stored. `issue`: the name cannot name a space. `taken`: a seeded space has the
+       * name, which is the host's and never saved over. `on`: saving is on.
+       */
+      readonly kind: "fork";
+      /** The field `name` of Lean's Swf.Spaces.SpacesEvent.fork. */
+      readonly name: string;
+      /** The field `issue` of Lean's Swf.Spaces.SpacesEvent.fork. */
+      readonly issue: boolean;
+      /** The field `taken` of Lean's Swf.Spaces.SpacesEvent.fork. */
+      readonly taken: boolean;
+      /** The field `on` of Lean's Swf.Spaces.SpacesEvent.fork. */
+      readonly on: boolean;
+    }
+  | {
+      /** Storing the new space ended. */
+      readonly kind: "forked";
+      /** The field `ok` of Lean's Swf.Spaces.SpacesEvent.forked. */
+      readonly ok: boolean;
+    }
+  | {
+      /**
+       * The person asks to reset or remove `name`. `seeded`: it is one the host seeds. `stored`:
+       * the store holds it. `on`: saving is on.
+       */
+      readonly kind: "remove";
+      /** The field `name` of Lean's Swf.Spaces.SpacesEvent.remove. */
+      readonly name: string;
+      /** The field `seeded` of Lean's Swf.Spaces.SpacesEvent.remove. */
+      readonly seeded: boolean;
+      /** The field `stored` of Lean's Swf.Spaces.SpacesEvent.remove. */
+      readonly stored: boolean;
+      /** The field `on` of Lean's Swf.Spaces.SpacesEvent.remove. */
+      readonly on: boolean;
+    }
+  | {
+      /** Putting the space shown back as it was seeded ended. */
+      readonly kind: "reset";
+      /** The field `ok` of Lean's Swf.Spaces.SpacesEvent.reset. */
+      readonly ok: boolean;
+    }
+  | {
+      /** The person asks to delete every stored space. `on`: saving is on. */
+      readonly kind: "clear";
+      /** The field `on` of Lean's Swf.Spaces.SpacesEvent.clear. */
+      readonly on: boolean;
+    }
+  | {
+      /** The spaces are disposed. */
+      readonly kind: "dispose";
+    }
+;
+/** The descriptor of Swf.Spaces.SpacesEvent: how its values cross the boundary. */
+export function spacesEventType(): L.Type<SpacesEvent>;
+
+/** What the package does for an event. */
+export interface SpacesStep {
+  /** Lean's Swf.Spaces.SpacesStep.next. */
+  readonly next: SpacesMachine;
+  /** Save the space shown now. */
+  readonly save: boolean;
+  /** Ask the person whether to open the target, giving up the unsaved changes. */
+  readonly ask: boolean;
+  /** Open this space in place of the one shown, starting its history afresh. */
+  readonly openTarget: L.Option<string>;
+  /** Store what is shown as this new space. */
+  readonly store: L.Option<string>;
+  /** Put the space shown back as it was seeded, its stored state deleted. */
+  readonly reseed: boolean;
+  /** Delete the stored space of this name. */
+  readonly delete: L.Option<string>;
+  /** Delete every stored space; the space shown stays shown, as not saved. */
+  readonly wipe: boolean;
+  /** The space shown is now `next.active`: save under its key from now on. */
+  readonly adopt: boolean;
+  /** Why the event is refused, if it is. */
+  readonly refusal: L.Option<SpacesRefusal>;
+}
+/** The descriptor of Swf.Spaces.SpacesStep: how its values cross the boundary. */
+export function spacesStepType(): L.Type<SpacesStep>;
+
 /** Where a surface is in its presentation lifecycle. */
 export type Presentation =
   | {
@@ -2572,7 +2694,7 @@ export function framingType(): L.Type<Framing>;
  * Where a transition stands: none under way, one due to be shown from the next frame, or one
  * shown since a time.
  */
-export type Phase =
+export type AppFocusPhase =
   | {
       /** Lean's Swf.AppFocus.Phase.idle. */
       readonly kind: "idle";
@@ -2589,7 +2711,7 @@ export type Phase =
     }
 ;
 /** The descriptor of Swf.AppFocus.Phase: how its values cross the boundary. */
-export function phaseType(): L.Type<Phase>;
+export function appFocusPhaseType(): L.Type<AppFocusPhase>;
 
 /** What the application does. */
 export type TransitionAction =
@@ -2685,7 +2807,7 @@ export interface WheelStep {
 export function wheelStepType(): L.Type<WheelStep>;
 
 /** How the saver stands: saved, changed since, saving, or failed to save. */
-export type SaverState =
+export type AppWorkspacesSaverState =
   | {
       /** The store holds what the workspace shows. */
       readonly kind: "clean";
@@ -2704,7 +2826,7 @@ export type SaverState =
     }
 ;
 /** The descriptor of Swf.AppWorkspaces.SaverState: how its values cross the boundary. */
-export function saverStateType(): L.Type<SaverState>;
+export function appWorkspacesSaverStateType(): L.Type<AppWorkspacesSaverState>;
 
 /** What a hit lies on. */
 export type HitRegion =
@@ -3028,6 +3150,112 @@ export type AckRefusal =
 ;
 /** The descriptor of Swf.Save.AckRefusal: how its values cross the boundary. */
 export function ackRefusalType(): L.Type<AckRefusal>;
+
+/** Where a change of space stands. */
+export type SpacesPhase =
+  | {
+      /** Nothing is under way. */
+      readonly kind: "idle";
+    }
+  | {
+      /** The space shown is being saved before `target` is opened. */
+      readonly kind: "saving";
+      /** The field `target` of Lean's Swf.Spaces.Phase.saving. */
+      readonly target: string;
+    }
+  | {
+      /**
+       * The space shown could not be saved: the person is asked whether to open `target` anyway,
+       * giving up its unsaved changes, or to stay.
+       */
+      readonly kind: "asking";
+      /** The field `target` of Lean's Swf.Spaces.Phase.asking. */
+      readonly target: string;
+    }
+  | {
+      /** `target` is being opened in place of the space shown. */
+      readonly kind: "opening";
+      /** The field `target` of Lean's Swf.Spaces.Phase.opening. */
+      readonly target: string;
+    }
+  | {
+      /** What is shown is being stored as the new space `name`. */
+      readonly kind: "forking";
+      /** The field `name` of Lean's Swf.Spaces.Phase.forking. */
+      readonly name: string;
+    }
+  | {
+      /** The space shown, `name`, is being put back as it was seeded. */
+      readonly kind: "resetting";
+      /** The field `name` of Lean's Swf.Spaces.Phase.resetting. */
+      readonly name: string;
+    }
+;
+/** The descriptor of Swf.Spaces.Phase: how its values cross the boundary. */
+export function spacesPhaseType(): L.Type<SpacesPhase>;
+
+/**
+ * How the space shown is saved: as the store holds it, changed since, being saved, or not saved
+ * by the last save, which failed.
+ */
+export type SpacesSaverState =
+  | {
+      /** Lean's Swf.Spaces.SaverState.clean. */
+      readonly kind: "clean";
+    }
+  | {
+      /** Lean's Swf.Spaces.SaverState.dirty. */
+      readonly kind: "dirty";
+    }
+  | {
+      /** Lean's Swf.Spaces.SaverState.saving. */
+      readonly kind: "saving";
+    }
+  | {
+      /** Lean's Swf.Spaces.SaverState.failed. */
+      readonly kind: "failed";
+    }
+;
+/** The descriptor of Swf.Spaces.SaverState: how its values cross the boundary. */
+export function spacesSaverStateType(): L.Type<SpacesSaverState>;
+
+/** Why an event is refused. */
+export type SpacesRefusal =
+  | {
+      /** The spaces are disposed. */
+      readonly kind: "disposed";
+    }
+  | {
+      /** Saving is off: the spaces cannot change. */
+      readonly kind: "off";
+    }
+  | {
+      /** No space has the name. */
+      readonly kind: "unknown";
+    }
+  | {
+      /** Another change of space is under way. */
+      readonly kind: "busy";
+    }
+  | {
+      /** The name cannot name a space. */
+      readonly kind: "badName";
+    }
+  | {
+      /** A seeded space has the name: it is never saved over. */
+      readonly kind: "taken";
+    }
+  | {
+      /** The space shown cannot be removed: only a seeded one, which is reset. */
+      readonly kind: "shown";
+    }
+  | {
+      /** The event does not belong to the change under way: the caller's mistake. */
+      readonly kind: "unexpected";
+    }
+;
+/** The descriptor of Swf.Spaces.SpacesRefusal: how its values cross the boundary. */
+export function spacesRefusalType(): L.Type<SpacesRefusal>;
 
 /** Why a surface is unbound: it shows a placeholder that keeps its identity and geometry. */
 export type UnboundReason =
@@ -3451,36 +3679,19 @@ export class SwfModels {
    */
   workspacesImportIssue(fileName: L.Option<string>, isText: boolean): L.Option<ImportIssue>;
   /**
-   * Why a name cannot name a workspace, or none when it can; `none` stands for a name that is not
-   * a string.
+   * Which entries stored before spaces become which spaces, as (key, space): the newest visit
+   * (key, start time) becomes `visitSpace`, the space shown by default, and the newest named save
+   * (key, name, time) of each name the space of that name, unless the visit took the name. A space
+   * already stored (`stored`) is never written over. Every entry of the earlier kind is deleted once
+   * these spaces are stored.
    *
-   * Lean's Swf.AppWorkspaces.workspacesNameIssue : Option String → Option Swf.AppWorkspaces.NameIssue
+   * Lean's Swf.AppWorkspaces.workspacesMigration : Array (String × Int) → Array (String × String × Int) → String → Array String → Array (String × String)
    */
-  workspacesNameIssue(name: L.Option<string>): L.Option<NameIssue>;
-  /**
-   * The visit to restore among the stored ones (key and start time): the one started last, the
-   * first listed of those started at the same time.
-   *
-   * Lean's Swf.AppWorkspaces.workspacesNewest : Array (String × Int) → Option String
-   */
-  workspacesNewest(visits: Array<[string, bigint]>): L.Option<string>;
-  /**
-   * When a named workspace saved at `now` is saved, given when its older saves were: `now`, or
-   * just after the latest older save, so each save of a name has a time (and a key) of its own.
-   *
-   * Lean's Swf.AppWorkspaces.workspacesSavedAt : Int → Array Int → Int
-   */
-  workspacesSavedAt(now: bigint, older: Array<bigint>): bigint;
-  /**
-   * The visits to remove once this visit (`current`) is stored: every other one.
-   *
-   * Lean's Swf.AppWorkspaces.workspacesStale : String → Array String → Array String
-   */
-  workspacesStale(current: string, visits: Array<string>): Array<string>;
+  workspacesMigration(visits: Array<[string, bigint]>, named: Array<[string, [string, bigint]]>, visitSpace: string, stored: Array<string>): Array<[string, string]>;
   /**
    * What the application does for an event: as `liveStep` decides until the workspaces are
    * disposed. Disposed workspaces refuse every event (`the workspaces are disposed`) and do nothing for
-   * it: nothing is scheduled, saved, adopted or announced. Disposing them again is done already, and
+   * it: nothing is scheduled, saved or announced. Disposing them again is done already, and
    * changes nothing.
    *
    * Lean's Swf.AppWorkspaces.workspacesStep : Swf.AppWorkspaces.WorkspacesMachine → Swf.AppWorkspaces.WorkspacesEvent → Swf.AppWorkspaces.WorkspacesStep
@@ -3849,6 +4060,26 @@ export class SwfModels {
    * Lean's Swf.Save.saveOpen : Option Nat → Option Int → Int → Swf.Save.SaveMachine
    */
   saveOpen(savedRevision: L.Option<bigint>, savedChanges: L.Option<bigint>, changes: bigint): SaveMachine;
+  /**
+   * The spaces before any is shown.
+   *
+   * Lean's Swf.Spaces.spacesInitial : Swf.Spaces.SpacesMachine
+   */
+  spacesInitial(): SpacesMachine;
+  /**
+   * Why a name cannot name a space, or none when it can; `none` stands for a name that is not a
+   * string.
+   *
+   * Lean's Swf.Spaces.spacesNameIssue : Option String → Option Swf.Spaces.NameIssue
+   */
+  spacesNameIssue(name: L.Option<string>): L.Option<NameIssue>;
+  /**
+   * What the package does for an event: as `liveStep` decides until the spaces are disposed, after
+   * which every event but disposal is refused, and disposal again changes nothing.
+   *
+   * Lean's Swf.Spaces.spacesStep : Swf.Spaces.SpacesMachine → Swf.Spaces.SpacesEvent → Swf.Spaces.SpacesStep
+   */
+  spacesStep(m: SpacesMachine, e: SpacesEvent): SpacesStep;
   /**
    * Whether a surface may start binding (or retry after an error): refused with `disposed` on a
    * disposed runtime, admitted (`none`) from `unbound` or `error`, and refused with

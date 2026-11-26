@@ -537,6 +537,350 @@
       }
     }
   ],
+  "research@1": [
+    {
+      "id": "question",
+      "label": "Research Question",
+      "content": "note",
+      "bindingKey": "research/note/1/01",
+      "heading": 0.8,
+      "elevation": 0,
+      "distance": 3.2,
+      "width": 2.2,
+      "height": 1.5,
+      "hue": 205,
+      "detail": {
+        "category": "Research",
+        "metric": "3 hypotheses",
+        "description": "What the study sets out to answer"
+      }
+    },
+    {
+      "id": "papers",
+      "label": "Papers",
+      "content": "note",
+      "bindingKey": "research/note/1/02",
+      "heading": -47.8,
+      "elevation": 6,
+      "distance": 3.6,
+      "width": 2.4,
+      "height": 1.6,
+      "hue": 20,
+      "detail": {
+        "category": "Reading",
+        "metric": "42 papers",
+        "description": "Read, skimmed and still to read"
+      }
+    },
+    {
+      "id": "fieldnotes",
+      "label": "Field Notes",
+      "content": "note",
+      "bindingKey": "research/note/1/03",
+      "heading": 52.9,
+      "elevation": -4.9,
+      "distance": 3.4,
+      "width": 2.2,
+      "height": 1.5,
+      "hue": 85,
+      "detail": {
+        "category": "Fieldwork",
+        "metric": "17 entries",
+        "description": "Observations from the last site visit"
+      }
+    },
+    {
+      "id": "datasets",
+      "label": "Datasets",
+      "content": "note",
+      "bindingKey": "research/note/1/04",
+      "heading": -99.3,
+      "elevation": -5.1,
+      "distance": 4.8,
+      "width": 2.6,
+      "height": 1.7,
+      "hue": 175,
+      "detail": {
+        "category": "Data",
+        "metric": "6 sets",
+        "description": "Sources, licences and versions"
+      }
+    },
+    {
+      "id": "experiments",
+      "label": "Experiment Log",
+      "content": "note",
+      "bindingKey": "research/note/1/05",
+      "heading": 99.5,
+      "elevation": 10,
+      "distance": 5,
+      "width": 2.6,
+      "height": 1.7,
+      "hue": 130,
+      "detail": {
+        "category": "Lab",
+        "metric": "Run 14",
+        "description": "Each run, its settings and outcome"
+      }
+    },
+    {
+      "id": "interviews",
+      "label": "Interviews",
+      "content": "note",
+      "bindingKey": "research/note/1/06",
+      "heading": -150.3,
+      "elevation": 10,
+      "distance": 3.6,
+      "width": 2.2,
+      "height": 1.5,
+      "hue": 330,
+      "detail": {
+        "category": "Fieldwork",
+        "metric": "9 transcripts",
+        "description": "Conversations, coded by theme"
+      }
+    },
+    {
+      "id": "survey",
+      "label": "Survey Results",
+      "content": "tile",
+      "bindingKey": "research/tile/1/07",
+      "heading": 147.8,
+      "elevation": -10.4,
+      "distance": 7,
+      "width": 3.2,
+      "height": 2,
+      "hue": 265,
+      "detail": {
+        "category": "Data",
+        "metric": "412 replies",
+        "description": "Answers by question and group"
+      }
+    },
+    {
+      "id": "citations",
+      "label": "Citations",
+      "content": "note",
+      "bindingKey": "research/note/1/08",
+      "heading": 176.5,
+      "elevation": 22.6,
+      "distance": 9,
+      "width": 3.4,
+      "height": 2.2,
+      "hue": 50,
+      "detail": {
+        "category": "Writing",
+        "metric": "128 references",
+        "description": "The bibliography, checked"
+      }
+    },
+    {
+      "id": "draft",
+      "label": "Paper Draft",
+      "content": "note",
+      "bindingKey": "research/note/1/09",
+      "heading": -20.1,
+      "elevation": -31.8,
+      "distance": 5.2,
+      "width": 3,
+      "height": 1.9,
+      "hue": 290,
+      "detail": {
+        "category": "Writing",
+        "metric": "6,200 words",
+        "description": "The draft, section by section"
+      }
+    },
+    {
+      "id": "labarchive",
+      "label": "Lab Archive",
+      "content": "tile",
+      "bindingKey": "research/tile/1/10",
+      "heading": 31.4,
+      "elevation": 31.1,
+      "distance": 10.5,
+      "width": 3.8,
+      "height": 2.4,
+      "hue": 240,
+      "detail": {
+        "category": "Archive",
+        "metric": "3 years",
+        "description": "Earlier studies and their data"
+      }
+    }
+  ],
+  "planning@1": [
+    {
+      "id": "roadmap",
+      "label": "Roadmap",
+      "content": "note",
+      "bindingKey": "planning/note/1/01",
+      "heading": 0.8,
+      "elevation": -2,
+      "distance": 3.4,
+      "width": 2.6,
+      "height": 1.6,
+      "hue": 215,
+      "detail": {
+        "category": "Planning",
+        "metric": "Q1–Q4",
+        "description": "Where the year is going"
+      }
+    },
+    {
+      "id": "backlog",
+      "label": "Backlog",
+      "content": "note",
+      "bindingKey": "planning/note/1/02",
+      "heading": -54.8,
+      "elevation": -2,
+      "distance": 3.2,
+      "width": 2.2,
+      "height": 1.5,
+      "hue": 40,
+      "detail": {
+        "category": "Work",
+        "metric": "58 items",
+        "description": "Everything not yet scheduled"
+      }
+    },
+    {
+      "id": "sprint",
+      "label": "Sprint Board",
+      "content": "note",
+      "bindingKey": "planning/note/1/03",
+      "heading": 57.9,
+      "elevation": 5.1,
+      "distance": 3.6,
+      "width": 2.4,
+      "height": 1.6,
+      "hue": 145,
+      "detail": {
+        "category": "Work",
+        "metric": "Sprint 31",
+        "description": "This fortnight’s work by state"
+      }
+    },
+    {
+      "id": "milestones",
+      "label": "Milestones",
+      "content": "note",
+      "bindingKey": "planning/note/1/04",
+      "heading": -104.3,
+      "elevation": 8.9,
+      "distance": 4.8,
+      "width": 2.6,
+      "height": 1.7,
+      "hue": 90,
+      "detail": {
+        "category": "Planning",
+        "metric": "5 due",
+        "description": "Dates the plan commits to"
+      }
+    },
+    {
+      "id": "risks",
+      "label": "Risks",
+      "content": "note",
+      "bindingKey": "planning/note/1/05",
+      "heading": 104.5,
+      "elevation": -6,
+      "distance": 5.2,
+      "width": 2.6,
+      "height": 1.7,
+      "hue": 0,
+      "detail": {
+        "category": "Review",
+        "metric": "7 open",
+        "description": "What could slip, and the plan if it does"
+      }
+    },
+    {
+      "id": "budget",
+      "label": "Budget",
+      "content": "note",
+      "bindingKey": "planning/note/1/06",
+      "heading": -150.3,
+      "elevation": -6,
+      "distance": 3.8,
+      "width": 2.2,
+      "height": 1.5,
+      "hue": 120,
+      "detail": {
+        "category": "Finance",
+        "metric": "72% spent",
+        "description": "Spending against the plan"
+      }
+    },
+    {
+      "id": "capacity",
+      "label": "Team Capacity",
+      "content": "tile",
+      "bindingKey": "planning/tile/1/07",
+      "heading": 147.8,
+      "elevation": 11.6,
+      "distance": 7.5,
+      "width": 3.2,
+      "height": 2,
+      "hue": 280,
+      "detail": {
+        "category": "People",
+        "metric": "34 days free",
+        "description": "Who is free, and when"
+      }
+    },
+    {
+      "id": "decisions",
+      "label": "Decisions",
+      "content": "tile",
+      "bindingKey": "planning/tile/1/08",
+      "heading": 178.5,
+      "elevation": -23.4,
+      "distance": 8.8,
+      "width": 3.4,
+      "height": 2.2,
+      "hue": 190,
+      "detail": {
+        "category": "Review",
+        "metric": "23 logged",
+        "description": "What was decided, by whom and why"
+      }
+    },
+    {
+      "id": "goals",
+      "label": "Quarter Goals",
+      "content": "note",
+      "bindingKey": "planning/note/1/09",
+      "heading": -30.1,
+      "elevation": 26.2,
+      "distance": 5.4,
+      "width": 3,
+      "height": 1.9,
+      "hue": 320,
+      "detail": {
+        "category": "Planning",
+        "metric": "4 goals",
+        "description": "Outcomes the quarter is measured by"
+      }
+    },
+    {
+      "id": "retro",
+      "label": "Retrospective",
+      "content": "note",
+      "bindingKey": "planning/note/1/10",
+      "heading": 29.4,
+      "elevation": -28.9,
+      "distance": 10.8,
+      "width": 3.8,
+      "height": 2.4,
+      "hue": 260,
+      "detail": {
+        "category": "Review",
+        "metric": "12 notes",
+        "description": "What went well, and what to change"
+      }
+    }
+  ],
   "empty@1": [],
   "sparse@1": [
     {

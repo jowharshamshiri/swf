@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type {
+  SpacesEvent,
+  SpacesMachine,
+  SpacesSaverState,
   CompNode,
   CompScene,
   Hit,
@@ -50,8 +53,6 @@ describe('the reference application’s workspaces', () => {
     { kind: 'fired' },
     { kind: 'saveNow' },
     { kind: 'cleared' },
-    { kind: 'restored', ok: true },
-    { kind: 'restored', ok: false },
   ];
 
   it('refuses every event once disposed, and does nothing for it', () => {
@@ -62,7 +63,6 @@ describe('the reference application’s workspaces', () => {
         cancelTimer: false,
         startTimer: false,
         save: false,
-        adopt: false,
         announce: false,
         refusal: 'the workspaces are disposed',
       });
@@ -76,10 +76,60 @@ describe('the reference application’s workspaces', () => {
     expect(step.cancelTimer).toBe(false);
   });
 
-  it('still saves now and adopts a restored visit before disposal', () => {
+  it('still saves now before disposal', () => {
     const live: WorkspacesMachine = { autosave: true, pending: false, disposed: false };
     expect(models.workspacesStep(live, { kind: 'saveNow' }).save).toBe(true);
-    expect(models.workspacesStep(live, { kind: 'restored', ok: true }).adopt).toBe(true);
+  });
+});
+
+describe('named spaces', () => {
+  const idle = models.spacesInitial();
+  const shown: SpacesMachine = { ...idle, active: 'Studio' };
+  const request = (target: string, saver: SpacesSaverState['kind'], on = true): SpacesEvent => ({
+    kind: 'request',
+    target,
+    known: true,
+    on,
+    saver: { kind: saver },
+  });
+
+  it('opens the first space at once, and another at once only when the space shown is saved', () => {
+    expect(models.spacesStep(idle, request('Studio', 'dirty', false)).openTarget).toBe('Studio');
+    expect(models.spacesStep(shown, request('Research', 'clean')).openTarget).toBe('Research');
+    for (const saver of ['dirty', 'saving', 'failed'] as const) {
+      const step = models.spacesStep(shown, request('Research', saver));
+      expect(step.openTarget, saver).toBeNull();
+      expect(step.save, saver).toBe(true);
+      expect(step.next.phase).toEqual({ kind: 'saving', target: 'Research' });
+    }
+  });
+
+  it('asks after a failed save, and opens only once the operator gives the changes up', () => {
+    const saving: SpacesMachine = { ...shown, phase: { kind: 'saving', target: 'Research' } };
+    const failed = models.spacesStep(saving, { kind: 'saved', ok: false });
+    expect(failed).toMatchObject({ ask: true, openTarget: null });
+    const asking = failed.next;
+    expect(models.spacesStep(asking, { kind: 'answer', discard: false }).next).toEqual(shown);
+    expect(models.spacesStep(asking, { kind: 'answer', discard: true }).openTarget).toBe(
+      'Research',
+    );
+    // Nothing else is taken meanwhile.
+    expect(models.spacesStep(asking, request('Planning', 'clean')).refusal).toEqual({
+      kind: 'busy',
+    });
+  });
+
+  it('refuses another space while saving is off, an unknown one, and everything once disposed', () => {
+    expect(models.spacesStep(shown, request('Research', 'clean', false)).refusal).toEqual({
+      kind: 'off',
+    });
+    expect(
+      models.spacesStep(shown, { ...request('Nowhere', 'clean'), known: false }).refusal,
+    ).toEqual({ kind: 'unknown' });
+    const disposed = models.spacesStep(shown, { kind: 'dispose' }).next;
+    expect(models.spacesStep(disposed, request('Research', 'clean')).refusal).toEqual({
+      kind: 'disposed',
+    });
   });
 });
 

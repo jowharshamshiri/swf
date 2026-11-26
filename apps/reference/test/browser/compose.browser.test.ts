@@ -1,11 +1,10 @@
 import { keyed } from '@wsb/uikit/handles';
 import { standInReason } from '@swf/presentation';
 import type { SnapshotStore } from '@swf/persistence';
-import { createMemoryStore } from '@swf/persistence';
+import { createMemoryStore, spaceKey } from '@swf/persistence';
 import { describe, expect, it } from 'vitest';
 import { SECOND_VIEWPORT_ID } from '../../src/devtools.js';
 import { ENGLISH } from '../../src/messages.js';
-import { sessionKey } from '../../src/workspaces.js';
 import { endVisits, layout, same, start } from './shell-harness.js';
 
 describe('multi-surface composition in the shell (FR-126, AC-016, §33.2 scenario 4)', () => {
@@ -54,8 +53,9 @@ describe('multi-surface composition in the shell (FR-126, AC-016, §33.2 scenari
       'window-03-surface',
       'window-02-surface',
     ]);
-    // Saved as it changes, and under a name.
+    // Saved as it changes, and as a space of its own, shown from then on.
     expect(await model.saveAs('Board rearranged')).toBe(true);
+    expect(model.workspaces?.space).toBe('Board rearranged');
     await expect.poll(() => model.workspaces?.save).toBe('clean');
     const saved = layout(model);
     // The next visit restores it, whole.
@@ -77,20 +77,27 @@ describe('multi-surface composition in the shell (FR-126, AC-016, §33.2 scenari
       const now = restored.nodes.find((r) => r.id === n.id);
       expect(same(now?.world, n.world), n.id).toBe(true);
     }
-    expect((await next.model.app?.workspaces.named())?.map((w) => w.name)).toEqual([
+    expect(next.model.workspaces?.space).toBe('Board rearranged');
+    expect((await next.model.app?.workspaces.list())?.map((w) => w.name)).toEqual([
+      'Research',
+      'Planning',
+      'Studio',
       'Board rearranged',
     ]);
-    // Listed in the workspaces view; pressing it asks before replacing the workspace with it.
+    // Listed in the workspaces view: pressing another space shows it, and pressing this one
+    // again brings it back as it was left.
     next.driver.act('workshop.view#workspaces', 'press');
     await next.settle();
-    await expect
-      .poll(() => next.driver.has(keyed('page.workspaces.entry', 'Board rearranged')))
-      .toBe(true);
+    await expect.poll(() => next.driver.has(keyed('page.workspaces.entry', 'Studio'))).toBe(true);
+    next.driver.act(keyed('page.workspaces.entry', 'Studio'), 'press');
+    await expect.poll(() => next.model.workspaces?.space).toBe('Studio');
     next.driver.act(keyed('page.workspaces.entry', 'Board rearranged'), 'press');
-    await expect.poll(() => next.driver.has('page.replace')).toBe(true);
-    next.driver.act('page.replace.confirm', 'press');
+    await expect.poll(() => next.model.workspaces?.space).toBe('Board rearranged');
     await next.settle();
-    expect(next.model.workspaceNote).toEqual({ kind: 'opened', name: 'Board rearranged' });
+    const again = layout(next.model);
+    for (const [i, n] of saved.nodes.entries()) {
+      expect(same(again.nodes[i]?.world, n.world), n.id).toBe(true);
+    }
   });
 });
 
@@ -229,15 +236,19 @@ describe('importing a workspace (FR-201, UX-016)', () => {
     expect(model.status?.windows).toBe(6);
   });
 
-  it('says a saved workspace could not be restored, and loads the demo instead (FR-195)', async () => {
+  it('says a remembered space could not be restored, and shows the demo instead (FR-195)', async () => {
     const store: SnapshotStore = createMemoryStore();
     await store.save({
-      key: sessionKey(1),
+      key: spaceKey('Mine'),
       document: '{"schema": 1}',
       revision: 1,
       expectedRevision: null,
     });
-    const { model, root } = await start('', { store });
+    const { model, root } = await start('', {
+      store,
+      spaceMemory: { get: () => 'Mine', set: () => undefined },
+    });
+    expect(model.workspaces?.space).toBe('Studio');
     // The demo: the studio and its thirteen windows.
     expect(model.scene?.preset).toBe('studio');
     expect(model.status?.windows).toBe(13);

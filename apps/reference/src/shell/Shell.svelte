@@ -32,7 +32,7 @@
   import type { MessageId } from '../messages.js';
   import { PRESETS } from '../presets.js';
   import type { Component } from 'svelte';
-  import { untrack } from 'svelte';
+  import { tick, untrack } from 'svelte';
   import type { ShellModel } from './model.svelte.js';
   import Palette from './Palette.svelte';
   import SceneView from './SceneView.svelte';
@@ -41,6 +41,7 @@
   import WindowsView from './WindowsView.svelte';
   import WorkspacesView from './WorkspacesView.svelte';
   import ReplaceDialog from './ReplaceDialog.svelte';
+  import SwitchDialog from './SwitchDialog.svelte';
 
   interface Props {
     model: ShellModel;
@@ -180,6 +181,15 @@
   );
   const status = $derived(model.status);
   const scene = $derived(model.scene);
+  /** The space shown, once one is. */
+  const shownSpace = $derived(model.workspaces?.space ?? null);
+
+  /** Saving what is shown as a new space is done in the Workspaces view: it opens on its name. */
+  async function newSpace(): Promise<void> {
+    leftView = 'workspaces';
+    await tick();
+    document.getElementById('reference-workspace-name')?.focus();
+  }
   const policies = $derived(model.policies);
 </script>
 
@@ -281,8 +291,40 @@
   />
 {/snippet}
 
+{#snippet spacesEnd()}
+  <IconButton
+    handle={handleOf`editor.spaces.new`}
+    icon="add"
+    label={t('spaces.new')}
+    size="small"
+    onpress={() => {
+      void newSpace();
+    }}
+  />
+{/snippet}
+
 {#snippet centreView()}
-  <NavigationCentre {model} {panorama} />
+  <Stack fill gap="small">
+    <!-- The spaces across the top of the centre, each shown in one press: while saving is on. -->
+    {#if persisting && shownSpace !== null && model.spaces.length > 1}
+      <Tabs
+        handle={handleOf`editor.spaces`}
+        ariaLabel={t('spaces.label')}
+        variant="panel"
+        items={model.spaces.map((space) => ({ value: space.name, label: space.name }))}
+        selected={shownSpace}
+        onselect={(name) => {
+          if (name !== shownSpace) {
+            void model.switchTo(name);
+          }
+        }}
+        end={spacesEnd}
+      />
+    {/if}
+    <Stack grow>
+      <NavigationCentre {model} {panorama} />
+    </Stack>
+  </Stack>
 {/snippet}
 
 {#snippet editorActions()}
@@ -452,6 +494,10 @@
 
 {#if model.pendingReplace !== null}
   <ReplaceDialog {model} pending={model.pendingReplace} />
+{/if}
+
+{#if model.workspaces?.asking}
+  <SwitchDialog {model} asking={model.workspaces.asking} />
 {/if}
 
 {#if paletteOpen}

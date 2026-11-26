@@ -57,7 +57,16 @@ export interface WindowDetail {
   readonly description: string;
 }
 
-export const PRESET_IDS = ['studio', 'empty', 'sparse', 'dense', 'seam', 'composed'] as const;
+export const PRESET_IDS = [
+  'studio',
+  'research',
+  'planning',
+  'empty',
+  'sparse',
+  'dense',
+  'seam',
+  'composed',
+] as const;
 export type PresetId = (typeof PRESET_IDS)[number];
 
 export interface Preset {
@@ -461,6 +470,42 @@ const STUDIO: readonly StudioWindow[] = Object.freeze([
 const STUDIO_BOARD_PARTS: readonly string[] = Object.freeze(['plan', 'timeline', 'sources']);
 
 /**
+ * Named windows planned from their layout: the seed moves each window a few degrees, never across
+ * a depth band, and the parts of a board (by key) stay together, composed into it.
+ */
+function planNamed(
+  preset: PresetId,
+  windows: readonly StudioWindow[],
+  board: {
+    readonly window: { readonly id: string; readonly label: string };
+    readonly parts: readonly string[];
+  } | null,
+  random: Random,
+  seed: number,
+): PlannedWindow[] {
+  return windows.map((spec, i): PlannedWindow => {
+    const part = board !== null && board.parts.includes(spec.key);
+    const jitter = part ? 0 : stepped(random, -3, 3, 10);
+    const lift = part ? 0 : stepped(random, -2, 2, 10);
+    const number = String(i + 1).padStart(2, '0');
+    return {
+      id: spec.key,
+      label: spec.label,
+      content: spec.content,
+      bindingKey: `${preset}/${spec.content}/${String(seed)}/${number}`,
+      heading: wrapHeading(spec.heading + jitter),
+      elevation: Math.round((spec.elevation + lift) * 10) / 10,
+      distance: spec.distance,
+      width: spec.width,
+      height: spec.height,
+      hue: spec.hue,
+      detail: spec.detail,
+      ...(part && board !== null ? { composedInto: board.window } : {}),
+    };
+  });
+}
+
+/**
  * The default scene: a studio of named windows all the way round the camera and at every depth,
  * each looking like what it is, with a board of three surfaces straight ahead to break apart. The
  * seed moves each window a few degrees, never across a depth band; the board's parts stay together.
@@ -469,32 +514,157 @@ const studio: Preset = {
   id: 'studio',
   name: 'preset.studio',
   defaultSeed: 1,
-  plan(random, seed) {
-    return STUDIO.map((spec, i): PlannedWindow => {
-      const part = STUDIO_BOARD_PARTS.includes(spec.key);
-      const jitter = part ? 0 : stepped(random, -3, 3, 10);
-      const lift = part ? 0 : stepped(random, -2, 2, 10);
-      const number = String(i + 1).padStart(2, '0');
-      return {
-        id: spec.key,
-        label: spec.label,
-        content: spec.content,
-        bindingKey: `studio/${spec.content}/${String(seed)}/${number}`,
-        heading: wrapHeading(spec.heading + jitter),
-        elevation: Math.round((spec.elevation + lift) * 10) / 10,
-        distance: spec.distance,
-        width: spec.width,
-        height: spec.height,
-        hue: spec.hue,
-        detail: spec.detail,
-        ...(part ? { composedInto: STUDIO_BOARD } : {}),
-      };
-    });
-  },
+  plan: (random, seed) =>
+    planNamed('studio', STUDIO, { window: STUDIO_BOARD, parts: STUDIO_BOARD_PARTS }, random, seed),
+};
+
+/** A window of a named scene: where it stands, how large, its hue and what it is about. */
+const named = (
+  key: string,
+  label: string,
+  content: ContentKind,
+  [heading, elevation, distance]: readonly [number, number, number],
+  [width, height]: readonly [number, number],
+  hue: number,
+  detail: WindowDetail,
+): StudioWindow =>
+  Object.freeze({ key, label, content, heading, elevation, distance, width, height, hue, detail });
+
+/**
+ * A researcher's desk: the question straight ahead, reading and fieldwork to either side, data
+ * and the lab's log further round, writing and the archive far off, every depth band filled.
+ */
+const RESEARCH: readonly StudioWindow[] = Object.freeze([
+  named('question', 'Research Question', 'note', [0, 2, 3.2], [2.2, 1.5], 205, {
+    category: 'Research',
+    metric: '3 hypotheses',
+    description: 'What the study sets out to answer',
+  }),
+  named('papers', 'Papers', 'note', [-48, 4, 3.6], [2.4, 1.6], 20, {
+    category: 'Reading',
+    metric: '42 papers',
+    description: 'Read, skimmed and still to read',
+  }),
+  named('fieldnotes', 'Field Notes', 'note', [50, -4, 3.4], [2.2, 1.5], 85, {
+    category: 'Fieldwork',
+    metric: '17 entries',
+    description: 'Observations from the last site visit',
+  }),
+  named('datasets', 'Datasets', 'note', [-100, -6, 4.8], [2.6, 1.7], 175, {
+    category: 'Data',
+    metric: '6 sets',
+    description: 'Sources, licences and versions',
+  }),
+  named('experiments', 'Experiment Log', 'note', [100, 8, 5], [2.6, 1.7], 130, {
+    category: 'Lab',
+    metric: 'Run 14',
+    description: 'Each run, its settings and outcome',
+  }),
+  named('interviews', 'Interviews', 'note', [-150, 10, 3.6], [2.2, 1.5], 330, {
+    category: 'Fieldwork',
+    metric: '9 transcripts',
+    description: 'Conversations, coded by theme',
+  }),
+  named('survey', 'Survey Results', 'tile', [150, -10, 7], [3.2, 2], 265, {
+    category: 'Data',
+    metric: '412 replies',
+    description: 'Answers by question and group',
+  }),
+  named('citations', 'Citations', 'note', [178, 24, 9], [3.4, 2.2], 50, {
+    category: 'Writing',
+    metric: '128 references',
+    description: 'The bibliography, checked',
+  }),
+  named('draft', 'Paper Draft', 'note', [-20, -30, 5.2], [3, 1.9], 290, {
+    category: 'Writing',
+    metric: '6,200 words',
+    description: 'The draft, section by section',
+  }),
+  named('labarchive', 'Lab Archive', 'tile', [32, 30, 10.5], [3.8, 2.4], 240, {
+    category: 'Archive',
+    metric: '3 years',
+    description: 'Earlier studies and their data',
+  }),
+]);
+
+/**
+ * A planner's room: the roadmap straight ahead, the work to either side, milestones, risks and
+ * money further round, capacity and decisions behind, the quarter's goals and its retrospective
+ * far off, every depth band filled.
+ */
+const PLANNING: readonly StudioWindow[] = Object.freeze([
+  named('roadmap', 'Roadmap', 'note', [0, 0, 3.4], [2.6, 1.6], 215, {
+    category: 'Planning',
+    metric: 'Q1–Q4',
+    description: 'Where the year is going',
+  }),
+  named('backlog', 'Backlog', 'note', [-55, -4, 3.2], [2.2, 1.5], 40, {
+    category: 'Work',
+    metric: '58 items',
+    description: 'Everything not yet scheduled',
+  }),
+  named('sprint', 'Sprint Board', 'note', [55, 6, 3.6], [2.4, 1.6], 145, {
+    category: 'Work',
+    metric: 'Sprint 31',
+    description: 'This fortnight’s work by state',
+  }),
+  named('milestones', 'Milestones', 'note', [-105, 8, 4.8], [2.6, 1.7], 90, {
+    category: 'Planning',
+    metric: '5 due',
+    description: 'Dates the plan commits to',
+  }),
+  named('risks', 'Risks', 'note', [105, -8, 5.2], [2.6, 1.7], 0, {
+    category: 'Review',
+    metric: '7 open',
+    description: 'What could slip, and the plan if it does',
+  }),
+  named('budget', 'Budget', 'note', [-150, -6, 3.8], [2.2, 1.5], 120, {
+    category: 'Finance',
+    metric: '72% spent',
+    description: 'Spending against the plan',
+  }),
+  named('capacity', 'Team Capacity', 'tile', [150, 12, 7.5], [3.2, 2], 280, {
+    category: 'People',
+    metric: '34 days free',
+    description: 'Who is free, and when',
+  }),
+  named('decisions', 'Decisions', 'tile', [180, -22, 8.8], [3.4, 2.2], 190, {
+    category: 'Review',
+    metric: '23 logged',
+    description: 'What was decided, by whom and why',
+  }),
+  named('goals', 'Quarter Goals', 'note', [-30, 28, 5.4], [3, 1.9], 320, {
+    category: 'Planning',
+    metric: '4 goals',
+    description: 'Outcomes the quarter is measured by',
+  }),
+  named('retro', 'Retrospective', 'note', [30, -30, 10.8], [3.8, 2.4], 260, {
+    category: 'Review',
+    metric: '12 notes',
+    description: 'What went well, and what to change',
+  }),
+]);
+
+/** The research space's scene: named windows round a research question. */
+const research: Preset = {
+  id: 'research',
+  name: 'preset.research',
+  defaultSeed: 1,
+  plan: (random, seed) => planNamed('research', RESEARCH, null, random, seed),
+};
+
+/** The planning space's scene: named windows round a roadmap. */
+const planning: Preset = {
+  id: 'planning',
+  name: 'preset.planning',
+  defaultSeed: 1,
+  plan: (random, seed) => planNamed('planning', PLANNING, null, random, seed),
 };
 
 export const PRESETS: Readonly<Record<PresetId, Preset>> = Object.freeze({
   studio,
+  research,
+  planning,
   empty,
   sparse,
   dense,

@@ -17,11 +17,12 @@ import {
   VIEWPORT_ID,
 } from '@swf/navigation';
 import { KIT_CHROME, navigationWords } from '@swf/navigation-ui';
-import type { RestoreOutcome, SnapshotStore } from '@swf/persistence';
+import type { SnapshotStore } from '@swf/persistence';
 import { createWebStorageStore } from '@swf/persistence';
 import type { AppCommands } from './commands.js';
 import { createAppCommands } from './commands.js';
 import type { AppConfig } from './config.js';
+import { DEFAULT_SPACE, SEEDED_SPACES } from './config.js';
 import type { DemoContent, NoteTexts } from './content.js';
 import { createDemoContent, webNoteTexts } from './content.js';
 import type { Messages } from './messages.js';
@@ -46,8 +47,8 @@ import {
   windowCommands,
   WORKSPACE_GROUP_ID,
 } from './presets.js';
-import type { Workspaces } from './workspaces.js';
-import { createWorkspaces, hostExtension } from './workspaces.js';
+import type { SpaceMemory, Workspaces } from './workspaces.js';
+import { createWorkspaces, hostExtension, webSpaceMemory } from './workspaces.js';
 import type { Scenarios, ScenarioId, ScenarioWorld } from './scenarios.js';
 import { BEHIND, createScenarios, offCamera, SCENARIOS } from './scenarios.js';
 import type { Challenge, ChallengeRun, MethodId } from './challenge.js';
@@ -66,13 +67,13 @@ export interface AppStatus extends NavigationStatus {
 
 /**
  * The reference application: the framework's navigation over the demo content, with the seeded
- * scenes, saving and named workspaces, the guided scenarios and the timed task of its own.
+ * scenes, its spaces, the guided scenarios and the timed task of its own.
  */
 export interface ReferenceApp extends Omit<Navigation, 'status' | 'subscribe'> {
   readonly content: DemoContent;
   readonly messages: Messages;
   readonly commands: AppCommands;
-  /** The workspaces in local storage: saved as it changes, named, exported and imported. */
+  /** The spaces in local storage: switched, saved as they change, exported and imported. */
   readonly workspaces: Workspaces;
   /** The guided scenarios: the one under way, and how far it has come. */
   readonly scenarios: Scenarios;
@@ -120,8 +121,10 @@ export interface ReferenceAppOptions {
   readonly messages?: Messages;
   /** The window whose animation frames pace presentation. Default: the root's. */
   readonly window?: Window;
-  /** Where workspaces are stored. Default: the window's local storage. */
+  /** Where the spaces are stored. Default: the window's local storage. */
   readonly store?: SnapshotStore;
+  /** Where the space shown is remembered. Default: the window's local storage. */
+  readonly spaceMemory?: SpaceMemory;
   /** Where what the operator writes in the notes is kept. Default: the window's local storage. */
   readonly noteTexts?: NoteTexts;
   /** How long after a change the workspace is saved, in milliseconds. Default 800. */
@@ -275,6 +278,22 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
     now: () => Date.now(),
     timer,
     autosaveDelayMs: options.autosaveDelayMs ?? 800,
+    seeds: SEEDED_SPACES.map((space) => space.name),
+    defaultSpace: DEFAULT_SPACE,
+    memory: options.spaceMemory ?? webSpaceMemory(view.localStorage),
+    // A seeded space is its preset as planned from its own seed, the camera straight ahead.
+    seed(name: string) {
+      const space = SEEDED_SPACES.find((s) => s.name === name);
+      if (space === undefined) {
+        return Promise.reject(new Error(`the application seeds no space named "${name}"`));
+      }
+      const loaded = loadPreset(space.preset);
+      return loaded.status === 'committed'
+        ? Promise.resolve()
+        : Promise.reject(
+            new Error(`the ${space.preset} preset could not be loaded: ${JSON.stringify(loaded)}`),
+          );
+    },
     // Which preset and seed the scene came from: the host's own state, opaque to the framework.
     extensions: [
       hostExtension('host.reference.scene', {
@@ -329,9 +348,9 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
   const stopPersistence = policies.subscribe(followPersistence);
 
   const DEGREES = 180 / Math.PI;
-  /** The application as a scenario's step reads it: the named workspaces first, then the rest. */
+  /** The application as a scenario's step reads it: the spaces first, then the rest. */
   const scenarioWorld = async (): Promise<ScenarioWorld> => {
-    const named = await workspaces.named();
+    const spaces = await workspaces.list();
     const state = workspace.getState();
     const camera = state.cameras.get(CAMERA_ID);
     if (camera === undefined) {
@@ -344,8 +363,9 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
       pose: (id: string) =>
         state.nodes.get(id)?.status === 'active' ? poseOf(state, id, camera.position) : null,
       depth: policies.status().features.depth,
-      named,
-      restores: workspaces.measures().restores,
+      spaces,
+      space: workspaces.status().space,
+      switches: workspaces.measures().switches,
     });
   };
   const scenarios = createScenarios({ world: scenarioWorld });
@@ -544,13 +564,16 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
     },
   };
 
-  // The workspace saved last comes back (UX-016), unless the address names a scene; a saved
-  // workspace that cannot be restored is reported, and the configured scene is loaded instead.
-  let restored: RestoreOutcome | null = null;
-  if (config.restore) {
-    restored = await workspaces.restoreLast();
+  // The space shown last comes back as it was left (UX-016); a space that cannot be opened is
+  // reported, and the next is opened instead. An address that names a scene loads it into the
+  // space, as one undoable change.
+  try {
+    await workspaces.start();
+  } catch (error) {
+    await app.dispose();
+    throw error;
   }
-  if (restored?.status !== 'restored') {
+  if (!config.restore) {
     const loaded = loadPreset(config.preset, config.seed);
     if (loaded.status !== 'committed') {
       await app.dispose();

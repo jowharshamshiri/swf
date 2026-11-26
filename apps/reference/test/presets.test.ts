@@ -56,9 +56,20 @@ function seeded(preset: PresetId, seed: number) {
 }
 
 describe('demo presets (FR-131, MIG-005, AN-010)', () => {
-  it('offers the studio, sparse, dense, seam/behind-camera and composed scenes besides the empty one', () => {
-    expect(PRESET_IDS).toEqual(['studio', 'empty', 'sparse', 'dense', 'seam', 'composed']);
+  it('offers the studio, research, planning, sparse, dense, seam/behind-camera and composed scenes besides the empty one', () => {
+    expect(PRESET_IDS).toEqual([
+      'studio',
+      'research',
+      'planning',
+      'empty',
+      'sparse',
+      'dense',
+      'seam',
+      'composed',
+    ]);
     expect(planPreset('studio', 1)).toHaveLength(15);
+    expect(planPreset('research', 1)).toHaveLength(10);
+    expect(planPreset('planning', 1)).toHaveLength(10);
     expect(planPreset('composed', 1)).toHaveLength(5);
     expect(planPreset('empty', 1)).toEqual([]);
     expect(planPreset('sparse', 1)).toHaveLength(6);
@@ -71,6 +82,8 @@ describe('demo presets (FR-131, MIG-005, AN-010)', () => {
     const plans = {
       'studio@1': planPreset('studio', 1),
       'studio@42': planPreset('studio', 42),
+      'research@1': planPreset('research', 1),
+      'planning@1': planPreset('planning', 1),
       'empty@1': planPreset('empty', 1),
       'sparse@1': planPreset('sparse', 1),
       'sparse@42': planPreset('sparse', 42),
@@ -108,8 +121,8 @@ describe('demo presets (FR-131, MIG-005, AN-010)', () => {
       expect(new Set(plan.map((w) => w.id)).size).toBe(plan.length);
       expect(new Set(plan.map((w) => w.bindingKey)).size).toBe(plan.length);
       plan.forEach((w, i) => {
-        // The studio's windows are known by name; the generated scenes' by number.
-        if (id !== 'studio') {
+        // The named scenes' windows are known by name; the generated scenes' by number.
+        if (!['studio', 'research', 'planning'].includes(id)) {
           expect(Number(w.id.replace('window-', ''))).toBe(i + 1);
         }
         expect(Number(w.bindingKey.split('/').at(-1))).toBe(i + 1);
@@ -143,6 +156,56 @@ describe('demo presets (FR-131, MIG-005, AN-010)', () => {
         // The window's front (+Z) points back at the camera.
         const front = normalize(mat4TransformDirection(m, [0, 0, 1]));
         expect(dot(front, normalize(scale(centre, -1)))).toBeCloseTo(1, 9);
+      }
+    }
+  });
+});
+
+describe('the research and planning scenes, seeded spaces of their own', () => {
+  /** The bands semantic depth shows by default: full nearer than 4, compact to 5.5, label beyond. */
+  const band = (distance: number) => (distance < 4 ? 'full' : distance < 5.5 ? 'compact' : 'label');
+
+  it('stand named, described, distinguishable windows all the way round and at every depth, live near and drawn far', () => {
+    for (const preset of ['research', 'planning'] as const) {
+      const base = planPreset(preset, 1);
+      for (const seed of [0, 1, 7, 1234, MAX_SEED]) {
+        const plan = planPreset(preset, seed);
+        expect(plan).toHaveLength(10);
+        expect(new Set(plan.map((w) => w.label)).size).toBe(10);
+        expect(new Set(plan.map((w) => w.hue)).size).toBe(10);
+        for (const w of plan) {
+          expect(w.detail?.category).toBeTruthy();
+          expect(w.detail?.metric).toBeTruthy();
+          expect(w.detail?.description).toBeTruthy();
+          expect(w.bindingKey.startsWith(`${preset}/`)).toBe(true);
+        }
+        for (const [from, to] of [
+          [-180, -90],
+          [-90, 0],
+          [0, 90],
+          [90, 180],
+        ] as const) {
+          expect(plan.some((w) => w.heading >= from && w.heading <= to)).toBe(true);
+        }
+        expect(plan.filter((w) => Math.abs(w.heading) > 90).length).toBeGreaterThanOrEqual(4);
+        expect(plan.some((w) => w.elevation > 20)).toBe(true);
+        expect(plan.some((w) => w.elevation < -20)).toBe(true);
+        for (const which of ['full', 'compact', 'label']) {
+          expect(plan.filter((w) => band(w.distance) === which).length).toBeGreaterThanOrEqual(3);
+        }
+        // As in the studio: what is not far is a live note, and only far windows are drawn.
+        for (const w of plan.filter((p) => band(p.distance) !== 'label')) {
+          expect(w.content).toBe('note');
+        }
+        expect(plan.some((w) => w.content === 'tile')).toBe(true);
+        // The seed moves each window a few degrees, never across a band.
+        plan.forEach((w, i) => {
+          const planned = base[i];
+          expect(w.id).toBe(planned?.id);
+          expect(band(w.distance)).toBe(band(planned?.distance ?? NaN));
+          const turned = Math.abs(((w.heading - (planned?.heading ?? NaN) + 540) % 360) - 180);
+          expect(turned).toBeLessThanOrEqual(6);
+        });
       }
     }
   });

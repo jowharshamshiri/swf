@@ -4,51 +4,39 @@ import type {
   Persistence,
   PersistenceExtension,
   PolicySource,
+  RemoveOutcome,
   RestoreOutcome,
-  Saver,
   SaveState,
   SnapshotStore,
+  SpaceEntry,
+  Spaces,
+  SpacesPhase,
+  SwitchOutcome,
   WorkspaceDocument,
 } from '@swf/persistence';
-import { createPersistence, createSaver } from '@swf/persistence';
+import { createPersistence, createSpaces, spaceKey, spaceOfKey } from '@swf/persistence';
 import type * as Lean from '@swf/models';
 import { models } from '@swf/models';
 
 /**
- * The reference application's workspaces in local storage (FR-127, FR-168, UX-016, PRIV-002): the
- * workspace saved as it changes, so the next visit restores it; named workspaces saved and opened
- * on request; export to and import from a JSON file, each import previewed before it replaces
- * anything; and deleting every layout the application saved. Only layout is stored: the scene,
- * the policies' parameters and the host's opaque extension state, never what a window shows.
+ * The reference application's spaces in local storage (FR-127, FR-168, UX-016, PRIV-002): several
+ * named workspaces, the space shown saved as it changes and switched in one press, the seeded
+ * ones made by the application until they are stored; the space shown saved under a new name;
+ * export to and import from a JSON file, each import previewed before it replaces anything; and
+ * deleting every layout the application saved. Only layout is stored: the scene, the policies'
+ * parameters and the host's opaque extension state, never what a window shows.
  */
 
-/**
- * Visits are saved as they change under `session/<started at>`, one key per visit: a visit's
- * workspace counts its revisions afresh, so it never saves over another visit's. The newest is
- * the one restored, and once a visit's workspace is stored the older visits' are removed.
- */
-export const SESSION = 'session/';
-
-/** The key a visit started at a time saves under. */
-export const sessionKey = (startedAt: number) => `${SESSION}${String(startedAt)}`;
-
-/** When a visit's key says it started, or null for a key that is not a visit's. */
-function sessionStart(key: string): number | null {
-  if (!key.startsWith(SESSION)) {
-    return null;
+/** A refusal of the workspaces module, by the field at fault: said to the operator as it is. */
+export class WorkspaceRefusal extends Error {
+  constructor(
+    readonly field: string,
+    message: string,
+    readonly error: SwfError | null = null,
+  ) {
+    super(message);
+    this.name = 'WorkspaceRefusal';
   }
-  const at = Number(key.slice(SESSION.length));
-  return Number.isSafeInteger(at) ? at : null;
-}
-
-/** Named workspaces are stored as `named/<name>/<saved at>`: one entry per save. */
-const NAMED = 'named/';
-
-/** A named workspace as the store holds it. */
-export interface NamedWorkspace {
-  readonly name: string;
-  readonly savedAt: number;
-  readonly bytes: number;
 }
 
 /** What a snapshot holds, said before it replaces the workspace (FR-201). */
@@ -65,18 +53,6 @@ export interface SnapshotPreview {
   readonly bytes: number;
 }
 
-/** A refusal of the workspaces module, by the field at fault: said to the operator as it is. */
-export class WorkspaceRefusal extends Error {
-  constructor(
-    readonly field: string,
-    message: string,
-    readonly error: SwfError | null = null,
-  ) {
-    super(message);
-    this.name = 'WorkspaceRefusal';
-  }
-}
-
 /** Persistence measures since the application started (AN-007). */
 export interface PersistenceMeasures {
   readonly saves: number;
@@ -84,65 +60,102 @@ export interface PersistenceMeasures {
   readonly restores: number;
   readonly restoreFailures: number;
   readonly migrations: number;
+  /** How many spaces have been switched to since the application started, the first among them. */
+  readonly switches: number;
   /** The last snapshot written or read, in UTF-8 bytes; null before any. */
   readonly lastSnapshotBytes: number | null;
-  /** The last save of the workspace as it changes, capture to store, in milliseconds. */
+  /** The last save of the space shown, capture to store, in milliseconds. */
   readonly lastSaveMs: number | null;
-  /** Taking the last named or exported snapshot and writing it out as JSON, in milliseconds. */
+  /** Taking the last exported snapshot and writing it out as JSON, in milliseconds. */
   readonly lastCaptureMs: number | null;
   readonly lastSerializeMs: number | null;
   /** Validating, migrating and restoring the last snapshot read, in milliseconds. */
   readonly lastRestoreMs: number | null;
 }
 
-/** How saving stands, for the shell to show. */
+/** How saving and the spaces stand, for the shell to show. */
 export interface WorkspacesStatus {
-  /** Whether the workspace is saved as it changes. */
+  /** Whether the space shown is saved as it changes. */
   readonly autosave: boolean;
   readonly save: SaveState;
   /** Why the last save failed, while it is `failed`. */
   readonly saveError: SwfError | null;
-  /** Why the last restore failed, until the next restore. */
+  /** Why the last space or file could not be opened, until a snapshot is restored again. */
   readonly restoreError: SwfError | null;
+  /** The space shown; null until the first is opened. */
+  readonly space: string | null;
+  /** Where a change of space stands. */
+  readonly phase: SpacesPhase;
+  /**
+   * A switch waiting for the operator, since the space shown could not be saved first: the space
+   * asked for, and why the save failed.
+   */
+  readonly asking: { readonly name: string; readonly error: SwfError } | null;
+}
+
+/** Where the application remembers the space shown, for the next visit. */
+export interface SpaceMemory {
+  /** The space shown last, or null when none is remembered. */
+  get(): string | null;
+  set(name: string): void;
+}
+
+/** The space shown remembered in a web storage area, under a key. */
+export function webSpaceMemory(storage: Storage, key = 'swf-reference.space'): SpaceMemory {
+  return Object.freeze({
+    get: () => storage.getItem(key),
+    set: (name: string) => {
+      storage.setItem(key, name);
+    },
+  });
 }
 
 export interface Workspaces {
   readonly persistence: Persistence;
   status(): WorkspacesStatus;
-  /** Calls `listener` whenever saving, a restore or the named workspaces change. */
+  /** Calls `listener` whenever saving, the spaces or a restore change. */
   subscribe(listener: () => void): () => void;
-  /** Saves the workspace as it changes (the persistence feature on), or stops (off). */
+  /** Saves the space shown as it changes (the persistence feature on), or stops (off). */
   setAutosave(on: boolean): void;
   /**
-   * Restores the workspace saved last, if there is one: the outcome, or null when nothing is
-   * saved. A snapshot that cannot be restored leaves the workspace as it is and is reported.
+   * Turns what the application stored before it kept spaces into spaces, then opens the space
+   * shown last, or the default one when none is remembered or it is no longer one. A space that
+   * cannot be opened is reported (as the restore error) and the next one in the list is opened
+   * instead; resolves with the space opened. Throws when no space can be opened.
    */
-  restoreLast(): Promise<RestoreOutcome | null>;
+  start(): Promise<string>;
+  /** Every space: the seeded ones first, in their order, then the operator's by name. */
+  list(): Promise<readonly SpaceEntry[]>;
   /**
-   * Saves the workspace now, as the save after a change would, without waiting for it (and
+   * Shows a space in place of the one shown, saving the one shown first. Throws
+   * {@link WorkspaceRefusal} for a space there is not, while saving is off or while another
+   * change of space is under way.
+   */
+  switchTo(name: string): Promise<SwitchOutcome>;
+  /** Answers a switch that asked: switch anyway, giving up the unsaved changes, or stay. */
+  answer(discard: boolean): Promise<SwitchOutcome>;
+  /**
+   * Saves the space shown now, as the save after a change would, without waiting for it (and
    * instead of it). Throws {@link WorkspaceRefusal} when saving is off, the workspaces are disposed
    * or the store refuses it.
    */
   saveNow(): Promise<void>;
-  /** The named workspaces, by name. */
-  named(): Promise<readonly NamedWorkspace[]>;
   /**
-   * Saves the workspace under a name; a workspace of that name is replaced only once the new one
-   * is stored, so a failed save leaves it as it was. Throws {@link WorkspaceRefusal}.
+   * Saves what is shown as a space of the operator's, and shows it from then on; a space of that
+   * name is replaced only once the new one is stored. Throws {@link WorkspaceRefusal}.
    */
-  saveAs(name: string): Promise<NamedWorkspace>;
-  /** What a named workspace holds. Throws {@link WorkspaceRefusal}. */
-  previewNamed(name: string): Promise<SnapshotPreview>;
-  /** Replaces the workspace with a named one, as one undoable change. */
-  openNamed(name: string): Promise<RestoreOutcome>;
-  /** Deletes a named workspace from local storage. Throws {@link WorkspaceRefusal}. */
-  deleteNamed(name: string): Promise<void>;
+  saveAs(name: string): Promise<SpaceEntry>;
   /**
-   * Deletes every layout the application saved in this browser, the one saved as it changes
-   * among them; returns how many. The workspace on screen stays as it is.
+   * Deletes a space of the operator's, or puts a seeded one back as it was seeded (the space
+   * shown in place, with nothing to undo). Throws {@link WorkspaceRefusal}.
+   */
+  remove(name: string): Promise<RemoveOutcome>;
+  /**
+   * Deletes every layout the application saved in this browser; returns how many. The space on
+   * screen stays as it is, and is saved again as it changes.
    */
   deleteAll(): Promise<number>;
-  /** The workspace as a JSON document to save to a file. */
+  /** The space shown as a JSON document to save to a file. */
   exportText(): Promise<string>;
   /**
    * What an imported file holds, read and validated without changing anything: its name must
@@ -150,13 +163,12 @@ export interface Workspaces {
    * {@link WorkspaceRefusal} naming the line or path at fault.
    */
   previewImport(fileName: string, text: string): SnapshotPreview;
-  /** Replaces the workspace with an imported one, after its preview was confirmed. */
+  /** Replaces the space shown with an imported one, after its preview was confirmed. */
   importText(fileName: string, text: string): Promise<RestoreOutcome>;
   measures(): PersistenceMeasures;
   /**
    * Stops saving and lets go of the store and the workspace's events. Disposing again does nothing;
-   * once disposed, turning saving on or off, saving now, clearing and adopting a restored visit
-   * throw {@link WorkspaceRefusal}.
+   * once disposed, turning saving on or off, saving now and clearing throw {@link WorkspaceRefusal}.
    */
   dispose(): void;
 }
@@ -168,20 +180,41 @@ export interface WorkspacesOptions {
   readonly extensions: readonly PersistenceExtension[];
   /** Policies whose parameters are saved with the layout. */
   readonly policies: readonly PolicySource[];
+  /** The spaces the application seeds, in their order. */
+  readonly seeds: readonly string[];
+  /** The seeded space shown when none is remembered: one of `seeds`. */
+  readonly defaultSpace: string;
+  /** Makes a seeded space's scene in the workspace, as it is before anyone changed it. */
+  readonly seed: (name: string) => Promise<void>;
+  /** Where the space shown is remembered. */
+  readonly memory: SpaceMemory;
   /** Wall-clock milliseconds, for snapshots' times. */
   readonly now: () => number;
   /** A monotonic clock in milliseconds, for measures. */
   readonly timer: () => number;
-  /** How long after a change the workspace is saved, in milliseconds. */
+  /** How long after a change the space shown is saved, in milliseconds. */
   readonly autosaveDelayMs: number;
 }
 
-/** The key a named workspace saved at a time is stored under. */
-const namedKey = (name: string, savedAt: number) =>
-  `${NAMED}${encodeURIComponent(name)}/${String(savedAt)}`;
+/**
+ * What the application stored before it kept spaces: the workspace of each visit, saved as it
+ * changed under `session/<started at>`, and each named save under `named/<name>/<saved at>`. They
+ * are made into spaces once, when the application starts, and deleted.
+ */
+const VISIT = 'session/';
+const NAMED = 'named/';
 
-/** A name and when it was saved, from a key, or null for a key that is not a named workspace's. */
-function parseNamedKey(key: string): { name: string; savedAt: number } | null {
+/** When a visit's key says it started, or null for a key that is not a visit's. */
+function visitStart(key: string): number | null {
+  if (!key.startsWith(VISIT)) {
+    return null;
+  }
+  const at = Number(key.slice(VISIT.length));
+  return Number.isSafeInteger(at) ? at : null;
+}
+
+/** A named save's name and time, from its key, or null for a key that is not one. */
+function namedSave(key: string): { name: string; savedAt: number } | null {
   if (!key.startsWith(NAMED)) {
     return null;
   }
@@ -199,30 +232,51 @@ function parseNamedKey(key: string): { name: string; savedAt: number } | null {
 }
 
 /**
- * Why a name cannot name a workspace, or null when it can: it needs something besides spaces,
- * cannot start or end with spaces, and has a longest length.
+ * Makes spaces of the entries stored before spaces, as the Lean model `Swf.AppWorkspaces` decides
+ * (`workspacesMigration`): the newest visit becomes the default space and each name's newest save
+ * the space of its name, never over a space already stored. Once those spaces are stored, every
+ * entry of the earlier kind is deleted. Returns how many spaces were made.
  */
-export function nameIssue(name: unknown): string | null {
-  const issue = models.workspacesNameIssue(typeof name === 'string' ? name : null);
-  if (issue === null) {
-    return null;
+export async function migrateStore(store: SnapshotStore, defaultSpace: string): Promise<number> {
+  const entries = await store.list();
+  const visits: [string, bigint][] = [];
+  const named: [string, [string, bigint]][] = [];
+  const stored: string[] = [];
+  const old: string[] = [];
+  for (const { key } of entries) {
+    const at = visitStart(key);
+    const save = namedSave(key);
+    const space = spaceOfKey(key);
+    if (at !== null) {
+      visits.push([key, BigInt(at)]);
+      old.push(key);
+    } else if (save !== null) {
+      named.push([key, [save.name, BigInt(save.savedAt)]]);
+      old.push(key);
+    } else if (space !== null) {
+      stored.push(space);
+    }
   }
-  switch (issue.kind) {
-    case 'missing':
-      return 'a workspace needs a name';
-    case 'padded':
-      return 'a name cannot start or end with spaces';
-    case 'tooLong':
-      return `a name can be at most ${String(issue.max)} characters`;
+  if (old.length === 0) {
+    return 0;
   }
-}
-
-/** Wall-clock milliseconds as the whole number a key carries. */
-function wholeMilliseconds(now: number): bigint {
-  if (!Number.isSafeInteger(now)) {
-    throw new RangeError(`the wall clock gives whole milliseconds (got ${String(now)})`);
+  const plan = models.workspacesMigration(visits, named, defaultSpace, stored);
+  for (const [key, space] of plan) {
+    const entry = await store.load(key);
+    if (entry === null) {
+      throw new Error(`the stored entry "${key}" went while it was made into a space`);
+    }
+    await store.save({
+      key: spaceKey(space),
+      document: entry.document,
+      revision: entry.revision,
+      expectedRevision: null,
+    });
   }
-  return BigInt(now);
+  for (const key of old) {
+    await store.delete(key);
+  }
+  return plan.length;
 }
 
 /** What a snapshot holds, counted. */
@@ -250,6 +304,20 @@ function refusalOf(field: string, error: unknown): WorkspaceRefusal {
   throw error;
 }
 
+/** What the spaces refused, said by the field at fault (`space` when no field is). */
+async function refused<T>(work: () => Promise<T>): Promise<T> {
+  try {
+    return await work();
+  } catch (error) {
+    if (error instanceof SwfFailure) {
+      return Promise.reject(
+        new WorkspaceRefusal(error.error.path ?? 'space', error.error.message, error.error),
+      );
+    }
+    throw error;
+  }
+}
+
 export function createWorkspaces(options: WorkspacesOptions): Workspaces {
   const { workspace, store, now, timer } = options;
   const persistence = createPersistence({ workspace: workspace.persistence(), now });
@@ -264,12 +332,14 @@ export function createWorkspaces(options: WorkspacesOptions): Workspaces {
     }
   };
   let restoreError: SwfError | null = null;
+  let asking: { name: string; error: SwfError } | null = null;
   const measures = {
     saves: 0,
     saveFailures: 0,
     restores: 0,
     restoreFailures: 0,
     migrations: 0,
+    switches: 0,
     lastSnapshotBytes: null as number | null,
     lastSaveMs: null as number | null,
     lastCaptureMs: null as number | null,
@@ -277,20 +347,16 @@ export function createWorkspaces(options: WorkspacesOptions): Workspaces {
     lastRestoreMs: null as number | null,
   };
 
-  /** The stored visits, as their keys say when each started. */
-  const sessions = async () =>
-    (await store.list()).flatMap((entry) => {
-      const at = sessionStart(entry.key);
-      return at === null ? [] : [{ key: entry.key, at }];
-    });
-
-  /** The key this visit saves under. */
-  let session = sessionKey(Number(wholeMilliseconds(now())));
-
-  /** A store measured: each save it is asked for timed and counted. */
+  /** A store measured: each save it is asked for counted. */
   const measured: SnapshotStore = {
     guarantees: store.guarantees,
-    load: (key) => store.load(key),
+    async load(key) {
+      const entry = await store.load(key);
+      if (entry !== null) {
+        measures.lastSnapshotBytes = entry.bytes;
+      }
+      return entry;
+    },
     list: () => store.list(),
     delete: (key) => store.delete(key),
     async save(request) {
@@ -303,40 +369,35 @@ export function createWorkspaces(options: WorkspacesOptions): Workspaces {
       }
       measures.saves += 1;
       measures.lastSnapshotBytes = ack.bytes;
-      // This visit is stored: older visits are no longer the last one, and go.
-      if (request.key === session) {
-        const visits = (await sessions()).map((visit) => visit.key);
-        for (const older of models.workspacesStale(session, visits)) {
-          await store.delete(older);
-        }
-      }
       return ack;
     },
   };
 
-  let saver: Saver = createSaver({ persistence, store: measured, key: session });
-  let stopSaver = saver.subscribe(tell);
-  const replaceSaver = (key: string, saved?: { revision: number; changes: number }) => {
-    stopSaver();
-    saver.dispose();
-    session = key;
-    saver = createSaver({
-      persistence,
-      store: measured,
-      key,
-      ...(saved === undefined ? {} : { saved }),
-    });
-    stopSaver = saver.subscribe(tell);
-  };
-
   /**
-   * Saving as the workspace changes, decided by the Lean model `Swf.AppWorkspaces`
+   * Saving as the space shown changes, decided by the Lean model `Swf.AppWorkspaces`
    * (models/Swf/AppWorkspaces.lean), where it is proved that a save is scheduled only while saving
    * is on, and only once there is something to save. A save is scheduled exactly while the timer
    * runs.
    */
   let machine: Lean.WorkspacesMachine = { autosave: false, pending: false, disposed: false };
+  const spaces: Spaces = createSpaces({
+    persistence,
+    store: measured,
+    seeds: options.seeds,
+    seed: options.seed,
+    saving: () => machine.autosave,
+  });
+  const stopSpaces = spaces.subscribe(tell);
   let timerId: ReturnType<typeof setTimeout> | null = null;
+  /** Saves the space shown, timed. */
+  const save = async () => {
+    const started = timer();
+    const outcome = await spaces.save();
+    if (outcome.status !== 'failed') {
+      measures.lastSaveMs = timer() - started;
+    }
+    return outcome;
+  };
   /** Does what the model decided for an event, but the save itself; throws its refusal. */
   const decide = (event: Lean.WorkspacesEvent): Lean.WorkspacesStep => {
     const step = models.workspacesStep(machine, event);
@@ -352,10 +413,7 @@ export function createWorkspaces(options: WorkspacesOptions): Workspaces {
       timerId = setTimeout(() => {
         timerId = null;
         if (decide({ kind: 'fired' }).save) {
-          const started = timer();
-          void saver.save().then(() => {
-            measures.lastSaveMs = timer() - started;
-          });
+          void save();
         }
       }, options.autosaveDelayMs);
     }
@@ -371,21 +429,19 @@ export function createWorkspaces(options: WorkspacesOptions): Workspaces {
     decide({ kind: 'changed' });
   });
 
-  /** Captures the workspace and writes it out as JSON, measured. */
-  const snapshotText = async (): Promise<{ text: string; revision: number }> => {
+  /** Captures the space shown and writes it out as JSON, measured. */
+  const snapshotText = async (): Promise<string> => {
     const started = timer();
     const { document } = await persistence.capture();
     const captured = timer();
     const text = persistence.export(document);
     measures.lastCaptureMs = captured - started;
     measures.lastSerializeMs = timer() - captured;
-    return { text, revision: document.revision };
+    return text;
   };
 
-  /** Restores a snapshot, measured; a rejection is kept as the last restore error. */
-  const restore = async (input: unknown): Promise<RestoreOutcome> => {
-    const started = timer();
-    const outcome = await persistence.restore(input);
+  /** Counts a restore's outcome; a rejection is kept as the last restore error. */
+  const counted = (outcome: RestoreOutcome, started: number): RestoreOutcome => {
     measures.lastRestoreMs = timer() - started;
     if (outcome.status === 'restored') {
       measures.restores += 1;
@@ -399,45 +455,30 @@ export function createWorkspaces(options: WorkspacesOptions): Workspaces {
     return outcome;
   };
 
-  /** Every stored save of each named workspace. */
-  const namedEntries = async () => {
-    const all = new Map<string, { savedAt: number; key: string; bytes: number }[]>();
-    for (const entry of await store.list()) {
-      const parsed = parseNamedKey(entry.key);
-      if (parsed === null) {
-        continue;
-      }
-      const list = all.get(parsed.name) ?? [];
-      list.push({ savedAt: parsed.savedAt, key: entry.key, bytes: entry.bytes });
-      all.set(parsed.name, list);
+  /** Counts how a switch ended: a space opened, a question asked, or a space that would not open. */
+  const switched = (outcome: SwitchOutcome, started: number): SwitchOutcome => {
+    asking = outcome.status === 'asking' ? { name: outcome.name, error: outcome.error } : null;
+    switch (outcome.status) {
+      case 'switched':
+        measures.switches += 1;
+        // A seeded space restores nothing: a failure said before stays said.
+        if (outcome.restore !== null) {
+          counted(outcome.restore, started);
+        }
+        options.memory.set(outcome.name);
+        break;
+      case 'failed':
+        measures.restoreFailures += 1;
+        measures.lastRestoreMs = timer() - started;
+        restoreError = outcome.error;
+        break;
+      case 'unchanged':
+      case 'asking':
+      case 'stayed':
+        break;
     }
-    return all;
-  };
-
-  /** The latest stored save of a name, if there is one. */
-  const latestOf = <T extends { readonly savedAt: number; readonly key: string }>(
-    entries: readonly T[],
-  ): T | undefined => {
-    const key = models.workspacesNewest(entries.map((e) => [e.key, BigInt(e.savedAt)]));
-    return key === null ? undefined : entries.find((e) => e.key === key);
-  };
-
-  /** Refuses a name that cannot name a workspace. */
-  const checkName = (name: string) => {
-    const issue = nameIssue(name);
-    if (issue !== null) {
-      throw new WorkspaceRefusal('name', issue);
-    }
-  };
-
-  const loadNamed = async (name: string) => {
-    checkName(name);
-    const newest = latestOf((await namedEntries()).get(name) ?? []);
-    const stored = newest === undefined ? null : await store.load(newest.key);
-    if (stored === null) {
-      throw new WorkspaceRefusal('name', `no workspace is saved as “${name}”`);
-    }
-    return stored;
+    tell();
+    return outcome;
   };
 
   const readDocument = (text: string, field: string): WorkspaceDocument => {
@@ -463,13 +504,18 @@ export function createWorkspaces(options: WorkspacesOptions): Workspaces {
 
   return Object.freeze({
     persistence,
-    status: () =>
-      Object.freeze({
+    status: () => {
+      const state = spaces.state;
+      return Object.freeze({
         autosave: machine.autosave,
-        save: saver.state,
-        saveError: saver.state === 'failed' ? saver.lastError : null,
+        save: state.save,
+        saveError: state.saveError,
         restoreError,
-      }),
+        space: state.active,
+        phase: state.phase,
+        asking,
+      });
+    },
     subscribe(listener: () => void) {
       listeners.add(listener);
       return () => {
@@ -477,111 +523,65 @@ export function createWorkspaces(options: WorkspacesOptions): Workspaces {
       };
     },
     setAutosave(on: boolean) {
-      decide({ kind: 'setAutosave', on, saver: { kind: saver.state } });
+      decide({ kind: 'setAutosave', on, saver: { kind: spaces.state.save } });
     },
-    async restoreLast() {
-      const newest = models.workspacesNewest(
-        (await sessions()).map((visit) => [visit.key, BigInt(visit.at)]),
+    async start() {
+      await migrateStore(measured, options.defaultSpace);
+      const names = (await spaces.list()).map((space) => space.name);
+      const remembered = options.memory.get();
+      const order = [
+        ...(remembered !== null && names.includes(remembered) ? [remembered] : []),
+        options.defaultSpace,
+        ...names,
+      ].filter((name, i, all) => all.indexOf(name) === i);
+      for (const name of order) {
+        const started = timer();
+        const outcome = switched(await spaces.switchTo(name), started);
+        if (outcome.status === 'switched') {
+          return name;
+        }
+      }
+      throw new Error(
+        `no space could be opened: ${restoreError?.message ?? 'none is stored or seeded'}`,
       );
-      const stored = newest === null ? null : await store.load(newest);
-      if (stored === null) {
-        return null;
-      }
-      measures.lastSnapshotBytes = stored.bytes;
-      const outcome = await restore(stored.document);
-      if (decide({ kind: 'restored', ok: outcome.status === 'restored' }).adopt) {
-        // The visit goes on: the store holds what the workspace now shows, under its key.
-        replaceSaver(stored.key, { revision: stored.revision, changes: persistence.changes() });
-      }
-      return outcome;
+    },
+    list: () => spaces.list(),
+    switchTo(name: string) {
+      const started = timer();
+      return refused(async () => switched(await spaces.switchTo(name), started));
+    },
+    answer(discard: boolean) {
+      const started = timer();
+      return refused(async () => switched(await spaces.answer(discard), started));
     },
     async saveNow() {
       if (!decide({ kind: 'saveNow' }).save) {
         return;
       }
-      const started = timer();
-      const outcome = await saver.save();
+      const outcome = await save();
       if (outcome.status === 'failed') {
         throw new WorkspaceRefusal('save', outcome.error.message, outcome.error);
       }
-      measures.lastSaveMs = timer() - started;
-    },
-    async named() {
-      return [...(await namedEntries())]
-        .map(([name, list]): NamedWorkspace => {
-          const newest = latestOf(list);
-          if (newest === undefined) {
-            throw new Error(`named workspace "${name}" has no entry`);
-          }
-          return Object.freeze({ name, savedAt: newest.savedAt, bytes: newest.bytes });
-        })
-        .sort((a, b) => a.name.localeCompare(b.name));
     },
     async saveAs(name: string) {
-      checkName(name);
-      const older = (await namedEntries()).get(name) ?? [];
-      const { text, revision } = await snapshotText();
-      // A later save of the same name at the same millisecond still gets a key of its own.
-      const savedAt = Number(
-        models.workspacesSavedAt(
-          wholeMilliseconds(now()),
-          older.map((o) => BigInt(o.savedAt)),
-        ),
-      );
-      let ack;
-      try {
-        ack = await measured.save({
-          key: namedKey(name, savedAt),
-          document: text,
-          revision,
-          expectedRevision: null,
-        });
-      } catch (error) {
-        throw refusalOf('name', error);
-      }
-      // Only now that the new one is stored are the older saves of the name removed.
-      for (const entry of older) {
-        await store.delete(entry.key);
-      }
+      const entry = await refused(() => spaces.saveAs(name));
+      options.memory.set(entry.name);
       tell();
-      return Object.freeze({ name, savedAt, bytes: ack.bytes });
+      return entry;
     },
-    async previewNamed(name: string) {
-      const stored = await loadNamed(name);
-      return previewOf(readDocument(stored.document, 'name'), stored.bytes);
-    },
-    async openNamed(name: string) {
-      const stored = await loadNamed(name);
-      measures.lastSnapshotBytes = stored.bytes;
-      return restore(stored.document);
-    },
-    async deleteNamed(name: string) {
-      checkName(name);
-      const entries = (await namedEntries()).get(name);
-      if (entries === undefined) {
-        throw new WorkspaceRefusal('name', `no workspace is saved as “${name}”`);
-      }
-      for (const entry of entries) {
-        await store.delete(entry.key);
-      }
+    async remove(name: string) {
+      const outcome = await refused(() => spaces.remove(name));
       tell();
+      return outcome;
     },
     async deleteAll() {
-      let deleted = 0;
-      for (const entry of await store.list()) {
-        if (sessionStart(entry.key) !== null || parseNamedKey(entry.key) !== null) {
-          if (await store.delete(entry.key)) {
-            deleted += 1;
-          }
-        }
-      }
-      // Nothing is stored now: the workspace on screen counts as unsaved, a visit afresh.
-      replaceSaver(sessionKey(Number(wholeMilliseconds(now()))));
+      const deleted = await refused(() => spaces.clear());
+      // Nothing is stored now: the space on screen counts as unsaved, and is saved again.
       decide({ kind: 'cleared' });
       return deleted;
     },
     async exportText() {
-      return (await snapshotText()).text;
+      return snapshotText();
     },
     previewImport(fileName: string, text: string) {
       checkFile(fileName, text);
@@ -591,14 +591,15 @@ export function createWorkspaces(options: WorkspacesOptions): Workspaces {
     async importText(fileName: string, text: string) {
       checkFile(fileName, text);
       readDocument(text, 'file');
-      return restore(text);
+      const started = timer();
+      return counted(await persistence.restore(text), started);
     },
     measures: () => Object.freeze({ ...measures }),
     dispose() {
       decide({ kind: 'dispose' });
       stopChanges();
-      stopSaver();
-      saver.dispose();
+      stopSpaces();
+      spaces.dispose();
       for (const stop of unregister) {
         stop();
       }

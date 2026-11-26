@@ -1,6 +1,6 @@
 <script lang="ts">
-  // ASKED BEFORE THE WORKSPACE IS REPLACED (FR-201, UX-016): what an imported file or a named
-  // workspace holds, counted, and what it replaces; Replace or Cancel. Escape cancels.
+  // ASKED BEFORE AN IMPORT REPLACES THE SPACE SHOWN (FR-201, UX-016): what the file holds,
+  // counted, and what it replaces; Replace or Cancel. Escape cancels.
   import { Button, Dialog, Facts, Stack, Text } from '@wsb/uikit/components';
   import { handleOf } from '@wsb/uikit/handles';
   import type { MessageId } from '../messages.js';
@@ -16,11 +16,7 @@
     model.messages.format(id, params);
 
   const preview = $derived(pending.preview);
-  const what = $derived(
-    pending.kind === 'import'
-      ? t('replace.import', { file: pending.fileName })
-      : t('replace.open', { name: pending.name }),
-  );
+  const what = $derived(t('replace.import', { file: pending.fileName }));
   const created = $derived(
     new Intl.DateTimeFormat(model.messages.locale, { dateStyle: 'medium', timeStyle: 'short' }).format(
       preview.createdAt,

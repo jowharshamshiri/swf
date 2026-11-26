@@ -5,7 +5,8 @@ import type { AppCommandId, AppCommandSpecs } from './commands.js';
 import type { DepthBands, FeatureId, Pose } from '@swf/navigation';
 import { FOCUS_ID, wrapDegrees } from '@swf/navigation';
 import type { MessageId } from './messages.js';
-import type { NamedWorkspace } from './workspaces.js';
+import type { SpaceEntry } from '@swf/persistence';
+import { DEFAULT_SPACE } from './config.js';
 
 /**
  * The reference application's guided scenarios: each shows one of the framework's principal
@@ -31,18 +32,19 @@ export interface ScenarioWorld {
   /** How a window stands in the committed scene, or null when there is no such window. */
   pose(id: string): Pose | null;
   readonly depth: DepthBands;
-  readonly named: readonly NamedWorkspace[];
-  /** How many workspaces have been restored since the application started. */
-  readonly restores: number;
+  /** The spaces, as the store holds them. */
+  readonly spaces: readonly SpaceEntry[];
+  /** The space shown. */
+  readonly space: string | null;
+  /** How many spaces have been switched to since the application started. */
+  readonly switches: number;
 }
 
 /** What showing a step does: one of the application's commands, or a shell action. */
 export type Demonstration =
   | { readonly kind: 'command'; readonly command: Command }
   /** Shows a window on the map, centred there. */
-  | { readonly kind: 'map'; readonly id: string }
-  /** Asks to open a named workspace, showing what it holds before it replaces anything. */
-  | { readonly kind: 'open'; readonly name: string };
+  | { readonly kind: 'map'; readonly id: string };
 
 /** One of the application's commands with its parameters. */
 export type Command = {
@@ -163,8 +165,10 @@ const MEDIA = 'media';
 const BOARD = 'board';
 const BUILDS = 'builds';
 const SOURCES_SURFACE = 'sources-surface';
-/** The name the restore scenario saves the layout under. */
+/** The space the restore scenario saves the layout as. */
 export const SCENARIO_LAYOUT = 'Studio layout';
+/** The space the restore scenario switches to and back from: the studio's. */
+const AWAY_SPACE = DEFAULT_SPACE;
 
 const behind: Scenario = {
   id: 'behind',
@@ -344,40 +348,53 @@ const restore: Scenario = {
       id: 'save',
       text: 'scenario.restore.save',
       hint: 'scenario.restore.save.hint',
+      // The space is shown, stored since the step became due.
       holds: (world, due) => {
-        const savedAt = (named: readonly NamedWorkspace[]) =>
-          named.find((n) => n.name === SCENARIO_LAYOUT)?.savedAt ?? null;
-        const now = savedAt(world.named);
-        const before = savedAt(last(due).named);
-        return now !== null && (before === null || now > before);
+        const savedAt = (spaces: readonly SpaceEntry[]) =>
+          spaces.find((s) => s.name === SCENARIO_LAYOUT)?.stored?.savedAt ?? null;
+        const now = savedAt(world.spaces);
+        const before = savedAt(last(due).spaces);
+        return world.space === SCENARIO_LAYOUT && now !== null && (before === null || now > before);
       },
-      show: () => command('reference.workspace.save', { name: SCENARIO_LAYOUT }),
+      show: () => command('reference.space.saveAs', { name: SCENARIO_LAYOUT }),
     },
     {
       id: 'change',
       text: 'scenario.restore.change',
       hint: 'scenario.restore.change.hint',
-      // Anything moved, turned, added or removed since it was saved.
-      holds: (world, due) => !sameLayout(world.scene, last(due).scene),
+      // Anything moved, turned, added or removed in the space since it was saved.
+      holds: (world, due) =>
+        world.space === SCENARIO_LAYOUT && !sameLayout(world.scene, last(due).scene),
       show: (world) => {
         const [x, , z] = poseIn(world, BUILDS).position;
         return command('swf.window.place', { id: BUILDS, x: -x, z: -z });
       },
     },
     {
-      id: 'open',
-      text: 'scenario.restore.open',
-      hint: 'scenario.restore.open.hint',
-      // A workspace was restored since the step became due, and the layout is the one saved: the
-      // world the change step became due in, just after the save.
+      id: 'away',
+      text: 'scenario.restore.away',
+      hint: 'scenario.restore.away.hint',
+      holds: (world, due) => world.space !== SCENARIO_LAYOUT && world.switches > last(due).switches,
+      show: () => command('reference.space.switch', { name: AWAY_SPACE }),
+    },
+    {
+      id: 'back',
+      text: 'scenario.restore.back',
+      hint: 'scenario.restore.back.hint',
+      // Shown again since the step became due, as it was left: the world the step before became
+      // due in, just after the change.
       holds: (world, due) => {
-        const saved = due.at(-2);
-        if (saved === undefined) {
-          throw new Error('the open step follows the change step');
+        const left = due.at(-2);
+        if (left === undefined) {
+          throw new Error('the back step follows the away step');
         }
-        return world.restores > last(due).restores && sameLayout(world.scene, saved.scene);
+        return (
+          world.space === SCENARIO_LAYOUT &&
+          world.switches > last(due).switches &&
+          sameLayout(world.scene, left.scene)
+        );
       },
-      show: () => ({ kind: 'open', name: SCENARIO_LAYOUT }),
+      show: () => command('reference.space.switch', { name: SCENARIO_LAYOUT }),
     },
   ],
 };

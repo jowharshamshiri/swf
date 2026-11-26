@@ -24,6 +24,7 @@
   import type { MessageId } from '../messages.js';
   import type { ScenarioId } from '../scenarios.js';
   import { SCENARIO_IDS, SCENARIO_LAYOUT, SCENARIOS } from '../scenarios.js';
+  import { DEFAULT_SPACE } from '../config.js';
   import type { ShellModel } from './model.svelte.js';
 
   interface Props {
@@ -36,11 +37,12 @@
 
   const current = $derived(model.scenario);
   const scenario = $derived(current === null ? null : SCENARIOS[current.scenario]);
-  /** What the steps' words name: the depth bands as set, and the layout's name. */
+  /** What the steps' words name: the depth bands as set, the layout's space and the one away. */
   const params = $derived({
     full: model.policies?.features.depth.full ?? 0,
     compact: model.policies?.features.depth.compact ?? 0,
     name: SCENARIO_LAYOUT,
+    away: DEFAULT_SPACE,
   });
 
   function start(id: ScenarioId): void {

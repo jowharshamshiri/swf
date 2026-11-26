@@ -1,5 +1,5 @@
 {
-  "build_key": "71e8c8fbbcd522ac2903e8a8e423157f8b3db67ee14d608aa6fcec14fe94156a",
+  "build_key": "3e9f77a845881b00b1a6776919323af900443532e6da992520242fc7faef1b35",
   "lean_version": "4.35.0",
   "lean_githash": "eb6cafb7290e8bd5f2937522d8d804f58f02bafc",
   "bir_version": 3,
@@ -8,7 +8,7 @@
   "runtime_abi": 3,
   "worker_identity": "72c9b8a91fbad12998aaf7450234ae878b899b71569b19557121bfd28b049463",
   "input_digests": {
-    "Swf.lean": "de12831ce0e2a9c21b580e7554ca371ee9543b13348752f6948bd1311732e423",
+    "Swf.lean": "3ebf67104f3450601c7554aca6880120d2f8ea32e04461f12ccac7140df3278d",
     "Swf/AppChallenge.lean": "746c6675931e4af153a180187045200a7dccf311831f61dc0940952dcecf6501",
     "Swf/AppComposition.lean": "7a6a673922943cc4f59b08b897196736d7263797709ddad1740240cb667b22db",
     "Swf/AppCursor.lean": "0dd3b5872225738d8c53e8833bf4b0395f0b808bebbbf5e532641172b2af802b",
@@ -21,7 +21,7 @@
     "Swf/AppScenarios.lean": "3df1fb42dd429ef2a8869e49beac97ae69f69227d90f46234578a2c4684f6948",
     "Swf/AppSnap.lean": "830653c1678ea668fa06c7b45ce5faea62eac16354286f5686b9dbbfe1d940a6",
     "Swf/AppWheel.lean": "f381f9f0675a089a50bc88c9d4981c3f811f6f1e176535ad0ab9f4ad200018e1",
-    "Swf/AppWorkspaces.lean": "44b79442c01be58764578405e8d63024e287c856db6d080c394be4652d859b18",
+    "Swf/AppWorkspaces.lean": "f5a80d6775fd91b054a3856aaae2c3538ae2f6ca90156fffe66791d74bbb69d5",
     "Swf/Arbitration.lean": "47ef2f12b3479a3ca4a066653f2c8f5010b5cea840dd1c0fa40d69bca01a8de0",
     "Swf/Fallback.lean": "f277e41e454875b6f9e1a8eb2aa78ffdcfd31ad7e79dbef09d3e3654e20eeba9",
     "Swf/Gesture.lean": "9816510b87f9262f409a297a1fc54b098ce3bd0a86d919dd41d75c99951e5595",
@@ -34,6 +34,7 @@
     "Swf/Order.lean": "d65ee8fdfc534b32123a8c89e1ddf90e2bdc588e7a473762641a11d28c09311b",
     "Swf/Presenter.lean": "2cb636c9d1268450cd84cde787c2f827157dc79eaed929594ef42024cebdf790",
     "Swf/Save.lean": "232b29c02db841a7675e740890576313a54c8d4c8e384d7065cd33795fc8af00",
+    "Swf/Spaces.lean": "3fe23a7bd2ce9cf8cd3d97c3cb78809063f6a8b11a54e6aadc3f99ac8e4be59e",
     "Swf/Surface.lean": "d0989ad8f8807f4c035b196143887112cea53c25c324626e796d8aeb6683dee9",
     "Swf/ViewMode.lean": "1a15be6074bba3aa5791f34504b97dcd6ebed2a67e905d36a907af138e6d796b",
     "lake-manifest.json": "e920afea00424d25243505df8ffefab39b5d72556c2e1fe1932fbea1ac1e8d49",
@@ -43,9 +44,9 @@
   "project": ".",
   "link_directives": [],
   "output_digests": {
-    "assurance.json": "d7f76a0ba9cda37dcc25292d52bba1b708888e04e953d51dd3f9914846a8cc33",
-    "index.d.ts": "f7dffe1734075d27ba301dace424a3f3ade8242d8f77a576932c85f3334bb784",
-    "index.js": "2f8fc318823bbdc64a9445e45f39dc0463c54c703b3f8a5d61363794c1a7e36a"
+    "assurance.json": "f11f8ff547c8b29b8c52c79842b4854263c1fc2f2ea6b446ce30631925655e87",
+    "index.d.ts": "8da410f37e14f5f3695c27dee3a43ba62e1a531cc3d9698112e3d9093faa1640",
+    "index.js": "0a6a77ae17ae37c3604be9fcde0b68992c44492335e854d3cd9ca761cc78bd8c"
   },
   "platform_products": [
     "program.wasm"

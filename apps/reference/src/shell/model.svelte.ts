@@ -8,26 +8,26 @@ import type { AppConfig } from '../config.js';
 import { ConfigError } from '../config.js';
 import type { Messages } from '../messages.js';
 import { contentOf } from '../presets.js';
-import type { NamedWorkspace, SnapshotPreview, WorkspacesStatus } from '../workspaces.js';
+import type { SpaceEntry } from '@swf/persistence';
+import type { SnapshotPreview, WorkspacesStatus } from '../workspaces.js';
 import { WorkspaceRefusal } from '../workspaces.js';
 import type { ScenarioStatus } from '../scenarios.js';
 import { ScenarioRefusal } from '../scenarios.js';
 import type { ChallengeStatus } from '../challenge.js';
 
-/** A replacement of the workspace waiting for the operator to confirm it (FR-201, UX-016). */
-export type PendingReplace =
-  | {
-      readonly kind: 'import';
-      readonly fileName: string;
-      readonly text: string;
-      readonly preview: SnapshotPreview;
-    }
-  | { readonly kind: 'open'; readonly name: string; readonly preview: SnapshotPreview };
+/** An import waiting for the operator to confirm it replaces the space shown (FR-201, UX-016). */
+export interface PendingReplace {
+  readonly fileName: string;
+  readonly text: string;
+  readonly preview: SnapshotPreview;
+}
 
 /** What the workspaces view says after an action. */
 export type WorkspaceNote =
   | { readonly kind: 'saved'; readonly name: string }
   | { readonly kind: 'opened'; readonly name: string }
+  | { readonly kind: 'deleted'; readonly name: string }
+  | { readonly kind: 'reset'; readonly name: string }
   | { readonly kind: 'deleted-all' }
   | { readonly kind: 'problem'; readonly text: string };
 
@@ -39,9 +39,8 @@ const PLACES: Readonly<Record<string, string>> = Object.freeze({
   'reference.preset.load': 'scene',
   'reference.scene.reset': 'scene',
   'reference.scene.reseed': 'scene',
-  'reference.workspace.save': 'workspaces',
-  'reference.workspace.open': 'workspaces',
-  'reference.workspace.delete': 'workspaces',
+  'reference.space.saveAs': 'workspaces',
+  'reference.space.remove': 'workspaces',
   'reference.workspace.deleteAll': 'workspaces',
   'reference.workspace.export': 'workspaces',
   'reference.workspace.import': 'workspaces',
@@ -79,7 +78,7 @@ function demoContent(messages: Messages, app: () => ReferenceApp | null): HostCo
 
 /**
  * The shell's model: the navigation controls' model of the application's navigation, with what the
- * application's own views show (its scene, its saving and named workspaces, the guided scenarios
+ * application's own views show (its scene, its saving and its spaces, the guided scenarios
  * and the timed task) and its own commands run through the same `run`. Nothing of the UI framework
  * reaches the application or the framework's packages.
  */
@@ -90,9 +89,9 @@ export class ShellModel extends NavigationModel<AppCommandSpecs> {
   startProblem = $state<string | null>(null);
   /** How saving stands. */
   workspaces = $state<WorkspacesStatus | null>(null);
-  /** The named workspaces, read again after every change to them. */
-  named = $state<readonly NamedWorkspace[]>([]);
-  /** A replacement waiting to be confirmed or cancelled. */
+  /** The spaces, read again after every change of saving or of the spaces. */
+  spaces = $state<readonly SpaceEntry[]>([]);
+  /** An import waiting to be confirmed or cancelled. */
   pendingReplace = $state<PendingReplace | null>(null);
   /** What the workspaces view says after its last action. */
   workspaceNote = $state<WorkspaceNote | null>(null);
@@ -175,7 +174,7 @@ export class ShellModel extends NavigationModel<AppCommandSpecs> {
     this.workspaces = app.workspaces.status();
     this.scenario = app.scenarios.status();
     this.challenge = app.challenge.status();
-    void this.refreshNamed();
+    void this.refreshSpaces();
     this.#stops.push(
       app.scenarios.subscribe(() => {
         this.scenario = app.scenarios.status();
@@ -186,6 +185,7 @@ export class ShellModel extends NavigationModel<AppCommandSpecs> {
       }),
       app.workspaces.subscribe(() => {
         this.workspaces = app.workspaces.status();
+        void this.refreshSpaces();
       }),
       app.subscribe((status) => {
         this.scene = status.scene;
@@ -227,8 +227,7 @@ export class ShellModel extends NavigationModel<AppCommandSpecs> {
 
   /**
    * Does the step due of the scenario under way, as the application's own controls would: runs its
-   * command, shows its window on the map, or asks to open the workspace it names. A step that
-   * cannot be shown says why.
+   * command, or shows its window on the map. A step that cannot be shown says why.
    */
   async showStep(): Promise<boolean> {
     const app = this.#app;
@@ -256,58 +255,48 @@ export class ShellModel extends NavigationModel<AppCommandSpecs> {
       }
       case 'map':
         return this.showInMap(shown.id);
-      case 'open':
-        await this.beginOpen(shown.name);
-        return this.pendingReplace !== null;
     }
   }
 
-  /** Reads the named workspaces again. */
-  async refreshNamed(): Promise<void> {
+  /** Reads the spaces again. */
+  async refreshSpaces(): Promise<void> {
     const app = this.#app;
     if (app !== null) {
-      this.named = await app.workspaces.named();
+      this.spaces = await app.workspaces.list();
     }
   }
 
-  /** Saves the workspace under a name, and lists the named ones again. */
+  /** Shows a space in place of the one shown: one press of its tab. */
+  async switchTo(name: string): Promise<boolean> {
+    return this.run('reference.space.switch', { name });
+  }
+
+  /** Answers a switch that could not save the space shown first. */
+  async answerSwitch(discard: boolean): Promise<boolean> {
+    return this.run('reference.space.answer', { discard });
+  }
+
+  /** Saves what is shown as a space of the operator's, and lists the spaces again. */
   async saveAs(name: string): Promise<boolean> {
-    const done = await this.run('reference.workspace.save', { name });
+    const done = await this.run('reference.space.saveAs', { name });
     this.workspaceNote = done ? { kind: 'saved', name } : null;
-    await this.refreshNamed();
+    await this.refreshSpaces();
     return done;
   }
 
-  async deleteNamed(name: string): Promise<boolean> {
-    const done = await this.run('reference.workspace.delete', { name });
-    this.workspaceNote = null;
-    await this.refreshNamed();
+  /** Deletes a space of the operator's, or resets a seeded one. */
+  async removeSpace(name: string, seeded: boolean): Promise<boolean> {
+    const done = await this.run('reference.space.remove', { name });
+    this.workspaceNote = done ? { kind: seeded ? 'reset' : 'deleted', name } : null;
+    await this.refreshSpaces();
     return done;
   }
 
   async deleteAll(): Promise<boolean> {
     const done = await this.run('reference.workspace.deleteAll', {});
     this.workspaceNote = done ? { kind: 'deleted-all' } : null;
-    await this.refreshNamed();
+    await this.refreshSpaces();
     return done;
-  }
-
-  /** Reads a named workspace and asks to confirm replacing the workspace with it. */
-  async beginOpen(name: string): Promise<void> {
-    const app = this.#app;
-    if (app === null) {
-      return;
-    }
-    this.workspaceNote = null;
-    try {
-      this.pendingReplace = {
-        kind: 'open',
-        name,
-        preview: await app.workspaces.previewNamed(name),
-      };
-    } catch (error) {
-      this.#problem(error, 'restore.failed');
-    }
   }
 
   /**
@@ -322,33 +311,27 @@ export class ShellModel extends NavigationModel<AppCommandSpecs> {
     this.workspaceNote = null;
     try {
       this.pendingReplace = {
-        kind: 'import',
         fileName,
         text,
         preview: app.workspaces.previewImport(fileName, text),
       };
     } catch (error) {
-      this.#problem(error, 'import.failed');
+      this.#problem(error);
     }
   }
 
-  /** Replaces the workspace as the pending replacement says. */
+  /** Replaces the space shown with the pending import. */
   async confirmReplace(): Promise<boolean> {
     const pending = this.pendingReplace;
     this.pendingReplace = null;
     if (pending === null) {
       return false;
     }
-    const done =
-      pending.kind === 'import'
-        ? await this.run('reference.workspace.import', {
-            fileName: pending.fileName,
-            text: pending.text,
-          })
-        : await this.run('reference.workspace.open', { name: pending.name });
-    this.workspaceNote = !done
-      ? null
-      : { kind: 'opened', name: pending.kind === 'import' ? pending.fileName : pending.name };
+    const done = await this.run('reference.workspace.import', {
+      fileName: pending.fileName,
+      text: pending.text,
+    });
+    this.workspaceNote = done ? { kind: 'opened', name: pending.fileName } : null;
     return done;
   }
 
@@ -356,13 +339,13 @@ export class ShellModel extends NavigationModel<AppCommandSpecs> {
     this.pendingReplace = null;
   }
 
-  #problem(error: unknown, message: 'import.failed' | 'restore.failed'): void {
+  #problem(error: unknown): void {
     if (!(error instanceof WorkspaceRefusal)) {
       throw error;
     }
     this.workspaceNote = {
       kind: 'problem',
-      text: this.messages.format(message, { reason: error.message }),
+      text: this.messages.format('import.failed', { reason: error.message }),
     };
   }
 

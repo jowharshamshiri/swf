@@ -128,6 +128,16 @@
       ? [
           command('workspace.saveNow', t('command.workspace.saveNow'), 'reference.workspace.saveNow', {}),
           command('workspace.export', t('command.workspace.export'), 'reference.workspace.export', {}),
+          ...model.spaces
+            .filter((space) => space.name !== model.workspaces?.space)
+            .map((space) =>
+              command(
+                `space.${space.name}`,
+                t('command.space.switch.named', { name: space.name }),
+                'reference.space.switch',
+                { name: space.name },
+              ),
+            ),
         ]
       : []),
     ...(model.status?.mode === FOCUS_ID

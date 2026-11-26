@@ -2,6 +2,7 @@ import type { PreviewResult, TxResult } from '@swf/core';
 import { seedIssue } from '@swf/math';
 import type { CommandResult, NavigationCommandId, NavigationCommandSpecs } from '@swf/navigation';
 import { committed, createNavigationCommands, refusalOf, rejected } from '@swf/navigation';
+import type { RestoreOutcome, SwitchOutcome } from '@swf/persistence';
 import type { ReferenceApp } from './app.js';
 import type { MessageId } from './messages.js';
 import { NAVIGATION_COMMAND_NAMES } from '@swf/navigation-ui';
@@ -25,9 +26,17 @@ export interface ReferenceCommandSpecs {
   'reference.scene.reseed': { readonly seed?: number };
   /** Adds a blank note window straight ahead of the camera. */
   'reference.window.add': Readonly<Record<string, never>>;
-  'reference.workspace.save': { readonly name: string };
-  'reference.workspace.open': { readonly name: string };
-  'reference.workspace.delete': { readonly name: string };
+  /** Shows a space in place of the one shown, saving the one shown first. */
+  'reference.space.switch': { readonly name: string };
+  /**
+   * Answers a switch that could not save the space shown first: `discard` switches anyway, giving
+   * up its unsaved changes; otherwise the space shown stays.
+   */
+  'reference.space.answer': { readonly discard: boolean };
+  /** Saves what is shown as a space of the operator's, and shows it from then on. */
+  'reference.space.saveAs': { readonly name: string };
+  /** Deletes a space of the operator's, or puts a seeded one back as it was seeded. */
+  'reference.space.remove': { readonly name: string };
   'reference.workspace.deleteAll': Readonly<Record<string, never>>;
   'reference.workspace.export': Readonly<Record<string, never>>;
   'reference.workspace.import': { readonly fileName: string; readonly text: string };
@@ -49,9 +58,10 @@ export const APP_COMMAND_NAMES: Readonly<Record<AppCommandId, MessageId>> = Obje
   'reference.scene.reset': 'command.scene.reset',
   'reference.scene.reseed': 'command.scene.reseed',
   'reference.window.add': 'command.window.add',
-  'reference.workspace.save': 'command.workspace.save',
-  'reference.workspace.open': 'command.workspace.open',
-  'reference.workspace.delete': 'command.workspace.delete',
+  'reference.space.switch': 'command.space.switch',
+  'reference.space.answer': 'command.space.answer',
+  'reference.space.saveAs': 'command.space.saveAs',
+  'reference.space.remove': 'command.space.remove',
   'reference.workspace.deleteAll': 'command.workspace.deleteAll',
   'reference.workspace.export': 'command.workspace.export',
   'reference.workspace.import': 'command.workspace.import',
@@ -120,10 +130,23 @@ async function stored(work: () => Promise<unknown>): Promise<CommandResult> {
 }
 
 /** A restore's outcome: done, or rejected naming where the snapshot is at fault. */
-function restoredOutcome(outcome: Awaited<ReturnType<ReferenceApp['workspaces']['openNamed']>>) {
+function restoredOutcome(outcome: RestoreOutcome) {
   return outcome.status === 'restored'
     ? DONE
     : rejected(outcome.error.path ?? 'snapshot', outcome.error.message);
+}
+
+/**
+ * How a switch ended, as the command's outcome: done once the space is shown, or when the switch
+ * waits for the operator's answer (the shell asks); rejected when the space would not open.
+ */
+function switchOutcome(outcome: SwitchOutcome): CommandResult {
+  return outcome.status === 'failed'
+    ? rejected(
+        outcome.error.path ?? 'space',
+        `“${outcome.name}” could not be opened: ${outcome.error.message}`,
+      )
+    : DONE;
 }
 
 /**
@@ -158,15 +181,13 @@ export function createAppCommands(app: () => ReferenceApp): AppCommands {
     'reference.scene.reset': () => committed(app().reset()),
     'reference.scene.reseed': async ({ seed }) => badSeed(seed) ?? committed(app().reseed(seed)),
     'reference.window.add': () => viewChange(() => app().addWindow()),
-    'reference.workspace.save': async ({ name }) =>
-      saving() ?? stored(() => app().workspaces.saveAs(name)),
-    'reference.workspace.open': async ({ name }) => {
+    'reference.space.switch': async ({ name }) => {
       const refusal = saving();
       if (refusal !== null) {
         return refusal;
       }
       try {
-        return restoredOutcome(await app().workspaces.openNamed(name));
+        return switchOutcome(await app().workspaces.switchTo(name));
       } catch (error) {
         if (error instanceof WorkspaceRefusal) {
           return rejected(error.field, error.message);
@@ -174,8 +195,23 @@ export function createAppCommands(app: () => ReferenceApp): AppCommands {
         throw error;
       }
     },
-    'reference.workspace.delete': async ({ name }) =>
-      saving() ?? stored(() => app().workspaces.deleteNamed(name)),
+    'reference.space.answer': async ({ discard }) => {
+      if (typeof discard !== 'boolean') {
+        return rejected('discard', 'discard must be true or false');
+      }
+      try {
+        return switchOutcome(await app().workspaces.answer(discard));
+      } catch (error) {
+        if (error instanceof WorkspaceRefusal) {
+          return rejected(error.field, error.message);
+        }
+        throw error;
+      }
+    },
+    'reference.space.saveAs': async ({ name }) =>
+      saving() ?? stored(() => app().workspaces.saveAs(name)),
+    'reference.space.remove': async ({ name }) =>
+      saving() ?? stored(() => app().workspaces.remove(name)),
     'reference.workspace.deleteAll': async () =>
       saving() ?? stored(() => app().workspaces.deleteAll()),
     'reference.workspace.export': async () =>

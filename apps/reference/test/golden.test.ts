@@ -1,9 +1,10 @@
 import type { JsonValue, Workspace } from '@swf/core';
 import { createOperationTrace } from '@swf/diagnostics';
-import { createMemoryStore } from '@swf/persistence';
+import { createMemoryStore, spaceKey } from '@swf/persistence';
 import { viewGeometryOf } from '@swf/presentation';
 import { describe, expect, it } from 'vitest';
 import type { PresetId } from '../src/presets.js';
+import { planPreset, presetCommands } from '../src/presets.js';
 import type { FeatureSettings } from '@swf/navigation';
 import {
   CAMERA_ID,
@@ -267,9 +268,11 @@ describe('golden scenes and scripted traces: the eight behaviour modules (QA-012
     await expect(record(world, trace)).toMatchFileSnapshot(golden('module-composition'));
   });
 
-  it('saving and opening workspaces: a named save as the store holds it, and opened again', async () => {
+  it('spaces: a space changed, saved as the switch away asks, and shown again as it was left', async () => {
     const { world, trace } = scripted('seam', only({ persistence: true }));
     const store = createMemoryStore({ now: () => 0 });
+    // Each space seeded from a preset, in place of the windows shown.
+    const seeds: Readonly<Record<string, PresetId>> = { Seam: 'seam', Sparse: 'sparse' };
     const workspaces = createWorkspaces({
       workspace: world.ws,
       store,
@@ -278,17 +281,38 @@ describe('golden scenes and scripted traces: the eight behaviour modules (QA-012
       autosaveDelayMs: 0,
       extensions: [],
       policies: [],
+      seeds: Object.keys(seeds),
+      defaultSpace: 'Seam',
+      memory: { get: () => null, set: () => undefined },
+      seed: (name) => {
+        const preset = seeds[name] ?? 'empty';
+        const result = world.ws.transaction(
+          [
+            ...world.ws.getState().rootIds.map((id) => ({
+              type: 'node.delete' as const,
+              id,
+              mode: 'subtree' as const,
+            })),
+            ...presetCommands(planPreset(preset, 1)),
+          ],
+          { source: 'user' },
+        );
+        return result.status === 'committed'
+          ? Promise.resolve()
+          : Promise.reject(new Error(JSON.stringify(result)));
+      },
     });
     try {
-      await workspaces.saveAs('Golden');
+      expect(await workspaces.start()).toBe('Seam');
+      workspaces.setAutosave(true);
       world.ws.dispatch(
-        { type: 'node.patch', id: 'window-03', label: 'Changed after saving' },
+        { type: 'node.patch', id: 'window-03', label: 'Changed in the space' },
         { source: 'user' },
       );
-      expect((await workspaces.openNamed('Golden')).status).toBe('restored');
-      const keys = (await store.list()).map((entry) => entry.key);
-      expect(keys).toHaveLength(1);
-      const stored = (await store.load(keys[0] ?? ''))?.document ?? '';
+      expect((await workspaces.switchTo('Sparse')).status).toBe('switched');
+      expect((await workspaces.switchTo('Seam')).status).toBe('switched');
+      expect(world.ws.getState().nodes.get('window-03')?.label).toBe('Changed in the space');
+      const stored = (await store.load(spaceKey('Seam')))?.document ?? '';
       await expect(
         record(world, trace, { stored: JSON.parse(stored) as JsonValue }),
       ).toMatchFileSnapshot(golden('module-persistence'));

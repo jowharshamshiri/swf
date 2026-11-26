@@ -10,8 +10,8 @@ export interface AppConfig {
   readonly seed: number;
   readonly backend: BackendId;
   /**
-   * Whether to restore the workspace saved last, when there is one, rather than load the preset:
-   * so when the address names no scene (UX-016).
+   * Whether the space shown last is shown as it was left, rather than with the preset loaded into
+   * it: so when the address names no scene (UX-016).
    */
   readonly restore: boolean;
 }
@@ -27,6 +27,20 @@ export const DEFAULT_CONFIG: AppConfig = Object.freeze({
   backend: 'geometry',
   restore: true,
 });
+
+/**
+ * The spaces the application seeds, each from a preset, in the order they are listed: each is one
+ * of the spaces from the first visit on, made from its preset until it is stored.
+ */
+export const SEEDED_SPACES: readonly { readonly name: string; readonly preset: PresetId }[] =
+  Object.freeze([
+    Object.freeze({ name: 'Research', preset: 'research' }),
+    Object.freeze({ name: 'Planning', preset: 'planning' }),
+    Object.freeze({ name: 'Studio', preset: 'studio' }),
+  ]);
+
+/** The space a first visit shows: the studio's, the demo (D9). */
+export const DEFAULT_SPACE = 'Studio';
 
 /** A configuration value the application cannot use, by field. */
 export class ConfigError extends Error {
@@ -45,8 +59,8 @@ const FIELDS = ['preset', 'seed', 'backend'] as const;
  * The configuration an address's query names (`?preset=seam&seed=7&backend=geometry`), so a
  * scene can be linked to and reproduced. Anything left out takes its default (a preset's own seed
  * when only the preset is given); an unknown or invalid field is an error naming it. An address
- * that names a preset or a seed loads that scene; one that names neither restores the workspace
- * saved last, if any.
+ * that names a preset or a seed loads that scene into the space shown; one that names neither
+ * shows the space as it was left.
  */
 export function parseConfig(search: string): AppConfig {
   const params = new URLSearchParams(search);

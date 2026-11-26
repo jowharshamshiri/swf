@@ -12,6 +12,565 @@
       {
         "causeId": null,
         "changedNodeIds": [
+          "window-01",
+          "window-02",
+          "window-03",
+          "window-04",
+          "window-05",
+          "window-06",
+          "window-07",
+          "workspace"
+        ],
+        "changedSurfaceIds": [
+          "window-01-surface",
+          "window-02-surface",
+          "window-03-surface",
+          "window-04-surface",
+          "window-05-surface",
+          "window-06-surface",
+          "window-07-surface"
+        ],
+        "commandTypes": [
+          "node.delete",
+          "node.create",
+          "node.create",
+          "surface.attach",
+          "node.create",
+          "surface.attach",
+          "node.create",
+          "surface.attach",
+          "node.create",
+          "surface.attach",
+          "node.create",
+          "surface.attach",
+          "node.create",
+          "surface.attach",
+          "node.create",
+          "surface.attach",
+          "orbitRoot.set"
+        ],
+        "commands": [
+          {
+            "id": "workspace",
+            "mode": "subtree",
+            "type": "node.delete"
+          },
+          {
+            "node": {
+              "bounds": [
+                8.778488798,
+                8.778488798,
+                8.778488798
+              ],
+              "id": "workspace",
+              "kind": "group",
+              "label": "[label]"
+            },
+            "type": "node.create"
+          },
+          {
+            "node": {
+              "bounds": [
+                2.4,
+                1.4,
+                0.01
+              ],
+              "id": "window-01",
+              "kind": "window",
+              "label": "[label]",
+              "metadata": "[host data]",
+              "parentId": "workspace",
+              "tags": "[host data]",
+              "transform": {
+                "position": [
+                  0,
+                  0,
+                  3
+                ],
+                "rotation": [
+                  0,
+                  -1,
+                  0,
+                  0
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ]
+              }
+            },
+            "type": "node.create"
+          },
+          {
+            "surface": {
+              "adapterTypeId": "reference.note/1",
+              "bindingKey": "binding-1",
+              "bounds": [
+                2.24,
+                1.12,
+                0.01
+              ],
+              "id": "window-01-surface",
+              "label": "[label]",
+              "ownerNodeId": "window-01",
+              "transform": {
+                "position": [
+                  0,
+                  -0.06,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0,
+                  1
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ]
+              }
+            },
+            "type": "surface.attach"
+          },
+          {
+            "node": {
+              "bounds": [
+                1.8,
+                1,
+                0.01
+              ],
+              "id": "window-02",
+              "kind": "window",
+              "label": "[label]",
+              "metadata": "[host data]",
+              "parentId": "workspace",
+              "tags": "[host data]",
+              "transform": {
+                "position": [
+                  0.580704443,
+                  -0.988854382,
+                  2.987465374
+                ],
+                "rotation": [
+                  -0.014993579,
+                  -0.983141219,
+                  -0.155714272,
+                  0.094665732
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ]
+              }
+            },
+            "type": "node.create"
+          },
+          {
+            "surface": {
+              "adapterTypeId": "reference.tile/1",
+              "bindingKey": "binding-2",
+              "bounds": [
+                1.64,
+                0.72,
+                0.01
+              ],
+              "id": "window-02-surface",
+              "label": "[label]",
+              "ownerNodeId": "window-02",
+              "transform": {
+                "position": [
+                  0,
+                  -0.06,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0,
+                  1
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ]
+              }
+            },
+            "type": "surface.attach"
+          },
+          {
+            "node": {
+              "bounds": [
+                1.2,
+                0.8,
+                0.01
+              ],
+              "id": "window-03",
+              "kind": "window",
+              "label": "[label]",
+              "metadata": "[host data]",
+              "parentId": "workspace",
+              "tags": "[host data]",
+              "transform": {
+                "position": [
+                  -0.294673877,
+                  1.02606043,
+                  2.803634659
+                ],
+                "rotation": [
+                  0.009088043,
+                  0.983458108,
+                  -0.173410199,
+                  0.051540855
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ]
+              }
+            },
+            "type": "node.create"
+          },
+          {
+            "surface": {
+              "adapterTypeId": "reference.note/1",
+              "bindingKey": "binding-3",
+              "bounds": [
+                1.04,
+                0.52,
+                0.01
+              ],
+              "id": "window-03-surface",
+              "label": "[label]",
+              "ownerNodeId": "window-03",
+              "transform": {
+                "position": [
+                  0,
+                  -0.06,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0,
+                  1
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ]
+              }
+            },
+            "type": "surface.attach"
+          },
+          {
+            "node": {
+              "bounds": [
+                1.4,
+                1,
+                0.01
+              ],
+              "id": "window-04",
+              "kind": "window",
+              "label": "[label]",
+              "metadata": "[host data]",
+              "parentId": "workspace",
+              "tags": "[host data]",
+              "transform": {
+                "position": [
+                  2.175047191,
+                  -0.118658289,
+                  2.61057272
+                ],
+                "rotation": [
+                  -0.005940442,
+                  -0.940144917,
+                  -0.016410291,
+                  0.340327709
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ]
+              }
+            },
+            "type": "node.create"
+          },
+          {
+            "surface": {
+              "adapterTypeId": "reference.tile/1",
+              "bindingKey": "binding-4",
+              "bounds": [
+                1.24,
+                0.72,
+                0.01
+              ],
+              "id": "window-04-surface",
+              "label": "[label]",
+              "ownerNodeId": "window-04",
+              "transform": {
+                "position": [
+                  0,
+                  -0.06,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0,
+                  1
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ]
+              }
+            },
+            "type": "surface.attach"
+          },
+          {
+            "node": {
+              "bounds": [
+                1.4,
+                1,
+                0.01
+              ],
+              "id": "window-05",
+              "kind": "window",
+              "label": "[label]",
+              "metadata": "[host data]",
+              "parentId": "workspace",
+              "tags": "[host data]",
+              "transform": {
+                "position": [
+                  -2.555874349,
+                  0.237172011,
+                  2.229631303
+                ],
+                "rotation": [
+                  0.014444867,
+                  0.909768268,
+                  -0.031769808,
+                  0.413646858
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ]
+              }
+            },
+            "type": "node.create"
+          },
+          {
+            "surface": {
+              "adapterTypeId": "reference.note/1",
+              "bindingKey": "binding-5",
+              "bounds": [
+                1.24,
+                0.72,
+                0.01
+              ],
+              "id": "window-05-surface",
+              "label": "[label]",
+              "ownerNodeId": "window-05",
+              "transform": {
+                "position": [
+                  0,
+                  -0.06,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0,
+                  1
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ]
+              }
+            },
+            "type": "surface.attach"
+          },
+          {
+            "node": {
+              "bounds": [
+                1.6,
+                1,
+                0.01
+              ],
+              "id": "window-06",
+              "kind": "window",
+              "label": "[label]",
+              "metadata": "[host data]",
+              "parentId": "workspace",
+              "tags": "[host data]",
+              "transform": {
+                "position": [
+                  -0.112383413,
+                  2.713753908,
+                  1.692013504
+                ],
+                "rotation": [
+                  0.016073949,
+                  0.874138855,
+                  -0.48454308,
+                  0.028998172
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ]
+              }
+            },
+            "type": "node.create"
+          },
+          {
+            "surface": {
+              "adapterTypeId": "reference.tile/1",
+              "bindingKey": "binding-6",
+              "bounds": [
+                1.44,
+                0.72,
+                0.01
+              ],
+              "id": "window-06-surface",
+              "label": "[label]",
+              "ownerNodeId": "window-06",
+              "transform": {
+                "position": [
+                  0,
+                  -0.06,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0,
+                  1
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ]
+              }
+            },
+            "type": "surface.attach"
+          },
+          {
+            "node": {
+              "bounds": [
+                1.6,
+                1,
+                0.01
+              ],
+              "id": "window-07",
+              "kind": "window",
+              "label": "[label]",
+              "metadata": "[host data]",
+              "parentId": "workspace",
+              "tags": "[host data]",
+              "transform": {
+                "position": [
+                  -0.094232277,
+                  0,
+                  -2.998519681
+                ],
+                "rotation": [
+                  0,
+                  0.015707317,
+                  0,
+                  0.999876632
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ]
+              }
+            },
+            "type": "node.create"
+          },
+          {
+            "surface": {
+              "adapterTypeId": "reference.note/1",
+              "bindingKey": "binding-7",
+              "bounds": [
+                1.44,
+                0.72,
+                0.01
+              ],
+              "id": "window-07-surface",
+              "label": "[label]",
+              "ownerNodeId": "window-07",
+              "transform": {
+                "position": [
+                  0,
+                  -0.06,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0,
+                  1
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ]
+              }
+            },
+            "type": "surface.attach"
+          },
+          {
+            "nodeId": "workspace",
+            "type": "orbitRoot.set"
+          }
+        ],
+        "error": null,
+        "history": null,
+        "outcome": "committed",
+        "previousRevision": 1,
+        "revision": 2,
+        "seq": 1,
+        "source": "user",
+        "transactionId": "test/tx-2"
+      },
+      {
+        "causeId": null,
+        "changedNodeIds": [],
+        "changedSurfaceIds": [],
+        "commandTypes": [
+          "scene.restore"
+        ],
+        "commands": null,
+        "error": null,
+        "history": null,
+        "outcome": "committed",
+        "previousRevision": 2,
+        "revision": 3,
+        "seq": 2,
+        "source": "restore",
+        "transactionId": "test/tx-3"
+      },
+      {
+        "causeId": null,
+        "changedNodeIds": [
           "window-03"
         ],
         "changedSurfaceIds": [],
@@ -28,17 +587,488 @@
         "error": null,
         "history": null,
         "outcome": "committed",
-        "previousRevision": 1,
-        "revision": 2,
-        "seq": 1,
+        "previousRevision": 3,
+        "revision": 4,
+        "seq": 3,
         "source": "user",
-        "transactionId": "test/tx-2"
+        "transactionId": "test/tx-4"
       },
       {
         "causeId": null,
         "changedNodeIds": [
-          "window-03"
+          "window-01",
+          "window-02",
+          "window-03",
+          "window-04",
+          "window-05",
+          "window-06",
+          "window-07",
+          "workspace"
         ],
+        "changedSurfaceIds": [
+          "window-01-surface",
+          "window-02-surface",
+          "window-03-surface",
+          "window-04-surface",
+          "window-05-surface",
+          "window-06-surface",
+          "window-07-surface"
+        ],
+        "commandTypes": [
+          "node.delete",
+          "node.create",
+          "node.create",
+          "surface.attach",
+          "node.create",
+          "surface.attach",
+          "node.create",
+          "surface.attach",
+          "node.create",
+          "surface.attach",
+          "node.create",
+          "surface.attach",
+          "node.create",
+          "surface.attach",
+          "orbitRoot.set"
+        ],
+        "commands": [
+          {
+            "id": "workspace",
+            "mode": "subtree",
+            "type": "node.delete"
+          },
+          {
+            "node": {
+              "bounds": [
+                9.011636171,
+                9.011636171,
+                9.011636171
+              ],
+              "id": "workspace",
+              "kind": "group",
+              "label": "[label]"
+            },
+            "type": "node.create"
+          },
+          {
+            "node": {
+              "bounds": [
+                1.99,
+                1.01,
+                0.01
+              ],
+              "id": "window-01",
+              "kind": "window",
+              "label": "[label]",
+              "metadata": "[host data]",
+              "parentId": "workspace",
+              "tags": "[host data]",
+              "transform": {
+                "position": [
+                  -0.876028495,
+                  0.189234902,
+                  -3.269382851
+                ],
+                "rotation": [
+                  0.027682765,
+                  0.130475302,
+                  -0.003644505,
+                  0.991058312
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ]
+              }
+            },
+            "type": "node.create"
+          },
+          {
+            "surface": {
+              "adapterTypeId": "reference.tile/1",
+              "bindingKey": "binding-8",
+              "bounds": [
+                1.83,
+                0.73,
+                0.01
+              ],
+              "id": "window-01-surface",
+              "label": "[label]",
+              "ownerNodeId": "window-01",
+              "transform": {
+                "position": [
+                  0,
+                  -0.06,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0,
+                  1
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ]
+              }
+            },
+            "type": "surface.attach"
+          },
+          {
+            "node": {
+              "bounds": [
+                1.67,
+                1.1,
+                0.01
+              ],
+              "id": "window-02",
+              "kind": "window",
+              "label": "[label]",
+              "metadata": "[host data]",
+              "parentId": "workspace",
+              "tags": "[host data]",
+              "transform": {
+                "position": [
+                  3.120194636,
+                  0.035604066,
+                  -1.35022879
+                ],
+                "rotation": [
+                  0.004376257,
+                  -0.549015292,
+                  0.002874664,
+                  0.835795904
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ]
+              }
+            },
+            "type": "node.create"
+          },
+          {
+            "surface": {
+              "adapterTypeId": "reference.note/1",
+              "bindingKey": "binding-9",
+              "bounds": [
+                1.51,
+                0.82,
+                0.01
+              ],
+              "id": "window-02-surface",
+              "label": "[label]",
+              "ownerNodeId": "window-02",
+              "transform": {
+                "position": [
+                  0,
+                  -0.06,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0,
+                  1
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ]
+              }
+            },
+            "type": "surface.attach"
+          },
+          {
+            "node": {
+              "bounds": [
+                1.69,
+                0.92,
+                0.01
+              ],
+              "id": "window-03",
+              "kind": "window",
+              "label": "[label]",
+              "metadata": "[host data]",
+              "parentId": "workspace",
+              "tags": "[host data]",
+              "transform": {
+                "position": [
+                  2.41605535,
+                  -0.180265009,
+                  1.236357986
+                ],
+                "rotation": [
+                  -0.017298857,
+                  -0.852626787,
+                  -0.028284544,
+                  0.521467445
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ]
+              }
+            },
+            "type": "node.create"
+          },
+          {
+            "surface": {
+              "adapterTypeId": "reference.tile/1",
+              "bindingKey": "binding-10",
+              "bounds": [
+                1.53,
+                0.64,
+                0.01
+              ],
+              "id": "window-03-surface",
+              "label": "[label]",
+              "ownerNodeId": "window-03",
+              "transform": {
+                "position": [
+                  0,
+                  -0.06,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0,
+                  1
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ]
+              }
+            },
+            "type": "surface.attach"
+          },
+          {
+            "node": {
+              "bounds": [
+                1.42,
+                1.07,
+                0.01
+              ],
+              "id": "window-04",
+              "kind": "window",
+              "label": "[label]",
+              "metadata": "[host data]",
+              "parentId": "workspace",
+              "tags": "[host data]",
+              "transform": {
+                "position": [
+                  -0.382235892,
+                  -0.139130585,
+                  2.719749695
+                ],
+                "rotation": [
+                  -0.001765158,
+                  0.997244618,
+                  0.025242932,
+                  0.069734137
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ]
+              }
+            },
+            "type": "node.create"
+          },
+          {
+            "surface": {
+              "adapterTypeId": "reference.note/1",
+              "bindingKey": "binding-11",
+              "bounds": [
+                1.26,
+                0.79,
+                0.01
+              ],
+              "id": "window-04-surface",
+              "label": "[label]",
+              "ownerNodeId": "window-04",
+              "transform": {
+                "position": [
+                  0,
+                  -0.06,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0,
+                  1
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ]
+              }
+            },
+            "type": "surface.attach"
+          },
+          {
+            "node": {
+              "bounds": [
+                1.8,
+                1.12,
+                0.01
+              ],
+              "id": "window-05",
+              "kind": "window",
+              "label": "[label]",
+              "metadata": "[host data]",
+              "parentId": "workspace",
+              "tags": "[host data]",
+              "transform": {
+                "position": [
+                  -2.574029463,
+                  -0.125201847,
+                  0.988077336
+                ],
+                "rotation": [
+                  -0.012850247,
+                  0.823914066,
+                  0.018697226,
+                  0.566260449
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ]
+              }
+            },
+            "type": "node.create"
+          },
+          {
+            "surface": {
+              "adapterTypeId": "reference.tile/1",
+              "bindingKey": "binding-12",
+              "bounds": [
+                1.64,
+                0.84,
+                0.01
+              ],
+              "id": "window-05-surface",
+              "label": "[label]",
+              "ownerNodeId": "window-05",
+              "transform": {
+                "position": [
+                  0,
+                  -0.06,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0,
+                  1
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ]
+              }
+            },
+            "type": "surface.attach"
+          },
+          {
+            "node": {
+              "bounds": [
+                1.86,
+                1.3,
+                0.01
+              ],
+              "id": "window-06",
+              "kind": "window",
+              "label": "[label]",
+              "metadata": "[host data]",
+              "parentId": "workspace",
+              "tags": "[host data]",
+              "transform": {
+                "position": [
+                  -2.740154931,
+                  0.411952379,
+                  -1.040887214
+                ],
+                "rotation": [
+                  0.05741909,
+                  0.566460506,
+                  -0.039610777,
+                  0.82113125
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ]
+              }
+            },
+            "type": "node.create"
+          },
+          {
+            "surface": {
+              "adapterTypeId": "reference.note/1",
+              "bindingKey": "binding-13",
+              "bounds": [
+                1.7,
+                1.02,
+                0.01
+              ],
+              "id": "window-06-surface",
+              "label": "[label]",
+              "ownerNodeId": "window-06",
+              "transform": {
+                "position": [
+                  0,
+                  -0.06,
+                  0
+                ],
+                "rotation": [
+                  0,
+                  0,
+                  0,
+                  1
+                ],
+                "scale": [
+                  1,
+                  1,
+                  1
+                ]
+              }
+            },
+            "type": "surface.attach"
+          },
+          {
+            "nodeId": "workspace",
+            "type": "orbitRoot.set"
+          }
+        ],
+        "error": null,
+        "history": null,
+        "outcome": "committed",
+        "previousRevision": 4,
+        "revision": 5,
+        "seq": 4,
+        "source": "user",
+        "transactionId": "test/tx-5"
+      },
+      {
+        "causeId": null,
+        "changedNodeIds": [],
         "changedSurfaceIds": [],
         "commandTypes": [
           "scene.restore"
@@ -47,11 +1077,45 @@
         "error": null,
         "history": null,
         "outcome": "committed",
-        "previousRevision": 2,
-        "revision": 3,
-        "seq": 2,
+        "previousRevision": 5,
+        "revision": 6,
+        "seq": 5,
         "source": "restore",
-        "transactionId": "test/tx-3"
+        "transactionId": "test/tx-6"
+      },
+      {
+        "causeId": null,
+        "changedNodeIds": [
+          "window-01",
+          "window-02",
+          "window-03",
+          "window-04",
+          "window-05",
+          "window-06",
+          "window-07",
+          "workspace"
+        ],
+        "changedSurfaceIds": [
+          "window-01-surface",
+          "window-02-surface",
+          "window-03-surface",
+          "window-04-surface",
+          "window-05-surface",
+          "window-06-surface",
+          "window-07-surface"
+        ],
+        "commandTypes": [
+          "scene.restore"
+        ],
+        "commands": null,
+        "error": null,
+        "history": null,
+        "outcome": "committed",
+        "previousRevision": 6,
+        "revision": 7,
+        "seq": 6,
+        "source": "restore",
+        "transactionId": "test/tx-7"
       }
     ],
     "trace": "swf.operation-trace/1",
@@ -59,7 +1123,7 @@
   },
   "scene": {
     "workspaceId": "test",
-    "revision": 3,
+    "revision": 7,
     "rootIds": [
       "workspace"
     ],
@@ -209,7 +1273,7 @@
           "locked": false,
           "presentationPriority": 0
         },
-        "label": "Note 03",
+        "label": "Changed in the space",
         "tags": [
           "note"
         ],
@@ -878,7 +1942,7 @@
     "engine": "swf.persistence/1",
     "createdAt": 0,
     "workspaceId": "test",
-    "revision": 1,
+    "revision": 4,
     "rootIds": [
       "workspace"
     ],
@@ -1028,7 +2092,7 @@
           "locked": false,
           "presentationPriority": 0
         },
-        "label": "Note 03",
+        "label": "Changed in the space",
         "tags": [
           "note"
         ],

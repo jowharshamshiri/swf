@@ -4,6 +4,7 @@ import Swf.Kernel
 import Swf.Hierarchy
 import Swf.Surface
 import Swf.Save
+import Swf.Spaces
 import Swf.Migration
 import Swf.Fallback
 import Swf.Handoff

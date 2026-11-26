@@ -35,7 +35,7 @@ async function due(m: Mounted, step: number | 'finished'): Promise<void> {
   await m.settle();
   await expect
     .poll(() => said(m), { timeout: 5000 })
-    .toContain(step === 'finished' ? 'Every step is done.' : `Step ${String(step)} of 3`);
+    .toContain(step === 'finished' ? 'Every step is done.' : `Step ${String(step)} of `);
 }
 
 /** Opens the Scenarios view and starts a scenario from its list, from another scene. */
@@ -170,7 +170,7 @@ describe('the guided scenarios, driven from the Scenarios view', () => {
     expect(owner()).toBe('board');
   });
 
-  it('saves the layout under a name, changes it, and opens the saved layout to put it back', async () => {
+  it('saves the layout as a space, changes it, switches away and back by its tabs, and finds it as left', async () => {
     const m = await begin('restore');
     const app = appOf(m.model);
     m.driver.act('workshop.view#workspaces', 'press');
@@ -179,19 +179,20 @@ describe('the guided scenarios, driven from the Scenarios view', () => {
     await m.settle();
     m.driver.act('page.workspaces.save', 'press');
     await m.settle();
+    expect(m.model.workspaces?.space).toBe(SCENARIO_LAYOUT);
     m.driver.act('workshop.view#scenarios', 'press');
     await due(m, 2);
-    const saved = app.poseOf('builds')?.position;
     await showMe(m);
     await due(m, 3);
-    expect(app.poseOf('builds')?.position).not.toEqual(saved);
-    // Show me asks to open it; confirming replaces the workspace with what was saved.
-    await showMe(m);
-    expect(m.driver.has('page.replace')).toBe(true);
-    m.driver.act('page.replace.confirm', 'press');
+    const left = app.poseOf('builds')?.position;
+    // Away by the Studio space's tab, then back by this one's.
+    m.driver.act(keyed('editor.spaces', 'Studio'), 'press');
+    await due(m, 4);
+    expect(m.model.workspaces?.space).toBe('Studio');
+    m.driver.act(keyed('editor.spaces', SCENARIO_LAYOUT), 'press');
     await due(m, 'finished');
     const back = app.poseOf('builds')?.position ?? [];
-    (saved ?? []).forEach((v, i) => {
+    (left ?? []).forEach((v, i) => {
       expect(back[i]).toBeCloseTo(v, 9);
     });
   });

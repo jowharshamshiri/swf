@@ -312,14 +312,20 @@ export interface Persistence {
    *
    * The policies take back their parameters first, then the extensions their state, each alone
    * within the hook timeout and `signal`. `expectedRevision` is passed to the workspace,
-   * which refuses the scene with `CONFLICT` when its revision is another. The state last known
-   * of absent owners is replaced by the snapshot's.
+   * which refuses the scene with `CONFLICT` when its revision is another, and so is `history`:
+   * `record` (the default) makes the restore one undoable revision, `fresh` starts the
+   * workspace's history afresh with it, for a snapshot of another document opened in its place.
+   * The state last known of absent owners is replaced by the snapshot's.
    *
    * @param input - JSON text, or a parsed snapshot of any format still read.
    */
   restore(
     input: unknown,
-    options?: { readonly signal?: AbortSignal; readonly expectedRevision?: number },
+    options?: {
+      readonly signal?: AbortSignal;
+      readonly expectedRevision?: number;
+      readonly history?: 'record' | 'fresh';
+    },
   ): Promise<RestoreOutcome>;
   /**
    * Stops listening to the workspace, policies and extensions (calling each `watch`'s stop),
@@ -598,7 +604,11 @@ class PersistenceImpl implements Persistence {
 
   async restore(
     input: unknown,
-    options: { readonly signal?: AbortSignal; readonly expectedRevision?: number } = {},
+    options: {
+      readonly signal?: AbortSignal;
+      readonly expectedRevision?: number;
+      readonly history?: 'record' | 'fresh';
+    } = {},
   ): Promise<RestoreOutcome> {
     const rejected = (error: SwfError): RestoreOutcome =>
       Object.freeze({ status: 'rejected', error });
@@ -645,10 +655,12 @@ class PersistenceImpl implements Persistence {
     const scene = Object.fromEntries(
       SCENE_SNAPSHOT_FIELDS.map((field) => [field, document[field]]),
     ) as unknown as SceneSnapshot;
-    let result = this.#workspace.restore(
-      scene,
-      options.expectedRevision === undefined ? {} : { expectedRevision: options.expectedRevision },
-    );
+    let result = this.#workspace.restore(scene, {
+      ...(options.expectedRevision === undefined
+        ? {}
+        : { expectedRevision: options.expectedRevision }),
+      ...(options.history === undefined ? {} : { history: options.history }),
+    });
     if (result.status === 'queued') {
       result = await result.completion;
     }
