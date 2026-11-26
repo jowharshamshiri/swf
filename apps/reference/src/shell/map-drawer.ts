@@ -86,6 +86,37 @@ interface Label {
   readonly titled: boolean;
 }
 
+/**
+ * Whether the segment from `a` to `b` passes through the box at (x, y) of this size: the
+ * segment clipped to the box's slabs across and down (Liang and Barsky) leaves something.
+ */
+function crosses(
+  a: readonly [number, number],
+  b: readonly [number, number],
+  x: number,
+  y: number,
+  size: { readonly width: number; readonly height: number },
+): boolean {
+  let from = 0;
+  let to = 1;
+  const slabs: [number, number, number, number][] = [
+    [a[0], b[0] - a[0], x, x + size.width],
+    [a[1], b[1] - a[1], y, y + size.height],
+  ];
+  for (const [start, step, low, high] of slabs) {
+    if (step === 0) {
+      if (start < low || start > high) {
+        return false;
+      }
+      continue;
+    }
+    const [t0, t1] = [(low - start) / step, (high - start) / step];
+    from = Math.max(from, Math.min(t0, t1));
+    to = Math.min(to, Math.max(t0, t1));
+  }
+  return from <= to;
+}
+
 /** A name or a reading as the stage lays it over the drawing. */
 function stageUnit(label: Label): StageUnit {
   return {
@@ -734,9 +765,11 @@ export class MapDrawer {
     // Every place a name may be written, in the order weighed: the name it is a place for (the
     // places for one name share it), and whether it must be written.
     const candidates: { unit: Label; name: number; kept: boolean }[] = [];
-    // A window's name to the right of its mark; where that runs off the map or onto another
-    // name, to its left, above it or below it. One that must be written takes the first of those
-    // that lies wholly on the map; a name with no such place keeps the first, partly off the map.
+    // A window's name to the right of its mark; where that runs off the map, onto another name or
+    // across the window's own line, to its left, above it or below it: a place across the line is
+    // taken only where every place clear of it is off the map or taken. One that must be written
+    // takes the first of those that lies wholly on the map; a name with no such place keeps the
+    // first, partly off the map.
     const whole = (x: number, y: number, size: { width: number; height: number }) =>
       x >= 0 && y >= 0 && x + size.width <= view.width && y + size.height <= view.height;
     order.forEach((marker, i) => {
@@ -750,7 +783,15 @@ export class MapDrawer {
         [centred, my - LABEL.gap - size.height],
         [centred, my + LABEL.gap],
       ];
-      const places = offered.filter(([x, y]) => whole(x, y, size));
+      // A place written across the window's own line is weighed after every place clear of it.
+      const ends = [
+        toMap(view, marker.ends[0][0], marker.ends[0][1]),
+        toMap(view, marker.ends[1][0], marker.ends[1][1]),
+      ] as const;
+      const clear = ([x, y]: [number, number]) => !crosses(ends[0], ends[1], x, y, size);
+      const places = offered
+        .filter(([x, y]) => whole(x, y, size))
+        .sort((p, q) => Number(clear(q)) - Number(clear(p)));
       const kept = marker.selected || marker.focused;
       const first = offered[0];
       if (first === undefined) {

@@ -10,7 +10,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { commands } from 'vitest/browser';
 import type { ReferenceApp } from '../../src/app.js';
 import { parseConfig } from '../../src/config.js';
-import { MAP_SCALE, toMap } from '../../src/map.js';
+import { MAP_SCALE, mapScene, toMap } from '../../src/map.js';
 import { createMessages, ENGLISH } from '../../src/messages.js';
 import { overviewScene } from '../../src/overview.js';
 import { ShellModel } from '../../src/shell/model.svelte.js';
@@ -281,6 +281,29 @@ describe('the spatial map (FR-124, UX-004, WF-05)', () => {
           b.box.bottom <= a.box.top + 0.5;
         expect(apart, `${a.key} and ${b.key}`).toBe(true);
       }
+    }
+    // A name is not written across its own window's line where a place clear of it is free: the
+    // project board, straight ahead, has its line across the map, and is named above or below it.
+    const surface = reading(driver, 'page.map.surface');
+    const view = {
+      centre: [0, 0] as const,
+      scale: MAP_SCALE.initial / MAP_SCALE.step ** 3,
+      width: surface.box.width,
+      height: surface.box.height,
+    };
+    const board = mapScene(app.workspace.getState(), 'main').markers.find((m) => m.id === 'board');
+    const name = titled.find((t) => t.key === 'board')?.box;
+    if (board === undefined || name === undefined)
+      throw new Error('the project board is not named');
+    const [a, b] = board.ends.map((end) => toMap(view, end[0], end[1]));
+    if (a === undefined || b === undefined) throw new Error('the project board has no line');
+    expect(Math.abs(a[1] - b[1])).toBeLessThan(0.5);
+    for (let i = 0; i <= 200; i++) {
+      const x = surface.box.x + a[0] + ((b[0] - a[0]) * i) / 200;
+      const y = surface.box.y + a[1] + ((b[1] - a[1]) * i) / 200;
+      const inside =
+        x > name.left + 0.5 && x < name.right - 0.5 && y > name.top + 0.5 && y < name.bottom - 0.5;
+      expect(inside, 'the project board is named across its line').toBe(false);
     }
   });
 
