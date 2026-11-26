@@ -167,7 +167,7 @@ describe('placing names as the model places them', () => {
     return placed;
   }
 
-  it('answers exactly as the model asked about every obstacle and every place', () => {
+  it('answers exactly as the model asked about every obstacle and every place, in a view of any size', () => {
     const many = fc.record({
       owner: fc.constantFrom('a', 'b', 'c', 'd', 'e', 'f', 'g'),
       box: fc.tuple(
@@ -179,11 +179,15 @@ describe('placing names as the model places them', () => {
     });
     fc.assert(
       fc.property(
+        fc.record({
+          width: fc.double({ min: 1, max: 500, noNaN: true }),
+          height: fc.double({ min: 1, max: 300, noNaN: true }),
+        }),
         fc.array(many, { maxLength: 30 }),
         fc.array(request, { maxLength: 30 }),
-        (obstacles, requests) => {
-          expect(placeNames(VIEW, obstacles, requests)).toEqual(
-            unpruned(VIEW, obstacles, requests),
+        (view, obstacles, requests) => {
+          expect(placeNames(view, obstacles, requests)).toEqual(
+            unpruned(view, obstacles, requests),
           );
         },
       ),

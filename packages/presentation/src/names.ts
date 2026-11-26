@@ -57,6 +57,55 @@ export function placeNames(
     }
     return BigInt(n);
   };
+  // The cells of a coarse grid over the view, and those a box's whole pixels cover.
+  const columns = Math.ceil(view.width / CELL);
+  const rows = Math.ceil(view.height / CELL);
+  const cellsOf = (left: number, top: number, right: number, bottom: number): number[] => {
+    const covered: number[] = [];
+    for (
+      let j = Math.max(0, Math.floor(top / CELL));
+      j <= Math.min(rows - 1, Math.floor((bottom - 1) / CELL));
+      j += 1
+    ) {
+      for (
+        let i = Math.max(0, Math.floor(left / CELL));
+        i <= Math.min(columns - 1, Math.floor((right - 1) / CELL));
+        i += 1
+      ) {
+        covered.push(j * columns + i);
+      }
+    }
+    return covered;
+  };
+  // Each obstacle as the whole pixels it covers, filed by the cells it covers in the view.
+  const cells: { owner: Id; left: number; top: number; right: number; bottom: number }[][] =
+    Array.from({ length: columns * rows }, () => []);
+  for (const {
+    owner,
+    box: [x, y, w, h],
+  } of obstacles) {
+    const left = Math.floor(x);
+    const top = Math.floor(y);
+    const o = {
+      owner,
+      left,
+      top,
+      right: Math.max(left, Math.ceil(x + w)),
+      bottom: Math.max(top, Math.ceil(y + h)),
+    };
+    if (o.right > o.left && o.bottom > o.top) {
+      for (const cell of cellsOf(o.left, o.top, o.right, o.bottom)) {
+        cells[cell]?.push(o);
+      }
+    }
+  }
+  // Asked as the model has it, every obstacle first and then every place, a place overlapping an
+  // obstacle of another owner is never written (`Swf.Names.kept_keeps_out`), so it is left out
+  // (`answers_skip_unwritten`); every obstacle then keeps no place left from being written, so
+  // each is left out too, the last first (`answers_skip_harmless`): which places are written is
+  // the model's answer for the places that remain, none of which overlaps another owner's
+  // obstacle. A place offered again for the same name is the same box, left out with the first.
+  const remaining: { request: number; at: ScreenPoint }[] = [];
   const boxes: {
     name: bigint;
     owner: bigint;
@@ -66,104 +115,49 @@ export function placeNames(
     height: bigint;
     kept: boolean;
   }[] = [];
-  /** Each box asked about that is a place for a name: its request and its point. */
-  const offered: { request: number; at: ScreenPoint }[] = [];
   requests.forEach((request, i) => {
     const [w, h] = request.size;
     if (!(w > 0 && h > 0 && w <= view.width && h <= view.height)) {
       return;
     }
-    const seen = new Set<string>();
-    for (const [px, py] of request.places) {
+    const first = remaining.length;
+    offers: for (const [px, py] of request.places) {
       // On whole pixels, wholly inside the view.
-      const at: ScreenPoint = [
-        Math.min(Math.floor(view.width - w), Math.max(0, Math.round(px))),
-        Math.min(Math.floor(view.height - h), Math.max(0, Math.round(py))),
-      ];
-      const key = `${String(at[0])},${String(at[1])}`;
-      if (seen.has(key)) {
-        continue;
-      }
-      seen.add(key);
-      offered.push({ request: i, at });
-    }
-  });
-  // Each obstacle as the whole pixels it covers, filed by the cells of a coarse grid it covers.
-  const covered = obstacles.map(({ owner, box: [x, y, w, h] }) => {
-    const left = Math.floor(x);
-    const top = Math.floor(y);
-    return {
-      owner,
-      left,
-      top,
-      right: Math.max(left, Math.ceil(x + w)),
-      bottom: Math.max(top, Math.ceil(y + h)),
-    };
-  });
-  const cells = new Map<string, number[]>();
-  const cellsOf = (left: number, top: number, right: number, bottom: number): string[] => {
-    const keys: string[] = [];
-    for (let i = Math.floor(left / CELL); i <= Math.floor((right - 1) / CELL); i += 1) {
-      for (let j = Math.floor(top / CELL); j <= Math.floor((bottom - 1) / CELL); j += 1) {
-        keys.push(`${String(i)},${String(j)}`);
-      }
-    }
-    return keys;
-  };
-  covered.forEach((o, index) => {
-    if (o.right > o.left && o.bottom > o.top) {
-      for (const key of cellsOf(o.left, o.top, o.right, o.bottom)) {
-        const filed = cells.get(key);
-        if (filed === undefined) {
-          cells.set(key, [index]);
-        } else {
-          filed.push(index);
+      const x = Math.min(Math.floor(view.width - w), Math.max(0, Math.round(px)));
+      const y = Math.min(Math.floor(view.height - h), Math.max(0, Math.round(py)));
+      const right = x + Math.ceil(w);
+      const bottom = y + Math.ceil(h);
+      for (let k = first; k < remaining.length; k += 1) {
+        const at = remaining[k]?.at;
+        if (at?.[0] === x && at[1] === y) {
+          continue offers;
         }
       }
-    }
-  });
-  // Asked as the model has it, every obstacle first and then every place, a place overlapping an
-  // obstacle of another owner is never written (`Swf.Names.kept_keeps_out`), so it is left out
-  // (`answers_skip_unwritten`); every obstacle then keeps no place left from being written, so
-  // each is left out too, the last first (`answers_skip_harmless`): which places are written is
-  // the model's answer for the places that remain, none of which overlaps another owner's
-  // obstacle.
-  const remaining = offered.filter(({ request, at: [px, py] }) => {
-    const r = requests[request];
-    if (r === undefined) {
-      return false;
-    }
-    const right = px + Math.ceil(r.size[0]);
-    const bottom = py + Math.ceil(r.size[1]);
-    for (const key of cellsOf(px, py, right, bottom)) {
-      for (const index of cells.get(key) ?? []) {
-        const o = covered[index];
-        if (
-          o !== undefined &&
-          o.owner !== r.owner &&
-          o.left < right &&
-          px < o.right &&
-          o.top < bottom &&
-          py < o.bottom
-        ) {
-          return false;
+      for (const cell of cellsOf(x, y, right, bottom)) {
+        for (const o of cells[cell] ?? []) {
+          if (
+            o.owner !== request.owner &&
+            o.left < right &&
+            x < o.right &&
+            o.top < bottom &&
+            y < o.bottom
+          ) {
+            continue offers;
+          }
         }
       }
+      remaining.push({ request: i, at: [x, y] });
+      boxes.push({
+        name: BigInt(i),
+        owner: ownerOf(request.owner),
+        x: BigInt(x),
+        y: BigInt(y),
+        width: BigInt(Math.ceil(w)),
+        height: BigInt(Math.ceil(h)),
+        kept: false,
+      });
     }
-    return true;
   });
-  for (const { request, at } of remaining) {
-    const [w, h] = requests[request]?.size ?? [0, 0];
-    boxes.push({
-      name: BigInt(request),
-      owner: ownerOf(requests[request]?.owner ?? ''),
-      x: BigInt(at[0]),
-      y: BigInt(at[1]),
-      width: BigInt(Math.ceil(w)),
-      height: BigInt(Math.ceil(h)),
-      kept: false,
-    });
-  }
   const shown = models.labelsShown(boxes);
   if (shown.length !== boxes.length) {
     throw new Error('the names model answered for some of the boxes only');
