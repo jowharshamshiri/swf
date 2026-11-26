@@ -1,0 +1,39 @@
+{
+  "name": "@swf/persistence",
+  "version": "0.1.0",
+  "description": "Versioned, canonical workspace snapshots for the Spatial Workspace Framework: a published JSON Schema with its validator, extension and policy state, a storage interface with an in-memory store, and the save state machine.",
+  "license": "Apache-2.0",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jowharshamshiri/swf.git",
+    "directory": "packages/persistence"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./schema/swf.workspace-1.schema.json": "./dist/schema/swf.workspace-1.schema.json"
+  },
+  "files": [
+    "dist",
+    "src",
+    "CHANGELOG.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json && tsc -p test/browser/tsconfig.json"
+  },
+  "dependencies": {
+    "@swf/core": "git+https://github.com/jowharshamshiri/swf.git#core/v0.1.0",
+    "@swf/math": "git+https://github.com/jowharshamshiri/swf.git#math/v0.1.0",
+    "@swf/models": "git+https://github.com/jowharshamshiri/swf.git#models/v0.1.0"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  }
+}

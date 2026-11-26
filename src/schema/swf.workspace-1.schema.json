@@ -1,0 +1,317 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jowharshamshiri/swf/schema/swf.workspace-1.schema.json",
+  "title": "Spatial Workspace Framework workspace snapshot, swf.workspace/1",
+  "description": "A workspace's layout as portable JSON: its scene (nodes, hierarchy, transforms, bounds, flags, surface associations with their binding keys, cameras, viewports, orbit root, selection and focus), the parameters of its active policies and the opaque state of its extensions. It never holds runtime handles, elements, callbacks or presented content.",
+  "$comment": "The runtime validator enforces this schema and, besides, what a JSON Schema cannot state: rotations are unit quaternions (within 1e-6), a camera's far is greater than its near, every ID is unique across nodes, surfaces, cameras and viewports, every reference names an existing entity and the hierarchy is consistent and free of cycles, JSON data nests at most 64 levels, and the document and extension sizes are within their limits (by default 32 MiB per document, 1 MiB per extension namespace and 10 MiB for all of them).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "engine",
+    "createdAt",
+    "workspaceId",
+    "revision",
+    "rootIds",
+    "nodes",
+    "surfaces",
+    "cameras",
+    "viewports",
+    "orbitRootId",
+    "selection",
+    "focusedId",
+    "policies",
+    "extensions"
+  ],
+  "properties": {
+    "schema": { "const": "swf.workspace/1" },
+    "engine": {
+      "description": "The versioned ID of the engine that wrote the snapshot.",
+      "$ref": "#/$defs/versionedId"
+    },
+    "createdAt": {
+      "description": "When the snapshot was taken, in milliseconds.",
+      "$ref": "#/$defs/time"
+    },
+    "workspaceId": { "$ref": "#/$defs/id" },
+    "revision": {
+      "description": "The workspace revision the snapshot was taken at; the authority for conflict detection.",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "rootIds": { "description": "Root nodes in presentation order.", "$ref": "#/$defs/idList" },
+    "nodes": { "type": "array", "items": { "$ref": "#/$defs/node" } },
+    "surfaces": { "type": "array", "items": { "$ref": "#/$defs/surface" } },
+    "cameras": { "type": "array", "items": { "$ref": "#/$defs/camera" } },
+    "viewports": { "type": "array", "items": { "$ref": "#/$defs/viewport" } },
+    "orbitRootId": { "$ref": "#/$defs/idOrNull" },
+    "selection": { "description": "Selected nodes in selection order.", "$ref": "#/$defs/idList" },
+    "focusedId": { "$ref": "#/$defs/idOrNull" },
+    "policies": {
+      "description": "Active policy parameters, by the policy's versioned ID.",
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/versionedId" },
+      "additionalProperties": { "$ref": "#/$defs/json" }
+    },
+    "extensions": {
+      "description": "Opaque extension state, by namespace. The framework never interprets it.",
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/namespace" },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["version", "data"],
+        "properties": {
+          "version": {
+            "description": "The version of the extension's own payload format.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "data": { "$ref": "#/$defs/json" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "\\S" },
+    "idOrNull": { "anyOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
+    "idList": { "type": "array", "items": { "$ref": "#/$defs/id" }, "uniqueItems": true },
+    "versionedId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*/[1-9][0-9]*$" },
+    "namespace": {
+      "description": "host.<name> or ext.<extension-id>, with further dot-separated parts.",
+      "type": "string",
+      "pattern": "^(?:host|ext)\\.[A-Za-z0-9_-]+(?:\\.[A-Za-z0-9_-]+)*$"
+    },
+    "nonBlank": { "type": "string", "pattern": "\\S" },
+    "label": { "type": ["string", "null"] },
+    "time": { "type": "number", "minimum": 0 },
+    "positive": { "type": "number", "exclusiveMinimum": 0 },
+    "vec3": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 },
+    "bounds": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/positive" },
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "quat": {
+      "description": "[x, y, z, w], of unit length.",
+      "type": "array",
+      "items": { "type": "number" },
+      "minItems": 4,
+      "maxItems": 4
+    },
+    "transform": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["position", "rotation", "scale"],
+      "properties": {
+        "position": { "$ref": "#/$defs/vec3" },
+        "rotation": { "$ref": "#/$defs/quat" },
+        "scale": { "$ref": "#/$defs/bounds" }
+      }
+    },
+    "flags": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "visible",
+        "selectable",
+        "draggable",
+        "resizable",
+        "rotatable",
+        "pointerEnabled",
+        "locked",
+        "presentationPriority"
+      ],
+      "properties": {
+        "visible": { "type": "boolean" },
+        "selectable": { "type": "boolean" },
+        "draggable": { "type": "boolean" },
+        "resizable": { "type": "boolean" },
+        "rotatable": { "type": "boolean" },
+        "pointerEnabled": { "type": "boolean" },
+        "locked": { "type": "boolean" },
+        "presentationPriority": { "type": "number" }
+      }
+    },
+    "metadata": {
+      "description": "Namespaced descriptive data: keys host.<name> or ext.<extension-id>.<name>.",
+      "type": "object",
+      "propertyNames": { "pattern": "^(?:host\\.\\S+|ext\\.[A-Za-z0-9_-]+\\.\\S+)$" },
+      "additionalProperties": { "$ref": "#/$defs/json" }
+    },
+    "json": {
+      "description": "JSON data. Keys that could reach an object's prototype are not allowed.",
+      "anyOf": [
+        { "type": ["null", "boolean", "number", "string"] },
+        { "type": "array", "items": { "$ref": "#/$defs/json" } },
+        {
+          "type": "object",
+          "propertyNames": { "not": { "enum": ["__proto__", "constructor", "prototype"] } },
+          "additionalProperties": { "$ref": "#/$defs/json" }
+        }
+      ]
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "parentId",
+        "childIds",
+        "surfaceIds",
+        "transform",
+        "bounds",
+        "flags",
+        "label",
+        "tags",
+        "metadata",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "kind": { "$ref": "#/$defs/nonBlank" },
+        "parentId": { "$ref": "#/$defs/idOrNull" },
+        "childIds": { "description": "Children in presentation order.", "$ref": "#/$defs/idList" },
+        "surfaceIds": {
+          "description": "Surface slots in presentation order.",
+          "$ref": "#/$defs/idList"
+        },
+        "transform": { "$ref": "#/$defs/transform" },
+        "bounds": { "$ref": "#/$defs/bounds" },
+        "flags": { "$ref": "#/$defs/flags" },
+        "label": { "$ref": "#/$defs/label" },
+        "tags": { "type": "array", "items": { "$ref": "#/$defs/nonBlank" }, "uniqueItems": true },
+        "metadata": { "$ref": "#/$defs/metadata" },
+        "status": { "enum": ["active", "archived"] },
+        "createdAt": { "$ref": "#/$defs/time" },
+        "updatedAt": { "$ref": "#/$defs/time" }
+      }
+    },
+    "surface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "ownerNodeId",
+        "bindingKey",
+        "adapterTypeId",
+        "transform",
+        "bounds",
+        "geometry",
+        "interaction",
+        "flags",
+        "label",
+        "metadata",
+        "createdAt",
+        "updatedAt"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "ownerNodeId": { "$ref": "#/$defs/id" },
+        "bindingKey": {
+          "description": "The host's opaque key for the presentation endpoint, or null for none.",
+          "anyOf": [{ "$ref": "#/$defs/nonBlank" }, { "type": "null" }]
+        },
+        "adapterTypeId": { "$ref": "#/$defs/versionedId" },
+        "transform": { "$ref": "#/$defs/transform" },
+        "bounds": { "$ref": "#/$defs/bounds" },
+        "geometry": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "params"],
+          "properties": {
+            "kind": { "$ref": "#/$defs/nonBlank" },
+            "params": { "$ref": "#/$defs/json" }
+          }
+        },
+        "interaction": { "enum": ["content", "none"] },
+        "flags": { "$ref": "#/$defs/flags" },
+        "label": { "$ref": "#/$defs/label" },
+        "metadata": { "$ref": "#/$defs/metadata" },
+        "createdAt": { "$ref": "#/$defs/time" },
+        "updatedAt": { "$ref": "#/$defs/time" }
+      }
+    },
+    "camera": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "position",
+        "rotation",
+        "near",
+        "far",
+        "label",
+        "metadata",
+        "createdAt",
+        "updatedAt"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "position": { "$ref": "#/$defs/vec3" },
+        "rotation": { "$ref": "#/$defs/quat" },
+        "near": { "$ref": "#/$defs/positive" },
+        "far": { "anyOf": [{ "$ref": "#/$defs/positive" }, { "type": "null" }] },
+        "label": { "$ref": "#/$defs/label" },
+        "metadata": { "$ref": "#/$defs/metadata" },
+        "createdAt": { "$ref": "#/$defs/time" },
+        "updatedAt": { "$ref": "#/$defs/time" }
+      }
+    },
+    "viewport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "cameraId",
+        "projection",
+        "mode",
+        "size",
+        "navigation",
+        "renderer",
+        "compositor",
+        "label",
+        "metadata",
+        "createdAt",
+        "updatedAt"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "cameraId": { "$ref": "#/$defs/id" },
+        "projection": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "config"],
+          "properties": {
+            "id": { "$ref": "#/$defs/versionedId" },
+            "config": { "$ref": "#/$defs/json" }
+          }
+        },
+        "mode": { "$ref": "#/$defs/nonBlank" },
+        "size": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["width", "height", "devicePixelRatio"],
+          "properties": {
+            "width": { "$ref": "#/$defs/positive" },
+            "height": { "$ref": "#/$defs/positive" },
+            "devicePixelRatio": { "$ref": "#/$defs/positive" }
+          }
+        },
+        "navigation": { "enum": ["camera", "orbit"] },
+        "renderer": { "anyOf": [{ "$ref": "#/$defs/versionedId" }, { "type": "null" }] },
+        "compositor": { "anyOf": [{ "$ref": "#/$defs/versionedId" }, { "type": "null" }] },
+        "label": { "$ref": "#/$defs/label" },
+        "metadata": { "$ref": "#/$defs/metadata" },
+        "createdAt": { "$ref": "#/$defs/time" },
+        "updatedAt": { "$ref": "#/$defs/time" }
+      }
+    }
+  }
+}
