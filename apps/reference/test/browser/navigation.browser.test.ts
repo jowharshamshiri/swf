@@ -322,6 +322,23 @@ describe('the radar beside the panorama', () => {
         await nextFrame();
         await nextFrame();
         const written = writtenOn(root, 'page.radar');
+        // Each written whole: none cut short or wrapped out of its room.
+        const clipped = [
+          ...root.querySelectorAll<HTMLElement>(
+            '[data-wsb="page.radar"] .wsb-stage__unit--titled .wsb-stage__unit-title',
+          ),
+        ].filter((t) => {
+          // Cut short in its line, or wrapped past the room its unit gives it.
+          const unit = t.parentElement;
+          return (
+            t.scrollWidth > t.clientWidth + 1 ||
+            (unit !== null &&
+              t.getBoundingClientRect().bottom > unit.getBoundingClientRect().bottom + 1)
+          );
+        });
+        overlaps.push(
+          ...clipped.map((t) => `heading ${String(heading)}, ${id}: "${t.textContent}" cut`),
+        );
         // The selected and the focused windows' names are always written.
         for (const named of [id, focused]) {
           const label = a.workspace.getState().nodes.get(named)?.label;

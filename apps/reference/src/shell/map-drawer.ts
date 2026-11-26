@@ -209,6 +209,15 @@ export class MapDrawer {
       this.#schedule();
     });
     appearance.observe(document.documentElement, { attributes: true });
+    // A face that finishes loading writes names wider or narrower: measure them again.
+    const onFonts = () => {
+      this.#measured.clear();
+      this.#schedule();
+    };
+    document.fonts.addEventListener('loadingdone', onFonts);
+    this.#stops.push(() => {
+      document.fonts.removeEventListener('loadingdone', onFonts);
+    });
     const scheme = window.matchMedia('(prefers-color-scheme: dark)');
     const onScheme = () => {
       this.#inks = this.#readInks();
@@ -849,7 +858,13 @@ export class MapDrawer {
     const names: { unit: Label; name: number; kept: boolean }[][] = [];
     order.forEach((marker, i) => {
       const [mx, my] = toMap(view, marker.x, marker.z);
-      const size = this.#measure(marker.label);
+      const emphasis = marker.selected
+        ? 'prominent'
+        : marker.side === 'behind'
+          ? 'quiet'
+          : undefined;
+      // Measured as it is written: the selected window's name is larger.
+      const size = this.#measure(marker.label, emphasis);
       const beside = my - size.height / 2;
       const centred = mx - size.width / 2;
       const offered: [number, number][] = [
@@ -877,11 +892,7 @@ export class MapDrawer {
         offers.map(([x, y]) => ({
           unit: unit(marker.id, marker.label, x, y, size, {
             depth: marker.selected ? 3 : marker.focused ? 2 : 1,
-            emphasis: marker.selected
-              ? 'prominent'
-              : marker.side === 'behind'
-                ? 'quiet'
-                : undefined,
+            emphasis,
           }),
           name: i,
           kept,

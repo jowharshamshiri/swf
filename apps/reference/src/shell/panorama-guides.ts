@@ -1,7 +1,7 @@
 import { resolvePalette } from '@wsb/uikit/primitives';
 import type { Vec3 } from '@swf/math';
-import type { NameRequest, ScreenPoint } from '@swf/presentation';
-import { placeNames, viewGeometryOf } from '@swf/presentation';
+import type { NameObstacle, NameRequest, ScreenPoint } from '@swf/presentation';
+import { placeNames, viewGeometryOf, windowNames } from '@swf/presentation';
 import { headingPitchOf, projectionFor } from '@swf/projections';
 import type { ReferenceApp } from '../app.js';
 import { VIEWPORT_ID } from '../app.js';
@@ -40,6 +40,12 @@ const GRID = Object.freeze({ step: 15, major: 45, reach: 75, sample: 5 });
 const ALPHA = Object.freeze({ minor: 0.14, major: 0.3, horizon: 0.55, facing: 0.8 });
 /** Where the words at the top are written: the seam's, behind's, and the headings' rows. */
 const ROWS = Object.freeze({ seam: 6, behind: 22, heading: 40, line: 15 });
+/** How far inside the view's edges a word is written, in CSS pixels. */
+const EDGE = 6;
+/** A window's name as the backends write it: the height of its line and its plate's margin. */
+const NAME_PLATE = Object.freeze({ line: 15, margin: 3 });
+/** The owner of what the windows draw, which the guides' words keep clear of. */
+const WINDOWS = 'reference.guides.windows';
 
 /** One line of the grid: its heading or height in degrees, and the runs it is drawn in. */
 export interface GridLine {
@@ -137,10 +143,16 @@ export class PanoramaGuides {
     });
     this.#inks = this.#readInks();
 
-    // The scene and every preview of it, the view's size among them, move the guides.
+    // The scene and every preview of it, the view's size among them, move the guides; each frame
+    // presented moves the windows their words keep clear of.
     this.#stops.push(
       app.workspace.subscribe(() => {
         this.#schedule();
+      }),
+      app.presenter.subscribe((event) => {
+        if (event.type === 'frame' && event.viewportId === VIEWPORT_ID) {
+          this.#schedule();
+        }
       }),
     );
     const appearance = new MutationObserver(() => {
@@ -381,9 +393,10 @@ export class PanoramaGuides {
   }
 
   /**
-   * The words written over the view, each where it overlaps no word written before it: the seam's
-   * name at both top corners and behind's in the middle of each span behind the camera, then
-   * where the camera faces, over its line, then each 45 degree heading over its line.
+   * The words written over the view, each where it overlaps no word written before it and nothing
+   * the windows draw over it (their frames and marks, and every place their names may go): the
+   * seam's name at both top corners and behind's in the middle of each span behind the camera,
+   * then where the camera faces, over its line, then each 45 degree heading over its line.
    */
   #words(g: CanvasRenderingContext2D, measured: Measured): GuideWord[] {
     const { messages } = this.#options;
@@ -391,7 +404,9 @@ export class PanoramaGuides {
     const requests: (NameRequest & { readonly kind: GuideWord['kind'] })[] = [];
     const ask = (kind: GuideWord['kind'], owner: string, text: string, x: number, y: number) => {
       const size: [number, number] = [Math.ceil(g.measureText(text).width), ROWS.line];
-      requests.push({ kind, owner, text, size, places: [[x, y]] });
+      // Clear of the view's edges, where the seam is marked.
+      const at = Math.min(width - EDGE - size[0], Math.max(EDGE, x));
+      requests.push({ kind, owner, text, size, places: [[at, y]] });
       return size;
     };
     if (measured.seams.length > 0) {
@@ -427,7 +442,25 @@ export class PanoramaGuides {
       const w = Math.ceil(g.measureText(text).width);
       ask('heading', `heading.${String(line.degrees)}`, text, top[0] - w / 2, ROWS.heading);
     }
-    const placed = placeNames({ width, height }, [], requests);
+    // The windows are drawn over the guides: a word keeps clear of every window's frame and mark,
+    // and of every place the window's name may be written, as the panorama last presented them.
+    const windows: NameObstacle[] = [];
+    const presented = this.#options.app.viewport.lastFrame();
+    if (presented !== null) {
+      const names = windowNames(presented.frame, (text) => [
+        Math.ceil(g.measureText(text).width) + 2 * NAME_PLATE.margin,
+        NAME_PLATE.line + 2 * NAME_PLATE.margin,
+      ]);
+      for (const { box } of names.obstacles) {
+        windows.push({ owner: WINDOWS, box });
+      }
+      for (const name of names.names) {
+        for (const [x, y] of name.places) {
+          windows.push({ owner: WINDOWS, box: [x, y, name.size[0], name.size[1]] });
+        }
+      }
+    }
+    const placed = placeNames({ width, height }, windows, requests);
     return requests.flatMap((request, i) => {
       const at = placed[i];
       return at === null || at === undefined

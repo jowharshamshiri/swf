@@ -246,6 +246,25 @@ describe('the spatial map (FR-124, UX-004, WF-05)', () => {
       driver.act('page.map.zoom-out', 'press');
       await settle();
     }
+    // The selected window's name is written larger: it is still written whole, on one line.
+    await app.commands.run('reference.window.inspect', { id: 'builds' });
+    await settle();
+    const clipped = [
+      ...root.querySelectorAll<HTMLElement>(
+        '[data-wsb^="page.map.unit#"].wsb-stage__unit--titled .wsb-stage__unit-title',
+      ),
+    ]
+      .filter((t) => {
+        // Cut short in its line, or wrapped past the room its unit gives it.
+        const unit = t.parentElement;
+        return (
+          t.scrollWidth > t.clientWidth + 1 ||
+          (unit !== null &&
+            t.getBoundingClientRect().bottom > unit.getBoundingClientRect().bottom + 1)
+        );
+      })
+      .map((t) => t.textContent);
+    expect(clipped).toEqual([]);
     const map = reading(driver, 'page.map');
     const titled = [...root.querySelectorAll('[data-wsb^="page.map.unit#"]')]
       .filter((unit) => unit.classList.contains('wsb-stage__unit--titled'))

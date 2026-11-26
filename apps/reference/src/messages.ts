@@ -318,7 +318,7 @@ export const ENGLISH = Object.freeze({
   'presentation.drawn': 'Its drawn content',
   'status.title': 'Status',
   'space.label': 'The workspace now',
-  'space.windows': 'Windows in this space',
+  'space.windows': 'Windows',
   'space.inView': 'In view',
   'space.behind': 'Behind you',
   'space.facing': 'Facing',
