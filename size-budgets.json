@@ -100,8 +100,8 @@
   "@swf/navigation-ui": {
     "budget": 40704,
     "recorded": {
-      "minified": 143727,
-      "gzip": 36775
+      "minified": 143875,
+      "gzip": 36801
     }
   }
 }

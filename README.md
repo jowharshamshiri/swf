@@ -1473,10 +1473,10 @@ with `npm run size -- --record` in the same commit, whose message gives the old 
 `@swf/models` is at 56576 bytes: it is the compiled program of every proved decision model the
 framework and the reference application run, so it grows with each model (56428 bytes
 measured, the names model included).
-`@swf/navigation-ui` starts at 40704 bytes, 10% over its first measured size (36775) rounded up to
+`@swf/navigation-ui` starts at 40704 bytes, 10% over its measured size (36801) rounded up to
 the next 256: the navigation controls compiled as a host's build compiles them, with Svelte, the kit
 and the framework's packages left out; it is measured only where the kit is.
-`@swf/navigation` starts at 29440 bytes, 10% over its first measured size (26607) rounded up to the
+`@swf/navigation` starts at 29440 bytes, 10% over its measured size (26635) rounded up to the
 next 256: the composition of the framework into the navigation experience and its capabilities.
 `@swf/presentation` (14592) and `@swf/backend-geometry` (8704) are where placing every window's name
 over a view takes them: `placeNames` and `windowNames`, and the geometry renderer's names, frames
