@@ -28,7 +28,6 @@
   import type { ShellModel } from './model.svelte.js';
   import Palette from './Palette.svelte';
   import CentreView from './CentreView.svelte';
-  import FeaturesView from './FeaturesView.svelte';
   import { FOCUS_ID } from '../focus.js';
   import { MAP, OVERVIEW } from '../modes.js';
   import SceneView from './SceneView.svelte';
@@ -45,9 +44,15 @@
      * and carry nothing of it.
      */
     developer?: Component<{ model: ShellModel }> | null;
+    /**
+     * The experiment panel, where the build carries it; a build without it has every capability
+     * on, with the everyday controls (the view's switcher and sliders, the radar, the command list)
+     * as they are.
+     */
+    experiments?: Component<{ model: ShellModel }> | null;
   }
 
-  let { model, developer = null }: Props = $props();
+  let { model, developer = null, experiments = null }: Props = $props();
   /** Inputs that are pressed or chosen, not typed in. */
   const NOT_TYPED = ['checkbox', 'radio', 'button', 'submit', 'reset', 'range', 'color', 'file'];
   const t = (id: MessageId, params?: Readonly<Record<string, string | number>>) =>
@@ -220,7 +225,9 @@
       { id: 'windows', icon: 'list', label: t('windows.title') },
       // Saving and opening workspaces is a feature: off, its view is taken away with it.
       ...(persisting ? [{ id: 'workspaces', icon: 'folder' as const, label: t('workspaces.title') }] : []),
-      { id: 'features', icon: 'settings', label: t('features.title') },
+      ...(experiments === null
+        ? []
+        : [{ id: 'experiments', icon: 'settings' as const, label: t('experiments.title') }]),
     ]),
   );
   // A view taken away while it was open leaves its side closed.
@@ -258,7 +265,7 @@
   const policies = $derived(model.policies);
   /**
    * A centre too narrow for every action across its top (a phone, NFR-023): the mode is chosen
-   * from a list, and what drags turn and the backend are left to the command list and Features,
+   * from a list, and what drags turn and the backend are left to the command list and the experiment panel,
    * so the actions stay within the centre.
    */
   const COMPACT_BELOW = 600;
@@ -278,8 +285,9 @@
     <ScenariosView {model} />
   {:else if view === 'windows'}
     <WindowsView {model} />
-  {:else if view === 'features'}
-    <FeaturesView {model} />
+  {:else if experiments !== null && view === 'experiments'}
+    {@const Experiments = experiments}
+    <Experiments {model} />
   {:else if view === 'workspaces' && persisting}
     <WorkspacesView {model} />
   {/if}
@@ -540,6 +548,7 @@
 {#if paletteOpen}
   <Palette
     {model}
+    experimental={experiments !== null}
     onclose={() => {
       paletteOpen = false;
     }}

@@ -4,7 +4,9 @@ import type { BackendId } from './config.js';
 import { BACKEND_IDS } from './config.js';
 import { CompositionRefusal } from './composition.js';
 import type { FeatureId } from './features.js';
-import { ALL_ENABLED, DEFAULT_FEATURES, FEATURE_IDS, FeatureError } from './features.js';
+import { DEFAULT_FEATURES, FEATURE_IDS, FeatureError } from './features.js';
+import type { ExperimentId } from './experiments.js';
+import { EXPERIMENT_IDS } from './experiments.js';
 import { FOCUS_ID } from './focus.js';
 import type { MessageId } from './messages.js';
 import { ModeRefusal, PANORAMA } from './modes.js';
@@ -64,7 +66,11 @@ export interface AppCommandSpecs {
   'reference.window.lock': { readonly id: string; readonly locked: boolean };
   'reference.feature.set': { readonly feature: FeatureId; readonly enabled: boolean };
   'reference.feature.reset': Readonly<Record<string, never>>;
-  'reference.feature.combine': Readonly<Record<string, never>>;
+  /**
+   * Applies an experiment: one capability alone, or every one, with the view set up to show it.
+   * Configuration alone: no window changes.
+   */
+  'reference.experiment.run': { readonly experiment: ExperimentId };
   'reference.snap.configure': {
     readonly linear?: number;
     readonly angular?: number;
@@ -154,7 +160,7 @@ export const APP_COMMAND_NAMES: Readonly<Record<AppCommandId, MessageId>> = Obje
   'reference.window.lock': 'command.window.lock',
   'reference.feature.set': 'command.feature.set',
   'reference.feature.reset': 'command.feature.reset',
-  'reference.feature.combine': 'command.feature.combine',
+  'reference.experiment.run': 'command.experiment.run',
   'reference.snap.configure': 'command.snap.configure',
   'reference.depth.configure': 'command.depth.configure',
   'reference.navigation.set': 'command.navigation.set',
@@ -241,6 +247,28 @@ async function viewChange(
     throw error;
   }
   return result === null ? DONE : committed(result);
+}
+
+/**
+ * Several changes made one after another, each of which a mode, a policy or the features'
+ * validation may refuse: the first refusal said as the command's, by its field.
+ */
+async function viewChanges(changes: () => readonly TxResult[]): Promise<AppCommandOutcome> {
+  let results: readonly TxResult[] = [];
+  const made = await viewChange(() => {
+    results = changes();
+    return null;
+  });
+  if (made.status === 'rejected') {
+    return made;
+  }
+  for (const result of results) {
+    const outcome = await committed(result);
+    if (outcome.status === 'rejected') {
+      return outcome;
+    }
+  }
+  return DONE;
 }
 
 /** A finite number of the given unit, or the reason it is not. */
@@ -589,11 +617,12 @@ export function createAppCommands(app: () => ReferenceApp): AppCommands {
         app().policies.configure(DEFAULT_FEATURES);
         return null;
       }),
-    'reference.feature.combine': async () =>
-      viewChange(() => {
-        app().policies.configure({ enabled: ALL_ENABLED });
-        return null;
-      }),
+    'reference.experiment.run': async ({ experiment }) => {
+      if (!(EXPERIMENT_IDS as readonly string[]).includes(experiment)) {
+        return rejected('experiment', `an experiment is one of ${EXPERIMENT_IDS.join(', ')}`);
+      }
+      return viewChanges(() => app().applyExperiment(experiment));
+    },
     'reference.snap.configure': async (snap) =>
       viewChange(() => {
         app().policies.configure({ snap });

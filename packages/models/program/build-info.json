@@ -1,5 +1,5 @@
 {
-  "build_key": "1fae0c49c9b3ac56ced2938b139aa8e06e838d6ea78736a9e85f556a62910fad",
+  "build_key": "d2664a472dcb8ac0f74735c3b9888b736893e05045713e23205fe15931def2fe",
   "lean_version": "4.35.0",
   "lean_githash": "eb6cafb7290e8bd5f2937522d8d804f58f02bafc",
   "bir_version": 3,
@@ -8,11 +8,12 @@
   "runtime_abi": 3,
   "worker_identity": "72c9b8a91fbad12998aaf7450234ae878b899b71569b19557121bfd28b049463",
   "input_digests": {
-    "Swf.lean": "f39b2de0dc39cb7dcf79f8619a3c33c4458105a918f9ea7df3d8019f4abee7f4",
+    "Swf.lean": "fdc925385dd6dce41b16c79a57b0e32ea5a2bd75f62dd6b72792769daa3227ea",
     "Swf/AppChallenge.lean": "746c6675931e4af153a180187045200a7dccf311831f61dc0940952dcecf6501",
     "Swf/AppComposition.lean": "7a6a673922943cc4f59b08b897196736d7263797709ddad1740240cb667b22db",
     "Swf/AppCursor.lean": "0dd3b5872225738d8c53e8833bf4b0395f0b808bebbbf5e532641172b2af802b",
     "Swf/AppDepth.lean": "25f2b92dc3e1f676b790e6dfccf260704a0769d9580435933de89c9eb9c10b5e",
+    "Swf/AppExperiments.lean": "1122d1b5f0846631a6c3338125ea8a5d667c0c2f49883feb4a6ff06bfd929b6b",
     "Swf/AppFeatures.lean": "3780f0b9e775065f44abb759d40d276e3b5438145d70aa44ceeb3a3be4cb66c4",
     "Swf/AppFocus.lean": "c2c669684074486274cfaf9bcc37c8723e8bfff8ad4199223d26b6b5ff404f8a",
     "Swf/AppOrbit.lean": "52a1d039613f00b068a595be34237b4382f3e54db3d678e425c0f4753d0c1aa0",
@@ -41,9 +42,9 @@
   "project": ".",
   "link_directives": [],
   "output_digests": {
-    "assurance.json": "62aa5d0c0a0337988b030d93c2104486fab1d2b662853b2b2eaaba08aecd24d5",
-    "index.d.ts": "17e921fe600d6533f6ae7f470ddcf3a5130c74e1cd4604653858ae1ac0551cfe",
-    "index.js": "5b71e5c3038a05715761c12e067f7dbd66069de6d8fea4f7adaa28a6de97f7e0"
+    "assurance.json": "3430fdc9fe613dd0af6b6d4311fe10ac3201d1f31f7018a50d1b32452a76f679",
+    "index.d.ts": "09fa74b9cf1f6b753ebc2113b8694ae83f22bf01dcec808faa68d340ae1c2a98",
+    "index.js": "24fab11155f886923e214317233a503c1372a69462321d80485333deae1b90a2"
   },
   "platform_products": [
     "program.wasm"

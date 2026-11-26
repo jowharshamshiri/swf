@@ -85,7 +85,9 @@ import { createViewTransitions } from './transition.js';
 import type { AroundSide } from './map.js';
 import { aroundCamera, arrangedAround, inView, placedAt } from './map.js';
 import type { Modes } from './modes.js';
-import { createModes, MAP, OVERVIEW, PANORAMA } from './modes.js';
+import { createModes, FIELD_OF_VIEW, fieldOfViewOf, MAP, OVERVIEW, PANORAMA } from './modes.js';
+import type { ExperimentId } from './experiments.js';
+import { experimentPlan } from './experiments.js';
 import type { FeaturePatch } from './features.js';
 import { ringsOf } from './features.js';
 import type { Policies } from './policies.js';
@@ -342,6 +344,15 @@ export interface ReferenceApp {
    * the scenario once it is committed. Throws {@link FeatureError} when a feature cannot be turned on.
    */
   prepareScenario(id: ScenarioId): TxResult;
+  /**
+   * Applies an experiment ({@link experimentPlan}): turns the feature modules on and off through
+   * {@link Policies.configure}, then sets the view up to show the capability it isolates through
+   * the modes and the orbit policy, as their own controls do: the view mode, what a background
+   * drag turns, and the whole circle in view. Changes no window, and nothing undo puts back: each
+   * result is a commit of view state, in the order made. Throws {@link FeatureError},
+   * {@link ModeRefusal} or {@link PolicyRefusal} when a step is refused.
+   */
+  applyExperiment(id: ExperimentId): readonly TxResult[];
   /**
    * Starts a run of the timed task navigated by a method: shows the view the method navigates
    * in, then names a window to find. Throws {@link ChallengeRefusal} when the method's feature is
@@ -1044,6 +1055,30 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
         return modes.switchTo(PANORAMA.id);
       }
       return loaded;
+    },
+    applyExperiment(id) {
+      const state = workspace.getState();
+      const shown = state.focusedId ?? state.selection[0] ?? null;
+      const plan = experimentPlan(id, {
+        target: shown !== null && state.nodes.get(shown)?.kind === 'window',
+        orbitRoot: state.orbitRootId !== null,
+      });
+      policies.configure({ enabled: plan.enabled });
+      const changes: TxResult[] = [];
+      const view = { panorama: PANORAMA.id, focus: FOCUS_ID, map: MAP.id }[plan.view];
+      if (modes.current() !== view) {
+        changes.push(modes.switchTo(view));
+      }
+      if (policies.status().orbit.navigation !== plan.navigation) {
+        const navigated = policies.navigate(plan.navigation);
+        if (navigated !== null) {
+          changes.push(navigated);
+        }
+      }
+      if (plan.wholeCircle && fieldOfViewOf(modes.panorama()) !== FIELD_OF_VIEW.max) {
+        changes.push(modes.fieldOfView(FIELD_OF_VIEW.max));
+      }
+      return changes;
     },
     startChallenge(method) {
       const feature = METHOD_FEATURES[method];

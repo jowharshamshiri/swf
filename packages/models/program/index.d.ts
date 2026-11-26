@@ -377,6 +377,94 @@ export type DepthAnswer =
 /** The descriptor of Swf.AppDepth.DepthAnswer: how its values cross the boundary. */
 export function depthAnswerType(): L.Type<DepthAnswer>;
 
+/** Each module on or off. */
+export interface FeatureFlags {
+  /** Focus and context, the Focus view mode. */
+  readonly focus: boolean;
+  /** Workspace orbit. */
+  readonly orbit: boolean;
+  /** The spatial map, the Map view mode. */
+  readonly map: boolean;
+  /** The wrapped cursor. */
+  readonly cursor: boolean;
+  /** Magnetic positioning. */
+  readonly snap: boolean;
+  /** Semantic depth. */
+  readonly depth: boolean;
+  /** Detaching, moving and merging surfaces, and regrouping windows. */
+  readonly composition: boolean;
+  /** Saving the workspace as it changes, named workspaces, import and export. */
+  readonly persistence: boolean;
+}
+/** The descriptor of Swf.AppFeatures.FeatureFlags: how its values cross the boundary. */
+export function featureFlagsType(): L.Type<FeatureFlags>;
+
+/** An experiment: every capability together, or one alone. */
+export type Experiment =
+  | {
+      /** Every capability on, together. */
+      readonly kind: "everything";
+    }
+  | {
+      /** 01: focus and context alone. */
+      readonly kind: "focus";
+    }
+  | {
+      /** 02: workspace rotation alone. */
+      readonly kind: "orbit";
+    }
+  | {
+      /** 03: semantic depth alone. */
+      readonly kind: "depth";
+    }
+  | {
+      /** 04: seamless 360° interaction alone. */
+      readonly kind: "cursor";
+    }
+  | {
+      /** 05: the spatial map alone. */
+      readonly kind: "map";
+    }
+  | {
+      /** 06: magnetic placement alone. */
+      readonly kind: "snap";
+    }
+  | {
+      /** 07: multi-surface composition alone. */
+      readonly kind: "composition";
+    }
+  | {
+      /** 08: persistent workspaces alone. */
+      readonly kind: "persistence";
+    }
+;
+/** The descriptor of Swf.AppExperiments.Experiment: how its values cross the boundary. */
+export function experimentType(): L.Type<Experiment>;
+
+/** What the scene offers an experiment's setup. */
+export interface ExperimentContext {
+  /** A window is selected or focused: focus has one to show. */
+  readonly target: boolean;
+  /** A group is designated for workspace orbit: background drags can turn it. */
+  readonly orbitRoot: boolean;
+}
+/** The descriptor of Swf.AppExperiments.ExperimentContext: how its values cross the boundary. */
+export function experimentContextType(): L.Type<ExperimentContext>;
+
+/** An experiment as it is applied: the modules on, and the view set up to show it. */
+export interface ExperimentPlan {
+  /** The modules on. */
+  readonly enabled: FeatureFlags;
+  /** The view it is shown in. */
+  readonly view: ExperimentView;
+  /** What a drag on the panorama's background turns. */
+  readonly navigation: OrbitNavigation;
+  /** Whether the panorama is widened to the whole circle, which wrapping at the seam needs. */
+  readonly wholeCircle: boolean;
+}
+/** The descriptor of Swf.AppExperiments.ExperimentPlan: how its values cross the boundary. */
+export function experimentPlanType(): L.Type<ExperimentPlan>;
+
 /**
  * The reference application's feature settings: which modules are on, and the parameters of
  * magnetic positioning and semantic depth.
@@ -2342,27 +2430,37 @@ export type DepthBand =
 /** The descriptor of Swf.AppDepth.DepthBand: how its values cross the boundary. */
 export function depthBandType(): L.Type<DepthBand>;
 
-/** Each module on or off. */
-export interface FeatureFlags {
-  /** Focus and context, the Focus view mode. */
-  readonly focus: boolean;
-  /** Workspace orbit. */
-  readonly orbit: boolean;
-  /** The spatial map, the Map view mode. */
-  readonly map: boolean;
-  /** The wrapped cursor. */
-  readonly cursor: boolean;
-  /** Magnetic positioning. */
-  readonly snap: boolean;
-  /** Semantic depth. */
-  readonly depth: boolean;
-  /** Detaching, moving and merging surfaces, and regrouping windows. */
-  readonly composition: boolean;
-  /** Saving the workspace as it changes, named workspaces, import and export. */
-  readonly persistence: boolean;
-}
-/** The descriptor of Swf.AppFeatures.FeatureFlags: how its values cross the boundary. */
-export function featureFlagsType(): L.Type<FeatureFlags>;
+/** The view an experiment is shown in. */
+export type ExperimentView =
+  | {
+      /** The 360° panorama. */
+      readonly kind: "panorama";
+    }
+  | {
+      /** A window in focus. */
+      readonly kind: "focus";
+    }
+  | {
+      /** The spatial map. */
+      readonly kind: "map";
+    }
+;
+/** The descriptor of Swf.AppExperiments.ExperimentView: how its values cross the boundary. */
+export function experimentViewType(): L.Type<ExperimentView>;
+
+/** What a background drag turns in a viewport. */
+export type OrbitNavigation =
+  | {
+      /** The camera turns: view state, never undone. */
+      readonly kind: "camera";
+    }
+  | {
+      /** The orbit root turns about the camera: a change to the scene, undone like any other. */
+      readonly kind: "orbit";
+    }
+;
+/** The descriptor of Swf.AppOrbit.OrbitNavigation: how its values cross the boundary. */
+export function orbitNavigationType(): L.Type<OrbitNavigation>;
 
 /** What is wrong with a refused field. */
 export type FeatureFault =
@@ -2466,20 +2564,6 @@ export type TransitionAction =
 ;
 /** The descriptor of Swf.AppFocus.TransitionAction: how its values cross the boundary. */
 export function transitionActionType(): L.Type<TransitionAction>;
-
-/** What a background drag turns in a viewport. */
-export type OrbitNavigation =
-  | {
-      /** The camera turns: view state, never undone. */
-      readonly kind: "camera";
-    }
-  | {
-      /** The orbit root turns about the camera: a change to the scene, undone like any other. */
-      readonly kind: "orbit";
-    }
-;
-/** The descriptor of Swf.AppOrbit.OrbitNavigation: how its values cross the boundary. */
-export function orbitNavigationType(): L.Type<OrbitNavigation>;
 
 /** A node of the scene, as designating it weighs it. */
 export interface OrbitNode {
@@ -3221,6 +3305,21 @@ export class SwfModels {
    * Lean's Swf.AppDepth.depthBands : Swf.AppDepth.DepthQuery → Swf.AppDepth.DepthAnswer
    */
   depthBands(q: DepthQuery): DepthAnswer;
+  /**
+   * The experiment a combination of modules is: none for a custom combination.
+   *
+   * Lean's Swf.AppExperiments.experimentOf : Swf.AppFeatures.FeatureFlags → Option Swf.AppExperiments.Experiment
+   */
+  experimentOf(f: FeatureFlags): L.Option<Experiment>;
+  /**
+   * How an experiment is applied in a scene: its modules, and the view that shows its capability
+   * at work: focus on the window selected (the panorama while there is none to show), the map, drags
+   * turning the workspace (the camera while no group is designated), the whole circle for wrapping at
+   * the seam, and otherwise the panorama with drags turning the camera.
+   *
+   * Lean's Swf.AppExperiments.experimentPlan : Swf.AppExperiments.Experiment → Swf.AppExperiments.ExperimentContext → Swf.AppExperiments.ExperimentPlan
+   */
+  experimentPlan(e: Experiment, c: ExperimentContext): ExperimentPlan;
   /**
    * The settings with a patch applied, validated as a whole: the first field at fault, or the
    * parts that change. A part the patch names but sets to the values it has stays as it is.

@@ -15,6 +15,7 @@ import { parseConfig } from '../../src/config.js';
 import { createMessages } from '../../src/messages.js';
 import { planPreset, PRESETS } from '../../src/presets.js';
 import { ShellModel } from '../../src/shell/model.svelte.js';
+import ExperimentsView from '../../src/shell/ExperimentsView.svelte';
 import Shell from '../../src/shell/Shell.svelte';
 
 declare module 'vitest/browser' {
@@ -79,7 +80,7 @@ async function start(
   const model = new ShellModel(createMessages(), parseConfig(search), {
     store: createMemoryStore(),
   });
-  const shell = mount(Shell, { target: root, props: { model } });
+  const shell = mount(Shell, { target: root, props: { model, experiments: ExperimentsView } });
   current = { model, shell, root };
   const driver = installAutomation(root, () => 'reference');
   await expect.poll(() => model.status, { timeout: 10_000 }).not.toBeNull();
@@ -544,11 +545,11 @@ describe('a control for every gesture, for touch, pen and keyboard (UX-014, UX-0
     await model.run('reference.window.reveal', { id: SPARSE[2]?.id ?? '' });
     driver.act(`page.inspector.window.reveal#${SPARSE[2]?.id ?? ''}`, 'press');
     await settle();
-    // ... or the workspace, from Features.
-    driver.act('workshop.view#features', 'press');
+    // ... or the workspace, from the experiment panel.
+    driver.act('workshop.view#experiments', 'press');
     await settle();
     const turned = app.workspace.history().length;
-    driver.act('page.features.orbit.right', 'press');
+    driver.act('page.experiments.orbit.right', 'press');
     await settle();
     expect(app.workspace.history().length).toBe(turned + 1);
   });

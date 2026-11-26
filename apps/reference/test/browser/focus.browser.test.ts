@@ -42,7 +42,7 @@ type Visit = Awaited<ReturnType<typeof start>>;
 
 /** The studio on the default backend, in a page of the harness's size or another. */
 const visit = (texts: NoteTexts = memoryTexts(), size?: { width: number; height: number }) =>
-  start('?preset=studio', { store: createMemoryStore(), noteTexts: texts }, size);
+  start('?preset=studio', { store: createMemoryStore(), noteTexts: texts }, { size });
 
 /** The size the evidence's page is: the studio's thirteen all fit in the strip. */
 const EVIDENCE = Object.freeze({ width: 1440, height: 900 });

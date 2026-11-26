@@ -85,6 +85,8 @@ exports = [
   "Swf.AppOverview.overviewLayout",
   "Swf.AppOverview.labelsShown",
   "Swf.AppFocus.transitionStep",
+  "Swf.AppExperiments.experimentOf",
+  "Swf.AppExperiments.experimentPlan",
 ]
 
 [assurance]

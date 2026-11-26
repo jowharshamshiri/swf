@@ -83,45 +83,86 @@ function singleFile() {
   };
 }
 
-/** The module that says which debug overlay the build carries. */
-const DEBUG_MODULE = 'virtual:reference/debug';
+/**
+ * What each mode's build carries, beyond the application itself:
+ * - the debug overlay (ENV-005): the developer panel, its tools and the diagnostics package;
+ * - the experiment panel: each of the eight capabilities turned on and off, alone or combined.
+ * Development and staging carry both; production the experiment panel alone; `everyday` neither,
+ * a production build with every capability on and the everyday controls (the view's switcher and
+ * sliders, the radar, the inspector, the command list). Any other mode is refused, naming it.
+ */
+const MODES = Object.freeze({
+  development: { developer: true, experiments: true },
+  staging: { developer: true, experiments: true },
+  production: { developer: false, experiments: true },
+  everyday: { developer: false, experiments: false },
+});
+
+/** What a mode's build carries, or an error naming the mode when it is none of {@link MODES}. */
+function carried(mode) {
+  if (!Object.hasOwn(MODES, mode)) {
+    throw new Error(
+      `the reference application has no build mode "${mode}"; its modes are ${Object.keys(MODES).join(', ')}`,
+    );
+  }
+  return MODES[mode];
+}
 
 /**
- * The debug overlay (ENV-005): staging builds and development carry the developer panel;
- * production builds get a module holding none, so nothing of the panel, its tools or the diagnostics
- * package reaches their bundle.
+ * A module the build fills with a view or with none: `export const <name>` is the view's
+ * component where the mode carries it, null where it does not, so nothing of a view left out
+ * reaches the bundle.
  */
-function debugOverlay(mode) {
-  const resolved = `\0${DEBUG_MODULE}`;
-  const view = fileURLToPath(new URL('./src/shell/DeveloperView.svelte', import.meta.url));
+function optionalView(module, name, file, carries) {
+  const resolved = `\0${module}`;
+  const view = fileURLToPath(new URL(file, import.meta.url));
   return {
-    name: 'swf-debug-overlay',
-    resolveId: (id) => (id === DEBUG_MODULE ? resolved : null),
+    name: `swf-optional-${name}`,
+    resolveId: (id) => (id === module ? resolved : null),
     load: (id) =>
       id !== resolved
         ? null
-        : mode === 'production'
-          ? 'export const developer = null;'
-          : `export { default as developer } from ${JSON.stringify(view)};`,
+        : carries
+          ? `export { default as ${name} } from ${JSON.stringify(view)};`
+          : `export const ${name} = null;`,
   };
 }
 
-export default defineConfig(({ mode }) => ({
-  root: fileURLToPath(new URL('.', import.meta.url)),
-  base: './',
-  resolve: { alias },
-  build: {
-    outDir: 'dist',
-    emptyOutDir: true,
-    target: 'es2022',
-    modulePreload: false,
-    cssCodeSplit: false,
-    sourcemap: false,
-    // The kit's faces too: a page opened from the file may load nothing else.
-    assetsInlineLimit: () => true,
-    // One chunk: the models program loads its WebAssembly host (and, under Node only, Node's
-    // modules) through dynamic imports, which a page opened from the file must not fetch.
-    rolldownOptions: { output: { codeSplitting: false } },
-  },
-  plugins: [svelte(), uikit(), debugOverlay(mode), singleFile()],
-}));
+export default defineConfig(({ mode }) => {
+  const carries = carried(mode);
+  return {
+    root: fileURLToPath(new URL('.', import.meta.url)),
+    base: './',
+    resolve: { alias },
+    build: {
+      outDir: 'dist',
+      emptyOutDir: true,
+      target: 'es2022',
+      modulePreload: false,
+      cssCodeSplit: false,
+      sourcemap: false,
+      // The kit's faces too: a page opened from the file may load nothing else.
+      assetsInlineLimit: () => true,
+      // One chunk: the models program loads its WebAssembly host (and, under Node only, Node's
+      // modules) through dynamic imports, which a page opened from the file must not fetch.
+      rolldownOptions: { output: { codeSplitting: false } },
+    },
+    plugins: [
+      svelte(),
+      uikit(),
+      optionalView(
+        'virtual:reference/debug',
+        'developer',
+        './src/shell/DeveloperView.svelte',
+        carries.developer,
+      ),
+      optionalView(
+        'virtual:reference/experiments',
+        'experiments',
+        './src/shell/ExperimentsView.svelte',
+        carries.experiments,
+      ),
+      singleFile(),
+    ],
+  };
+});

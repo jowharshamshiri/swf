@@ -8,9 +8,10 @@ import { APP_COMMAND_NAMES } from '../commands.js';
 import type { AppConfig } from '../config.js';
 import { ConfigError } from '../config.js';
 import type { MessageId, Messages } from '../messages.js';
-import { cameraHeading } from '../orbit.js';
+import { cameraHeading, orbitHeading } from '../orbit.js';
 import type { Pose } from '../pose.js';
 import type { PolicyStatus } from '../policies.js';
+import { experimentOf } from '../experiments.js';
 import type { NamedWorkspace, SnapshotPreview, WorkspacesStatus } from '../workspaces.js';
 import { WorkspaceRefusal } from '../workspaces.js';
 import type { ScenarioStatus } from '../scenarios.js';
@@ -118,11 +119,11 @@ const SCENE_COMMANDS: readonly AppCommandId[] = Object.freeze([
   'reference.scene.reseed',
 ]);
 
-/** The commands the features view runs: their refusals are said there, by their field. */
+/** The commands the experiment panel runs: their refusals are said there, by their field. */
 const FEATURE_COMMANDS: readonly AppCommandId[] = Object.freeze([
+  'reference.experiment.run',
   'reference.feature.set',
   'reference.feature.reset',
-  'reference.feature.combine',
   'reference.snap.configure',
   'reference.depth.configure',
   'reference.navigation.set',
@@ -197,6 +198,40 @@ export class ShellModel {
   inspections = $state(0);
   /** The optional policies: which are on, their settings, the gesture running and the last one. */
   policies = $state<PolicyStatus | null>(null);
+  /**
+   * The experiment the feature modules' switches are now, or null for a custom combination (and
+   * before the application starts).
+   */
+  experiment = $derived(
+    this.policies === null ? null : experimentOf(this.policies.features.enabled),
+  );
+  /**
+   * The groups workspace rotation can turn, the one designated, and the readings that compare the
+   * camera and the workspace: the camera's heading and the workspace's turn, in degrees (no turn
+   * while no group is designated), read again at each of the scene's revisions. Null before the
+   * application starts.
+   */
+  orbitScene = $derived.by(() => {
+    const revision = this.revision;
+    const app = this.app;
+    if (app === null) {
+      return null;
+    }
+    const state = app.workspace.getState();
+    const groups = [...state.nodes.values()]
+      .filter((node) => node.kind === 'group' && node.status === 'active')
+      .map((node) => ({ value: node.id, label: node.label ?? node.id }));
+    const turned = orbitHeading(state);
+    return {
+      /** The scene's revision they were read at. */
+      revision,
+      groups,
+      // Read with the groups, from the same scene, so the chosen one is always among them.
+      rootId: state.orbitRootId,
+      camera: (cameraHeading(state, VIEWPORT_ID) * 180) / Math.PI,
+      turned: turned === null ? null : (turned * 180) / Math.PI,
+    };
+  });
   /** Whether there is something to undo and to redo. */
   history = $state({ undo: false, redo: false });
   /** The window the map was last asked to show, and how many times it has been asked. */
@@ -765,7 +800,7 @@ export class ShellModel {
     return SCENE_COMMANDS.includes(refusal.command);
   }
 
-  /** Whether a refusal is of a feature's command, said in the features view. */
+  /** Whether a refusal is of a feature's command, said in the experiment panel. */
   isFeatureRefusal(refusal: Refusal): boolean {
     return FEATURE_COMMANDS.includes(refusal.command);
   }

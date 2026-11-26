@@ -333,21 +333,70 @@ export const ENGLISH = Object.freeze({
   'diagnostics.failed': 'Failed bindings',
   'diagnostics.subscriptions': 'Subscriptions held',
   'diagnostics.errors': 'Errors',
-  'features.title': 'Features',
-  'features.label': 'The behaviour modules, each on or off on its own',
-  'features.reset': 'Reset to the combined defaults',
-  'feature.orbit': 'workspace orbit',
+  'experiments.title': 'Experiments',
+  'experiments.reset': 'Reset to the combined defaults',
+  'experiments.reset.detail':
+    'Reset turns all eight on, as Everything combined does, and also puts every setting below back to its default.',
+  'experiments.list': 'Try one capability, or all of them',
+  'experiments.list.detail':
+    'Each numbered experiment turns its capability on and every other off, and sets the view up to show it. Switch any capability below to combine them.',
+  'experiments.switches': 'Capabilities',
+  'experiments.switches.detail':
+    'Each capability on or off on its own, in any combination: turning one off takes its controls away and changes no window.',
+  'experiments.custom': 'Custom combination',
+  'experiments.custom.trial':
+    'You combined the capabilities yourself: {on}. Choose a numbered experiment to isolate one again, or keep switching.',
+  'experiments.custom.none': 'none is on',
+  'experiments.current': 'Experiment {number}: {name}',
+  'experiment.everything': 'Everything combined',
+  'experiment.everything.summary': 'All eight capabilities in one workspace',
+  'experiment.everything.trial':
+    'Every capability is on, in the panorama, with drags turning the camera. Move windows, switch views, turn the workspace instead of the camera, focus a window, put windows behind you. Turn any capability off below to see what it adds.',
+  'experiment.focus': 'Focus and context',
+  'experiment.focus.summary': 'Read one window without losing the room',
+  'experiment.focus.trial':
+    'The selected window is framed readably and stays editable, with its neighbours either side a press away; Escape goes back to where you were. With nothing selected, select a window and press F. Turn Focus and context off: the Focus view leaves the switcher and F does nothing.',
+  'experiment.orbit': 'Workspace rotation',
+  'experiment.orbit.summary': 'Turn the room, not the view',
+  'experiment.orbit.trial':
+    'Drag the panorama’s background: the workspace turns round you while the camera stays where it faces, and undo puts a turn back. Switch Camera | Workspace above the panorama to compare. Turn Workspace rotation off: drags turn the camera again.',
+  'experiment.depth': 'Semantic depth',
+  'experiment.depth.summary': 'Near shows content, far a label',
+  'experiment.depth.trial':
+    'Near windows show their content, farther ones a compact preview and the farthest their label alone; drag a window nearer with Shift held and its content comes back. Turn Semantic depth off: every window shows its content, however far.',
+  'experiment.cursor': 'Seamless 360°',
+  'experiment.cursor.summary': 'Drag past the seam behind you',
+  'experiment.cursor.trial':
+    'The whole circle is in view. Drag a window past the panorama’s left or right edge: it comes back in at the other, where the seam behind you is, still under the drawn cursor. Turn Seamless 360° off: the drag stops at the edge.',
+  'experiment.map': 'Spatial map',
+  'experiment.map.summary': 'Move things behind you from above',
+  'experiment.map.trial':
+    'The map shows the workspace from above, behind you too. Press a window to select it; drag it to put it anywhere round you, then look in the panorama. Turn Spatial map off: the Map view leaves the switcher and M does nothing; the radar beside the panorama stays.',
+  'experiment.snap': 'Magnetic placement',
+  'experiment.snap.summary': 'Snap to neighbours, spokes and rings',
+  'experiment.snap.trial':
+    'Drag a window near another and let go: it snaps edge to edge with a gap, lines up, and its heading snaps to the 15° spokes and its distance to the rings; the line above the panorama names the snap. Turn Magnetic placement off to compare free placement.',
+  'experiment.composition': 'Multi-surface composition',
+  'experiment.composition.summary': 'Break windows into linked parts',
+  'experiment.composition.trial':
+    'Select the Project Board and choose Break into parts in the inspector: each surface becomes a window of its own, linked to it, to move apart; Recombine parts puts them back. Turn Multi-surface composition off: the inspector offers none of it.',
+  'experiment.persistence': 'Persistent workspaces',
+  'experiment.persistence.summary': 'Named spaces that remember',
+  'experiment.persistence.trial':
+    'Move a window somewhere memorable, save the workspace under a name in Workspaces, change the scene, and open it again: every window is back where you left it. Turn Persistent workspaces off: nothing is saved and the Workspaces view leaves the side.',
+  'command.experiment.run': 'Run an experiment',
+  'command.experiment.run.named': 'Run experiment {number}: {name}',
+  'feature.orbit': 'workspace rotation',
   'feature.depth': 'semantic depth',
-  'feature.snap': 'magnetic positioning',
-  'feature.cursor': 'the wrapped cursor',
-  'orbit.title': 'Workspace orbit',
+  'feature.snap': 'magnetic placement',
+  'feature.cursor': 'seamless 360°',
   'orbit.detail':
     'Turns a group of windows round the camera, as one change that undo puts back. Turning the camera instead changes only the view: compare the two with the choice below.',
   'orbit.enabled': 'Turn the workspace',
   'orbit.navigation': 'Background drags turn',
   'orbit.navigation.camera': 'Camera',
   'orbit.navigation.orbit': 'Workspace',
-  'orbit.navigation.off': 'Workspace orbit is off: background drags turn the camera.',
+  'orbit.navigation.off': 'Workspace rotation is off: background drags turn the camera.',
   'orbit.navigation.noroot': 'No group is designated: background drags turn the camera.',
   'orbit.group': 'Orbit group',
   'orbit.group.none': 'None',
@@ -359,7 +408,6 @@ export const ENGLISH = Object.freeze({
   'orbit.announce.orbit':
     'Background drags turn the {group} group round the camera; the camera stays still. Undo puts a turn back.',
   'orbit.announce.camera': 'Background drags turn the camera.',
-  'depth.title': 'Semantic depth',
   'depth.detail':
     'Windows farther away show a compact preview, and the farthest only their label. Their content stays attached and keeps running.',
   'depth.enabled': 'Represent windows by distance',
@@ -367,7 +415,6 @@ export const ENGLISH = Object.freeze({
   'depth.compact': 'Compact preview nearer than',
   'depth.full.hint': 'World units from the camera.',
   'depth.compact.hint': 'World units from the camera. Farther, a window shows its label alone.',
-  'snap.title': 'Magnetic positioning',
   'snap.detail':
     'A window being moved snaps to its neighbours’ edges, lines up with them and with the horizon, and keeps a gap from them. The snap shows as you move; releasing commits it once.',
   'snap.enabled': 'Snap moved windows',
@@ -383,7 +430,6 @@ export const ENGLISH = Object.freeze({
   'snap.ring': 'Ring snap distance',
   'snap.ring.hint':
     'World units; 0 for none. A distance this near a ring goes to it: the rings are where Arrange round lays windows.',
-  'cursor.title': 'Wrapped cursor',
   'cursor.detail':
     'A window or the view carried past one edge of the panorama comes back in at the other, where the seam behind you is.',
   'cursor.enabled': 'Wrap pointers at the seam',
@@ -446,27 +492,22 @@ export const ENGLISH = Object.freeze({
   'standIn.elsewhere': 'Shown in another view',
   'feature.focus': 'focus and context',
   'feature.map': 'the spatial map',
-  'feature.composition': 'composition',
-  'feature.persistence': 'saving and opening workspaces',
-  'features.combine': 'Turn every feature on',
-  'features.combine.detail':
-    'Turn every feature on turns all eight on and keeps their settings; reset also puts the settings back.',
-  'command.feature.combine': 'Turn every feature on (combined preset)',
-  'focus.feature.title': 'Focus and context',
+  'feature.composition': 'multi-surface composition',
+  'feature.persistence': 'persistent workspaces',
   'focus.feature.detail': 'Show one window readably, with the windows around it a press away.',
   'focus.feature.enabled': 'Offer the Focus view',
-  'map.feature.title': 'Spatial map',
   'map.feature.detail': 'See the scene from above and move windows on the ground.',
   'map.feature.enabled': 'Offer the Map view',
-  'composition.title': 'Composition',
   'composition.detail':
     'Rearrange the surfaces a host supplied among windows, and windows among groups. A surface is always moved whole: its own content is never split.',
   'composition.enabled': 'Rearrange surfaces and windows',
-  'persistence.title': 'Saving and opening',
   'persistence.detail':
     'Save the workspace in this browser as it changes, save and open named workspaces, and export and import files.',
   'persistence.enabled': 'Save and open workspaces',
   'persistence.off': 'Changes are not saved while this is off; what is saved stays as it is.',
+  'depth.off': 'Off: every window shows its content, however far it is.',
+  'cursor.off': 'Off: a drag stops at the panorama’s edge.',
+  'snap.off': 'Off: a moved window goes exactly where it is let go.',
   'command.window.remove': 'Remove a window from the workspace',
   'command.window.add': 'Add a window',
   'command.window.remove.named': 'Remove {label} from the workspace',

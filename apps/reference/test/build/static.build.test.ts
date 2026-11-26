@@ -7,12 +7,13 @@ import { chromium } from 'playwright';
 import { build } from 'vite';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { DEFAULT_FEATURES } from '../../src/features.js';
-import { planPreset } from '../../src/presets.js';
+import { planPreset, presetIssue } from '../../src/presets.js';
 
 /**
  * The static build (ENV-006, NFR-014, NFR-027): one page that runs straight from the file, with
  * no server, no credentials and no network at all. Production builds leave the debug overlay out;
- * staging builds carry it (ENV-005).
+ * staging builds carry it (ENV-005). Everyday builds leave the experiment panel out too, keeping
+ * every capability on and the everyday controls.
  */
 
 const configFile = fileURLToPath(new URL('../../vite.config.mjs', import.meta.url));
@@ -20,12 +21,14 @@ const configFile = fileURLToPath(new URL('../../vite.config.mjs', import.meta.ur
 const DIAGNOSTICS_ONLY = 'errorCapacity must be a whole number of at least 1';
 /** Said only by the developer tools' failure simulation. */
 const DEVTOOLS_ONLY = 'reference.simulated.slow/1';
+/** Named only by the experiment panel: its list's handle. */
+const EXPERIMENTS_ONLY = 'page.experiments.run';
 
-const builds = { production: '', staging: '' };
+const builds = { production: '', staging: '', everyday: '' };
 let browser: Browser;
 
 beforeAll(async () => {
-  for (const mode of ['production', 'staging'] as const) {
+  for (const mode of ['production', 'staging', 'everyday'] as const) {
     builds[mode] = await mkdtemp(join(tmpdir(), `swf-reference-${mode}-`));
     await build({
       configFile,
@@ -97,7 +100,7 @@ describe('the static build', () => {
   });
 
   it('shows the shell and the sparse panorama from the file, offline, without a single request', async () => {
-    const run = await open('');
+    const run = await open('?preset=sparse');
     await shows(run.page, '[data-reference-content]', (n) => n === 3);
     await shows(run.page, '[data-swf-viewport]', (n) => n === 1);
     expect(await run.has('page.scene.preset')).toBe(true);
@@ -145,7 +148,7 @@ describe('the static build', () => {
     const run = await open('?preset=busy');
     await shows(
       run.page,
-      'text=The address names an invalid preset: a preset must be one of empty, sparse, dense, seam',
+      `text=The address names an invalid preset: ${String(presetIssue('busy'))}`,
       (n) => n === 1,
     );
     expect(await run.page.locator('[data-swf-viewport]').count()).toBe(0);
@@ -180,5 +183,54 @@ describe('the debug overlay (ENV-005)', () => {
     expect(run.requests).toEqual([]);
     expect(run.errors).toEqual([]);
     await run.close();
+  });
+});
+
+describe('the experiment panel (brief §5)', () => {
+  it('is carried by production builds', async () => {
+    const html = await readFile(join(builds.production, 'index.html'), 'utf8');
+    expect(html).toContain(EXPERIMENTS_ONLY);
+    const run = await open('?preset=studio');
+    await shows(run.page, '[data-swf-viewport]', (n) => n === 1);
+    expect(await run.has('workshop.view#experiments')).toBe(true);
+    await run.page.click('[data-wsb="workshop.view#experiments"]');
+    await shows(run.page, '[data-wsb="page.experiments.list"]', (n) => n === 1);
+    expect(run.errors).toEqual([]);
+    await run.close();
+  });
+
+  it('is left out of everyday builds, with every capability on and the everyday controls in place', async () => {
+    const html = await readFile(join(builds.everyday, 'index.html'), 'utf8');
+    expect(html).not.toContain(EXPERIMENTS_ONLY);
+    expect(html).not.toContain(DIAGNOSTICS_ONLY);
+    expect(html).not.toContain(DEVTOOLS_ONLY);
+    const run = await open('?preset=studio', 'everyday');
+    await shows(run.page, '[data-swf-viewport]', (n) => n === 1);
+    expect(await run.has('workshop.view#experiments')).toBe(false);
+    expect(await run.has('worktree.view#developer')).toBe(false);
+    for (const handle of [
+      'editor.actions.mode',
+      'editor.actions.navigation',
+      'editor.actions.commands',
+      'page.view.fov',
+      'page.view.heading',
+      'page.radar',
+      'workshop.view#workspaces',
+    ]) {
+      expect(await run.has(handle), handle).toBe(true);
+    }
+    // Every capability at work: the map and focus offered, the farther windows represented.
+    const switcher = await run.page.locator('[data-wsb="editor.actions.mode"]').textContent();
+    expect(switcher).toContain('Map');
+    expect(switcher).toContain('Focus');
+    expect(run.requests).toEqual([]);
+    expect(run.errors).toEqual([]);
+    await run.close();
+  });
+
+  it('refuses a build mode it does not know, naming it', async () => {
+    await expect(
+      build({ configFile, mode: 'nightly', logLevel: 'silent', build: { write: false } }),
+    ).rejects.toThrow('the reference application has no build mode "nightly"');
   });
 });

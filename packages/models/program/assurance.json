@@ -1096,6 +1096,253 @@
       }
     },
     {
+      "name": "Swf.AppExperiments.custom_iff",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppExperiments.experimentOf"
+      ],
+      "specifications": [],
+      "statement": "∀ (f : Swf.AppFeatures.FeatureFlags),\n  Swf.AppExperiments.experimentOf f = none ↔\n    ∀ (e : Swf.AppExperiments.Experiment), Swf.AppExperiments.experimentFlags e ≠ f",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "359964be7b4dbf56439f794fd64a5e276a080b20a884eb0add94afc3d770080d",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppExperiments.lean",
+        "start": {
+          "line": 182,
+          "column": 1
+        },
+        "end": {
+          "line": 192,
+          "column": 37
+        }
+      }
+    },
+    {
+      "name": "Swf.AppExperiments.plan_isolates",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppExperiments.experimentPlan"
+      ],
+      "specifications": [],
+      "statement": "∀ (e : Swf.AppExperiments.Experiment) (c : Swf.AppExperiments.ExperimentContext) (k : Swf.AppExperiments.Capability),\n  Swf.AppExperiments.holds (Swf.AppExperiments.experimentPlan e c).enabled k =\n    match Swf.AppExperiments.isolates e with\n    | none => true\n    | some i => decide (i = k)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "c59959f472d3f62ba06ae08818eec83dd0ac6ddf14ac402ca8d0a7ca9862936f",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppExperiments.lean",
+        "start": {
+          "line": 160,
+          "column": 1
+        },
+        "end": {
+          "line": 168,
+          "column": 30
+        }
+      }
+    },
+    {
+      "name": "Swf.AppExperiments.plan_otherwise_panorama",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppExperiments.experimentPlan"
+      ],
+      "specifications": [],
+      "statement": "∀ (e : Swf.AppExperiments.Experiment) (c : Swf.AppExperiments.ExperimentContext),\n  e ≠ Swf.AppExperiments.Experiment.focus ∧\n      e ≠ Swf.AppExperiments.Experiment.map ∧ e ≠ Swf.AppExperiments.Experiment.orbit →\n    (Swf.AppExperiments.experimentPlan e c).view = Swf.AppExperiments.ExperimentView.panorama ∧\n      (Swf.AppExperiments.experimentPlan e c).navigation = Swf.AppOrbit.OrbitNavigation.camera",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "a542d9d119cdba0e47f1d3190826f41e4d6759ffa435cc3346496c38760b2e59",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppExperiments.lean",
+        "start": {
+          "line": 226,
+          "column": 1
+        },
+        "end": {
+          "line": 233,
+          "column": 40
+        }
+      }
+    },
+    {
+      "name": "Swf.AppExperiments.plan_recognised",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppExperiments.experimentPlan"
+      ],
+      "specifications": [],
+      "statement": "∀ (e : Swf.AppExperiments.Experiment) (c : Swf.AppExperiments.ExperimentContext),\n  (Swf.AppExperiments.experimentPlan e c).enabled = Swf.AppExperiments.experimentFlags e ∧\n    Swf.AppExperiments.experimentOf (Swf.AppExperiments.experimentPlan e c).enabled = some e",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "79c0528d0bd355638344d33a8f16cc474fd21c14613d925c9823fc794b01aa7a",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppExperiments.lean",
+        "start": {
+          "line": 194,
+          "column": 1
+        },
+        "end": {
+          "line": 199,
+          "column": 22
+        }
+      }
+    },
+    {
+      "name": "Swf.AppExperiments.plan_shows_capability",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppExperiments.experimentPlan"
+      ],
+      "specifications": [],
+      "statement": "∀ (c : Swf.AppExperiments.ExperimentContext),\n  (c.target = true →\n      (Swf.AppExperiments.experimentPlan Swf.AppExperiments.Experiment.focus c).view =\n        Swf.AppExperiments.ExperimentView.focus) ∧\n    (Swf.AppExperiments.experimentPlan Swf.AppExperiments.Experiment.map c).view =\n        Swf.AppExperiments.ExperimentView.map ∧\n      (c.orbitRoot = true →\n          (Swf.AppExperiments.experimentPlan Swf.AppExperiments.Experiment.orbit c).navigation =\n            Swf.AppOrbit.OrbitNavigation.orbit) ∧\n        (Swf.AppExperiments.experimentPlan Swf.AppExperiments.Experiment.cursor c).wholeCircle = true",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "cf7d0d5099fb510d1989272d3dfb491254b9f2ce91f1d3260c6cb84c7ea4b8c2",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppExperiments.lean",
+        "start": {
+          "line": 216,
+          "column": 1
+        },
+        "end": {
+          "line": 224,
+          "column": 75
+        }
+      }
+    },
+    {
+      "name": "Swf.AppExperiments.plan_uses_what_is_on",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppExperiments.experimentPlan"
+      ],
+      "specifications": [],
+      "statement": "∀ (e : Swf.AppExperiments.Experiment) (c : Swf.AppExperiments.ExperimentContext),\n  ((Swf.AppExperiments.experimentPlan e c).view = Swf.AppExperiments.ExperimentView.focus →\n      (Swf.AppExperiments.experimentPlan e c).enabled.focus = true ∧ c.target = true) ∧\n    ((Swf.AppExperiments.experimentPlan e c).view = Swf.AppExperiments.ExperimentView.map →\n        (Swf.AppExperiments.experimentPlan e c).enabled.map = true) ∧\n      ((Swf.AppExperiments.experimentPlan e c).navigation = Swf.AppOrbit.OrbitNavigation.orbit →\n          (Swf.AppExperiments.experimentPlan e c).enabled.orbit = true ∧ c.orbitRoot = true) ∧\n        ((Swf.AppExperiments.experimentPlan e c).wholeCircle = true →\n          (Swf.AppExperiments.experimentPlan e c).enabled.cursor = true)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "ac7b9871d7971ac7dbb3f3100eff06d7ed74f36d6f7b197793ae7389d9ed594e",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppExperiments.lean",
+        "start": {
+          "line": 201,
+          "column": 1
+        },
+        "end": {
+          "line": 214,
+          "column": 103
+        }
+      }
+    },
+    {
+      "name": "Swf.AppExperiments.recognised",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppExperiments.experimentOf"
+      ],
+      "specifications": [],
+      "statement": "∀ (e : Swf.AppExperiments.Experiment), Swf.AppExperiments.experimentOf (Swf.AppExperiments.experimentFlags e) = some e",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "fa53282fd5bf8ef71eedac0329c8738647c91ec23d314c728ea9ea335046e5b0",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppExperiments.lean",
+        "start": {
+          "line": 170,
+          "column": 1
+        },
+        "end": {
+          "line": 173,
+          "column": 21
+        }
+      }
+    },
+    {
+      "name": "Swf.AppExperiments.recognised_exactly",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppExperiments.experimentOf"
+      ],
+      "specifications": [],
+      "statement": "∀ (f : Swf.AppFeatures.FeatureFlags) (e : Swf.AppExperiments.Experiment),\n  Swf.AppExperiments.experimentOf f = some e → Swf.AppExperiments.experimentFlags e = f",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "88b6466aea185728d7dce5fafaa5d4e3e6913241cf291f5147c56e59f9a1c804",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppExperiments.lean",
+        "start": {
+          "line": 175,
+          "column": 1
+        },
+        "end": {
+          "line": 180,
+          "column": 19
+        }
+      }
+    },
+    {
       "name": "Swf.AppFeatures.accepted_settings_valid",
       "relation": "lungo.law",
       "subjects": [
@@ -6905,6 +7152,78 @@
         "end": {
           "line": 62,
           "column": 100
+        }
+      }
+    },
+    {
+      "name": "Swf.AppExperiments.experimentOf",
+      "module": "Swf.AppExperiments",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_nat_dec_eq"
+        ]
+      },
+      "claims": [
+        "Swf.AppExperiments.custom_iff",
+        "Swf.AppExperiments.recognised",
+        "Swf.AppExperiments.recognised_exactly"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppExperiments.lean",
+        "start": {
+          "line": 105,
+          "column": 1
+        },
+        "end": {
+          "line": 107,
+          "column": 62
+        }
+      }
+    },
+    {
+      "name": "Swf.AppExperiments.experimentPlan",
+      "module": "Swf.AppExperiments",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_nat_dec_eq"
+        ]
+      },
+      "claims": [
+        "Swf.AppExperiments.plan_isolates",
+        "Swf.AppExperiments.plan_otherwise_panorama",
+        "Swf.AppExperiments.plan_recognised",
+        "Swf.AppExperiments.plan_shows_capability",
+        "Swf.AppExperiments.plan_uses_what_is_on"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppExperiments.lean",
+        "start": {
+          "line": 138,
+          "column": 1
+        },
+        "end": {
+          "line": 153,
+          "column": 42
         }
       }
     },

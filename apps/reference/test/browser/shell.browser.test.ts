@@ -20,6 +20,7 @@ import type { ShellAppOptions } from '../../src/shell/model.svelte.js';
 import { ShellModel } from '../../src/shell/model.svelte.js';
 import { createMemoryStore } from '@swf/persistence';
 import DeveloperView from '../../src/shell/DeveloperView.svelte';
+import ExperimentsView from '../../src/shell/ExperimentsView.svelte';
 import Shell from '../../src/shell/Shell.svelte';
 
 declare module 'vitest/browser' {
@@ -74,7 +75,10 @@ async function start(
   root.style.setProperty('height', `${String(size.height)}px`);
   document.body.append(root);
   const model = new ShellModel(createMessages(), parseConfig(search), appOptions);
-  const shell = mount(Shell, { target: root, props: { model, developer: DeveloperView } });
+  const shell = mount(Shell, {
+    target: root,
+    props: { model, developer: DeveloperView, experiments: ExperimentsView },
+  });
   current = { model, shell, root };
   const driver = installAutomation(root, () => 'reference');
   const settle = async () => {
@@ -280,9 +284,9 @@ describe('the optional policies (FR-130, UX-006, UX-007, UX-010, §33.2 scenario
     ]);
   };
 
-  it('turns each of the eight modules off on its own, taking its controls away and keeping the layout, and all back on in the combined preset (AC-015, §33.2 scenario 5)', async () => {
+  it('turns each of the eight modules off on its own, taking its controls away and keeping the layout, and all back on with Everything combined (AC-015, §33.2 scenario 5)', async () => {
     const { model, driver, settle } = await start('?preset=sparse');
-    driver.act('workshop.view#features', 'press');
+    driver.act('workshop.view#experiments', 'press');
     // A window selected, so the inspector shows what composition offers for it.
     await model.select('window-01');
     await settle();
@@ -299,13 +303,13 @@ describe('the optional policies (FR-130, UX-006, UX-007, UX-010, §33.2 scenario
       composition: () => driver.has('page.inspector.detach#window-01-surface'),
       persistence: () => driver.has('workshop.view#workspaces'),
       orbit: () => driver.has('editor.actions.navigation'),
-      depth: () => driver.has('page.features.depth-full'),
+      depth: () => driver.has('page.experiments.depth-full'),
       snap: () => model.app?.router.policyIds().includes(MAGNETIC_POLICY_ID) === true,
-      cursor: () => driver.has('page.features.cursor.limits'),
+      cursor: () => driver.has('page.experiments.cursor.limits'),
     };
     for (const feature of FEATURE_IDS) {
       expect(affordance[feature](), feature).toBe(true);
-      driver.act(`page.features.${feature}.enabled`, 'toggle');
+      driver.act(`page.experiments.${feature}.enabled`, 'toggle');
       await settle();
       expect(model.policies?.features.enabled[feature], feature).toBe(false);
       expect(affordance[feature](), feature).toBe(false);
@@ -314,25 +318,25 @@ describe('the optional policies (FR-130, UX-006, UX-007, UX-010, §33.2 scenario
         expect(model.policies?.features.enabled[other], other).toBe(true);
       }
       expect(layoutOf(model), feature).toBe(layout);
-      driver.act(`page.features.${feature}.enabled`, 'toggle');
+      driver.act(`page.experiments.${feature}.enabled`, 'toggle');
       await settle();
     }
     for (const feature of FEATURE_IDS) {
-      driver.act(`page.features.${feature}.enabled`, 'toggle');
+      driver.act(`page.experiments.${feature}.enabled`, 'toggle');
     }
     await settle();
     expect(Object.values(model.policies?.features.enabled ?? {})).toEqual(
       FEATURE_IDS.map(() => false),
     );
     expect(layoutOf(model)).toBe(layout);
-    driver.act('page.features.combine', 'press');
+    driver.act('page.experiments.run#everything', 'press');
     await settle();
     expect(model.policies?.features.enabled).toEqual(ALL_ENABLED);
     for (const feature of FEATURE_IDS) {
       expect(affordance[feature](), feature).toBe(true);
     }
     expect(layoutOf(model)).toBe(layout);
-    driver.act('page.features.reset', 'press');
+    driver.act('page.experiments.reset', 'press');
     await settle();
     expect(model.policies?.features).toEqual(DEFAULT_FEATURES);
   });
@@ -351,9 +355,9 @@ describe('the optional policies (FR-130, UX-006, UX-007, UX-010, §33.2 scenario
     const undo = () => root.querySelector<HTMLButtonElement>('[data-wsb="editor.actions.undo"]');
     const turned = () => model.app?.workspace.getState().nodes.get(WORKSPACE_GROUP_ID)?.transform;
     const before = turned();
-    driver.act('workshop.view#features', 'press');
+    driver.act('workshop.view#experiments', 'press');
     await settle();
-    driver.act('page.features.orbit.right', 'press');
+    driver.act('page.experiments.orbit.right', 'press');
     await settle();
     expect(turned()).not.toEqual(before);
     expect(undo()?.disabled).toBe(false);
@@ -364,7 +368,7 @@ describe('the optional policies (FR-130, UX-006, UX-007, UX-010, §33.2 scenario
     await settle();
     expect(turned()).not.toEqual(before);
     // Orbit off: the switch goes, and drags turn the camera again.
-    driver.act('page.features.orbit.enabled', 'toggle');
+    driver.act('page.experiments.orbit.enabled', 'toggle');
     await settle();
     expect(model.policies?.orbit.navigation).toBe('camera');
     expect(driver.has('page.panorama.navigation')).toBe(false);
@@ -372,18 +376,18 @@ describe('the optional policies (FR-130, UX-006, UX-007, UX-010, §33.2 scenario
 
   it('refuses a band that ends before the one inside it, saying why at its field', async () => {
     const { model, driver, root, settle } = await start('?preset=sparse');
-    driver.act('workshop.view#features', 'press');
+    driver.act('workshop.view#experiments', 'press');
     await settle();
     const bands = model.policies?.features.depth;
-    driver.act('page.features.depth-compact', 'set', '2');
-    driver.act('page.features.depth-compact', 'key', 'Enter');
+    driver.act('page.experiments.depth-compact', 'set', '2');
+    driver.act('page.experiments.depth-compact', 'key', 'Enter');
     await settle();
     expect(model.policies?.features.depth).toEqual(bands);
-    expect(root.querySelector('[data-wsb="page.features.depth"]')?.textContent).toContain(
+    expect(root.querySelector('[data-wsb="page.experiments.depth"]')?.textContent).toContain(
       'the compact band must end farther than the full one',
     );
-    driver.act('page.features.depth-compact', 'set', '7');
-    driver.act('page.features.depth-compact', 'key', 'Enter');
+    driver.act('page.experiments.depth-compact', 'set', '7');
+    driver.act('page.experiments.depth-compact', 'key', 'Enter');
     await settle();
     expect(model.policies?.features.depth.compact).toBe(7);
   });

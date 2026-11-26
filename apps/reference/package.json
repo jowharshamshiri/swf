@@ -9,6 +9,7 @@
     "dev": "vite",
     "build": "vite build",
     "build:staging": "vite build --mode staging",
+    "build:everyday": "vite build --mode everyday",
     "preview": "vite preview",
     "typecheck": "svelte-check --tsconfig ./tsconfig.json --fail-on-warnings && tsc -p test/build/tsconfig.json"
   },

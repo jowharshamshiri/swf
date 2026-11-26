@@ -44,7 +44,7 @@ describe('the status bar’s hints', () => {
       const m = await start(
         '?preset=studio',
         { store: createMemoryStore(), autosaveDelayMs: 60_000 },
-        size,
+        { size },
       );
       const app = m.model.app;
       if (app === null) throw new Error('no application');

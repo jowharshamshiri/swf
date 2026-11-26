@@ -6,7 +6,7 @@
   import { handleOf } from '@wsb/uikit/handles';
   import type { AppCommandId, AppCommandSpecs } from '../commands.js';
   import { BACKEND_IDS } from '../config.js';
-  import { FEATURE_IDS } from '../features.js';
+  import { CAPABILITY_ORDER, EXPERIMENT_IDS, EXPERIMENTS } from '../experiments.js';
   import { FOCUS_ID } from '../focus.js';
   import type { MessageId } from '../messages.js';
   import { PRESET_IDS, PRESETS } from '../presets.js';
@@ -16,10 +16,12 @@
 
   interface Props {
     model: ShellModel;
+    /** Whether the build carries the experiment panel: its commands are offered with it. */
+    experimental: boolean;
     onclose: () => void;
   }
 
-  let { model, onclose }: Props = $props();
+  let { model, experimental, onclose }: Props = $props();
   const t = (id: MessageId, params?: Readonly<Record<string, string | number>>) =>
     model.messages.format(id, params);
 
@@ -147,19 +149,34 @@
     ...(model.history.redo
       ? [command('history.redo', t('command.history.redo'), 'reference.history.redo', {})]
       : []),
-    ...FEATURE_IDS.map((feature) => {
-      const on = model.policies?.features.enabled[feature] ?? false;
-      return command(
-        `feature.${feature}`,
-        t(on ? 'command.feature.set.off' : 'command.feature.set.on', {
-          feature: t(`feature.${feature}`),
-        }),
-        'reference.feature.set',
-        { feature, enabled: !on },
-      );
-    }),
-    command('feature.combine', t('command.feature.combine'), 'reference.feature.combine', {}),
-    command('feature.reset', t('command.feature.reset'), 'reference.feature.reset', {}),
+    // The experimental interface, where the build carries the experiment panel.
+    ...(experimental
+      ? [
+          ...EXPERIMENT_IDS.map((experiment) =>
+            command(
+              `experiment.${experiment}`,
+              t('command.experiment.run.named', {
+                number: EXPERIMENTS[experiment].number,
+                name: t(EXPERIMENTS[experiment].name),
+              }),
+              'reference.experiment.run',
+              { experiment },
+            ),
+          ),
+          ...CAPABILITY_ORDER.map((feature) => {
+            const on = model.policies?.features.enabled[feature] ?? false;
+            return command(
+              `feature.${feature}`,
+              t(on ? 'command.feature.set.off' : 'command.feature.set.on', {
+                feature: t(`feature.${feature}`),
+              }),
+              'reference.feature.set',
+              { feature, enabled: !on },
+            );
+          }),
+          command('feature.reset', t('command.feature.reset'), 'reference.feature.reset', {}),
+        ]
+      : []),
     ...(model.policies?.features.enabled.orbit === true
       ? [
           command('navigation.camera', t('command.navigation.camera'), 'reference.navigation.set', {

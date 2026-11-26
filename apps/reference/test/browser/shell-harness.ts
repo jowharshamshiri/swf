@@ -12,10 +12,12 @@ import { createMessages } from '../../src/messages.js';
 import type { ShellAppOptions } from '../../src/shell/model.svelte.js';
 import { ShellModel } from '../../src/shell/model.svelte.js';
 import DeveloperView from '../../src/shell/DeveloperView.svelte';
+import ExperimentsView from '../../src/shell/ExperimentsView.svelte';
 import Shell from '../../src/shell/Shell.svelte';
 
 /**
- * The shell as the page mounts it, with the developer panel and a store of the test's own, for
+ * The shell as the page mounts it, with the developer panel, the experiment panel and a store of
+ * the test's own (or without the experiment panel, as an everyday build mounts it), for
  * suites that drive the whole application: each test's shells are taken down after it.
  */
 
@@ -44,12 +46,19 @@ afterEach(endVisits);
 
 /**
  * Mounts the shell as the page does, with the developer panel and a store of the test's own, in a
- * page of a size (by default 1280 × 760).
+ * page of `size` (by default 1280 × 760), and with the experiment panel unless `experiments` is
+ * false (as an everyday build mounts it).
  */
 export async function start(
   search: string,
   appOptions: ShellAppOptions,
-  size: { readonly width: number; readonly height: number } = { width: 1280, height: 760 },
+  {
+    size = { width: 1280, height: 760 },
+    experiments = true,
+  }: {
+    readonly size?: { readonly width: number; readonly height: number };
+    readonly experiments?: boolean;
+  } = {},
 ): Promise<Mounted> {
   const html = document.documentElement;
   html.classList.add(ROOT_CLASS);
@@ -62,7 +71,10 @@ export async function start(
   root.style.setProperty('height', `${String(size.height)}px`);
   document.body.append(root);
   const model = new ShellModel(createMessages(), parseConfig(search), appOptions);
-  const shell = mount(Shell, { target: root, props: { model, developer: DeveloperView } });
+  const shell = mount(Shell, {
+    target: root,
+    props: { model, developer: DeveloperView, experiments: experiments ? ExperimentsView : null },
+  });
   mounted.push({ model, shell, root });
   const driver = installAutomation(root, () => 'reference');
   const settle = async () => {
