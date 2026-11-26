@@ -1,5 +1,7 @@
 <script lang="ts">
-  // HOW THE PANORAMA IS PRESENTED: its backend, and the last frame's measures.
+  // THE WORKSPACE NOW: how many windows the space holds, how many the panorama shows and how many
+  // lie behind the camera, how the windows are shown for their distance, and where the camera
+  // faces. The frame's own measures are the developer view's.
   import { Stack, Stat, StatGroup } from '@wsb/uikit/components';
   import type { MessageId } from '../messages.js';
   import type { ShellModel } from './model.svelte.js';
@@ -13,31 +15,24 @@
     model.messages.format(id, params);
   const count = (value: number) => model.messages.number(value);
 
-  const status = $derived(model.status);
-  const frame = $derived(model.frame);
+  const space = $derived(model.space);
 </script>
 
 <Stack inset>
-  <StatGroup ariaLabel={t('status.label')}>
-    {#if status === null}
-      <Stat label={t('status.backend')} busy />
+  <StatGroup ariaLabel={t('space.label')}>
+    {#if space === null}
+      <Stat label={t('space.windows')} busy />
     {:else}
+      <Stat label={t('space.windows')} value={count(space.windows)} />
+      <Stat label={t('space.inView')} value={count(space.inView)} />
+      <Stat label={t('space.behind')} value={count(space.behind)} />
       <Stat
-        label={t('status.backend')}
-        value={status.backend === null ? t('status.backend.none') : t(`backend.${status.backend}`)}
+        label={t('space.facing')}
+        value={t('space.facing.value', { value: space.facing })}
       />
-    {/if}
-    {#if frame === null}
-      <Stat label={t('status.frame')} title={t('status.pending')} value="—" />
-    {:else}
-      <Stat
-        label={t('status.frame')}
-        value={t('status.frame.value', { value: Number(frame.durationMs.toFixed(1)) })}
-      />
-      <Stat label={t('status.fragments')} value={count(frame.fragments)} />
-      <Stat label={t('status.live')} value={count(frame.live)} />
-      <Stat label={t('status.writes')} value={count(frame.writes)} />
-      <Stat label={t('status.fallbacks')} value={count(model.fallbacks)} />
+      <Stat label={t('space.full')} value={count(space.shown.full)} />
+      <Stat label={t('space.compact')} value={count(space.shown.compact)} />
+      <Stat label={t('space.named')} value={count(space.shown.label)} />
     {/if}
   </StatGroup>
 </Stack>

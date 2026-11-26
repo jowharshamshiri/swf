@@ -17,6 +17,9 @@ import {
 import { rectQuad, rectToQuad } from '@swf/math';
 import { plan, scene } from './fixture.js';
 
+/** How wide a text is written here, where no canvas measures it: seven pixels a letter. */
+const measureText = (text: string) => 7 * text.length;
+
 /** A drawable stand-in: the renderer only records it into its drawing commands. */
 const drawable = { source: {} as CanvasImageSource, width: 64, height: 32 };
 
@@ -31,6 +34,7 @@ async function render(
   const renderer = new GeometryRenderer({
     drawables: () => drawable,
     ...(withProjections ? { projections } : {}),
+    measureText,
     ...options,
   });
   const frame = plan(
@@ -83,7 +87,6 @@ describe('geometry renderer', () => {
     expect(drawn(of(english.rendered, 'none-s'))).toEqual([
       'fill',
       'stroke',
-      'fillText:None',
       'fillText:Unbound: no content is bound',
     ]);
     // Drawn content is itself: nothing is said over it.
@@ -124,7 +127,7 @@ describe('geometry renderer', () => {
     expect(affineNegotiation.mode).toBe('approximated');
   });
 
-  it('stacks each window’s chrome after its last fragment, and indicators on top', async () => {
+  it('stacks each window’s chrome after its last fragment, then the names, and indicators on top', async () => {
     const { frame, rendered } = await render(
       [
         { id: 'a', kind: 'drawn', heading: 0, distance: 3, label: 'A' },
@@ -147,12 +150,13 @@ describe('geometry renderer', () => {
       const content = rendered.layers[at]?.content;
       expect(isGeometryLayer(content) && content.after).toBe(fragment);
     }
-    // The window behind the camera is out of a 120° view: an indicator points the way.
-    expect(ids.at(-1)).toBe('overlay:indicators');
+    // The windows' names over every window; the window behind the camera is out of a 120° view:
+    // an indicator points the way.
+    expect(ids.slice(-2)).toEqual(['overlay:names', 'overlay:indicators']);
     expect(frame.planned.some((p) => p.fragment.surfaceId === 'away-s')).toBe(false);
   });
 
-  it('draws a compact window as its proxy, and a label-only one as its label alone, without chrome (FR-122)', async () => {
+  it('draws a compact window as its proxy, and a label-only one as a mark named beside it, without chrome (FR-122)', async () => {
     const chosen: Record<string, 'compact' | 'label'> = { near: 'compact', far: 'label' };
     const { rendered } = await render(
       [
@@ -168,14 +172,15 @@ describe('geometry renderer', () => {
     // Drawable content that could be drawn exactly is represented instead.
     expect(of('near-s')?.category).toBe('proxy');
     expect(of('far-s')?.category).toBe('proxy');
-    const near = drawn(of('near-s'));
-    expect(near).toContain('fill');
-    expect(near).toContain('fillText:Near');
-    // The label alone: its text, no box.
-    expect(drawn(of('far-s'))).toEqual(['fillText:Far']);
+    expect(drawn(of('near-s'))).toEqual(['fill', 'stroke']);
+    // The label alone: a mark, no box, its name with the others.
+    expect(drawn(of('far-s'))).toEqual(['fill']);
     const ids = rendered.layers.map((l) => l.id);
     expect(ids).toContain('chrome:near');
     expect(ids).not.toContain('chrome:far');
+    const names = drawn(rendered.layers.find((l) => l.id === 'overlay:names'));
+    expect(names).toContain('fillText:Near');
+    expect(names).toContain('fillText:Far');
   });
 
   it('draws chrome, labels and indicators in the host’s inks, read every frame (WCAG 1.4.3, 1.4.11, 2.4.7)', async () => {
@@ -197,11 +202,13 @@ describe('geometry renderer', () => {
       selected: 'rgb(2, 2, 2)',
       focused: 'rgb(3, 3, 3)',
       text: 'rgb(4, 4, 4)',
+      ground: 'rgb(5, 5, 5)',
     };
     const renderer = new GeometryRenderer({
       drawables: () => drawable,
       projections,
       inks: () => inks,
+      measureText,
     });
     const draw = async () => {
       const frame = plan(
@@ -216,28 +223,39 @@ describe('geometry renderer', () => {
       return (id: string) => inked(rendered.layers.find((l) => l.id === id));
     };
     let layer = await draw();
-    // The selected window's frame and its handles, the focused one's frame, any other's frame;
-    // each title in the text ink.
-    expect(layer('chrome:a')).toEqual([
-      'stroke rgb(2, 2, 2)',
-      'fillText:A rgb(4, 4, 4)',
-      'fill rgb(2, 2, 2)',
+    // The selected window's frame and its handles, the focused one's frame, any other's frame.
+    expect(layer('chrome:a')).toEqual(['stroke rgb(2, 2, 2)', 'fill rgb(2, 2, 2)']);
+    expect(layer('chrome:b')).toEqual(['stroke rgb(3, 3, 3)']);
+    expect(layer('chrome:c')).toEqual(['stroke rgb(1, 1, 1)']);
+    // Each name on its ground: the selected window's first, in its ink, then the focused one's in
+    // its, then any other's in the text ink.
+    expect(layer('overlay:names')).toEqual([
+      'fill rgb(5, 5, 5)',
+      'fillText:A rgb(2, 2, 2)',
+      'fill rgb(5, 5, 5)',
+      'fillText:B rgb(3, 3, 3)',
+      'fill rgb(5, 5, 5)',
+      'fillText:C rgb(4, 4, 4)',
     ]);
-    expect(layer('chrome:b')).toEqual(['stroke rgb(3, 3, 3)', 'fillText:B rgb(4, 4, 4)']);
-    expect(layer('chrome:c')).toEqual(['stroke rgb(1, 1, 1)', 'fillText:C rgb(4, 4, 4)']);
     expect(layer('overlay:indicators')).toEqual([
       'fill rgb(1, 1, 1)',
+      'fill rgb(5, 5, 5)',
       'fillText:Away rgb(4, 4, 4)',
     ]);
     // A change of the host's inks (a switch to a dark appearance) is drawn at the next frame.
-    inks = { ...inks, frame: 'rgb(9, 9, 9)', text: 'rgb(8, 8, 8)' };
+    inks = { ...inks, frame: 'rgb(9, 9, 9)', text: 'rgb(8, 8, 8)', ground: 'rgb(7, 7, 7)' };
     layer = await draw();
-    expect(layer('chrome:c')).toEqual(['stroke rgb(9, 9, 9)', 'fillText:C rgb(8, 8, 8)']);
+    expect(layer('chrome:c')).toEqual(['stroke rgb(9, 9, 9)']);
+    expect(layer('overlay:names').slice(-2)).toEqual([
+      'fill rgb(7, 7, 7)',
+      'fillText:C rgb(8, 8, 8)',
+    ]);
     expect(DEFAULT_GEOMETRY_INKS).toEqual({
       frame: 'rgb(118, 118, 118)',
       selected: 'rgb(0, 95, 184)',
       focused: 'rgb(168, 74, 0)',
       text: 'rgb(30, 30, 30)',
+      ground: 'rgb(255, 255, 255)',
     });
   });
 
@@ -248,15 +266,11 @@ describe('geometry renderer', () => {
     ]);
     const of = (surfaceId: string) => inked(rendered.layers.find((l) => l.surfaceId === surfaceId));
     // Opaque grounds, each with an ink 4.5:1 or more on it.
-    expect(of('prox-s').slice(0, 3)).toEqual([
-      'fill rgb(72, 84, 108)',
-      'stroke rgb(48, 56, 72)',
-      'fillText:P rgb(255, 255, 255)',
-    ]);
-    expect(of('none-s').slice(0, 3)).toEqual([
+    expect(of('prox-s')).toEqual(['fill rgb(72, 84, 108)', 'stroke rgb(48, 56, 72)']);
+    expect(of('none-s')).toEqual([
       'fill rgb(220, 220, 220)',
       'stroke rgb(90, 90, 90)',
-      'fillText:N rgb(40, 40, 40)',
+      'fillText:Unbound: no content is bound rgb(40, 40, 40)',
     ]);
   });
 

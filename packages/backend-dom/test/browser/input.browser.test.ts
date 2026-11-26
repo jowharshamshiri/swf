@@ -122,7 +122,13 @@ describe('chrome on its own layers (FR-054, FR-089)', () => {
 
   it('draws the frame, and marks the selected and the focused window, in the host’s inks (WCAG 2.4.7, 1.4.11)', async () => {
     current = await stage([framed], {
-      inks: { frame: 'var(--test-frame)', selected: 'rgb(0, 0, 200)', focused: 'rgb(200, 0, 0)' },
+      inks: {
+        frame: 'var(--test-frame)',
+        selected: 'rgb(0, 0, 200)',
+        focused: 'rgb(200, 0, 0)',
+        text: 'rgb(20, 20, 20)',
+        ground: 'rgb(250, 250, 250)',
+      },
     });
     const view = current.views.get('v');
     const container = current.containers.get('v');
@@ -164,6 +170,8 @@ describe('chrome on its own layers (FR-054, FR-089)', () => {
       frame: 'rgb(118, 118, 118)',
       selected: 'rgb(0, 95, 184)',
       focused: 'rgb(168, 74, 0)',
+      text: 'rgb(30, 30, 30)',
+      ground: 'rgb(255, 255, 255)',
     });
   });
 

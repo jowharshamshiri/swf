@@ -141,8 +141,8 @@ in the command list (Ctrl+Shift+P or F1).
 
 1. In the Developer panel, simulate a missing, slow and throwing adapter: each surface shows a
    stand-in saying why (unbound, pending, failed).
-2. Switch the backend between `dom` and `geometry`: the scene and the positions stay; content
-   moves between backends without reloading.
+2. Switch the backend between `dom` and `geometry` at the head of the Developer panel: the scene
+   and the positions stay; content moves between backends without reloading.
 3. Simulate the backend becoming unavailable: the view says so, drags still move windows, and
    the backend's return shows the committed positions.
 4. Open a second view: one element can be live in one view only, and the other shows a proxy

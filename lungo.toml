@@ -85,10 +85,10 @@ exports = [
   "Swf.AppChallenge.challengeTarget",
   "Swf.AppChallenge.challengeStep",
   "Swf.AppOverview.overviewLayout",
-  "Swf.AppOverview.labelsShown",
   "Swf.AppFocus.transitionStep",
   "Swf.AppExperiments.experimentOf",
   "Swf.AppExperiments.experimentPlan",
+  "Swf.Names.labelsShown",
 ]
 
 [assurance]

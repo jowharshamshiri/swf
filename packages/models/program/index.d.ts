@@ -679,27 +679,6 @@ export type OrbitStep =
 /** The descriptor of Swf.AppOrbit.OrbitStep: how its values cross the boundary. */
 export function orbitStepType(): L.Type<OrbitStep>;
 
-/**
- * A place for a name on the map: its box, in pixels, which name it is a place for, and whether it
- * must be written.
- */
-export interface LabelBox {
-  /** Which name it is a place for: the places for one name share it. */
-  readonly name: bigint;
-  /** Lean's Swf.AppOverview.LabelBox.x. */
-  readonly x: bigint;
-  /** Lean's Swf.AppOverview.LabelBox.y. */
-  readonly y: bigint;
-  /** Lean's Swf.AppOverview.LabelBox.width. */
-  readonly width: bigint;
-  /** Lean's Swf.AppOverview.LabelBox.height. */
-  readonly height: bigint;
-  /** It is written whatever it overlaps. */
-  readonly kept: boolean;
-}
-/** The descriptor of Swf.AppOverview.LabelBox: how its values cross the boundary. */
-export function labelBoxType(): L.Type<LabelBox>;
-
 /** The board the cards stand on, in pixels. */
 export interface OverviewBoard {
   /** Lean's Swf.AppOverview.OverviewBoard.width. */
@@ -1953,6 +1932,26 @@ export interface MigrationPlan {
 }
 /** The descriptor of Swf.Migration.MigrationPlan: how its values cross the boundary. */
 export function migrationPlanType(): L.Type<MigrationPlan>;
+
+/** A box over the drawing, in pixels: a place for a name, or something a name keeps clear of. */
+export interface LabelBox {
+  /** Which name it is a place for: the places for one name share it. */
+  readonly name: bigint;
+  /** What it belongs to: a name may lie over boxes of its own owner only. */
+  readonly owner: bigint;
+  /** Lean's Swf.Names.LabelBox.x. */
+  readonly x: bigint;
+  /** Lean's Swf.Names.LabelBox.y. */
+  readonly y: bigint;
+  /** Lean's Swf.Names.LabelBox.width. */
+  readonly width: bigint;
+  /** Lean's Swf.Names.LabelBox.height. */
+  readonly height: bigint;
+  /** It is written whatever it overlaps. */
+  readonly kept: boolean;
+}
+/** The descriptor of Swf.Names.LabelBox: how its values cross the boundary. */
+export function labelBoxType(): L.Type<LabelBox>;
 
 /** Where a viewport ID is in the presenter. */
 export type Slot =
@@ -3412,13 +3411,6 @@ export class SwfModels {
    */
   orbitStep(s: OrbitState, e: OrbitEvent): OrbitStep;
   /**
-   * Which places are written, in the order asked: each in turn is written when it must be, or
-   * when no box written before it overlaps it or writes its name.
-   *
-   * Lean's Swf.AppOverview.labelsShown : Array Swf.AppOverview.LabelBox → Array Bool
-   */
-  labelsShown(boxes: Array<LabelBox>): Array<boolean>;
-  /**
    * Where every window's card stands on the board, at the largest size offered that holds them.
    *
    * Lean's Swf.AppOverview.overviewLayout : Swf.AppOverview.OverviewBoard →   Array Swf.AppOverview.OverviewWindow → Array Swf.AppOverview.OverviewSize → Swf.AppOverview.OverviewAnswer
@@ -3795,6 +3787,13 @@ export class SwfModels {
    * Lean's Swf.Migration.migrationPlan : Array (String × String) → String → String → Swf.Migration.MigrationPlan
    */
   migrationPlan(steps: Array<[string, string]>, source: string, current: string): MigrationPlan;
+  /**
+   * Which places are written, in the order asked: each in turn is written when it must be, or
+   * when no box of another owner written before it overlaps it and its name is not written already.
+   *
+   * Lean's Swf.Names.labelsShown : Array Swf.Names.LabelBox → Array Bool
+   */
+  labelsShown(boxes: Array<LabelBox>): Array<boolean>;
   /**
    * Whether the presenter lists a viewport in this slot: only once it started.
    *

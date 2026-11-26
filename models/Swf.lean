@@ -21,6 +21,7 @@ import Swf.AppWorkspaces
 import Swf.AppScenarios
 import Swf.AppChallenge
 import Swf.AppWheel
+import Swf.Names
 import Swf.AppOverview
 import Swf.AppFocus
 import Swf.AppExperiments

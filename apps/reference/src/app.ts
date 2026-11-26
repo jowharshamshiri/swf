@@ -138,14 +138,15 @@ const FOCUS = Object.freeze({ fill: 0.75, maxMagnification: 2.5, pixelsPerUnit: 
 
 /**
  * The kit's colours window chrome is drawn in (UX-013): frames in the kit's quiet ink, the selected
- * window in its focus ring's, the focused one in its warning ink, text in the editor's ink. The kit
- * checks each against the grounds it is drawn on, in both appearances.
+ * window in its focus ring's, the focused one in its warning ink, names in the editor's ink on the
+ * editor's ground. The kit checks each against the grounds it is drawn on, in both appearances.
  */
 const KIT_INKS = Object.freeze({
   frame: '--vscode-descriptionForeground',
   selected: '--vscode-focusBorder',
   focused: '--vscode-editorWarning-foreground',
   text: '--vscode-editor-foreground',
+  ground: '--vscode-editor-background',
 });
 
 /** The kit's inks for chrome laid out as DOM: its custom properties, resolved by the browser. */
@@ -153,6 +154,8 @@ const DOM_INKS: ChromeInks = Object.freeze({
   frame: `var(${KIT_INKS.frame})`,
   selected: `var(${KIT_INKS.selected})`,
   focused: `var(${KIT_INKS.focused})`,
+  text: `var(${KIT_INKS.text})`,
+  ground: `var(${KIT_INKS.ground})`,
 });
 
 /**
@@ -188,6 +191,7 @@ function kitInks(document: Document): () => GeometryInks {
           selected: resolve(KIT_INKS.selected, probe),
           focused: resolve(KIT_INKS.focused, probe),
           text: resolve(KIT_INKS.text, probe),
+          ground: resolve(KIT_INKS.ground, probe),
         });
       } finally {
         probe.remove();
@@ -587,6 +591,8 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
             drawables: (surfaceId) => runtime.handleOf(surfaceId),
             standIn,
             inks: geometryInks,
+            // Names in the kit's typeface, as the page writes its own text.
+            typeface: () => view.getComputedStyle(document.body).fontFamily,
           }),
         }),
       ),

@@ -48,11 +48,25 @@ describe('representations in the DOM backend (FR-122, ARCH-025)', () => {
       );
     expect(proxy('mid-view')?.getAttribute(DOM_ATTRIBUTES.representation)).toBe('compact');
     expect(proxy('far-view')?.getAttribute(DOM_ATTRIBUTES.representation)).toBe('label');
-    expect(proxy('far-view')?.textContent).toBe('Far');
-    // The label is whole, even where the window is smaller than it.
-    const far = proxy('far-view');
-    expect(far === null ? '' : getComputedStyle(far).overflow).toBe('visible');
-    expect(far === null ? '' : getComputedStyle(far).whiteSpace).toBe('nowrap');
+    // The far window is marked where it is, and named beside its mark, flat and whole.
+    const mark = proxy('far-view')?.querySelector<HTMLElement>(`[${DOM_ATTRIBUTES.mark}]`);
+    expect(mark === null || mark === undefined ? '' : getComputedStyle(mark).display).toBe('block');
+    const name = (nodeId: string) =>
+      view.root.querySelector<HTMLElement>(
+        `[${DOM_ATTRIBUTES.layer}="names"] [${DOM_ATTRIBUTES.node}="${nodeId}"]`,
+      );
+    expect(['near', 'mid', 'far'].map((n) => name(n)?.textContent)).toEqual(['Near', 'Mid', 'Far']);
+    const farName = name('far')?.getBoundingClientRect();
+    const farMark = mark?.getBoundingClientRect();
+    expect(farName !== undefined && farMark !== undefined && farName.left >= farMark.right).toBe(
+      true,
+    );
+    expect(name('far')?.scrollWidth).toBe(name('far')?.clientWidth);
+    // A compact window's proxy shows no mark.
+    const midMark = proxy('mid-view')?.querySelector<HTMLElement>(`[${DOM_ATTRIBUTES.mark}]`);
+    expect(midMark === null || midMark === undefined ? '' : getComputedStyle(midMark).display).toBe(
+      'none',
+    );
     const mid = proxy('mid-view');
     expect(mid === null ? '' : getComputedStyle(mid).overflow).toBe('hidden');
     const chrome = (nodeId: string) =>
@@ -61,7 +75,7 @@ describe('representations in the DOM backend (FR-122, ARCH-025)', () => {
       );
     expect(chrome('near')).not.toBeNull();
     expect(chrome('mid')).not.toBeNull();
-    // The label stands for the whole window: no frame, title or handles.
+    // The mark stands for the whole window: no frame or handles.
     expect(chrome('far')).toBeNull();
     // The far window's content was neither released nor recreated: still the host's, in the page.
     expect(farContent?.isConnected).toBe(true);

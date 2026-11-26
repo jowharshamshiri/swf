@@ -14,10 +14,13 @@ import type {
   ViewGeometry,
 } from '@swf/presentation';
 import {
+  NAME_MARK,
+  placeNames,
   PRESENTATION_API_VERSION,
   STAND_IN_TEXT,
   standInReason,
   viewGeometryIssue,
+  windowNames,
 } from '@swf/presentation';
 import type { ProjectionModule } from '@swf/projections';
 import { projectionFor } from '@swf/projections';
@@ -47,17 +50,26 @@ export const DOM_RENDERER_CAPABILITIES: RendererCapabilities = Object.freeze({
 
 /**
  * The colours window chrome is drawn in, as CSS colours (a custom property such as
- * `var(--focus)` included): every frame's outline, and the selected and the focused window's.
- * Each should stand out from what the view is drawn over by 3:1 at least (WCAG 1.4.11), so the
- * window keys act on is seen (WCAG 2.4.7).
+ * `var(--focus)` included): every frame's outline and the mark of a window shown by its label
+ * alone, the selected and the focused window's outline and name, every other name, and the ground
+ * names are written on. Outlines and marks should stand out from what the view is drawn over by
+ * 3:1 at least (WCAG 1.4.11), so the window keys act on is seen (WCAG 2.4.7); names from their
+ * ground by 4.5:1 (WCAG 1.4.3).
  */
 export interface ChromeInks {
-  /** Every window frame's 1 px outline: a non-blank CSS colour. */
+  /**
+   * Every window frame's 1 px outline, each window's mark, and the name of a window shown by its
+   * label alone: a non-blank CSS colour.
+   */
   readonly frame: string;
-  /** The selected window's 3 px outline: a non-blank CSS colour. */
+  /** The selected window's 3 px outline and its name: a non-blank CSS colour. */
   readonly selected: string;
-  /** The focused window's 3 px outline, over `selected`: a non-blank CSS colour. */
+  /** The focused window's 3 px outline and its name, over `selected`: a non-blank CSS colour. */
   readonly focused: string;
+  /** Every other window's name: a non-blank CSS colour. */
+  readonly text: string;
+  /** The ground a name is written on, so it reads over whatever lies under it: a CSS colour. */
+  readonly ground: string;
 }
 
 /** Inks that stand out on a light page by 4.5:1 or more. Frozen. */
@@ -65,9 +77,18 @@ export const DEFAULT_CHROME_INKS: ChromeInks = Object.freeze({
   frame: 'rgb(118, 118, 118)',
   selected: 'rgb(0, 95, 184)',
   focused: 'rgb(168, 74, 0)',
+  text: 'rgb(30, 30, 30)',
+  ground: 'rgb(255, 255, 255)',
 });
 
-/** Window chrome: frames, titles and resize handles drawn from each window's projected frame. */
+/** How a window's name is written: its size, the height of its line, and its plate's margin. */
+const NAME = Object.freeze({ size: 12, line: 15, margin: 3 });
+
+/**
+ * Window chrome: frames, names and resize handles drawn from each window's projected frame. Each
+ * window's name is written flat, where it can be read: wholly inside the view, over no other
+ * window and over no other name (`placeNames` of `@swf/presentation`).
+ */
 export interface ChromeOptions {
   /**
    * The projection modules views use, to project window frames: a projection registry will do.
@@ -135,8 +156,10 @@ export const DOM_ATTRIBUTES = Object.freeze({
   selected: 'data-swf-selected',
   /** On the focused window's chrome, present while it is focused. */
   focused: 'data-swf-focused',
-  /** On a label's element (a proxy's or placeholder's label, a window title). */
+  /** On a window's name, in the layer of names. */
   label: 'data-swf-label',
+  /** On the mark of a window shown by its label alone. */
+  mark: 'data-swf-mark',
   /** On {@link showDegraded}'s status line: the error's code. */
   degraded: 'data-swf-degraded',
   /** On a proxy or placeholder: the representation planned for it (`label`, …). */
@@ -194,7 +217,7 @@ export class DomRenderer implements RendererBackend {
       );
     }
     const inks = options.chrome?.inks ?? DEFAULT_CHROME_INKS;
-    for (const name of ['frame', 'selected', 'focused'] as const) {
+    for (const name of ['frame', 'selected', 'focused', 'text', 'ground'] as const) {
       const ink: unknown = inks[name];
       if (typeof ink !== 'string' || ink.trim() === '') {
         throw new RangeError(`chrome.inks.${name} must be a CSS colour (got ${String(ink)})`);
@@ -213,6 +236,8 @@ export class DomRenderer implements RendererBackend {
                 frame: inks.frame,
                 selected: inks.selected,
                 focused: inks.focused,
+                text: inks.text,
+                ground: inks.ground,
               }),
             },
       standIn: options.standIn ?? ((reason) => STAND_IN_TEXT[reason]),
@@ -266,6 +291,10 @@ export class DomRendererSession implements RendererSession {
   readonly #slots = new Map<Id, NativeSlot>();
   readonly #elements = new Map<string, HTMLElement>();
   readonly #write = new DomWriter();
+  /** The font family names are written in, once read from the view in its document. */
+  #family: string | null = null;
+  /** The 2D context names are measured with, once made. */
+  #measuring: CanvasRenderingContext2D | null = null;
   #released = false;
 
   /** A session for `view`, as {@link DomRenderer.prepare} makes it. */
@@ -322,7 +351,8 @@ export class DomRendererSession implements RendererSession {
 
   /**
    * Realizes a frame: each planned fragment as a live clip box and slot, a proxy or a placeholder,
-   * with each window's chrome after its last fragment, in plan order. Elements are reused and
+   * with each window's chrome after its last fragment, in plan order, and, with chrome, the
+   * windows' names on top. Elements are reused and
    * written only where something changed; slots unused this frame stay in place, hidden, and
    * other unused elements are removed.
    *
@@ -375,6 +405,9 @@ export class DomRendererSession implements RendererSession {
         }
       }
     });
+    if (this.#chrome !== null) {
+      layers.push(this.#namesLayer(frame, usedElements));
+    }
     // Slots of surfaces not live here this frame stay in place, hidden, so their content is not
     // moved or reloaded; everything else unused goes.
     for (const [surfaceId, slot] of this.#slots) {
@@ -446,36 +479,37 @@ export class DomRendererSession implements RendererSession {
       case 'placeholder': {
         usedElements.add(id);
         const element = this.#element(id, () => this.#representation(category, fragment));
-        const label = element.firstElementChild;
-        if (label !== null) {
-          // Labels are text, never markup.
-          this.#write.text(label, labelOf(frame.scene, fragment.surfaceId));
+        // The element is this session's own: its children are the mark and the reason's span.
+        const mark = element.firstElementChild as HTMLElement | null;
+        const note = element.lastElementChild as HTMLElement | null;
+        if (mark === null || note === null || mark === note) {
+          throw new Error(`the stand-in "${id}" lost its mark or its note`);
         }
         // Why it stands in for the content, when it is for a reason the view does not show.
         const reason = standInReason(planned);
-        // The element is this session's own: its last child is the span made for the reason.
-        const note = element.lastElementChild as HTMLElement | null;
-        if (note !== null && note !== label) {
-          this.#write.text(note, reason === null ? '' : this.#standIn(reason));
-          this.#write.style(note, { display: reason === null ? 'none' : 'block' });
-        }
+        this.#write.text(note, reason === null ? '' : this.#standIn(reason));
+        this.#write.style(note, { display: reason === null ? 'none' : 'block' });
         this.#write.attribute(element, DOM_ATTRIBUTES.standIn, reason ?? '');
         this.#write.attribute(element, DOM_ATTRIBUTES.mode, negotiation.mode);
         this.#write.attribute(element, DOM_ATTRIBUTES.shape, negotiation.shapeFidelity);
         this.#write.attribute(element, DOM_ATTRIBUTES.representation, planned.representation);
-        // A label alone stands, whole and on one line, in the middle of where the window is,
-        // however small that is; a proxy reads from its top, clipped to the window.
+        // A window shown by its label alone is marked in the middle of where it is, its name
+        // written beside the mark with the other names; a proxy reads from its top, clipped to
+        // the window.
         const alone = planned.representation === 'label';
-        this.#write.style(element, {
-          ...boxOf(fragment.bounds),
-          display: alone ? 'flex' : 'block',
-          'align-items': alone ? 'center' : 'normal',
-          'justify-content': alone ? 'center' : 'normal',
-          'text-align': alone ? 'center' : 'start',
-          overflow: alone ? 'visible' : 'hidden',
-          'white-space': alone ? 'nowrap' : 'normal',
-          'font-size': alone ? '11px' : '',
-        });
+        const [, , w, h] = fragment.bounds;
+        this.#write.style(element, boxOf(fragment.bounds));
+        this.#write.style(
+          mark,
+          alone
+            ? {
+                display: 'block',
+                left: `${String(w / 2 - NAME_MARK / 2)}px`,
+                top: `${String(h / 2 - NAME_MARK / 2)}px`,
+                background: this.#chrome?.inks.frame ?? 'currentColor',
+              }
+            : { display: 'none' },
+        );
         return Object.freeze({ ...base, content: element });
       }
       case 'content-raster':
@@ -572,12 +606,139 @@ export class DomRendererSession implements RendererSession {
     element.setAttribute(DOM_ATTRIBUTES.fragment, fragment.id);
     // A representation hides what lies behind it, so it takes input (for the framework to route).
     style(element, { position: 'absolute', overflow: 'hidden', 'pointer-events': 'auto' });
-    const label = this.#document.createElement('span');
-    label.setAttribute(DOM_ATTRIBUTES.label, '');
+    // The mark of a window shown by its label alone.
+    const mark = this.#document.createElement('span');
+    mark.setAttribute(DOM_ATTRIBUTES.mark, '');
+    style(mark, {
+      position: 'absolute',
+      width: `${String(NAME_MARK)}px`,
+      height: `${String(NAME_MARK)}px`,
+      'border-radius': '50%',
+    });
     // The reason it stands in, when there is one: written with each frame.
     const note = this.#document.createElement('span');
-    element.append(label, note);
+    element.append(mark, note);
     return element;
+  }
+
+  /**
+   * The windows' names, flat over the view, each written where it can be read: wholly inside the
+   * view, over no other window and over no other name (`placeNames`), on a plate of the ground
+   * ink, in the selected or the focused window's ink for theirs. A name with no such place is not
+   * written.
+   */
+  #namesLayer(frame: RenderFrame, usedElements: Set<string>): CompositionLayer {
+    const chrome = this.#chrome;
+    if (chrome === null) {
+      throw new Error('names were written without chrome');
+    }
+    const id = 'overlay:names';
+    usedElements.add(id);
+    const layer = this.#element(id, () => {
+      const e = this.#document.createElement('div');
+      e.setAttribute(DOM_ATTRIBUTES.layer, 'names');
+      style(e, { position: 'absolute', left: '0px', top: '0px', 'pointer-events': 'none' });
+      return e;
+    });
+    const font = `${String(NAME.size)}px ${this.#fontFamily()}`;
+    const measure = this.#measurer();
+    const { obstacles, names } = windowNames(frame, (text) => [
+      Math.ceil(measure(text, font)) + 2 * NAME.margin,
+      NAME.line + 2 * NAME.margin,
+    ]);
+    const placed = placeNames(frame.view, obstacles, names);
+    names.forEach((name, i) => {
+      const at = placed[i];
+      if (at === null || at === undefined) {
+        return;
+      }
+      const key = `name:${name.owner}`;
+      usedElements.add(key);
+      const span = this.#element(key, () => {
+        const e = this.#document.createElement('span');
+        e.setAttribute(DOM_ATTRIBUTES.label, '');
+        e.setAttribute(DOM_ATTRIBUTES.node, name.owner);
+        style(e, {
+          position: 'absolute',
+          'box-sizing': 'border-box',
+          'white-space': 'nowrap',
+          overflow: 'hidden',
+          'pointer-events': 'none',
+        });
+        return e;
+      });
+      if (span.parentElement !== layer) {
+        layer.append(span);
+        this.#write.structure();
+      }
+      // The window keys act on stands out; a far window's name, shown by its label alone, is
+      // quieter than a near one's.
+      const ink = name.focused
+        ? chrome.inks.focused
+        : name.selected
+          ? chrome.inks.selected
+          : name.marked
+            ? chrome.inks.frame
+            : chrome.inks.text;
+      // Names are text, never markup.
+      this.#write.text(span, name.text);
+      this.#write.style(span, {
+        left: `${String(at[0])}px`,
+        top: `${String(at[1])}px`,
+        width: `${String(name.size[0])}px`,
+        height: `${String(name.size[1])}px`,
+        padding: `${String(NAME.margin)}px`,
+        font,
+        'line-height': `${String(NAME.line)}px`,
+        color: ink,
+        background: chrome.inks.ground,
+        outline: name.selected || name.focused ? `1px solid ${ink}` : 'none',
+        'outline-offset': '-1px',
+      });
+    });
+    return Object.freeze({
+      id,
+      category: 'overlay',
+      fragmentId: null,
+      surfaceId: null,
+      content: layer,
+    });
+  }
+
+  /** The font family names are written in: the view's own, once it is in a document. */
+  #fontFamily(): string {
+    if (this.#family !== null) {
+      return this.#family;
+    }
+    const view = this.#document.defaultView;
+    if (view === null) {
+      throw new Error('names are written in a document that is in no window');
+    }
+    const family = view.getComputedStyle(
+      this.root.isConnected ? this.root : this.#document.documentElement,
+    ).fontFamily;
+    if (this.root.isConnected) {
+      this.#family = family;
+    }
+    return family;
+  }
+
+  /** How wide a text is written in a font, as a 2D canvas of the document measures it. */
+  #measurer(): (text: string, font: string) => number {
+    if (this.#measuring === null) {
+      const ctx = this.#document.createElement('canvas').getContext('2d');
+      if (ctx === null) {
+        throw new SwfFailure(
+          makeError('UNSUPPORTED_CAPABILITY', 'the document gives no 2D canvas to measure names'),
+        );
+      }
+      this.#measuring = ctx;
+    }
+    const ctx = this.#measuring;
+    return (text, font) => {
+      ctx.font = font;
+      return ctx.measureText(text).width;
+    };
   }
 
   #element(key: string, make: () => HTMLElement): HTMLElement {
@@ -590,8 +751,8 @@ export class DomRendererSession implements RendererSession {
   }
 
   /**
-   * A window's chrome element, built once: a frame outline with its title (taking no input) and
-   * the eight resize handles (taking input), shown or hidden as the window's edges allow.
+   * A window's chrome element, built once: a frame outline (taking no input) and the eight resize
+   * handles (taking input), shown or hidden as the window's edges allow.
    */
   #chromeElement(nodeId: Id): HTMLElement {
     const e = this.#document.createElement('div');
@@ -608,10 +769,6 @@ export class DomRendererSession implements RendererSession {
       'pointer-events': 'none',
       'box-sizing': 'border-box',
     });
-    const title = this.#document.createElement('div');
-    title.setAttribute(DOM_ATTRIBUTES.label, '');
-    style(title, { position: 'absolute', left: '0px', top: '0px', 'pointer-events': 'none' });
-    outline.append(title);
     e.append(outline);
     for (const edge of Object.keys(RESIZE_EDGES)) {
       const handle = this.#document.createElement('div');
@@ -660,7 +817,7 @@ export class DomRendererSession implements RendererSession {
   }
 
   /**
-   * A window's chrome, a layer of its own: its frame outline and title (which take no input, so
+   * A window's chrome, a layer of its own: its frame outline (which takes no input, so
    * nothing over content is intercepted) and, for a resizable window, handles along the frame
    * edges that lie inside the view, which take input so presses on them reach the framework even
    * where the content under them is a cross-origin frame.
@@ -680,8 +837,7 @@ export class DomRendererSession implements RendererSession {
     usedElements.add(id);
     const element = this.#element(id, () => this.#chromeElement(nodeId));
     const outline = element.firstElementChild as HTMLElement | null;
-    const title = outline?.firstElementChild ?? null;
-    if (outline === null || title === null) {
+    if (outline === null) {
       throw new Error(`the chrome of window "${nodeId}" lost its frame`);
     }
     const [x, y, w, h] = piece.bounds;
@@ -703,8 +859,6 @@ export class DomRendererSession implements RendererSession {
         focused ? chrome.inks.focused : selected ? chrome.inks.selected : chrome.inks.frame
       }`,
     });
-    // Labels are text, never markup.
-    this.#write.text(title, node.label ?? '');
     this.#write.toggle(element, DOM_ATTRIBUTES.selected, selected);
     this.#write.toggle(element, DOM_ATTRIBUTES.focused, focused);
     const resizable = node.flags.resizable && !node.flags.locked;
@@ -747,13 +901,6 @@ export class DomRendererSession implements RendererSession {
       content: element,
     });
   }
-}
-
-/** A surface's label for its proxy or placeholder: its own, its window's, or its ID. */
-function labelOf(scene: SceneState, surfaceId: Id): string {
-  const surface = scene.surfaces.get(surfaceId);
-  const owner = surface === undefined ? undefined : scene.nodes.get(surface.ownerNodeId);
-  return surface?.label ?? owner?.label ?? surfaceId;
 }
 
 function boxOf([x, y, w, h]: ScreenRect): Record<string, string> {

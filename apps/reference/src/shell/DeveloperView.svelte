@@ -16,6 +16,7 @@
     Panel,
     ScaledView,
     Section,
+    Segmented,
     Stack,
     Stat,
     StatGroup,
@@ -29,6 +30,7 @@
   import { standInReason } from '@swf/presentation';
   import { onDestroy, untrack } from 'svelte';
   import { BACKEND_IDS } from '../config.js';
+  import type { BackendId } from '../config.js';
   import type { Devtools, SimulatedFailure } from '../devtools.js';
   import { createDevtools, SIMULATED_FAILURES } from '../devtools.js';
   import type { MessageId } from '../messages.js';
@@ -271,6 +273,20 @@
 
 <Panel title={t('dev.title')} titled={false} handle={handleOf`page.developer`}>
   <Stack inset gap="large">
+    {#if model.status !== null}
+      <!-- Which backend presents the panorama: a framework choice, made here and not in the view. -->
+      <Section title={t('backend.label')} handle={handleOf`page.developer.backends`}>
+        <Segmented
+          handle={handleOf`page.developer.backend`}
+          ariaLabel={t('backend.label')}
+          items={BACKEND_IDS.map((id) => ({ value: id, label: t(`backend.${id}`) }))}
+          selected={model.status.backend ?? ''}
+          onselect={(backend) => {
+            void model.run('reference.backend.switch', { backend: backend as BackendId });
+          }}
+        />
+      </Section>
+    {/if}
 
     <Disclosure
       handle={keyed('page.developer.section', 'inspect')}

@@ -28,10 +28,10 @@
     }
   },
   "@swf/presentation": {
-    "budget": 13824,
+    "budget": 15360,
     "recorded": {
-      "minified": 43262,
-      "gzip": 13375
+      "minified": 46241,
+      "gzip": 14507
     }
   },
   "@swf/projections": {
@@ -49,17 +49,17 @@
     }
   },
   "@swf/backend-dom": {
-    "budget": 7168,
+    "budget": 7680,
     "recorded": {
-      "minified": 18099,
-      "gzip": 6469
+      "minified": 19965,
+      "gzip": 7077
     }
   },
   "@swf/backend-geometry": {
-    "budget": 7936,
+    "budget": 8704,
     "recorded": {
-      "minified": 19429,
-      "gzip": 7148
+      "minified": 22376,
+      "gzip": 8321
     }
   },
   "@swf/conformance": {

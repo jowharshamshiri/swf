@@ -20,8 +20,9 @@ import {
   snappedTransform,
   worldAt,
 } from './magnetic.js';
+import type { ViewGeometry } from '@swf/presentation';
 import { viewGeometryOf } from '@swf/presentation';
-import type { ProjectionModule } from '@swf/projections';
+import type { Projection, ProjectionModule } from '@swf/projections';
 import { headingPitchOf, projectionFor } from '@swf/projections';
 
 /**
@@ -543,6 +544,43 @@ export interface PartLink {
 }
 
 /** How many pieces a link's line is drawn in. */
+/**
+ * The runs a line through these directions, in order, is drawn in, in view pixels: each direction
+ * at its image nearest the one before, a run broken where the line leaves the view or jumps across
+ * it (at the seam).
+ */
+export function traced(
+  projection: Projection,
+  view: ViewGeometry,
+  directions: readonly Vec3[],
+): [number, number][][] {
+  const runs: [number, number][][] = [];
+  let run: [number, number][] = [];
+  for (const direction of directions) {
+    const images = projection.projectDirection(direction, view).images;
+    const last = run.at(-1);
+    const image =
+      last === undefined
+        ? images[0]
+        : [...images].sort((p, q) => Math.abs(p[0] - last[0]) - Math.abs(q[0] - last[0]))[0];
+    if (
+      image === undefined ||
+      (last !== undefined && Math.abs(image[0] - last[0]) > view.width / 2)
+    ) {
+      if (run.length > 1) {
+        runs.push(run);
+      }
+      run = image === undefined ? [] : [[image[0], image[1]]];
+    } else {
+      run.push([image[0], image[1]]);
+    }
+  }
+  if (run.length > 1) {
+    runs.push(run);
+  }
+  return runs;
+}
+
 const LINK_STEPS = 32;
 
 /**
@@ -591,8 +629,7 @@ export function partLinks(
     }
     const cosine = from[0] * to[0] + from[1] * to[1] + from[2] * to[2];
     const angle = Math.acos(Math.max(-1, Math.min(1, cosine)));
-    const runs: [number, number][][] = [];
-    let run: [number, number][] = [];
+    const directions: Vec3[] = [];
     for (let i = 0; i <= LINK_STEPS; i += 1) {
       const t = i / LINK_STEPS;
       // Turned evenly between the two; straight along when they (nearly) coincide.
@@ -600,32 +637,9 @@ export function partLinks(
         angle < 1e-9
           ? [1 - t, t]
           : [Math.sin((1 - t) * angle) / Math.sin(angle), Math.sin(t * angle) / Math.sin(angle)];
-      const direction: Vec3 = [
-        a * from[0] + b * to[0],
-        a * from[1] + b * to[1],
-        a * from[2] + b * to[2],
-      ];
-      const images = projection.projectDirection(direction, view).images;
-      const last = run.at(-1);
-      const image =
-        last === undefined
-          ? images[0]
-          : [...images].sort((p, q) => Math.abs(p[0] - last[0]) - Math.abs(q[0] - last[0]))[0];
-      if (
-        image === undefined ||
-        (last !== undefined && Math.abs(image[0] - last[0]) > view.width / 2)
-      ) {
-        if (run.length > 1) {
-          runs.push(run);
-        }
-        run = image === undefined ? [] : [[image[0], image[1]]];
-      } else {
-        run.push([image[0], image[1]]);
-      }
+      directions.push([a * from[0] + b * to[0], a * from[1] + b * to[1], a * from[2] + b * to[2]]);
     }
-    if (run.length > 1) {
-      runs.push(run);
-    }
+    const runs = traced(projection, view, directions);
     links.push({ part: node.id, origin, runs });
   }
   return links;

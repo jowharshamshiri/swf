@@ -15,6 +15,7 @@ import { orbitHeading } from '../../src/orbit.js';
 import { CAMERA_ID } from '../../src/presets.js';
 import type { ShellModel } from '../../src/shell/model.svelte.js';
 import { RADAR_MARGIN } from '../../src/shell/map-drawer.js';
+import { PanoramaGuides } from '../../src/shell/panorama-guides.js';
 import { layout, start } from './shell-harness.js';
 
 declare module 'vitest/browser' {
@@ -133,6 +134,43 @@ function rgbOf(name: string): [number, number, number] {
   return [r, g, b];
 }
 
+/** A text written on the page: what it says and the box its letters take. */
+interface Written {
+  readonly text: string;
+  readonly box: DOMRect;
+}
+
+/** Every name and reading a stage writes now, each by the box of its letters. */
+function writtenOn(root: HTMLElement, stage: string): Written[] {
+  return [
+    ...root.querySelectorAll<HTMLElement>(
+      `[data-wsb="${stage}"] .wsb-stage__unit--titled .wsb-stage__unit-title`,
+    ),
+  ].map((title) => {
+    const range = document.createRange();
+    range.selectNodeContents(title);
+    return { text: title.textContent.trim(), box: range.getBoundingClientRect() };
+  });
+}
+
+/** Each pair of texts whose letters overlap, said as the two texts. */
+function overlapping(written: readonly Written[]): string[] {
+  const pairs: string[] = [];
+  written.forEach((a, i) => {
+    for (const b of written.slice(i + 1)) {
+      if (
+        a.box.left < b.box.right &&
+        b.box.left < a.box.right &&
+        a.box.top < b.box.bottom &&
+        b.box.top < a.box.bottom
+      ) {
+        pairs.push(`"${a.text}" over "${b.text}"`);
+      }
+    }
+  });
+  return pairs;
+}
+
 const near = (a: readonly number[], b: readonly number[], tolerance = 12) =>
   a.slice(0, 3).every((v, i) => Math.abs(v - (b[i] ?? 0)) <= tolerance);
 
@@ -153,6 +191,90 @@ function panoramaPoint(model: ShellModel, point: Vec3, nearX?: number) {
   )[0];
   return best === undefined ? null : { x: box.left + best[0], y: box.top + best[1], view };
 }
+
+describe('the panorama’s guides', () => {
+  it('draws a grid of headings and heights, the horizon strongest, says where the camera faces, and writes no word over another', async () => {
+    const { model, settle } = await visit('?preset=studio');
+    const a = app(model);
+    const guides = new PanoramaGuides({ app: a, messages: model.messages, container: a.root });
+    try {
+      const drawn = async () => {
+        await settle();
+        await nextFrame();
+        await nextFrame();
+        return guides.layout;
+      };
+      let layout = await drawn();
+      // A line of heading every 15 degrees all the way round, and of height every 15 to 75.
+      expect(layout.headings.map((l) => l.degrees)).toEqual(
+        Array.from({ length: 24 }, (_, i) => -165 + i * 15),
+      );
+      expect(layout.heights.map((l) => l.degrees)).toEqual([
+        -75, -60, -45, -30, -15, 0, 15, 30, 45, 60, 75,
+      ]);
+      expect(layout.headings.every((l) => l.runs.length > 0)).toBe(true);
+      const view = viewGeometryOf(a.workspace.getState(), VIEWPORT_ID);
+      const xOf = (degrees: number) => {
+        const line = layout.headings.find((l) => l.degrees === degrees);
+        return line?.runs
+          .flat()
+          .find(([, y]) => Math.abs(y - view.height / 2) < view.height / 4)?.[0];
+      };
+      // Straight ahead in the middle, where the camera faces; 90° to its right a quarter round.
+      expect(layout.facing?.degrees).toBe(0);
+      expect(layout.facing?.x).toBeCloseTo(view.width / 2, 0);
+      expect(xOf(0)).toBeCloseTo(view.width / 2, 0);
+      expect(xOf(90)).toBeCloseTo((3 * view.width) / 4, 0);
+      const words = (l: typeof layout) => l.words.map((w) => w.text);
+      expect(words(layout)).toContain(ENGLISH['guides.facing'].replace('{value}', '0'));
+      expect(words(layout)).toEqual(expect.arrayContaining(['90°', '45°']));
+      // Negative headings as the locale writes them, as the radar's bearings are.
+      expect(words(layout)).toContain(`${model.messages.number(-90)}°`);
+      const overlaps = (l: typeof layout) =>
+        l.words.flatMap((w, i) =>
+          l.words
+            .slice(i + 1)
+            .filter(
+              (v) =>
+                w.at[0] < v.at[0] + v.size[0] &&
+                v.at[0] < w.at[0] + w.size[0] &&
+                w.at[1] < v.at[1] + v.size[1] &&
+                v.at[1] < w.at[1] + w.size[1],
+            )
+            .map((v) => `${w.text} over ${v.text}`),
+        );
+      expect(overlaps(layout)).toEqual([]);
+      // Turned to 45°, where the camera faces is said there, and the 45° heading gives way to it.
+      await model.run('reference.view.heading', { degrees: 45 });
+      layout = await drawn();
+      expect(layout.facing?.degrees).toBe(45);
+      expect(layout.facing?.x).toBeCloseTo(view.width / 2, 0);
+      expect(words(layout)).toContain(ENGLISH['guides.facing'].replace('{value}', '45'));
+      expect(words(layout)).not.toContain('45°');
+      expect(overlaps(layout)).toEqual([]);
+      // Narrower, the grid follows the field of view: 45° is now a quarter of the way across.
+      await model.run('reference.view.heading', { degrees: 0 });
+      await model.run('reference.view.fov', { degrees: 180 });
+      layout = await drawn();
+      expect(xOf(45)).toBeCloseTo((3 * view.width) / 4, 0);
+      expect(overlaps(layout)).toEqual([]);
+      // The horizon is drawn stronger than another line of height.
+      const canvas = a.root.querySelectorAll<HTMLCanvasElement>(
+        '[data-swf-layer="reference-guides"] canvas',
+      );
+      const ours = there(canvas[0], 'the guides’ canvas');
+      const horizon = layout.heights.find((l) => l.degrees === 0)?.runs[0]?.find(([x]) => x > 20);
+      const fifteen = layout.heights.find((l) => l.degrees === 15)?.runs[0]?.find(([x]) => x > 20);
+      const box = a.root.getBoundingClientRect();
+      const alphaAt = (p: readonly number[] | undefined) =>
+        pixel(ours, box.left + (p?.[0] ?? 0), box.top + Math.round(p?.[1] ?? 0))[3];
+      expect(alphaAt(horizon)).toBeGreaterThan(alphaAt(fifteen));
+      expect(alphaAt(fifteen)).toBeGreaterThan(0);
+    } finally {
+      guides.dispose();
+    }
+  });
+});
 
 describe('the radar beside the panorama', () => {
   it('is shown while the panorama is in use, folds and opens again, and says what it draws', async () => {
@@ -182,6 +304,35 @@ describe('the radar beside the panorama', () => {
     driver.act('page.radar.toggle', 'press');
     await settle();
     expect(driver.has('page.radar')).toBe(true);
+  });
+
+  it('writes every name and reading legibly, none over another, whichever window is selected and focused and wherever the camera faces', async () => {
+    const { model, root, settle } = await visit('?preset=studio');
+    const a = app(model);
+    const ids = mapScene(a.workspace.getState(), VIEWPORT_ID).markers.map((m) => m.id);
+    expect(ids.length).toBeGreaterThan(8);
+    const overlaps: string[] = [];
+    for (const heading of [0, 62, -120]) {
+      await model.run('reference.view.heading', { degrees: heading });
+      for (const [i, id] of ids.entries()) {
+        await model.run('reference.window.inspect', { id });
+        const focused = ids[(i + 3) % ids.length] ?? id;
+        a.workspace.dispatch({ type: 'focus.set', id: focused }, { source: 'user' });
+        await settle();
+        await nextFrame();
+        await nextFrame();
+        const written = writtenOn(root, 'page.radar');
+        // The selected and the focused windows' names are always written.
+        for (const named of [id, focused]) {
+          const label = a.workspace.getState().nodes.get(named)?.label;
+          expect(written.map((w) => w.text)).toContain(label);
+        }
+        overlaps.push(
+          ...overlapping(written).map((o) => `heading ${String(heading)}, ${id}: ${o}`),
+        );
+      }
+    }
+    expect(overlaps).toEqual([]);
   });
 
   it('draws the camera’s heading, what lies in front and behind, and the selected, focused and unseen windows apart', async () => {
@@ -441,17 +592,18 @@ describe('how windows look', () => {
     const atBehind = panoramaPoint(model, centreOf(model, 'window-04'));
     const atFront = panoramaPoint(model, centreOf(model, 'window-07'));
     const box = a.root.getBoundingClientRect();
-    // Sampled above each window, where nothing but the guides is drawn.
+    // Sampled above each window, where nothing but the guides is drawn, between two lines of the
+    // grid (every 15 degrees: one passes through straight ahead).
     expect(
       near(
-        pixel(there(guides, 'the guides'), there(atBehind, 'window-04').x, box.top + 4),
+        pixel(there(guides, 'the guides'), there(atBehind, 'window-04').x + 7, box.top + 4),
         behindInk,
         20,
       ),
     ).toBe(true);
-    expect(pixel(there(guides, 'the guides'), there(atFront, 'window-07').x, box.top + 4)[3]).toBe(
-      0,
-    );
+    expect(
+      pixel(there(guides, 'the guides'), there(atFront, 'window-07').x + 7, box.top + 4)[3],
+    ).toBe(0);
     // Out of view at a narrow field of view, a window is not drawn in the panorama at all.
     await model.run('reference.view.fov', { degrees: 120 });
     await settle();
@@ -469,17 +621,33 @@ describe('quick actions on a window', () => {
     await model.run('reference.window.inspect', { id: 'window-03' });
     await settle();
     const distance = Math.hypot(centreOf(model, 'window-03')[0], centreOf(model, 'window-03')[2]);
+    const label = a.workspace.getState().nodes.get('window-03')?.label ?? '';
+    const said = () =>
+      document.querySelector(`[aria-label="${ENGLISH['outcome.label']}"]`)?.textContent ?? '';
     driver.act('page.inspector.window.front#window-03', 'press');
     await settle();
     expect(turn(30, headingOf(centreOf(model, 'window-03')))).toBeCloseTo(0, 6);
+    // What it did is said over the panorama, and undo there takes it back.
+    expect(said()).toContain(ENGLISH['outcome.bringFront'].replace('{label}', label));
+    const before = centreOf(model, 'window-03');
+    driver.act('page.outcome.undo', 'press');
+    await settle();
+    expect(said()).toBe('');
+    expect(centreOf(model, 'window-03')).not.toEqual(before);
+    driver.act('page.inspector.window.front#window-03', 'press');
+    await settle();
     driver.act('page.inspector.window.behind#window-03', 'press');
     await settle();
     expect(turn(-150, headingOf(centreOf(model, 'window-03')))).toBeCloseTo(0, 6);
+    expect(said()).toContain(ENGLISH['outcome.sendBehind'].replace('{label}', label));
     const at = centreOf(model, 'window-03');
     expect(Math.hypot(at[0], at[2])).toBeCloseTo(distance, 9);
     driver.act('page.inspector.window.reveal#window-03', 'press');
     await settle();
     expect(turn(cameraDegrees(model), headingOf(at))).toBeCloseTo(0, 6);
+    // Turning the view is no change of the scene: nothing to undo is offered for it.
+    expect(said()).toContain(ENGLISH['outcome.reveal'].replace('{label}', label));
+    expect(driver.has('page.outcome.undo')).toBe(false);
     driver.act('page.inspector.window.focus#window-03', 'press');
     await settle();
     expect(model.status?.mode).toBe(FOCUS_ID);

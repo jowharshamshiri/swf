@@ -1,20 +1,26 @@
 import { resolvePalette } from '@wsb/uikit/primitives';
-import { viewGeometryOf } from '@swf/presentation';
+import type { Vec3 } from '@swf/math';
+import type { NameRequest, ScreenPoint } from '@swf/presentation';
+import { placeNames, viewGeometryOf } from '@swf/presentation';
 import { headingPitchOf, projectionFor } from '@swf/projections';
 import type { ReferenceApp } from '../app.js';
 import { VIEWPORT_ID } from '../app.js';
 import type { PartLink } from '../map.js';
-import { partLinks } from '../map.js';
+import { partLinks, traced } from '../map.js';
 import type { Messages } from '../messages.js';
 
 /**
  * Guides drawn under the panorama's windows, so where things are around the camera is seen in the
- * panorama itself: the parts of the view that lie behind the camera are shaded and named, and,
- * while the view shows the whole circle, its two edges are marked as the seam where they meet, a
- * dashed line on each with its name; and each window made from another window's surface is linked
- * to that window by a dashed line along the shortest way round between them. Everything is placed
- * by the view's own projection, so the guides move with the camera, the windows and the field of
- * view, previews included.
+ * panorama itself: a grid of headings round the camera every 15 degrees (every 45 stronger, and
+ * written at the top as the radar writes its bearings) and of heights every 15 degrees, the
+ * horizon the strongest; where the camera faces, a dashed line down the middle with its heading
+ * written over it; the parts of the view that lie behind the camera, shaded and named; while the
+ * view shows the whole circle, its two edges marked as the seam where they meet, a dashed line on
+ * each with its name; and each window made from another window's part linked to that window by a
+ * dashed line along the shortest way round between them. Everything is placed by the view's own
+ * projection, so the guides move with the camera, the windows and the field of view, previews
+ * included. Every word is written where it overlaps no other (`placeNames`): a heading at the top
+ * gives way to where the camera faces, and to the seam's and behind's names.
  *
  * The guides sit in a holder of no size prepended to the panorama's container, as the framework's
  * virtual cursor does, under the presented view: they take no input and are hidden from assistive
@@ -27,6 +33,31 @@ const INKS = Object.freeze({
   rule: 'descriptionForeground',
   link: 'focusBorder',
 });
+
+/** Degrees between the grid's lines of heading and of height, and between its stronger lines. */
+const GRID = Object.freeze({ step: 15, major: 45, reach: 75, sample: 5 });
+/** How strongly each kind of grid line is drawn over the ground. */
+const ALPHA = Object.freeze({ minor: 0.14, major: 0.3, horizon: 0.55, facing: 0.8 });
+/** Where the words at the top are written: the seam's, behind's, and the headings' rows. */
+const ROWS = Object.freeze({ seam: 6, behind: 22, heading: 40, line: 15 });
+
+/** One line of the grid: its heading or height in degrees, and the runs it is drawn in. */
+export interface GridLine {
+  readonly degrees: number;
+  readonly runs: readonly (readonly ScreenPoint[])[];
+}
+
+/** A word the guides write: what it names, what it says and the top-left of where it is written. */
+export interface GuideWord {
+  readonly kind: 'seam' | 'behind' | 'facing' | 'heading';
+  readonly text: string;
+  readonly at: ScreenPoint;
+  /** Its width and height as written. */
+  readonly size: readonly [number, number];
+}
+
+/** What the guides measure of the view before writing their words, with the view's size. */
+type Measured = Omit<GuideLayout, 'words'> & { readonly width: number; readonly height: number };
 type Inks = { readonly [K in keyof typeof INKS]: string };
 
 /** The layer name the guides' holder carries. */
@@ -47,6 +78,14 @@ export interface GuideLayout {
   readonly seams: readonly number[];
   /** Each part linked to the window it came from, and the runs of its line drawn. */
   readonly links: readonly PartLink[];
+  /** The lines of heading round the camera, every {@link GRID} step, as world headings. */
+  readonly headings: readonly GridLine[];
+  /** The lines of height, every {@link GRID} step above and below the horizon (0). */
+  readonly heights: readonly GridLine[];
+  /** Where the camera faces: the x of its line, and its heading in degrees to the right. */
+  readonly facing: { readonly x: number; readonly degrees: number } | null;
+  /** Every word written: the seam's and behind's names, where the camera faces, the headings. */
+  readonly words: readonly GuideWord[];
 }
 
 export class PanoramaGuides {
@@ -55,7 +94,15 @@ export class PanoramaGuides {
   readonly #canvas: HTMLCanvasElement;
   #inks: Inks;
   #frame: number | null = null;
-  #layout: GuideLayout = { behind: [], seams: [], links: [] };
+  #layout: GuideLayout = {
+    behind: [],
+    seams: [],
+    links: [],
+    headings: [],
+    heights: [],
+    facing: null,
+    words: [],
+  };
   readonly #stops: (() => void)[] = [];
 
   constructor(options: PanoramaGuidesOptions) {
@@ -153,7 +200,7 @@ export class PanoramaGuides {
   }
 
   /** Where the guides go in the view as it is presented now. */
-  #measure(): GuideLayout & { readonly width: number; readonly height: number } {
+  #measure(): Measured {
     const { app } = this.#options;
     const state = app.workspace.getPresented();
     const view = viewGeometryOf(state, VIEWPORT_ID);
@@ -189,17 +236,39 @@ export class PanoramaGuides {
     const domain = projection.describeDomain();
     const seams = domain.fullCircle && domain.seamWrapping ? [0, width] : [];
     const links = partLinks(state, VIEWPORT_ID, app.projections);
-    return { behind, seams, links, width, height };
+    const toward = (a: number, e: number): Vec3 => [
+      Math.sin(a) * Math.cos(e),
+      Math.sin(e),
+      -Math.cos(a) * Math.cos(e),
+    ];
+    const radians = Math.PI / 180;
+    const headings: GridLine[] = [];
+    for (let degrees = -180 + GRID.step; degrees <= 180; degrees += GRID.step) {
+      const along: Vec3[] = [];
+      for (let e = -GRID.reach - GRID.step; e <= GRID.reach + GRID.step; e += GRID.sample) {
+        along.push(toward(degrees * radians, e * radians));
+      }
+      headings.push({ degrees, runs: traced(projection, view, along) });
+    }
+    const heights: GridLine[] = [];
+    for (let degrees = -GRID.reach; degrees <= GRID.reach; degrees += GRID.step) {
+      const around: Vec3[] = [];
+      for (let a = -180; a <= 180; a += GRID.sample) {
+        around.push(toward(a * radians, degrees * radians));
+      }
+      heights.push({ degrees, runs: traced(projection, view, around) });
+    }
+    const facingImage = projection
+      .projectDirection(toward(heading, 0), view)
+      .images.find(([x]) => x >= 0 && x <= width);
+    const facing =
+      facingImage === undefined ? null : { x: facingImage[0], degrees: bearingOf(heading) };
+    return { behind, seams, links, headings, heights, facing, width, height };
   }
 
   #draw(): void {
     const measured = this.#measure();
     const { width, height } = measured;
-    this.#layout = Object.freeze({
-      behind: measured.behind,
-      seams: measured.seams,
-      links: measured.links,
-    });
     const canvas = this.#canvas;
     const ratio = canvas.ownerDocument.defaultView?.devicePixelRatio ?? 1;
     const pixels = {
@@ -216,12 +285,38 @@ export class PanoramaGuides {
       throw new Error('the panorama guides have no 2D drawing context');
     }
     const ink = this.#inks;
-    const { messages, container } = this.#options;
+    const { container } = this.#options;
     g.setTransform(ratio, 0, 0, ratio, 0, 0);
     g.clearRect(0, 0, width, height);
-    const font = container.ownerDocument.defaultView?.getComputedStyle(container).fontFamily;
-    g.font = `12px ${font ?? 'sans-serif'}`;
+    const family = container.ownerDocument.defaultView?.getComputedStyle(container).fontFamily;
+    if (family === undefined || family === '') {
+      throw new Error('the panorama has no font to write its guides in');
+    }
+    g.font = `12px ${family}`;
     g.textBaseline = 'top';
+    const words = this.#words(g, measured);
+    this.#layout = Object.freeze({
+      behind: measured.behind,
+      seams: measured.seams,
+      links: measured.links,
+      headings: measured.headings,
+      heights: measured.heights,
+      facing: measured.facing,
+      words,
+    });
+
+    // The grid, under everything else: heights, the horizon strongest, then headings.
+    g.strokeStyle = ink.rule;
+    g.lineWidth = 1;
+    for (const line of measured.heights) {
+      g.globalAlpha = line.degrees === 0 ? ALPHA.horizon : ALPHA.minor;
+      stroke(g, line.runs);
+    }
+    for (const line of measured.headings) {
+      g.globalAlpha = line.degrees % GRID.major === 0 ? ALPHA.major : ALPHA.minor;
+      stroke(g, line.runs);
+    }
+    g.globalAlpha = 1;
 
     for (const [a, b] of measured.behind) {
       g.fillStyle = ink.behind;
@@ -236,29 +331,12 @@ export class PanoramaGuides {
       g.lineTo(edge + 0.5, height);
       g.stroke();
       g.globalAlpha = 1;
-      const label = messages.format('guides.behind');
-      const room = b - a - 12;
-      if (g.measureText(label).width <= room) {
-        g.fillStyle = ink.rule;
-        g.textAlign = 'center';
-        g.fillText(label, (a + b) / 2, 22);
-      }
     }
     g.strokeStyle = ink.link;
     g.lineWidth = 1.5;
     g.setLineDash([6, 4]);
     for (const link of measured.links) {
-      for (const run of link.runs) {
-        g.beginPath();
-        run.forEach(([x, y], i) => {
-          if (i === 0) {
-            g.moveTo(x, y);
-          } else {
-            g.lineTo(x, y);
-          }
-        });
-        g.stroke();
-      }
+      stroke(g, link.runs);
     }
     g.setLineDash([]);
     if (measured.seams.length > 0) {
@@ -273,13 +351,110 @@ export class PanoramaGuides {
         g.stroke();
       }
       g.setLineDash([]);
-      g.fillStyle = ink.rule;
-      const label = messages.format('guides.seam');
-      g.textAlign = 'left';
-      g.fillText(label, 6, 6);
-      g.textAlign = 'right';
-      g.fillText(label, width - 6, 6);
     }
+    // Where the camera faces: a dashed line down the middle, from below the words at the top.
+    if (measured.facing !== null) {
+      const x = Math.round(measured.facing.x) + 0.5;
+      g.strokeStyle = ink.link;
+      g.globalAlpha = ALPHA.facing;
+      g.lineWidth = 1;
+      g.setLineDash([4, 7]);
+      g.beginPath();
+      g.moveTo(x, ROWS.heading + ROWS.line + 4);
+      g.lineTo(x, height);
+      g.stroke();
+      g.setLineDash([]);
+      g.globalAlpha = 1;
+    }
+    g.textAlign = 'left';
+    for (const word of words) {
+      g.fillStyle = word.kind === 'facing' ? ink.link : ink.rule;
+      g.fillText(word.text, word.at[0], word.at[1]);
+    }
+  }
+
+  /** What is written where the camera faces. */
+  #facingText(facing: { readonly degrees: number } | null): string | null {
+    return facing === null
+      ? null
+      : this.#options.messages.format('guides.facing', { value: facing.degrees });
+  }
+
+  /**
+   * The words written over the view, each where it overlaps no word written before it: the seam's
+   * name at both top corners and behind's in the middle of each span behind the camera, then
+   * where the camera faces, over its line, then each 45 degree heading over its line.
+   */
+  #words(g: CanvasRenderingContext2D, measured: Measured): GuideWord[] {
+    const { messages } = this.#options;
+    const { width, height } = measured;
+    const requests: (NameRequest & { readonly kind: GuideWord['kind'] })[] = [];
+    const ask = (kind: GuideWord['kind'], owner: string, text: string, x: number, y: number) => {
+      const size: [number, number] = [Math.ceil(g.measureText(text).width), ROWS.line];
+      requests.push({ kind, owner, text, size, places: [[x, y]] });
+      return size;
+    };
+    if (measured.seams.length > 0) {
+      const seam = messages.format('guides.seam');
+      const [w] = ask('seam', 'seam.left', seam, 6, ROWS.seam);
+      ask('seam', 'seam.right', seam, width - 6 - w, ROWS.seam);
+    }
+    const behind = messages.format('guides.behind');
+    const behindWidth = Math.ceil(g.measureText(behind).width);
+    measured.behind.forEach(([a, b], i) => {
+      // Only where the span holds it.
+      if (behindWidth <= b - a - 12) {
+        ask('behind', `behind.${String(i)}`, behind, (a + b) / 2 - behindWidth / 2, ROWS.behind);
+      }
+    });
+    const facing = this.#facingText(measured.facing);
+    if (measured.facing !== null && facing !== null) {
+      const w = Math.ceil(g.measureText(facing).width);
+      ask('facing', 'facing', facing, measured.facing.x - w / 2, ROWS.heading);
+    }
+    for (const line of measured.headings) {
+      if (line.degrees % GRID.major !== 0) {
+        continue;
+      }
+      const top = line.runs
+        .flat()
+        .filter(([x]) => x >= 0 && x <= width)
+        .sort((p, q) => p[1] - q[1])[0];
+      if (top === undefined) {
+        continue;
+      }
+      const text = messages.format('radar.bearing', { value: line.degrees });
+      const w = Math.ceil(g.measureText(text).width);
+      ask('heading', `heading.${String(line.degrees)}`, text, top[0] - w / 2, ROWS.heading);
+    }
+    const placed = placeNames({ width, height }, [], requests);
+    return requests.flatMap((request, i) => {
+      const at = placed[i];
+      return at === null || at === undefined
+        ? []
+        : [{ kind: request.kind, text: request.text, at, size: request.size }];
+    });
+  }
+}
+
+/** A heading in radians as the radar writes it: whole degrees to the right, from -179 to 180. */
+function bearingOf(heading: number): number {
+  const degrees = Math.round((heading * 180) / Math.PI);
+  return degrees - 360 * Math.ceil((degrees - 180) / 360);
+}
+
+/** Strokes each run of points as one line. */
+function stroke(g: CanvasRenderingContext2D, runs: readonly (readonly ScreenPoint[])[]): void {
+  for (const run of runs) {
+    g.beginPath();
+    run.forEach(([x, y], i) => {
+      if (i === 0) {
+        g.moveTo(x, y);
+      } else {
+        g.lineTo(x, y);
+      }
+    });
+    g.stroke();
   }
 }
 

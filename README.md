@@ -504,7 +504,8 @@ proxy, or a placeholder where no proxy is possible), so its content is not mount
 a choice of presentation only: the endpoint stays bound and attached (hidden), nothing is released,
 paused or reconfigured, and a fallback is reported only when capabilities rule a mode out, never for
 the representation chosen. Each planned fragment carries its `representation`; renderers draw a
-`label` proxy as the label alone, with no window chrome, and a `compact` one as a framed proxy, and
+`label` proxy as a mark named beside it, with no window chrome, and a `compact` one as a framed
+proxy, and
 hints say `compact` (or `proxy`, for a label) as the tier. `view.setRepresentation(null)` shows
 every surface in full again. The policy must answer from what it is given alone, and anything that
 is not a representation is an error naming the policy and the surface.
@@ -543,11 +544,24 @@ A surface whose endpoint has a single owner is live in one view only, and in one
 another view, or the other side of a seam, shows a proxy with the surface's label instead. If two
 views race for the same endpoint, the runtime refuses the second, and that view shows the proxy.
 
-Window chrome (frame outline and title) is a layer of its own that takes no pointer input, so it
-never intercepts content. Its frame is drawn in `chrome.inks` (CSS colours, custom properties
-included): every frame in `frame`, the selected window's thicker in `selected` and the focused
-one's in `focused`, so the window keys act on is seen. The defaults stand out on a light page; a
-host gives the colours its own design system checks against its grounds; only the resize handles along a window's edges take input, so a press
+Window chrome (frame outline and resize handles) is a layer of its own that takes no pointer
+input, so it never intercepts content. Its frame is drawn in `chrome.inks` (CSS colours, custom
+properties included): every frame in `frame`, the selected window's thicker in `selected` and the
+focused one's in `focused`, so the window keys act on is seen. With chrome, every window's name is
+written flat in a layer of names on top (`data-swf-layer="names"`, each name `data-swf-label` with
+its window's `data-swf-node`), on a plate of `ground` in `text` (the selected and the focused
+window's in their own inks, a window's shown by its label alone in the quieter `frame`), where it
+can be read: wholly inside the view, over no other window's frame or mark and over no other name.
+A window's name goes just above its frame (at its left, else its right), else just inside one of
+its top corners, else in its middle, else just below it; a window shown by its label alone is a
+mark (`data-swf-mark`) in the middle of where it is, named beside it, else above or below it; the
+selected window's name is placed first, the focused one's next, then nearer windows' before
+farther ones', and a name with no free place is not written. `placeNames` and `windowNames` of
+`@swf/presentation` place them, by the Lean model `Swf.Names`, for any renderer; places over
+another window's frame or mark are left out before the model is asked, which its proofs show
+changes none of its answers. The defaults stand
+out on a light page; a host gives the colours its own design system checks against its grounds;
+only the resize handles along a window's edges take input, so a press
 there reaches the framework even over a cross-origin frame. `createDomInput` offers every pointer,
 wheel and key event over the view to the interaction router. What the router consumes stops there
 (and a pressed pointer is captured until its gesture ends); what it does not consume reaches the
@@ -577,12 +591,17 @@ const compositor = new LayerCompositor();
 
 The geometry renderer draws: content a `drawable` adapter supplies (an image source with its
 size), warped by a mesh that follows the view's projection point by point and clipped to each
-fragment, so a surface split by the panorama seam is drawn on both sides; proxies and placeholders
-with their labels, each on a ground of its own; window frames and titles along each window's
-projected frame; and markers at the edge of a narrow view pointing to windows outside it. Frames,
-the selection, the focus, titles and markers are drawn in `inks`, a function the renderer reads
-every frame so a host's change of appearance is drawn at the next one; a canvas takes no custom
-property, so the host gives resolved colours. Drawn content is warped piecewise, so it
+fragment, so a surface split by the panorama seam is drawn on both sides; proxies and placeholders,
+each on a ground of its own, saying why they stand in; window frames along each window's projected
+frame; every window's name; and markers at the edge of a narrow view pointing to windows outside
+it, each with its window's name. Names are placed as the DOM renderer places them (`placeNames`):
+wholly inside the view, over no other window's frame or mark and over no other name; a marker's name
+goes inward of it, else as near it along the edge as there is room, and the markers at an edge whose
+names find no room there are counted at its end instead ("+3"). Frames, the selection, the focus,
+names and markers are drawn in `inks`, a function the renderer reads every frame so a host's change
+of appearance is drawn at the next one; a canvas takes no custom property, so the host gives
+resolved colours, and names are written in `typeface`, read the same way. Names are measured by an
+`OffscreenCanvas`, or by `measureText` where there is none. Drawn content is warped piecewise, so it
 is declared approximate, never exact. On its own it shows live surfaces as proxies; paired with a
 native renderer by `LayeredRenderer`, live content comes from that renderer and everything else
 from the geometry renderer, merged in plan order.
@@ -861,12 +880,14 @@ scene four ways: as a 360° panorama around the camera, in focus, on a map from 
 Its window is built from wsb's UI kit (`@wsb/uikit`) with Svelte 5, and nothing else: every
 control, look and automation handle is the kit's. The scene's controls and the windows (with their
 search) are on the left; the radar and what is selected are on the right; the panorama is the whole
-centre, with the view mode, the backend, the command list and the panel across its top and the
-view's own controls (field of view, camera heading, workspace turned) above it; how the panorama
-is presented is in the panel below it. In a narrow window one side at a time floats
+centre, with the view mode, what a drag turns, the command list and the panel across its top and
+the view's own controls (field of view, camera heading, workspace turned) above it; the panel below
+it says where things stand: how many windows the space holds, how many the panorama shows, how many
+lie behind you, where the camera faces, and how many windows are shown whole, as a compact preview
+and by their name alone. Which backend presents the panorama is chosen in the Developer panel. In a
+narrow window one side at a time floats
 over the panorama, and a panorama narrower than 600 CSS pixels (a phone's) has the view mode as a
-list across its top, leaving what drags turn and the backend to the command list and the
-experiment panel, so
+list across its top, leaving what drags turn to the command list and the experiment panel, so
 the actions stay within it: at 320 pixels the scene, the overview, selection and the inspector are
 all there. Ctrl+Shift+P or F1 opens the command list, which runs every command and goes
 to any window by its name. The page installs the kit's automation driver as
@@ -1061,7 +1082,7 @@ content is attached or detached by a switch.
   edges. A name is the size the kit writes it, to the right of its window's mark, or to its left,
   above or below it where that runs off the map or onto another name; it is dropped only where
   every one of those places overlaps a name already written, and the selected and the focused
-  windows' names are always written (the Lean model `Swf.AppOverview`).
+  windows' names are always written (the Lean model `Swf.Names`).
   Pressing a window selects it; dragging it (past the same slop as the panorama's) moves it on the
   ground as far as the pointer moves, the point it was grabbed by staying under the pointer,
   previewed in every view as it goes (the panorama below the map shows it move) and committed once
@@ -1107,6 +1128,17 @@ workspace's turn. The heading and the field of view are view state, never undone
 workspace previews as the slider moves and is one undoable change when let go, and is offered while
 workspace orbit is on and a group is designated, saying why when it is not. Switching what a drag
 on the panorama's background turns, the camera or the workspace, changes no scene coordinate.
+
+Under the windows, the panorama draws its guides, placed by the view's own projection so they move
+with the camera and the field of view: a grid of headings round the camera every 15 degrees, every
+45 stronger and written at the top as the radar writes its bearings, and of heights every 15
+degrees, the horizon the strongest; where the camera faces, a dashed line down the middle with
+"Facing" and its heading over it; the parts of the view behind the camera, shaded and named; the
+seam at both edges of a whole circle; and a dashed line from each part to the window it came from.
+Each word is written where it overlaps no other: a heading gives way to where the camera faces.
+Every window's name is written flat over the panorama where it can be read (see Presenting in the
+browser), the selected window's in the selection's colour on a ringed plate, so a window is found
+and told apart by its name and frame, never by reading its coordinates.
 
 Each window's actions, in the inspector, the Windows view's rows and the overview, focus it,
 centre the view on it, bring it straight in front of the camera or send it straight behind (at the
@@ -1264,9 +1296,10 @@ be picked.
 
 ### Developer panel
 
-Staging builds and the development server have a Developer panel on the right, in five sections.
-It reads through the framework's public APIs only, changes the scene only as a host does, and never
-looks into a surface's content.
+Staging builds and the development server have a Developer panel on the right: at its head the
+backend that presents the panorama (DOM or geometry, `reference.backend.switch`), then five
+sections. It reads through the framework's public APIs only, changes the scene only as a host does,
+and never looks into a surface's content.
 
 - **Inspect**: the selected window's world and local transforms and parent; for each surface its
   adapter, binding key and binding state, its tier, attention, visibility and occlusion with its
@@ -1320,33 +1353,34 @@ in every environment; the packages call it synchronously and keep their own publ
 their values at the boundary. The TypeScript does the work (binding, rendering, storing, moving
 attachments); the model decides each state it passes through and each request it admits.
 
-| Model                | Decides                                                                                                                                                                                               |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Swf.Kernel`         | The workspace lifecycle (§13.1); a transaction's admission, idempotent replay and refusals in order; what a commit, undo, redo or restore does to the revision, the history and the idempotency cache |
-| `Swf.Hierarchy`      | That a node never becomes its own ancestor (reparenting, grouping), and which commands a lock refuses                                                                                                 |
-| `Swf.Surface`        | Every surface presentation state and its announcement (§13.2), and the bind, unbind, present, replace, move and hide requests each state admits, single-owner mounts and handovers included           |
-| `Swf.Gesture`        | Where each pointer sample, press and key goes; each gesture phase from press to commit or cancel (§13.3); the keyboard hold's admission; a held press taking the wheel; how far a wheel turned        |
-| `Swf.Arbitration`    | Which gesture wins a press, and which hit under a pointer is the target, in what order and whether ambiguously                                                                                        |
-| `Swf.Save`           | The snapshot save states (§13.4), which acknowledgements count, and that the saved revision never goes back                                                                                           |
-| `Swf.Migration`      | The steps that bring a snapshot of an older format to the current one, without cycles                                                                                                                 |
-| `Swf.Fallback`       | Each fragment's presentation mode, its fallback report, fidelities and layer, which fragment holds the live handle, and which fallback orders are policies; a whole frame in one call                 |
-| `Swf.Handoff`        | Each backend handoff stage (§13.5), what becomes of every attached surface, what a failed handoff puts back for each, and whether it switched, kept the previous backend or degraded the viewport     |
-| `Swf.Presenter`      | Which viewport IDs the presenter admits and lists: one viewport per ID, listed once it started, its ID freed when it is disposed or fails to start                                                    |
-| `Swf.ViewMode`       | The reference application's view-mode switch and the view a mode returns to                                                                                                                           |
-| `Swf.Order`          | An order key for doubles, so the models' claims about order (priorities, distances) are proved over integers                                                                                          |
-| `Swf.AppOrbit`       | The reference application's workspace orbit: which group it turns, what a background drag navigates, and the commands of each change                                                                  |
-| `Swf.AppCursor`      | Which pointers the wrapped cursor carries across the panorama's seam, where it wraps them, and when its virtual cursor is drawn                                                                       |
-| `Swf.AppFeatures`    | Which feature toggles and settings a patch may set, refused field by field, and what changes                                                                                                          |
-| `Swf.AppExperiments` | The experiments: the modules each turns on (one alone, or all), the view it sets up from what the scene offers, and which experiment a combination of switches is, any other being custom             |
-| `Swf.AppSnap`        | The magnetic snap: which neighbour edge or line-up, spoke round the camera or ring a moved window snaps to, nearest first, within its thresholds                                                      |
-| `Swf.AppDepth`       | The semantic-depth band of every window of a frame at once, farther never showing more                                                                                                                |
-| `Swf.AppComposition` | Composition plans (detaching, moving and merging surfaces, breaking a window into parts and recombining them, regrouping and grouping windows) and the IDs of new windows                             |
-| `Swf.AppWheel`       | A burst of the wheel over a window as one gesture: what it shows, when it is committed once, and when cancelled                                                                                       |
-| `Swf.AppWorkspaces`  | Named workspaces: valid names, autosave, saving now, restoring the newest visit, the stale visits, save times and which files import                                                                  |
-| `Swf.AppScenarios`   | How a guided scenario advances: from its first step, one step at a time and in order, each only once its condition holds while it is due, never undone                                                |
-| `Swf.AppChallenge`   | The timed window-finding task: which window a run names (never the selected one, behind the camera when any is), what it counts, when it ends and the records it keeps                                |
-| `Swf.AppOverview`    | Where each window's card stands on the overview's board (across at its heading, never overlapping, the higher above, at the largest size that holds them all), and which names the map writes         |
-| `Swf.AppFocus`       | When the view moves into a focus, between focused windows and out of it: when a move starts, goes on through a fit, finishes or ends at once                                                          |
+| Model                | Decides                                                                                                                                                                                                        |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Swf.Kernel`         | The workspace lifecycle (§13.1); a transaction's admission, idempotent replay and refusals in order; what a commit, undo, redo or restore does to the revision, the history and the idempotency cache          |
+| `Swf.Hierarchy`      | That a node never becomes its own ancestor (reparenting, grouping), and which commands a lock refuses                                                                                                          |
+| `Swf.Surface`        | Every surface presentation state and its announcement (§13.2), and the bind, unbind, present, replace, move and hide requests each state admits, single-owner mounts and handovers included                    |
+| `Swf.Gesture`        | Where each pointer sample, press and key goes; each gesture phase from press to commit or cancel (§13.3); the keyboard hold's admission; a held press taking the wheel; how far a wheel turned                 |
+| `Swf.Arbitration`    | Which gesture wins a press, and which hit under a pointer is the target, in what order and whether ambiguously                                                                                                 |
+| `Swf.Save`           | The snapshot save states (§13.4), which acknowledgements count, and that the saved revision never goes back                                                                                                    |
+| `Swf.Migration`      | The steps that bring a snapshot of an older format to the current one, without cycles                                                                                                                          |
+| `Swf.Fallback`       | Each fragment's presentation mode, its fallback report, fidelities and layer, which fragment holds the live handle, and which fallback orders are policies; a whole frame in one call                          |
+| `Swf.Handoff`        | Each backend handoff stage (§13.5), what becomes of every attached surface, what a failed handoff puts back for each, and whether it switched, kept the previous backend or degraded the viewport              |
+| `Swf.Names`          | Which names are written over a drawing, each at the first place offered that overlaps no other owner's frame or mark and no name written before it: the panorama's, its edge marks', the map's and the radar's |
+| `Swf.Presenter`      | Which viewport IDs the presenter admits and lists: one viewport per ID, listed once it started, its ID freed when it is disposed or fails to start                                                             |
+| `Swf.ViewMode`       | The reference application's view-mode switch and the view a mode returns to                                                                                                                                    |
+| `Swf.Order`          | An order key for doubles, so the models' claims about order (priorities, distances) are proved over integers                                                                                                   |
+| `Swf.AppOrbit`       | The reference application's workspace orbit: which group it turns, what a background drag navigates, and the commands of each change                                                                           |
+| `Swf.AppCursor`      | Which pointers the wrapped cursor carries across the panorama's seam, where it wraps them, and when its virtual cursor is drawn                                                                                |
+| `Swf.AppFeatures`    | Which feature toggles and settings a patch may set, refused field by field, and what changes                                                                                                                   |
+| `Swf.AppExperiments` | The experiments: the modules each turns on (one alone, or all), the view it sets up from what the scene offers, and which experiment a combination of switches is, any other being custom                      |
+| `Swf.AppSnap`        | The magnetic snap: which neighbour edge or line-up, spoke round the camera or ring a moved window snaps to, nearest first, within its thresholds                                                               |
+| `Swf.AppDepth`       | The semantic-depth band of every window of a frame at once, farther never showing more                                                                                                                         |
+| `Swf.AppComposition` | Composition plans (detaching, moving and merging surfaces, breaking a window into parts and recombining them, regrouping and grouping windows) and the IDs of new windows                                      |
+| `Swf.AppWheel`       | A burst of the wheel over a window as one gesture: what it shows, when it is committed once, and when cancelled                                                                                                |
+| `Swf.AppWorkspaces`  | Named workspaces: valid names, autosave, saving now, restoring the newest visit, the stale visits, save times and which files import                                                                           |
+| `Swf.AppScenarios`   | How a guided scenario advances: from its first step, one step at a time and in order, each only once its condition holds while it is due, never undone                                                         |
+| `Swf.AppChallenge`   | The timed window-finding task: which window a run names (never the selected one, behind the camera when any is), what it counts, when it ends and the records it keeps                                         |
+| `Swf.AppOverview`    | Where each window's card stands on the overview's board (across at its heading, never overlapping, the higher above, at the largest size that holds them all)                                                  |
+| `Swf.AppFocus`       | When the view moves into a focus, between focused windows and out of it: when a move starts, goes on through a fit, finishes or ends at once                                                                   |
 
 `lungo.toml` names the exports and requires a proved claim of every one (`require-claims`); a claim
 proved with `sorry` fails the build. Read what was proved of an export with

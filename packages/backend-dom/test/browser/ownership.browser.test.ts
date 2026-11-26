@@ -24,7 +24,12 @@ describe('single-owner endpoints (FR-057, FR-065, AC-004)', () => {
     const proxy = w?.root.querySelector(`[${DOM_ATTRIBUTES.layer}="proxy"]`);
     expect(proxy?.getAttribute(DOM_ATTRIBUTES.surface)).toBe('a-view');
     expect(proxy?.getAttribute(DOM_ATTRIBUTES.mode)).toBe('proxy');
-    expect(proxy?.textContent).toContain('Notes');
+    // The proxy says why it stands in; the window's name is written with the other names.
+    expect(proxy?.textContent).toContain('Shown in another view');
+    expect(
+      w?.root.querySelector(`[${DOM_ATTRIBUTES.layer}="names"] [${DOM_ATTRIBUTES.node}="a"]`)
+        ?.textContent,
+    ).toBe('Notes');
     expect(w?.root.querySelector('[data-test-content]')).toBeNull();
     // The second view planned a proxy from the start: nothing was refused there, and updating
     // either view again changes nothing about who holds it.

@@ -10,6 +10,8 @@ import type { Vec2, Vec3 } from '@swf/math';
 import { mat4TransformDirection, rectQuad, rectToQuad } from '@swf/math';
 import type {
   CompositionLayer,
+  NameObstacle,
+  NameRequest,
   PlannedFragment,
   ProjectedFragment,
   RenderedFrame,
@@ -17,15 +19,19 @@ import type {
   RendererCapabilities,
   RendererSession,
   RenderFrame,
+  ScreenPoint,
   ScreenRect,
   StandInReason,
   ViewGeometry,
 } from '@swf/presentation';
 import {
+  NAME_MARK,
+  placeNames,
   PRESENTATION_API_VERSION,
   STAND_IN_TEXT,
   standInReason,
   viewGeometryIssue,
+  windowNames,
 } from '@swf/presentation';
 import type { Projection, ProjectionModule } from '@swf/projections';
 import { projectionFor } from '@swf/projections';
@@ -40,19 +46,25 @@ export const GEOMETRY_RENDERER_ID = 'swf.geometry-renderer/1';
 
 /**
  * The colours drawn on whatever the view is drawn over, as canvas colours: every window frame
- * (and each mark pointing to a window out of view), the selected and the focused window's frame,
- * and text (window titles, labels standing for windows, the marks' names). Frames and marks should
- * stand out from the view's ground by 3:1 at least (WCAG 1.4.11), text by 4.5:1 (WCAG 1.4.3).
+ * (and each mark of a window, in view by its label alone or out of view), the selected and the
+ * focused window's frame, the names of windows, and the ground each name is written on. Frames
+ * and marks should stand out from the view's ground by 3:1 at least (WCAG 1.4.11), text from its
+ * ground by 4.5:1 (WCAG 1.4.3).
  */
 export interface GeometryInks {
-  /** Every window frame and every mark of a window out of view: a non-blank canvas colour. */
+  /**
+   * Every window frame, every mark of a window, and the name of a window shown by its label alone:
+   * a non-blank canvas colour.
+   */
   readonly frame: string;
-  /** The selected window's frame: a non-blank canvas colour. */
+  /** The selected window's frame and name: a non-blank canvas colour. */
   readonly selected: string;
-  /** The focused window's frame, over `selected`: a non-blank canvas colour. */
+  /** The focused window's frame and name, over `selected`: a non-blank canvas colour. */
   readonly focused: string;
-  /** Titles, labels standing for windows and the marks' names: a non-blank canvas colour. */
+  /** Windows' names: a non-blank canvas colour. */
   readonly text: string;
+  /** The ground a name is written on, so it reads over whatever lies under it: a canvas colour. */
+  readonly ground: string;
 }
 
 /** Inks that stand out on a light ground by 4.5:1 or more. Frozen. */
@@ -61,7 +73,13 @@ export const DEFAULT_GEOMETRY_INKS: GeometryInks = Object.freeze({
   selected: 'rgb(0, 95, 184)',
   focused: 'rgb(168, 74, 0)',
   text: 'rgb(30, 30, 30)',
+  ground: 'rgb(255, 255, 255)',
 });
+
+/** How a window's name is written: its size, the height of its line, and its plate's margin. */
+const NAME = Object.freeze({ size: 12, line: 15, margin: 3 });
+/** How far a name and its plate stand off a mark at the view's edge, in CSS pixels. */
+const INDICATOR = Object.freeze({ reach: 10, inset: 14 });
 
 /** What a stand-in draws on its own ground: legible whatever the view is drawn over. */
 const STAND_IN = Object.freeze({
@@ -100,6 +118,16 @@ export interface GeometryRendererOptions {
    * throw `RangeError`.
    */
   readonly inks?: () => GeometryInks;
+  /**
+   * The font family names are written in, as a canvas font takes it, read at every frame like the
+   * inks. Default `sans-serif`. A blank family makes that frame throw `RangeError`.
+   */
+  readonly typeface?: () => string;
+  /**
+   * How wide a text is written in a canvas font, in CSS pixels, for placing names. Default: as a
+   * 2D context of an `OffscreenCanvas` measures it; where there is none, it must be given.
+   */
+  readonly measureText?: (text: string, font: string) => number;
 }
 
 /**
@@ -186,6 +214,8 @@ export class GeometryRendererSession implements RendererSession {
   #writes = 0;
   /** The inks of the frame being drawn. */
   #inks: GeometryInks = DEFAULT_GEOMETRY_INKS;
+  /** The 2D context names are measured with, once made. */
+  #measuring: OffscreenCanvasRenderingContext2D | null = null;
   #released = false;
 
   /** A session as {@link GeometryRenderer.prepare} makes it, with `cells` mesh cells per side. */
@@ -198,9 +228,9 @@ export class GeometryRendererSession implements RendererSession {
 
   /**
    * Realizes a frame as drawn layers: drawn content, proxies and placeholders in plan order, each
-   * window's chrome after its last fragment, and the indicators of windows out of view on top
-   * (chrome and indicators only with projection modules). A layer whose inputs did not change is
-   * the same object as last frame.
+   * window's chrome after its last fragment, then the windows' names, and the indicators of
+   * windows out of view on top (chrome and indicators only with projection modules). A layer whose
+   * inputs did not change is the same object as last frame.
    *
    * @throws {@link @swf/core!SwfFailure} `INVALID_TRANSITION` once released; `INVALID_INPUT`
    *   for a frame of another viewport or a missing or invalid drawable; `UNSUPPORTED_CAPABILITY`
@@ -272,12 +302,7 @@ export class GeometryRendererSession implements RendererSession {
         }
       }
     }
-    if (projection !== null) {
-      const indicators = this.#indicators(frame, projection);
-      if (indicators !== null) {
-        layers.push(indicators);
-      }
-    }
+    layers.push(...this.#names(frame, projection));
     return Object.freeze({
       viewportId: frame.viewportId,
       sceneRevision: frame.sceneRevision,
@@ -362,7 +387,6 @@ export class GeometryRendererSession implements RendererSession {
   ): CompositionLayer {
     const { fragment, negotiation } = planned;
     const category = negotiation.layer;
-    const label = labelOf(frame.scene, fragment.surfaceId);
     const reason = standInReason(planned);
     const because =
       reason === null ? null : (this.#options.standIn ?? ((r) => STAND_IN_TEXT[r]))(reason);
@@ -392,16 +416,20 @@ export class GeometryRendererSession implements RendererSession {
       }
       case 'proxy':
         if (planned.representation === 'label') {
-          // The label alone stands for the window, in the middle of where it is.
-          const ink = this.#inks.text;
-          signature = JSON.stringify(['label', fragment.bounds, label, ink]);
+          // A mark in the middle of where the window is stands for it; its name is written
+          // beside it with the other names.
+          const ink = this.#inks.frame;
+          signature = JSON.stringify(['label', fragment.bounds, ink]);
           draw = (ctx) => {
-            clipTo(ctx, fragment.bounds);
-            centredText(ctx, label, fragment.bounds, ink);
+            const [cx, cy] = centreOf(fragment.bounds);
+            ctx.beginPath();
+            ctx.arc(cx, cy, NAME_MARK / 2, 0, 2 * Math.PI);
+            ctx.fillStyle = ink;
+            ctx.fill();
           };
           break;
         }
-        signature = JSON.stringify(['proxy', fragment.bounds, fragment.corners, label, because]);
+        signature = JSON.stringify(['proxy', fragment.bounds, fragment.corners, because]);
         draw = (ctx) => {
           clipTo(ctx, fragment.bounds);
           outline(ctx, fragment.corners ?? rectQuad(fragment.bounds));
@@ -410,20 +438,13 @@ export class GeometryRendererSession implements RendererSession {
           ctx.strokeStyle = STAND_IN.proxy.edge;
           ctx.lineWidth = 1;
           ctx.stroke();
-          text(ctx, label, fragment.bounds, STAND_IN.proxy.ink);
           if (because !== null) {
             text(ctx, because, shift(fragment.bounds, 16), STAND_IN.proxy.ink);
           }
         };
         break;
       case 'placeholder':
-        signature = JSON.stringify([
-          'placeholder',
-          fragment.bounds,
-          fragment.corners,
-          label,
-          because,
-        ]);
+        signature = JSON.stringify(['placeholder', fragment.bounds, fragment.corners, because]);
         draw = (ctx) => {
           clipTo(ctx, fragment.bounds);
           outline(ctx, fragment.corners ?? rectQuad(fragment.bounds));
@@ -432,7 +453,6 @@ export class GeometryRendererSession implements RendererSession {
           ctx.setLineDash([4, 3]);
           ctx.strokeStyle = STAND_IN.placeholder.edge;
           ctx.stroke();
-          text(ctx, label, fragment.bounds, STAND_IN.placeholder.ink);
           if (because !== null) {
             text(ctx, because, shift(fragment.bounds, 16), STAND_IN.placeholder.ink);
           }
@@ -517,7 +537,7 @@ export class GeometryRendererSession implements RendererSession {
     return homographyMesh(m, drawable.width, drawable.height, n, n);
   }
 
-  /** A window's frame and title, drawn along its projected frame, stacked after `after`. */
+  /** A window's frame, drawn along its projected frame, stacked after `after`. */
   #chrome(
     frame: RenderFrame,
     nodeId: Id,
@@ -554,11 +574,10 @@ export class GeometryRendererSession implements RendererSession {
     }
     const selected = scene.selection.includes(nodeId);
     const focused = scene.focusedId === nodeId;
-    const label = node.label ?? '';
     const handles = selected && node.flags.resizable && !node.flags.locked;
     const corners = [0, 12, 24, 36].flatMap((i) => (points[i] === undefined ? [] : [points[i]]));
     const inks = this.#inks;
-    const signature = JSON.stringify([points, label, selected, focused, handles, after, inks]);
+    const signature = JSON.stringify([points, selected, focused, handles, after, inks]);
     return Object.freeze({
       id: `chrome:${nodeId}`,
       category: 'chrome',
@@ -570,12 +589,6 @@ export class GeometryRendererSession implements RendererSession {
           ctx.strokeStyle = focused ? inks.focused : selected ? inks.selected : inks.frame;
           ctx.lineWidth = selected || focused ? 3 : 1.5;
           ctx.stroke();
-          const [tx, ty] = points[0] ?? [0, 0];
-          ctx.fillStyle = inks.text;
-          ctx.font = '12px sans-serif';
-          ctx.textBaseline = 'bottom';
-          // Text drawn on a canvas is only ever text.
-          ctx.fillText(label, tx, ty - 3);
           if (handles) {
             ctx.fillStyle = inks.selected;
             for (const [x, y] of corners) {
@@ -588,10 +601,208 @@ export class GeometryRendererSession implements RendererSession {
   }
 
   /**
-   * Markers at the view's edge for windows the view does not show, pointing the way to them: a
-   * spatial indicator that keeps windows outside a narrow view findable.
+   * The windows' names, and the marks at the view's edge pointing the way to windows the view
+   * does not show (with projection modules only), each mark with its window's name: a spatial
+   * indicator that keeps windows outside a narrow view findable. Every name is written where it
+   * can be read: wholly inside the view, over no other window's frame or mark and over no other
+   * name (`placeNames`). A window's name goes above its frame, else inside it, else below it
+   * (`windowNames`); one shown by its label alone beside its mark; one out of view inward of its
+   * mark at the edge, else as near it along the edge as there is room. Where an edge has no room
+   * for every name of its marks, its far end is kept for a count of those it has no room for
+   * ("+3"), and the names are placed round it.
    */
-  #indicators(frame: RenderFrame, projection: Projection): CompositionLayer | null {
+  #names(frame: RenderFrame, projection: Projection | null): CompositionLayer[] {
+    const { view } = frame;
+    const measure = this.#measure();
+    const family = this.#options.typeface?.() ?? 'sans-serif';
+    if (family.trim() === '') {
+      throw new RangeError(`typeface must be a font family (got "${family}")`);
+    }
+    const font = `${String(NAME.size)}px ${family}`;
+    const size = (label: string): readonly [number, number] => [
+      Math.ceil(measure(label, font)) + 2 * NAME.margin,
+      NAME.line + 2 * NAME.margin,
+    ];
+    const inView = windowNames(frame, size);
+    const marks = projection === null ? [] : this.#edgeMarks(frame, projection);
+    const obstacles: NameObstacle[] = [
+      ...inView.obstacles,
+      ...marks.map(({ nodeId, at: [x, y] }) => ({
+        owner: nodeId,
+        box: [
+          x - INDICATOR.reach,
+          y - INDICATOR.reach,
+          2 * INDICATOR.reach,
+          2 * INDICATOR.reach,
+        ] as const,
+      })),
+    ];
+    const away: NameRequest[] = marks.map(({ nodeId, label, at, toward }) => {
+      const [w, h] = size(label);
+      return {
+        owner: nodeId,
+        text: label,
+        size: [w, h],
+        places: alongEdge(at, toward, w, h, view),
+      };
+    });
+    // The names in view first, then the marks' names. Where an edge has no room for every one of
+    // its marks' names, its far end is kept for the count of those it has no room for, weighed
+    // before them, and the names are placed again round it.
+    const edges = marks.map((mark) => edgeOf(mark.toward));
+    const place = (counted: readonly string[]) => {
+      const counts: NameRequest[] = counted.map((edge) => {
+        // Room for the most it could ever count.
+        const [w, h] = size(`+${String(marks.length)}`);
+        return {
+          owner: `edge:${edge}`,
+          text: '',
+          size: [w, h],
+          places: edgeEnds(edge, w, h, view),
+        };
+      });
+      const requests: NameRequest[] = [...inView.names, ...counts, ...away];
+      return { requests, counts, placed: placeNames(view, obstacles, requests) };
+    };
+    const unplacedAt = (pass: ReturnType<typeof place>) => {
+      const unplaced = new Map<string, number>();
+      edges.forEach((edge, i) => {
+        if (pass.placed[inView.names.length + pass.counts.length + i] === null) {
+          unplaced.set(edge, (unplaced.get(edge) ?? 0) + 1);
+        }
+      });
+      return unplaced;
+    };
+    let pass = place([]);
+    let unplaced = unplacedAt(pass);
+    if (unplaced.size > 0) {
+      pass = place([...unplaced.keys()]);
+      unplaced = unplacedAt(pass);
+    }
+    const { requests, counts, placed } = pass;
+    const own = inView.names.length;
+    const written = requests.flatMap((request, i) => {
+      const at = placed[i];
+      // The counts' places are kept: what each says is known only once every name is placed.
+      if (at === null || at === undefined || (i >= own && i < own + counts.length)) {
+        return [];
+      }
+      return [{ request, at, own: i < own }];
+    });
+    // Each count kept at its edge's end, saying how many names there had no room.
+    const countNames = counts.flatMap((request, i) => {
+      const at = placed[inView.names.length + i];
+      const n = unplaced.get(request.owner.slice('edge:'.length)) ?? 0;
+      if (at === null || at === undefined || n === 0) {
+        return [];
+      }
+      const text = `+${String(n)}`;
+      return [{ request: { ...request, text, size: size(text) }, at, own: false }];
+    });
+    const inks = this.#inks;
+    const emphasis = new Map<Id, Emphasis>(
+      inView.names.map((n) => [
+        n.owner,
+        n.focused ? 'focused' : n.selected ? 'selected' : n.marked ? 'quiet' : null,
+      ]),
+    );
+    const nameOf = ({ request, at }: { request: NameRequest; at: ScreenPoint }) => ({
+      text: request.text,
+      box: [at[0], at[1], request.size[0], request.size[1]] as ScreenRect,
+      emphasis: emphasis.get(request.owner) ?? null,
+    });
+    const ownNames = written.filter(({ own }) => own).map(nameOf);
+    const awayNames = [...written.filter(({ own }) => !own), ...countNames].map(nameOf);
+    const layers: CompositionLayer[] = [];
+    if (ownNames.length > 0) {
+      const signature = JSON.stringify([ownNames, inks, font]);
+      layers.push(
+        Object.freeze({
+          id: 'overlay:names',
+          category: 'overlay',
+          fragmentId: null,
+          surfaceId: null,
+          content: this.#keep('overlay:names', signature, () =>
+            layer(null, (ctx) => {
+              for (const name of ownNames) {
+                plate(ctx, name, inks, font);
+              }
+            }),
+          ),
+        }),
+      );
+    }
+    if (marks.length > 0) {
+      const arrows = marks.map(({ at, toward }) => ({ at, toward }));
+      const signature = JSON.stringify([arrows, awayNames, inks, font]);
+      layers.push(
+        Object.freeze({
+          id: 'overlay:indicators',
+          category: 'overlay',
+          fragmentId: null,
+          surfaceId: null,
+          content: this.#keep('overlay:indicators', signature, () =>
+            layer(null, (ctx) => {
+              for (const { at, toward } of arrows) {
+                const [x, y] = at;
+                const [dx, dy] = toward;
+                ctx.beginPath();
+                ctx.moveTo(x + dx * 10, y + dy * 10);
+                ctx.lineTo(x - dy * 6, y + dx * 6);
+                ctx.lineTo(x + dy * 6, y - dx * 6);
+                ctx.closePath();
+                ctx.fillStyle = inks.frame;
+                ctx.fill();
+              }
+              for (const name of awayNames) {
+                plate(ctx, name, inks, font);
+              }
+            }),
+          ),
+        }),
+      );
+    }
+    return layers;
+  }
+
+  /** How wide a text is written in a font: the host's measure, else an offscreen canvas's. */
+  #measure(): (text: string, font: string) => number {
+    const given = this.#options.measureText;
+    if (given !== undefined) {
+      return given;
+    }
+    if (this.#measuring === null) {
+      if (typeof OffscreenCanvas === 'undefined') {
+        throw new SwfFailure(
+          makeError(
+            'UNSUPPORTED_CAPABILITY',
+            'the geometry renderer measures names with an OffscreenCanvas, which this environment does not have: give it measureText',
+          ),
+        );
+      }
+      const made = new OffscreenCanvas(1, 1).getContext('2d');
+      if (made === null) {
+        throw new SwfFailure(
+          makeError(
+            'UNSUPPORTED_CAPABILITY',
+            'an OffscreenCanvas here gives no 2D context to measure names with',
+          ),
+        );
+      }
+      this.#measuring = made;
+    }
+    const ctx = this.#measuring;
+    return (text, font) => {
+      ctx.font = font;
+      return ctx.measureText(text).width;
+    };
+  }
+
+  /** The mark at the view's edge of each visible window the view does not show. */
+  #edgeMarks(
+    frame: RenderFrame,
+    projection: Projection,
+  ): { nodeId: Id; label: string; at: Vec2; toward: Vec2 }[] {
     const { scene, view } = frame;
     const shown = new Set(
       frame.planned.flatMap((p) => {
@@ -600,7 +811,7 @@ export class GeometryRendererSession implements RendererSession {
       }),
     );
     const domain = projection.describeDomain();
-    const marks: { at: Vec2; toward: Vec2; label: string }[] = [];
+    const marks: { nodeId: Id; label: string; at: Vec2; toward: Vec2 }[] = [];
     for (const surface of scene.surfaces.values()) {
       const nodeId = surface.ownerNodeId;
       if (shown.has(nodeId)) {
@@ -620,40 +831,121 @@ export class GeometryRendererSession implements RendererSession {
         domain.verticalCoverage,
       );
       if (mark !== null) {
-        marks.push({ ...mark, label: scene.nodes.get(nodeId)?.label ?? nodeId });
+        marks.push({ nodeId, label: scene.nodes.get(nodeId)?.label ?? nodeId, ...mark });
       }
     }
-    if (marks.length === 0) {
-      return null;
-    }
-    const inks = this.#inks;
-    const signature = JSON.stringify([marks, inks.frame, inks.text]);
-    return Object.freeze({
-      id: 'overlay:indicators',
-      category: 'overlay',
-      fragmentId: null,
-      surfaceId: null,
-      content: this.#keep('overlay:indicators', signature, () =>
-        layer(null, (ctx) => {
-          for (const { at, toward, label } of marks) {
-            const [x, y] = at;
-            const [dx, dy] = toward;
-            ctx.beginPath();
-            ctx.moveTo(x + dx * 10, y + dy * 10);
-            ctx.lineTo(x - dy * 6, y + dx * 6);
-            ctx.lineTo(x + dy * 6, y - dx * 6);
-            ctx.closePath();
-            ctx.fillStyle = inks.frame;
-            ctx.fill();
-            ctx.fillStyle = inks.text;
-            ctx.font = '11px sans-serif';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(label, x - dx * 40 - 20, y - dy * 14);
-          }
-        }),
-      ),
-    });
+    return marks;
   }
+}
+
+/** The edge a mark pointing this way stands at. */
+function edgeOf([dx, dy]: Vec2): 'left' | 'right' | 'top' | 'bottom' {
+  if (dx !== 0) {
+    return dx < 0 ? 'left' : 'right';
+  }
+  return dy < 0 ? 'top' : 'bottom';
+}
+
+/**
+ * The places for the name of a mark at the view's edge, best first: just inward of the mark,
+ * then a line at a time along the edge, nearer places first, as far as the edge runs.
+ */
+function alongEdge(
+  [x, y]: Vec2,
+  toward: Vec2,
+  w: number,
+  h: number,
+  view: { readonly width: number; readonly height: number },
+): ScreenPoint[] {
+  const edge = edgeOf(toward);
+  const across = edge === 'left' || edge === 'right';
+  const [x0, y0]: ScreenPoint =
+    edge === 'left'
+      ? [x + INDICATOR.inset, y - h / 2]
+      : edge === 'right'
+        ? [x - INDICATOR.inset - w, y - h / 2]
+        : edge === 'top'
+          ? [x - w / 2, y + INDICATOR.inset]
+          : [x - w / 2, y - INDICATOR.inset - h];
+  const step = across ? h : w + 2 * NAME.margin;
+  const length = across ? view.height : view.width;
+  const places: ScreenPoint[] = [[x0, y0]];
+  for (let k = 1; k * step <= length; k += 1) {
+    for (const sign of [-1, 1]) {
+      places.push(across ? [x0, y0 + sign * k * step] : [x0 + sign * k * step, y0]);
+    }
+  }
+  return places;
+}
+
+/** The places for the count of names an edge has no room for: at its far end, else its near end. */
+function edgeEnds(
+  edge: string,
+  w: number,
+  h: number,
+  view: { readonly width: number; readonly height: number },
+): ScreenPoint[] {
+  const m = INDICATOR.inset;
+  switch (edge) {
+    case 'left':
+      return [
+        [m, view.height - h],
+        [m, 0],
+      ];
+    case 'right':
+      return [
+        [view.width - m - w, view.height - h],
+        [view.width - m - w, 0],
+      ];
+    case 'top':
+      return [
+        [view.width - w, m],
+        [0, m],
+      ];
+    default:
+      return [
+        [view.width - w, view.height - m - h],
+        [0, view.height - m - h],
+      ];
+  }
+}
+
+/**
+ * How a window's name stands out: as the selected window's, the focused one's, quieter as a far
+ * window's shown by its label alone, or not at all.
+ */
+type Emphasis = 'selected' | 'focused' | 'quiet' | null;
+
+/** A name on its plate, in the ink of its window's state: text drawn on a canvas is only text. */
+function plate(
+  ctx: CanvasRenderingContext2D,
+  {
+    text: label,
+    box: [x, y, w, h],
+    emphasis,
+  }: { text: string; box: ScreenRect; emphasis: Emphasis },
+  inks: GeometryInks,
+  font: string,
+): void {
+  ctx.fillStyle = inks.ground;
+  ctx.fillRect(x, y, w, h);
+  if (emphasis === 'selected' || emphasis === 'focused') {
+    ctx.strokeStyle = emphasis === 'focused' ? inks.focused : inks.selected;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+  }
+  ctx.fillStyle =
+    emphasis === 'focused'
+      ? inks.focused
+      : emphasis === 'selected'
+        ? inks.selected
+        : emphasis === 'quiet'
+          ? inks.frame
+          : inks.text;
+  ctx.font = font;
+  ctx.textAlign = 'start';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label, x + NAME.margin, y + h / 2);
 }
 
 /**
@@ -717,12 +1009,6 @@ function identity(object: object): number {
   return id;
 }
 
-function labelOf(scene: SceneState, surfaceId: Id): string {
-  const surface = scene.surfaces.get(surfaceId);
-  const owner = surface === undefined ? undefined : scene.nodes.get(surface.ownerNodeId);
-  return surface?.label ?? owner?.label ?? surfaceId;
-}
-
 function centreOf([x, y, w, h]: ScreenRect): Vec2 {
   return [x + w / 2, y + h / 2];
 }
@@ -737,11 +1023,9 @@ function clipTo(ctx: CanvasRenderingContext2D, [x, y, w, h]: ScreenRect): void {
   ctx.clip();
 }
 
-/** A label at the top-left of the bounds, as text only. */
-/** A label in the middle of a box, as large as the box lets it be read. */
 /** The inks a host gives, checked: each a non-blank colour. */
 function inksOf(inks: GeometryInks): GeometryInks {
-  for (const name of ['frame', 'selected', 'focused', 'text'] as const) {
+  for (const name of ['frame', 'selected', 'focused', 'text', 'ground'] as const) {
     const ink: unknown = inks[name];
     if (typeof ink !== 'string' || ink.trim() === '') {
       throw new RangeError(`inks.${name} must be a canvas colour (got ${String(ink)})`);
@@ -750,20 +1034,7 @@ function inksOf(inks: GeometryInks): GeometryInks {
   return inks;
 }
 
-function centredText(
-  ctx: CanvasRenderingContext2D,
-  label: string,
-  [x, y, w, h]: ScreenRect,
-  colour: string,
-): void {
-  ctx.fillStyle = colour;
-  ctx.font = '12px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(label, x + w / 2, y + h / 2, Math.max(0, w - 8));
-  ctx.textAlign = 'start';
-}
-
+/** A text at the top-left of the bounds, as text only. */
 function text(
   ctx: CanvasRenderingContext2D,
   label: string,

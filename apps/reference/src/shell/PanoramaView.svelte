@@ -269,6 +269,36 @@
       handle={handleOf`page.panorama.navigation`}
     />
   {/if}
+  {#if running === null && model.outcome !== null}
+    {@const outcome = model.outcome}
+    <!-- What the last quick action did, with undo while undo takes back that and nothing later. -->
+    <Toolbar ariaLabel={t('outcome.label')}>
+      <Text>{outcome.text}</Text>
+      {#snippet end()}
+        {#if outcome.transactionId !== null && model.history.undo}
+          <Button
+            handle={handleOf`page.outcome.undo`}
+            label={t('command.history.undo')}
+            icon="undo"
+            size="small"
+            onpress={() => {
+              model.dismissOutcome();
+              void model.run('reference.history.undo', {});
+            }}
+          />
+        {/if}
+        <IconButton
+          handle={handleOf`page.outcome.dismiss`}
+          icon="close"
+          label={t('notice.dismiss')}
+          size="small"
+          onpress={() => {
+            model.dismissOutcome();
+          }}
+        />
+      {/snippet}
+    </Toolbar>
+  {/if}
   {#if running !== null}
     <Toolbar ariaLabel={t('gesture.label')}>
       <Text>{running.what}</Text>

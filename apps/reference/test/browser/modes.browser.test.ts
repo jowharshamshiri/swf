@@ -352,6 +352,124 @@ describe('the spatial map (FR-124, UX-004, WF-05)', () => {
   });
 });
 
+/** A name written over the panorama: its window, its text and its box in the view's pixels. */
+interface PanoramaName {
+  readonly owner: string;
+  readonly text: string;
+  readonly box: readonly [number, number, number, number];
+}
+
+/**
+ * Every window name the panorama's last frame writes, as its backend writes it: the DOM backend's
+ * name elements, or the text the geometry backend draws in its layer of names, measured by the
+ * browser in the font it is drawn in.
+ */
+function panoramaNames(app: ReferenceApp, f: ViewportFrame): PanoramaName[] {
+  const names: PanoramaName[] = [];
+  const origin = app.root.getBoundingClientRect();
+  for (const span of app.root.querySelectorAll<HTMLElement>(
+    '[data-swf-layer="names"] [data-swf-label]',
+  )) {
+    const r = span.getBoundingClientRect();
+    names.push({
+      owner: span.getAttribute('data-swf-node') ?? '',
+      text: span.textContent,
+      box: [r.left - origin.left, r.top - origin.top, r.width, r.height],
+    });
+  }
+  const drawn = f.rendered.layers.find((l) => l.id === 'overlay:names')?.content as
+    { draw?: (ctx: CanvasRenderingContext2D) => void } | undefined;
+  if (drawn?.draw !== undefined) {
+    const real = document.createElement('canvas').getContext('2d');
+    if (real === null) throw new Error('no 2D context');
+    const byLabel = new Map(
+      [...f.frame.scene.nodes.values()].map((n) => [n.label ?? '', n.id] as const),
+    );
+    const recorder = new Proxy(real, {
+      get(target, name) {
+        if (name === 'fillText') {
+          return (text: string, x: number, y: number) => {
+            const m = target.measureText(text);
+            names.push({
+              owner: byLabel.get(text) ?? '',
+              text,
+              box: [
+                x,
+                y - m.actualBoundingBoxAscent,
+                m.width,
+                m.actualBoundingBoxAscent + m.actualBoundingBoxDescent,
+              ],
+            });
+          };
+        }
+        const value: unknown = Reflect.get(target, name, target);
+        return typeof value === 'function'
+          ? (value as (...a: unknown[]) => unknown).bind(target)
+          : value;
+      },
+      set(target, name, value) {
+        return Reflect.set(target, name, value, target);
+      },
+    });
+    drawn.draw(recorder);
+  }
+  return names;
+}
+
+/** Each name cut by the view's edge, over another name, or over another window's frame or mark. */
+function illegible(f: ViewportFrame, names: readonly PanoramaName[]): string[] {
+  const { width, height } = f.frame.view;
+  const over = (a: readonly number[], b: readonly number[]) =>
+    (a[0] ?? 0) + 0.5 < (b[0] ?? 0) + (b[2] ?? 0) &&
+    (b[0] ?? 0) + 0.5 < (a[0] ?? 0) + (a[2] ?? 0) &&
+    (a[1] ?? 0) + 0.5 < (b[1] ?? 0) + (b[3] ?? 0) &&
+    (b[1] ?? 0) + 0.5 < (a[1] ?? 0) + (a[3] ?? 0);
+  const drawnAt = f.frame.planned.flatMap((p) => {
+    const owner = f.frame.scene.surfaces.get(p.fragment.surfaceId)?.ownerNodeId ?? '';
+    const [x, y, w, h] = p.fragment.bounds;
+    return [
+      p.representation === 'label'
+        ? { owner, box: [x + w / 2 - 3, y + h / 2 - 3, 6, 6] }
+        : { owner, box: [x, y, w, h] },
+    ];
+  });
+  const found: string[] = [];
+  names.forEach((name, i) => {
+    const [x, y, w, h] = name.box;
+    if (x < -0.5 || y < -0.5 || x + w > width + 0.5 || y + h > height + 0.5) {
+      found.push(`"${name.text}" is cut by the view's edge`);
+    }
+    for (const other of names.slice(i + 1)) {
+      if (over(name.box, other.box)) found.push(`"${name.text}" over the name "${other.text}"`);
+    }
+    for (const window of drawnAt) {
+      if (window.owner !== name.owner && over(name.box, window.box)) {
+        found.push(`"${name.text}" over the window ${window.owner}`);
+      }
+    }
+  });
+  return [...new Set(found)];
+}
+
+describe('names in the panorama (FR-122)', () => {
+  it('names the windows in the strip under the overview and the map legibly, in either backend: none cut at its edge, none over another window or name', async () => {
+    const { model, app, settle } = await start('?preset=studio', { width: 1600, height: 1000 });
+    for (const backend of ['dom', 'geometry'] as const) {
+      await model.run('reference.backend.switch', { backend });
+      await expect.poll(() => model.status?.backend, { timeout: 5000 }).toBe(backend);
+      for (const mode of ['overview', 'map', 'panorama'] as const) {
+        await model.run('reference.mode.switch', { mode });
+        await settle();
+        const f = await frame(app);
+        const names = panoramaNames(app, f);
+        // Most windows are named; a window shown by its name alone is always marked.
+        expect(names.length, `${backend} ${mode}`).toBeGreaterThan(6);
+        expect(illegible(f, names), `${backend} ${mode}`).toEqual([]);
+      }
+    }
+  });
+});
+
 describe('the spatial overview (FR-128, UX-005)', () => {
   /** A card's box on the page, from the stage's unit for it. */
   function cardBox(root: HTMLElement, id: string): DOMRect {

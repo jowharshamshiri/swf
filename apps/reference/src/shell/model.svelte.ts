@@ -1,3 +1,5 @@
+import type { SpaceStatus } from '../space.js';
+import { spaceStatus } from '../space.js';
 import type { CommandOutcome } from '@swf/interaction';
 import { KEYBOARD_HOLD_ID } from '@swf/interaction';
 import type { FrameMetrics, Representation } from '@swf/presentation';
@@ -37,6 +39,29 @@ export interface Removal {
   /** The transaction that removed it: undo is offered while it is the last undoable one. */
   readonly transactionId: string;
 }
+
+/**
+ * What a quick action did, said over the panorama until dismissed, until a gesture or another
+ * action, or until undo would no longer take it back.
+ */
+export interface Outcome {
+  readonly text: string;
+  /**
+   * The change it made, while undo would take back that change and nothing later: null for an
+   * action that changed nothing undoable (turning the view), or once a later change came first.
+   */
+  readonly transactionId: string | null;
+  /** Rises with each outcome, so the same words said twice are said again. */
+  readonly count: number;
+}
+
+/** The quick actions whose outcome is said, by the message that says it. */
+const OUTCOMES = Object.freeze({
+  'reference.window.bringFront': { message: 'outcome.bringFront', undoable: true },
+  'reference.window.sendBehind': { message: 'outcome.sendBehind', undoable: true },
+  'reference.window.arrange': { message: 'outcome.arrange', undoable: true },
+  'reference.window.reveal': { message: 'outcome.reveal', undoable: false },
+} as const);
 
 /** What the workspaces view says after an action. */
 export type WorkspaceNote =
@@ -187,6 +212,10 @@ export class ShellModel {
   selection = $state<readonly string[]>([]);
   frame = $state<FrameMetrics | null>(null);
   fallbacks = $state(0);
+  /** The workspace as the panorama's last frame shows it, in the reader's terms. */
+  space = $state<SpaceStatus | null>(null);
+  /** What the last quick action did, while it is said. */
+  outcome = $state<Outcome | null>(null);
   /** The last command refused, until the next one runs. */
   refusal = $state<Refusal | null>(null);
   /** Why the application could not start: the address named something invalid, or it failed. */
@@ -358,6 +387,14 @@ export class ShellModel {
           this.revision = app.workspace.getState().revision;
           this.#readSelection();
           this.#readHistory();
+          // Undo would no longer take the last quick action back: a later change came first.
+          if (
+            this.outcome !== null &&
+            this.outcome.transactionId !== null &&
+            app.workspace.history().at(-1)?.transactionId !== this.outcome.transactionId
+          ) {
+            this.outcome = { ...this.outcome, transactionId: null };
+          }
           // Undo would no longer bring the removed window back: a later change came first.
           if (
             this.removal !== null &&
@@ -377,6 +414,10 @@ export class ShellModel {
         }
       }),
       app.router.subscribe((event) => {
+        if (event.type === 'gesture.started') {
+          // A gesture is the reader's next action: the last quick action's outcome is no longer said.
+          this.outcome = null;
+        }
         if (event.type === 'gesture.started' && event.policyId === KEYBOARD_HOLD_ID) {
           this.#held = { gestureId: event.gestureId, nodeId: event.nodeId };
           this.#say('announce.held', event.nodeId);
@@ -396,6 +437,8 @@ export class ShellModel {
         if (event.type === 'frame' && event.viewportId === VIEWPORT_ID) {
           this.frame = event.metrics;
           this.fallbacks = event.fallbacks.length;
+          const presented = app.viewport.lastFrame();
+          this.space = presented === null ? null : spaceStatus(presented.frame);
           this.#readSelection();
         }
       }),
@@ -416,6 +459,11 @@ export class ShellModel {
     }
     this.#ran(id, params);
     return true;
+  }
+
+  /** Stops saying the last quick action's outcome. */
+  dismissOutcome(): void {
+    this.outcome = null;
   }
 
   /** Gives the panorama the keyboard; false while there is none to give it to. */
@@ -542,6 +590,23 @@ export class ShellModel {
 
   /** What a command the shell ran did, said where nothing on screen says it (UX-013). */
   #ran<K extends AppCommandId>(id: K, params: AppCommandSpecs[K]): void {
+    const said = Object.hasOwn(OUTCOMES, id) ? OUTCOMES[id as keyof typeof OUTCOMES] : null;
+    if (said !== null) {
+      const label =
+        typeof params === 'object' && 'id' in params && typeof params.id === 'string'
+          ? this.#labelOf(params.id)
+          : '';
+      const text = this.messages.format(said.message, { label });
+      this.outcome = {
+        text,
+        transactionId: said.undoable
+          ? (this.#app?.workspace.history().at(-1)?.transactionId ?? null)
+          : null,
+        count: (this.outcome?.count ?? 0) + 1,
+      };
+      this.announce(text);
+      return;
+    }
     const placing = PLACING[id];
     const windowId =
       typeof params === 'object' && 'id' in params && typeof params.id === 'string'

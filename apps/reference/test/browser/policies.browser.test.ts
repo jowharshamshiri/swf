@@ -265,7 +265,13 @@ describe('semantic depth on the DOM backend (FR-122, ARCH-025)', () => {
       `[data-swf-layer="proxy"][data-swf-surface="${far.id}-surface"]`,
     );
     expect(label?.getAttribute('data-swf-representation')).toBe('label');
-    expect(label?.textContent).toBe(far.label);
+    // Marked where it is; its name, where there is room for it, beside the mark.
+    const mark = label?.querySelector<HTMLElement>('[data-swf-mark]');
+    expect(mark === null || mark === undefined ? '' : getComputedStyle(mark).display).toBe('block');
+    const name = root?.querySelector(`[data-swf-layer="names"] [data-swf-node="${far.id}"]`);
+    if (name !== null && name !== undefined) {
+      expect(name.textContent).toBe(far.label);
+    }
     expect(root?.querySelector(`[data-swf-layer="chrome"][data-swf-node="${far.id}"]`)).toBeNull();
     // Represented from the first frame, its content is bound but was never shown here.
     expect(a.runtime.get(`${far.id}-surface`)?.state).toBe('ready');

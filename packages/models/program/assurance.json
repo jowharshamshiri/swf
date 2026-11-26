@@ -2158,11 +2158,11 @@
         "package": "swf_models",
         "file": "Swf/AppOverview.lean",
         "start": {
-          "line": 420,
+          "line": 380,
           "column": 1
         },
         "end": {
-          "line": 427,
+          "line": 387,
           "column": 64
         }
       }
@@ -2191,11 +2191,11 @@
         "package": "swf_models",
         "file": "Swf/AppOverview.lean",
         "start": {
-          "line": 429,
+          "line": 389,
           "column": 1
         },
         "end": {
-          "line": 438,
+          "line": 398,
           "column": 54
         }
       }
@@ -2224,11 +2224,11 @@
         "package": "swf_models",
         "file": "Swf/AppOverview.lean",
         "start": {
-          "line": 467,
+          "line": 427,
           "column": 1
         },
         "end": {
-          "line": 487,
+          "line": 447,
           "column": 44
         }
       }
@@ -2256,44 +2256,12 @@
         "package": "swf_models",
         "file": "Swf/AppOverview.lean",
         "start": {
-          "line": 499,
+          "line": 459,
           "column": 1
         },
         "end": {
-          "line": 510,
+          "line": 470,
           "column": 59
-        }
-      }
-    },
-    {
-      "name": "Swf.AppOverview.dropped_only_on_collision",
-      "relation": "lungo.law",
-      "subjects": [
-        "Swf.AppOverview.labelsShown"
-      ],
-      "specifications": [],
-      "statement": "∀ (boxes : Array Swf.AppOverview.LabelBox) (pre post : List (Swf.AppOverview.LabelBox × Bool))\n  (b : Swf.AppOverview.LabelBox × Bool),\n  boxes.toList.zip (Swf.AppOverview.labelsShown boxes).toList = pre ++ b :: post →\n    b.snd = false →\n      ∃ a, a ∈ pre ∧ a.snd = true ∧ (Swf.AppOverview.overlaps a.fst b.fst = true ∨ a.fst.name = b.fst.name)",
-      "status": "proved",
-      "evidence_trust": {
-        "axioms": [
-          "Quot.sound",
-          "propext"
-        ],
-        "depends_on_sorry": false
-      },
-      "assumptions": [],
-      "package": "swf_models",
-      "fingerprint": "cf8539f755cce67882770e04cbddb4e86c517f6fcb50ad1a99602157c9916ccc",
-      "source": {
-        "package": "swf_models",
-        "file": "Swf/AppOverview.lean",
-        "start": {
-          "line": 628,
-          "column": 1
-        },
-        "end": {
-          "line": 640,
-          "column": 13
         }
       }
     },
@@ -2320,11 +2288,11 @@
         "package": "swf_models",
         "file": "Swf/AppOverview.lean",
         "start": {
-          "line": 410,
+          "line": 370,
           "column": 1
         },
         "end": {
-          "line": 418,
+          "line": 378,
           "column": 32
         }
       }
@@ -2352,76 +2320,12 @@
         "package": "swf_models",
         "file": "Swf/AppOverview.lean",
         "start": {
-          "line": 440,
+          "line": 400,
           "column": 1
         },
         "end": {
-          "line": 453,
+          "line": 413,
           "column": 56
-        }
-      }
-    },
-    {
-      "name": "Swf.AppOverview.kept_written",
-      "relation": "lungo.law",
-      "subjects": [
-        "Swf.AppOverview.labelsShown"
-      ],
-      "specifications": [],
-      "statement": "∀ (boxes : Array Swf.AppOverview.LabelBox) (b : Swf.AppOverview.LabelBox × Bool),\n  b ∈ boxes.toList.zip (Swf.AppOverview.labelsShown boxes).toList → b.fst.kept = true → b.snd = true",
-      "status": "proved",
-      "evidence_trust": {
-        "axioms": [
-          "Quot.sound",
-          "propext"
-        ],
-        "depends_on_sorry": false
-      },
-      "assumptions": [],
-      "package": "swf_models",
-      "fingerprint": "0761477ca54d870255d0706c696d42a6885ff14387a36010220abfd316326c5a",
-      "source": {
-        "package": "swf_models",
-        "file": "Swf/AppOverview.lean",
-        "start": {
-          "line": 608,
-          "column": 1
-        },
-        "end": {
-          "line": 613,
-          "column": 29
-        }
-      }
-    },
-    {
-      "name": "Swf.AppOverview.labels_answered",
-      "relation": "lungo.law",
-      "subjects": [
-        "Swf.AppOverview.labelsShown"
-      ],
-      "specifications": [],
-      "statement": "∀ (boxes : Array Swf.AppOverview.LabelBox), (Swf.AppOverview.labelsShown boxes).size = boxes.size",
-      "status": "proved",
-      "evidence_trust": {
-        "axioms": [
-          "Quot.sound",
-          "propext"
-        ],
-        "depends_on_sorry": false
-      },
-      "assumptions": [],
-      "package": "swf_models",
-      "fingerprint": "ca6edd35df2030b4f75db6b1d031cc684eae385bba0e78dcef64e8206fbfb22c",
-      "source": {
-        "package": "swf_models",
-        "file": "Swf/AppOverview.lean",
-        "start": {
-          "line": 588,
-          "column": 1
-        },
-        "end": {
-          "line": 593,
-          "column": 27
         }
       }
     },
@@ -2448,11 +2352,11 @@
         "package": "swf_models",
         "file": "Swf/AppOverview.lean",
         "start": {
-          "line": 489,
+          "line": 449,
           "column": 1
         },
         "end": {
-          "line": 497,
+          "line": 457,
           "column": 15
         }
       }
@@ -2480,44 +2384,12 @@
         "package": "swf_models",
         "file": "Swf/AppOverview.lean",
         "start": {
-          "line": 512,
+          "line": 472,
           "column": 1
         },
         "end": {
-          "line": 517,
+          "line": 477,
           "column": 27
-        }
-      }
-    },
-    {
-      "name": "Swf.AppOverview.written_names_clear",
-      "relation": "lungo.law",
-      "subjects": [
-        "Swf.AppOverview.labelsShown"
-      ],
-      "specifications": [],
-      "statement": "∀ (boxes : Array Swf.AppOverview.LabelBox),\n  List.Pairwise\n    (fun a b =>\n      a.snd = true →\n        b.snd = true → b.fst.kept = false → Swf.AppOverview.overlaps a.fst b.fst = false ∧ a.fst.name ≠ b.fst.name)\n    (boxes.toList.zip (Swf.AppOverview.labelsShown boxes).toList)",
-      "status": "proved",
-      "evidence_trust": {
-        "axioms": [
-          "Quot.sound",
-          "propext"
-        ],
-        "depends_on_sorry": false
-      },
-      "assumptions": [],
-      "package": "swf_models",
-      "fingerprint": "d9df1094bdf77fdcbe3fa79ef9e5a9cf150c94aa3d1407b3eb4972ea417f8638",
-      "source": {
-        "package": "swf_models",
-        "file": "Swf/AppOverview.lean",
-        "start": {
-          "line": 615,
-          "column": 1
-        },
-        "end": {
-          "line": 626,
-          "column": 13
         }
       }
     },
@@ -6056,6 +5928,134 @@
       }
     },
     {
+      "name": "Swf.Names.dropped_only_on_collision",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Names.labelsShown"
+      ],
+      "specifications": [],
+      "statement": "∀ (boxes : Array Swf.Names.LabelBox) (pre post : List (Swf.Names.LabelBox × Bool)) (b : Swf.Names.LabelBox × Bool),\n  boxes.toList.zip (Swf.Names.labelsShown boxes).toList = pre ++ b :: post →\n    b.snd = false →\n      ∃ a,\n        a ∈ pre ∧\n          a.snd = true ∧ (Swf.Names.overlaps a.fst b.fst = true ∧ a.fst.owner ≠ b.fst.owner ∨ a.fst.name = b.fst.name)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "66749269fd252f039989de6bfac74aa196e285fd4b7fd872f20c96a9553da3a6",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Names.lean",
+        "start": {
+          "line": 163,
+          "column": 1
+        },
+        "end": {
+          "line": 176,
+          "column": 13
+        }
+      }
+    },
+    {
+      "name": "Swf.Names.kept_written",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Names.labelsShown"
+      ],
+      "specifications": [],
+      "statement": "∀ (boxes : Array Swf.Names.LabelBox) (b : Swf.Names.LabelBox × Bool),\n  b ∈ boxes.toList.zip (Swf.Names.labelsShown boxes).toList → b.fst.kept = true → b.snd = true",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "37c3e02663ae73ad26b68c52cd82cb88af2b6a67f30d9a18660e7ad2eac58aa7",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Names.lean",
+        "start": {
+          "line": 142,
+          "column": 1
+        },
+        "end": {
+          "line": 147,
+          "column": 29
+        }
+      }
+    },
+    {
+      "name": "Swf.Names.labels_answered",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Names.labelsShown"
+      ],
+      "specifications": [],
+      "statement": "∀ (boxes : Array Swf.Names.LabelBox), (Swf.Names.labelsShown boxes).size = boxes.size",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "f2b167834d57e27acbc06993cef200297ac52b2f27e29fcac4bce4296d8c440a",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Names.lean",
+        "start": {
+          "line": 122,
+          "column": 1
+        },
+        "end": {
+          "line": 127,
+          "column": 27
+        }
+      }
+    },
+    {
+      "name": "Swf.Names.written_names_clear",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Names.labelsShown"
+      ],
+      "specifications": [],
+      "statement": "∀ (boxes : Array Swf.Names.LabelBox),\n  List.Pairwise\n    (fun a b =>\n      a.snd = true →\n        b.snd = true →\n          b.fst.kept = false →\n            (Swf.Names.overlaps a.fst b.fst = false ∨ a.fst.owner = b.fst.owner) ∧ a.fst.name ≠ b.fst.name)\n    (boxes.toList.zip (Swf.Names.labelsShown boxes).toList)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "5b10970dea9c70ba2037487332cbf855bb75fb978c5811a267c4d679f8d8284b",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Names.lean",
+        "start": {
+          "line": 149,
+          "column": 1
+        },
+        "end": {
+          "line": 161,
+          "column": 13
+        }
+      }
+    },
+    {
       "name": "Swf.Presenter.failed_open_frees_id",
       "relation": "lungo.law",
       "subjects": [
@@ -7717,46 +7717,6 @@
       }
     },
     {
-      "name": "Swf.AppOverview.labelsShown",
-      "module": "Swf.AppOverview",
-      "async": false,
-      "trust": {
-        "axioms": [],
-        "depends_on_sorry": false,
-        "unsafe_dependencies": [],
-        "partial_dependencies": [],
-        "extern_dependencies": [
-          "lean_array_mk",
-          "lean_array_to_list",
-          "lean_int_add",
-          "lean_int_dec_lt",
-          "lean_nat_dec_eq",
-          "lean_nat_to_int"
-        ]
-      },
-      "claims": [
-        "Swf.AppOverview.dropped_only_on_collision",
-        "Swf.AppOverview.kept_written",
-        "Swf.AppOverview.labels_answered",
-        "Swf.AppOverview.written_names_clear"
-      ],
-      "assumptions": [],
-      "facilities": [],
-      "roles": [],
-      "source": {
-        "package": "swf_models",
-        "file": "Swf/AppOverview.lean",
-        "start": {
-          "line": 189,
-          "column": 1
-        },
-        "end": {
-          "line": 192,
-          "column": 52
-        }
-      }
-    },
-    {
       "name": "Swf.AppOverview.overviewLayout",
       "module": "Swf.AppOverview",
       "async": false,
@@ -7813,11 +7773,11 @@
         "package": "swf_models",
         "file": "Swf/AppOverview.lean",
         "start": {
-          "line": 148,
+          "line": 144,
           "column": 1
         },
         "end": {
-          "line": 156,
+          "line": 152,
           "column": 23
         }
       }
@@ -9598,6 +9558,46 @@
         "end": {
           "line": 45,
           "column": 35
+        }
+      }
+    },
+    {
+      "name": "Swf.Names.labelsShown",
+      "module": "Swf.Names",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_array_mk",
+          "lean_array_to_list",
+          "lean_int_add",
+          "lean_int_dec_lt",
+          "lean_nat_dec_eq",
+          "lean_nat_to_int"
+        ]
+      },
+      "claims": [
+        "Swf.Names.dropped_only_on_collision",
+        "Swf.Names.kept_written",
+        "Swf.Names.labels_answered",
+        "Swf.Names.written_names_clear"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Names.lean",
+        "start": {
+          "line": 48,
+          "column": 1
+        },
+        "end": {
+          "line": 51,
+          "column": 52
         }
       }
     },

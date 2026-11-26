@@ -1,7 +1,7 @@
 import Lungo
 
 /-!
-The reference application's spatial overview and the names on its map.
+The reference application's spatial overview.
 
 The overview shows every window as a card on a board that is the whole sphere round the camera
 unrolled: straight ahead in the middle, behind at both edges, overhead at the top and underfoot at
@@ -13,11 +13,7 @@ largest first, and takes the first at which every card stands on the board; when
 crowded. The application measures where each window is (the geometry); this model decides where
 its card stands.
 
-The map names its windows beside their marks. A name is written where its box overlaps no name
-already written, in the order of their importance; a name that must be read (the selected window's,
-say) is written whatever it overlaps. A name may be offered at more than one place, best first: it
-is written at the first of them that is free. A name is dropped only where it would overlap another,
-or where it is already written at a better place.
+The names on the map are placed by `Swf.Names`.
 -/
 namespace Swf.AppOverview
 
@@ -154,42 +150,6 @@ def overviewLayout (board : OverviewBoard) (windows : Array OverviewWindow)
     match firstSize board windows sizes.toList 0 with
     | some (k, s) => .laid k (layAt board windows s).toArray
     | none => .crowded
-
-/-! ## The names on the map -/
-
-/-- A place for a name on the map: its box, in pixels, which name it is a place for, and whether it
-must be written. -/
-structure LabelBox where
-  /-- Which name it is a place for: the places for one name share it. -/
-  name : Nat
-  x : Int
-  y : Int
-  width : Nat
-  height : Nat
-  /-- It is written whatever it overlaps. -/
-  kept : Bool
-deriving Inhabited, DecidableEq
-
-/-- The second box overlaps the first. -/
-def overlaps (a b : LabelBox) : Bool :=
-  decide (a.x < b.x + b.width) && decide (b.x < a.x + a.width) && decide (a.y < b.y + b.height) &&
-    decide (b.y < a.y + a.height)
-
-/-- A box written before keeps this one from being written: it overlaps it, or its name is
-already written there. -/
-def blocks (a b : LabelBox) : Bool := overlaps a b || a.name == b.name
-
-/-- Each box, with whether it is written, given the boxes already written. -/
-def placeLabels : List LabelBox → List LabelBox → List (LabelBox × Bool)
-  | _, [] => []
-  | shown, b :: rest =>
-    let written := b.kept || !(shown.any fun a => blocks a b)
-    (b, written) :: placeLabels (if written then b :: shown else shown) rest
-
-/-- Which places are written, in the order asked: each in turn is written when it must be, or
-when no box written before it overlaps it or writes its name. -/
-def labelsShown (boxes : Array LabelBox) : Array Bool :=
-  ((placeLabels [] boxes.toList).map (·.2)).toArray
 
 /-! ## Invariants of the overview -/
 
@@ -515,128 +475,5 @@ theorem out_of_range_refused (board : OverviewBoard) (windows : Array OverviewWi
     (sizes : Array OverviewSize) (field : String) (h : overviewInvalid windows sizes = some field) :
     overviewLayout board windows sizes = .invalid field := by
   simp [overviewLayout, h]
-
-/-! ## Invariants of the names on the map -/
-
-theorem placeLabels_fst (shown l : List LabelBox) : (placeLabels shown l).map (·.1) = l := by
-  induction l generalizing shown with
-  | nil => simp [placeLabels]
-  | cons b rest ih => simp [placeLabels, ih]
-
-theorem placeLabels_clear (shown l : List LabelBox) :
-    (placeLabels shown l).Pairwise
-        (fun (a b : LabelBox × Bool) => a.2 = true → b.2 = true → b.1.kept = false →
-          blocks a.1 b.1 = false) ∧
-      ∀ b ∈ placeLabels shown l, b.2 = true → b.1.kept = false →
-        ∀ a ∈ shown, blocks a b.1 = false := by
-  induction l generalizing shown with
-  | nil => simp [placeLabels]
-  | cons b rest ih =>
-    simp only [placeLabels]
-    generalize hw : (b.kept || !shown.any fun a => blocks a b) = written
-    refine ⟨List.pairwise_cons.2 ⟨fun c hc ha hcs hk => ?_, (ih _).1⟩, fun c hc hcs hk a ha => ?_⟩
-    · simp only at ha
-      subst ha
-      have := (ih (b :: shown)).2 c (by simpa using hc) hcs hk b
-      exact this (List.mem_cons_self ..)
-    · simp only [List.mem_cons] at hc
-      rcases hc with rfl | hc
-      · simp only at hcs hk
-        subst hcs
-        simp only [hk, Bool.false_or, Bool.not_eq_true', List.any_eq_false] at hw
-        simpa using hw a ha
-      · have := (ih _).2 c hc hcs hk a
-        split at this
-        · exact this (List.mem_cons_of_mem _ ha)
-        · exact this ha
-
-theorem placeLabels_dropped (shown l : List LabelBox) :
-    ∀ pre post b, placeLabels shown l = pre ++ b :: post → b.2 = false →
-      (∃ a ∈ shown, blocks a b.1 = true) ∨ ∃ a ∈ pre, a.2 = true ∧ blocks a.1 b.1 = true := by
-  induction l generalizing shown with
-  | nil => intro pre post b h; simp [placeLabels] at h
-  | cons c rest ih =>
-    intro pre post b h hb
-    simp only [placeLabels] at h
-    cases pre with
-    | nil =>
-      simp only [List.nil_append, List.cons.injEq] at h
-      obtain ⟨rfl, -⟩ := h
-      simp only [Bool.or_eq_false_iff, Bool.not_eq_false', List.any_eq_true] at hb
-      exact .inl hb.2
-    | cons x pre' =>
-      simp only [List.cons_append, List.cons.injEq] at h
-      obtain ⟨rfl, h⟩ := h
-      rcases ih _ pre' post b h hb with ⟨a, ha, ho⟩ | ⟨a, ha, hs, ho⟩
-      · split at ha
-        · rename_i hw
-          simp only [List.mem_cons] at ha
-          rcases ha with rfl | ha
-          · exact .inr ⟨_, List.mem_cons_self .., hw, ho⟩
-          · exact .inl ⟨a, ha, ho⟩
-        · exact .inl ⟨a, ha, ho⟩
-      · exact .inr ⟨a, List.mem_cons_of_mem _ ha, hs, ho⟩
-
-theorem labels_decided (boxes : Array LabelBox) :
-    boxes.toList.zip (labelsShown boxes).toList = placeLabels [] boxes.toList := by
-  have h := List.zip_unzip (placeLabels [] boxes.toList)
-  simp only [List.unzip_eq_map] at h
-  simp only [labelsShown, List.toList_toArray]
-  conv => lhs; arg 1; rw [← placeLabels_fst [] boxes.toList]
-  exact h
-
-/-- There is an answer for every name, in the order asked. -/
-@[lungo_claim "lungo.law" subject labelsShown]
-theorem labels_answered (boxes : Array LabelBox) : (labelsShown boxes).size = boxes.size := by
-  have := congrArg List.length (placeLabels_fst [] boxes.toList)
-  simp only [List.length_map] at this
-  simp [labelsShown, this]
-
-theorem placeLabels_kept : ∀ (shown l : List LabelBox),
-    ∀ b ∈ placeLabels shown l, b.1.kept = true → b.2 = true := by
-  intro shown l
-  induction l generalizing shown with
-  | nil => simp [placeLabels]
-  | cons c rest ih =>
-    intro b hb hk
-    simp only [placeLabels, List.mem_cons] at hb
-    rcases hb with rfl | hb
-    · simp only at hk
-      simp [hk]
-    · exact ih _ b hb hk
-
-/-- A name that must be read is always written. -/
-@[lungo_claim "lungo.law" subject labelsShown]
-theorem kept_written (boxes : Array LabelBox) :
-    ∀ b ∈ boxes.toList.zip (labelsShown boxes).toList, b.1.kept = true → b.2 = true := by
-  rw [labels_decided]
-  exact placeLabels_kept _ _
-
-/-- A place written of its own accord overlaps no place written before it, and writes no name
-written before it. -/
-@[lungo_claim "lungo.law" subject labelsShown]
-theorem written_names_clear (boxes : Array LabelBox) :
-    (boxes.toList.zip (labelsShown boxes).toList).Pairwise
-      (fun (a b : LabelBox × Bool) => a.2 = true → b.2 = true → b.1.kept = false →
-        overlaps a.1 b.1 = false ∧ a.1.name ≠ b.1.name) := by
-  rw [labels_decided]
-  refine ((placeLabels_clear [] boxes.toList).1).imp fun h ha hb hk => ?_
-  have := h ha hb hk
-  simp only [blocks, Bool.or_eq_false_iff, beq_eq_false_iff_ne] at this
-  exact this
-
-/-- A place is passed over only where it would overlap a place written before it, or where its
-name is written already, at a better place. -/
-@[lungo_claim "lungo.law" subject labelsShown]
-theorem dropped_only_on_collision (boxes : Array LabelBox) :
-    ∀ pre post b, boxes.toList.zip (labelsShown boxes).toList = pre ++ b :: post → b.2 = false →
-      ∃ a ∈ pre, a.2 = true ∧ (overlaps a.1 b.1 = true ∨ a.1.name = b.1.name) := by
-  rw [labels_decided]
-  intro pre post b h hb
-  rcases placeLabels_dropped [] boxes.toList pre post b h hb with ⟨a, ha, -⟩ | ⟨a, ha, hs, hx⟩
-  · simp at ha
-  · refine ⟨a, ha, hs, ?_⟩
-    simp only [blocks, Bool.or_eq_true, beq_iff_eq] at hx
-    exact hx
 
 end Swf.AppOverview

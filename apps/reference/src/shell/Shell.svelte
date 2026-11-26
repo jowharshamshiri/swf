@@ -17,8 +17,6 @@
   import { VIEWPORT_ID } from '../app.js';
   import { handleOf } from '@wsb/uikit/handles';
   import { Application } from '@wsb/uikit/surfaces/application';
-  import { BACKEND_IDS } from '../config.js';
-  import type { BackendId } from '../config.js';
   import type { MessageId } from '../messages.js';
   import { PRESETS } from '../presets.js';
   import type { Component } from 'svelte';
@@ -260,7 +258,6 @@
       disabled: mode.id === FOCUS_ID && !focusable,
     })),
   );
-  const backends = $derived(BACKEND_IDS.map((id) => ({ value: id, label: t(`backend.${id}`) })));
   const status = $derived(model.status);
   const policies = $derived(model.policies);
   /**
@@ -364,17 +361,6 @@
       selected={policies.orbit.navigation}
       onselect={(target) => {
         void model.run('reference.navigation.set', { target: target as 'camera' | 'orbit' });
-      }}
-    />
-  {/if}
-  {#if status !== null && !compact}
-    <Segmented
-      handle={handleOf`editor.actions.backend`}
-      ariaLabel={t('backend.label')}
-      items={backends}
-      selected={status.backend ?? ''}
-      onselect={(backend) => {
-        void model.run('reference.backend.switch', { backend: backend as BackendId });
       }}
     />
   {/if}

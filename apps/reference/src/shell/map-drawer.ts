@@ -48,8 +48,6 @@ export type MapKind = 'map' | 'radar';
 export const RADAR_MARGIN = 24;
 /** A bearing written round the radar's rim, and its tick. */
 const BEARINGS = Object.freeze([0, 90, 180, -90]);
-/** Room for a ring's distance or a bearing, in CSS pixels. */
-const READING = Object.freeze({ width: 60, height: 22 });
 
 /** How near a press must be to a window's dot to take it, in CSS pixels. */
 const REACH = 12;
@@ -640,8 +638,9 @@ export class MapDrawer {
    * A name's size as the stage writes it, in CSS pixels: measured once, by writing it as a unit
    * is written, out of sight in the stage's layer.
    */
-  #measure(title: string): { width: number; height: number } {
-    const known = this.#measured.get(title);
+  #measure(title: string, emphasis?: 'quiet' | 'prominent'): { width: number; height: number } {
+    const key = `${emphasis ?? ''}\u0000${title}`;
+    const known = this.#measured.get(key);
     if (known !== undefined) {
       return known;
     }
@@ -649,6 +648,9 @@ export class MapDrawer {
     const document = layer.ownerDocument;
     const unit = document.createElement('article');
     unit.className = 'wsb-stage__unit wsb-stage__unit--titled';
+    if (emphasis !== undefined) {
+      unit.classList.add(`wsb-stage__unit--${emphasis}`);
+    }
     unit.style.setProperty('visibility', 'hidden');
     unit.style.setProperty('width', 'max-content');
     const head = document.createElement('header');
@@ -659,7 +661,7 @@ export class MapDrawer {
     try {
       const box = head.getBoundingClientRect();
       const size = { width: Math.ceil(box.width) + 1, height: Math.ceil(box.height) };
-      this.#measured.set(title, size);
+      this.#measured.set(key, size);
       return size;
     } finally {
       unit.remove();
@@ -667,16 +669,21 @@ export class MapDrawer {
   }
 
   /**
-   * The names laid over the drawing. On the radar: each ring's distance and the bearings round its
-   * rim, then the selected and the focused windows' names alone. On the map: the selected and the
+   * The names laid over the drawing. On the radar: the selected and the focused windows' names
+   * alone, then each ring's distance and the bearings round its rim. On the map: the selected and the
    * focused windows' names, each written whatever it overlaps; every other window's name, nearest
    * the camera first; in front and behind, where the ground's halves meet the map's edges (or
    * beside that point along the edge); and each fifth ring's distance. Each is written where it
-   * overlaps nothing written before it (the overview model's `labelsShown`), its box the size the
+   * overlaps nothing written before it (the names model's `labelsShown`, `Swf.Names`), its box the size the
    * stage writes it, so a window's name is dropped only where another window's name is.
    */
   #units(scene: MapScene, view: MapView): StageUnit[] {
-    const { messages } = this.#options;
+    const { messages, layer } = this.#options;
+    // A stage not laid out (folded away, or in a side not shown) writes nothing, and nothing in it
+    // can be measured.
+    if (layer.getClientRects().length === 0) {
+      return [];
+    }
     const [cx, cy] = toMap(view, scene.camera.x, scene.camera.z);
     const ahead: [number, number] = [
       Math.sin(scene.camera.heading),
@@ -710,52 +717,118 @@ export class MapDrawer {
       x <= view.width && y <= view.height && x + size.width >= 0 && y + size.height >= 0;
 
     if (this.#kind === 'radar') {
-      const units: Label[] = [];
-      // Each ring's distance, down the line straight behind as the scene was made; each bearing,
-      // at the rim.
+      // The readings: each ring's distance, down the line straight behind as the scene was made;
+      // straight ahead and behind outside the rim; the sides just inside it, above their ticks,
+      // where a reading fits however narrow the radar is.
+      const readings: Label[] = [];
       const reach = radarReach(scene);
       const step = ringStep(reach);
       for (let r = step; r <= reach + 1e-9; r += step) {
         const value = Number(r.toFixed(2));
-        units.push(
-          unit(
-            `ring.${String(value)}`,
-            messages.format('radar.ring', { value }),
-            cx + 3,
-            cy + r * view.scale - READING.height + 4,
-            READING,
-          ),
+        const title = messages.format('radar.ring', { value });
+        const size = this.#measure(title);
+        readings.push(
+          unit(`ring.${String(value)}`, title, cx + 3, cy + r * view.scale - size.height + 4, size),
         );
       }
-      // Straight ahead and behind outside the rim; the sides just inside it, above their ticks,
-      // where a reading fits however narrow the radar is.
       const rim = reach * view.scale;
       for (const degrees of BEARINGS) {
         const title = messages.format('radar.bearing', { value: degrees });
+        const size = this.#measure(title);
         const side = degrees === 0 || degrees === 180 ? 0 : Math.sign(degrees);
         const [x, y] =
           side === 0
-            ? [cx - READING.width / 2, degrees === 0 ? cy - rim - READING.height : cy + rim]
-            : [side > 0 ? cx + rim - READING.width - 2 : cx - rim + 2, cy - READING.height - 2];
-        units.push(unit(`bearing.${String(degrees)}`, title, x, y, READING));
+            ? [cx - size.width / 2, degrees === 0 ? cy - rim - size.height : cy + rim]
+            : [side > 0 ? cx + rim - size.width - 2 : cx - rim + 2, cy - size.height - 2];
+        readings.push(unit(`bearing.${String(degrees)}`, title, x, y, size));
       }
-      // Only the selected and the focused window are named on the radar: it is small.
+      // Only the selected and the focused windows are named on the radar, for it is small: each
+      // beside its dot, above or below it, or a line farther off, wholly on the radar; the places
+      // clear of every reading weighed first, so a name covers a reading only where every place
+      // clear of them is off the radar or taken. The selected window's name is weighed first, the
+      // focused one's next, then the readings, each written where it overlaps nothing written
+      // before it (the names model's `labelsShown`, `Swf.Names`): no name or reading is ever written over
+      // another.
+      const whole = (x: number, y: number, size: { width: number; height: number }) =>
+        x >= 0 && y >= 0 && x + size.width <= view.width && y + size.height <= view.height;
+      const overlapsBox = (
+        a: Label,
+        x: number,
+        y: number,
+        size: { width: number; height: number },
+      ) => a.x < x + size.width && x < a.x + a.width && a.y < y + size.height && y < a.y + a.height;
+      const candidates: { unit: Label; name: number }[] = [];
+      const named = order.filter((m) => m.selected || m.focused);
+      named.forEach((marker, i) => {
+        const [mx, my] = toMap(view, marker.x, marker.z);
+        const emphasis = marker.selected
+          ? 'prominent'
+          : marker.side === 'behind'
+            ? 'quiet'
+            : undefined;
+        const size = this.#measure(marker.label, emphasis);
+        const beside = my - size.height / 2;
+        const centred = mx - size.width / 2;
+        const offered: [number, number][] = [
+          [mx + LABEL.gap, beside],
+          [mx - LABEL.gap - size.width, beside],
+          [centred, my - LABEL.gap - size.height],
+          [centred, my + LABEL.gap],
+          [mx + LABEL.gap, my - LABEL.gap - size.height],
+          [mx - LABEL.gap - size.width, my - LABEL.gap - size.height],
+          [mx + LABEL.gap, my + LABEL.gap],
+          [mx - LABEL.gap - size.width, my + LABEL.gap],
+          [centred, my - LABEL.gap - 2 * size.height],
+          [centred, my + LABEL.gap + size.height],
+        ];
+        const clear = ([x, y]: [number, number]) =>
+          !readings.some((r) => overlapsBox(r, x, y, size));
+        const places = offered
+          .filter(([x, y]) => whole(x, y, size))
+          .sort((p, q) => Number(clear(q)) - Number(clear(p)));
+        for (const [x, y] of places) {
+          candidates.push({
+            unit: unit(marker.id, marker.label, x, y, size, {
+              depth: marker.selected ? 3 : 2,
+              emphasis,
+            }),
+            name: i,
+          });
+        }
+      });
+      readings.forEach((reading, i) => {
+        candidates.push({ unit: reading, name: named.length + i });
+      });
+      const shown = models.labelsShown(
+        candidates.map(({ unit: u, name }) => ({
+          name: BigInt(name),
+          // Each name its own owner: no name may lie over another.
+          owner: BigInt(name),
+          x: BigInt(Math.round(u.x)),
+          y: BigInt(Math.round(u.y)),
+          width: BigInt(Math.ceil(u.width)),
+          height: BigInt(Math.ceil(u.height)),
+          kept: false,
+        })),
+      );
+      if (shown.length !== candidates.length) {
+        throw new Error('the radar was told about some of its names only');
+      }
+      const units = candidates.filter((_, i) => shown[i] === true).map(({ unit: u }) => u);
+      // Every other window stays a unit, untitled, beside its dot.
+      const written = new Set(units.map((u) => u.key));
       for (const marker of order) {
         const [mx, my] = toMap(view, marker.x, marker.z);
         const x = mx + LABEL.gap;
         const y = my - LABEL.height / 2;
-        if (!onScreen(x, y, LABEL)) {
+        if (written.has(marker.id) || !onScreen(x, y, LABEL)) {
           continue;
         }
         units.push(
           unit(marker.id, marker.label, x, y, LABEL, {
-            depth: marker.selected ? 3 : marker.focused ? 2 : 1,
-            emphasis: marker.selected
-              ? 'prominent'
-              : marker.side === 'behind'
-                ? 'quiet'
-                : undefined,
-            titled: marker.selected || marker.focused,
+            depth: 1,
+            emphasis: marker.side === 'behind' ? 'quiet' : undefined,
+            titled: false,
           }),
         );
       }
@@ -903,6 +976,8 @@ export class MapDrawer {
     const shown = models.labelsShown(
       visible.map(({ unit: u, name, kept }) => ({
         name: BigInt(name),
+        // Each name its own owner: no name may lie over another.
+        owner: BigInt(name),
         x: BigInt(Math.round(u.x)),
         y: BigInt(Math.round(u.y)),
         width: BigInt(Math.ceil(u.width)),

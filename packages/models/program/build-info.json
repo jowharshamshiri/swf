@@ -1,5 +1,5 @@
 {
-  "build_key": "d9ca49cd1de0786db7e8df529786f79a3a951625ce740c1b8dd0a5003338f341",
+  "build_key": "71e8c8fbbcd522ac2903e8a8e423157f8b3db67ee14d608aa6fcec14fe94156a",
   "lean_version": "4.35.0",
   "lean_githash": "eb6cafb7290e8bd5f2937522d8d804f58f02bafc",
   "bir_version": 3,
@@ -8,7 +8,7 @@
   "runtime_abi": 3,
   "worker_identity": "72c9b8a91fbad12998aaf7450234ae878b899b71569b19557121bfd28b049463",
   "input_digests": {
-    "Swf.lean": "fdc925385dd6dce41b16c79a57b0e32ea5a2bd75f62dd6b72792769daa3227ea",
+    "Swf.lean": "de12831ce0e2a9c21b580e7554ca371ee9543b13348752f6948bd1311732e423",
     "Swf/AppChallenge.lean": "746c6675931e4af153a180187045200a7dccf311831f61dc0940952dcecf6501",
     "Swf/AppComposition.lean": "7a6a673922943cc4f59b08b897196736d7263797709ddad1740240cb667b22db",
     "Swf/AppCursor.lean": "0dd3b5872225738d8c53e8833bf4b0395f0b808bebbbf5e532641172b2af802b",
@@ -17,7 +17,7 @@
     "Swf/AppFeatures.lean": "3780f0b9e775065f44abb759d40d276e3b5438145d70aa44ceeb3a3be4cb66c4",
     "Swf/AppFocus.lean": "c2c669684074486274cfaf9bcc37c8723e8bfff8ad4199223d26b6b5ff404f8a",
     "Swf/AppOrbit.lean": "52a1d039613f00b068a595be34237b4382f3e54db3d678e425c0f4753d0c1aa0",
-    "Swf/AppOverview.lean": "e1b952be9fc1b835696c787d71620c72532e418b0bb8bac18a78ac8b2e4b00de",
+    "Swf/AppOverview.lean": "380c039432403489d11fabd42bc534404504dd92f009da3730d5936b2e1d5f3c",
     "Swf/AppScenarios.lean": "3df1fb42dd429ef2a8869e49beac97ae69f69227d90f46234578a2c4684f6948",
     "Swf/AppSnap.lean": "830653c1678ea668fa06c7b45ce5faea62eac16354286f5686b9dbbfe1d940a6",
     "Swf/AppWheel.lean": "f381f9f0675a089a50bc88c9d4981c3f811f6f1e176535ad0ab9f4ad200018e1",
@@ -30,6 +30,7 @@
     "Swf/Json.lean": "efdc7f4f6f6e1c84ebac2b3fc39f887f8c3634cb87b10d5fe298635fa5a26631",
     "Swf/Kernel.lean": "1a5ae706818eeebb0fe5acf3440ba85475e4b2abea64e194787e905a9c860ebe",
     "Swf/Migration.lean": "939199ef7800c44b54bb3f8a0c903d0715824fcd411be1e5da58ba8d2fc80cde",
+    "Swf/Names.lean": "bd0519c15aab9b25beb80e2b3691fb0aff5d893445674d42c07ec1fc6ad65cc8",
     "Swf/Order.lean": "d65ee8fdfc534b32123a8c89e1ddf90e2bdc588e7a473762641a11d28c09311b",
     "Swf/Presenter.lean": "2cb636c9d1268450cd84cde787c2f827157dc79eaed929594ef42024cebdf790",
     "Swf/Save.lean": "232b29c02db841a7675e740890576313a54c8d4c8e384d7065cd33795fc8af00",
@@ -42,9 +43,9 @@
   "project": ".",
   "link_directives": [],
   "output_digests": {
-    "assurance.json": "7e56f78ab7a1434ef876e4e931192b7d9bc2202ac29e48d84c3ea22ba681a9a8",
-    "index.d.ts": "c1eb5f5dbb8876d8ea54e7fb828b946eb82bf44a07fd9df98d2d67d42ee03057",
-    "index.js": "61a2db90fe4cc2b91c29f3ee28ed76ee6f5581a1a400533c62a582863220d0dd"
+    "assurance.json": "04758453af0c04ded268fcaf3277dd976257fabe9d08bb5162979c55a9555bc2",
+    "index.d.ts": "02b2bdbdc982c4f31dc9f834946610cde7d7c1c7205d8eb07d75401ce96fa6f6",
+    "index.js": "c6a1f6d24ea783516427931777d75a6ffd4cd1785e5c07516eee0d95de00a5a0"
   },
   "platform_products": [
     "program.wasm"

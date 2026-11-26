@@ -123,13 +123,65 @@ describe('the shell (UX-001, UX-015)', () => {
       'worktree.view#developer',
       'page.scene.preset',
       'page.panorama',
-      'editor.actions.backend',
       'editor.actions.commands',
       'application.panel.tabs#status',
       'page.inspector',
     ]) {
       expect(driver.has(handle), handle).toBe(true);
     }
+  });
+
+  it('speaks the reader’s language: no term of the framework’s own in any label of the default views, in any mode', async () => {
+    const { model, root, settle } = await start('?preset=studio');
+    // Words a reader of the workspace is never asked to learn: the framework's own terms.
+    const TERMS =
+      /\b(surfaces?|fragments?|prox(y|ies)|placeholders?|backends?|DOM|viewports?|projections?|equirectangular|representations?|renderers?|compositors?|fallbacks?|native|raster|nodes?|bindings?|bound|unbound|adapters?|world units?|polic(y|ies)|modules?|stand-ins?|drawables?|kernel)\b/i;
+    const labelsOf = (element: Element): string[] => {
+      const found: string[] = [];
+      const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+      for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
+        const holder = node.parentElement;
+        // Text shown: in an element laid out, outside the windows' own content.
+        if (
+          holder !== null &&
+          holder.closest('[data-swf-slot]') === null &&
+          holder.getClientRects().length > 0 &&
+          getComputedStyle(holder).visibility !== 'hidden'
+        ) {
+          found.push(node.textContent ?? '');
+        }
+      }
+      for (const named of element.querySelectorAll('[aria-label], [title], [placeholder]')) {
+        if (named.closest('[data-swf-slot]') === null) {
+          for (const attribute of ['aria-label', 'title', 'placeholder']) {
+            found.push(named.getAttribute(attribute) ?? '');
+          }
+        }
+      }
+      return found;
+    };
+    const app = model.app;
+    if (app === null) {
+      throw new Error('the application has not started');
+    }
+    const [first] = [...app.workspace.getState().nodes.values()].filter(
+      (n) => n.kind === 'window' && n.label !== null,
+    );
+    if (first === undefined) {
+      throw new Error('the studio has no window');
+    }
+    await model.run('reference.window.inspect', { id: first.id });
+    const offending: string[] = [];
+    for (const mode of ['panorama', 'map', 'overview', 'focus', 'panorama'] as const) {
+      await model.run('reference.mode.switch', { mode });
+      await settle();
+      offending.push(
+        ...labelsOf(root)
+          .filter((label) => TERMS.test(label))
+          .map((label) => `${mode}: ${label.trim()}`),
+      );
+    }
+    expect([...new Set(offending)]).toEqual([]);
   });
 
   it('says every string from the message catalogue', async () => {
@@ -231,11 +283,13 @@ describe('command and search (UX-001)', () => {
 });
 
 describe('the panorama in the centre (UX-002)', () => {
-  it('switches the backend from the editor actions', async () => {
+  it('switches the backend from the developer view', async () => {
     // It reads the DOM backend's own elements: the DOM backend, by name.
     const { model, driver, settle } = await start('?preset=seam&backend=dom');
     expect(model.status?.backend).toBe('dom');
-    driver.act('editor.actions.backend#geometry', 'press');
+    driver.act('worktree.view#developer', 'press');
+    await settle();
+    driver.act('page.developer.backend#geometry', 'press');
     await expect.poll(() => model.status?.backend, { timeout: 5000 }).toBe('geometry');
     await settle();
   });
@@ -254,7 +308,6 @@ describe('the panorama in the centre (UX-002)', () => {
       expect(named, handle).toEqual([]);
     }
     // The view's commands end the head across the centre's top.
-    expect(driver.has('editor.actions.backend')).toBe(true);
     expect(driver.has('editor.actions.commands')).toBe(true);
   });
 });

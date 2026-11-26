@@ -219,7 +219,7 @@ const view = await presenter.open({
 });
 ```
 
-Reload. Two framed boxes appear, titled Notes and Tips, each saying “Unsupported: this content
+Reload. Two framed boxes appear, named Notes and Tips just above them, each saying “Unsupported: this content
 cannot be presented here”. The frames are the windows; the boxes are their surfaces, shown as
 stand-ins because no adapter of the type they name (`tutorial.element/1`) is registered yet, so
 nothing knows what `notes` and `tips` are.

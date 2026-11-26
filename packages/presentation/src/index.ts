@@ -99,6 +99,8 @@ export {
   representedOrder,
   REPRESENTATIONS,
 } from './representation.js';
+export type { NameObstacle, NameRequest, WindowName, WindowNames } from './names.js';
+export { NAME_MARK, placeNames, windowNames } from './names.js';
 export type { StandInReason, SurfaceCondition } from './conditions.js';
 export {
   conditionFor,
