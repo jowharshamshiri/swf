@@ -81,8 +81,10 @@ export function animationFrames(
 /**
  * Shows, in a viewport's container, that the viewport presents nothing and why: a status line of
  * text (`role="status"`), marked with the error's code in {@link DOM_ATTRIBUTES}`.degraded`, for
- * a presenter's `showDegraded`. The message is inserted as text, never markup. Returns what
- * removes the line again; the container stays the caller's.
+ * a presenter's `showDegraded`. The line takes no room in the container (it is positioned
+ * absolutely, where it would otherwise be), so what else the container holds is laid out as if it
+ * were not there. The message is inserted as text, never markup. Returns what removes the line
+ * again; the container stays the caller's.
  *
  * @throws {@link @swf/core!SwfFailure} `INVALID_INPUT` when the container is not an element.
  */
@@ -95,6 +97,9 @@ export function showDegraded(container: unknown, error: SwfError): () => void {
   const notice = container.ownerDocument.createElement('div');
   notice.setAttribute('role', 'status');
   notice.setAttribute(DOM_ATTRIBUTES.degraded, error.code);
+  // Out of the flow, where it would be in it: it takes no room, so a backend coming back lays
+  // its view out where it goes, not below the notice it takes away once the view is attached.
+  notice.style.position = 'absolute';
   // The message is text, never markup.
   notice.textContent = `Backend unavailable: ${error.message}`;
   container.append(notice);

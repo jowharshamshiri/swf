@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { commands } from 'vitest/browser';
-import { DOM_ATTRIBUTES } from '../../src/index.js';
+import { makeError } from '@swf/core';
+import { DOM_ATTRIBUTES, showDegraded } from '../../src/index.js';
 import type { Stage } from './fixture.js';
 import { drag, onWindow, pageOf, screenOf, stage } from './fixture.js';
 
@@ -71,5 +72,33 @@ describe('losing the renderer in an active scene (§33.2 scenario 6, NFR-013, §
     await commands.mouse('down', px, py);
     await commands.mouse('up', px, py);
     expect(live.received).toContainEqual({ type: 'click', trusted: true });
+  });
+});
+
+describe('the notice that a viewport is degraded', () => {
+  it('takes no room in its container: a view attached while it shows lies where it would without it', () => {
+    const container = document.createElement('div');
+    container.style.cssText = 'width: 300px; height: 200px; overflow: auto';
+    document.body.append(container);
+    try {
+      const hide = showDegraded(
+        container,
+        makeError('BACKEND_SWITCH_FAILED', 'nothing can render'),
+      );
+      // A backend coming back attaches its view before the notice is taken away.
+      const view = document.createElement('div');
+      view.style.cssText = 'position: relative; width: 300px; height: 200px';
+      container.append(view);
+      expect(view.getBoundingClientRect().top).toBe(container.getBoundingClientRect().top);
+      expect(container.scrollHeight).toBe(container.clientHeight);
+      // And it is still read: shown, over the top of the container.
+      const notice = container.querySelector(`[${DOM_ATTRIBUTES.degraded}]`);
+      expect(notice?.getBoundingClientRect().height).toBeGreaterThan(0);
+      expect(notice?.getBoundingClientRect().top).toBe(container.getBoundingClientRect().top);
+      hide();
+      expect(container.querySelector(`[${DOM_ATTRIBUTES.degraded}]`)).toBeNull();
+    } finally {
+      container.remove();
+    }
   });
 });

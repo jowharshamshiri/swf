@@ -747,7 +747,7 @@ export class DomRendererSession implements RendererSession {
         throw new SwfFailure(
           makeError(
             'UNSUPPORTED_CAPABILITY',
-            'the DOM renderer measures names in a 2D context of an OffscreenCanvas of the document’s window, which gives none',
+            'the document’s window gives no OffscreenCanvas 2D context to measure names in',
           ),
         );
       }
