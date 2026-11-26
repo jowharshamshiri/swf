@@ -406,7 +406,7 @@ export class DomRendererSession implements RendererSession {
       }
     });
     if (this.#chrome !== null) {
-      layers.push(this.#namesLayer(frame, chrome, usedElements));
+      layers.push(this.#namesLayer(frame, chrome, this.#chrome.inks, usedElements));
     }
     // Slots of surfaces not live here this frame stay in place, hidden, so their content is not
     // moved or reloaded; everything else unused goes.
@@ -625,23 +625,27 @@ export class DomRendererSession implements RendererSession {
    * The windows' names, flat over the view, each written where it can be read: wholly inside the
    * view, over no other window and over no other name (`placeNames`), on a plate of the ground
    * ink, in the selected or the focused window's ink for theirs. A name with no such place is not
-   * written.
+   * written. The names are painted in a layer of their own, so a name that moves repaints none of
+   * the windows under it.
    */
   #namesLayer(
     frame: RenderFrame,
     frames: ReadonlyMap<Id, ProjectedFragment>,
+    inks: ChromeInks,
     usedElements: Set<string>,
   ): CompositionLayer {
-    const chrome = this.#chrome;
-    if (chrome === null) {
-      throw new Error('names were written without chrome');
-    }
     const id = 'overlay:names';
     usedElements.add(id);
     const layer = this.#element(id, () => {
       const e = this.#document.createElement('div');
       e.setAttribute(DOM_ATTRIBUTES.layer, 'names');
-      style(e, { position: 'absolute', left: '0px', top: '0px', 'pointer-events': 'none' });
+      style(e, {
+        position: 'absolute',
+        left: '0px',
+        top: '0px',
+        'pointer-events': 'none',
+        'will-change': 'transform',
+      });
       return e;
     });
     const font = `${String(NAME.size)}px ${this.#fontFamily()}`;
@@ -680,12 +684,12 @@ export class DomRendererSession implements RendererSession {
       // The window keys act on stands out; a far window's name, shown by its label alone, is
       // quieter than a near one's.
       const ink = name.focused
-        ? chrome.inks.focused
+        ? inks.focused
         : name.selected
-          ? chrome.inks.selected
+          ? inks.selected
           : name.marked
-            ? chrome.inks.frame
-            : chrome.inks.text;
+            ? inks.frame
+            : inks.text;
       // Names are text, never markup.
       this.#write.text(span, name.text);
       this.#write.style(span, {
@@ -697,7 +701,7 @@ export class DomRendererSession implements RendererSession {
         font,
         'line-height': `${String(NAME.line)}px`,
         color: ink,
-        background: chrome.inks.ground,
+        background: inks.ground,
         outline: name.selected || name.focused ? `1px solid ${ink}` : 'none',
         'outline-offset': '-1px',
       });

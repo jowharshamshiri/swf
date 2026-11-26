@@ -51,8 +51,8 @@
   "@swf/backend-dom": {
     "budget": 7168,
     "recorded": {
-      "minified": 20160,
-      "gzip": 7162
+      "minified": 20101,
+      "gzip": 7163
     }
   },
   "@swf/backend-geometry": {

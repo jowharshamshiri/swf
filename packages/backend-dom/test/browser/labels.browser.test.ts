@@ -115,4 +115,20 @@ describe('the names’ cost', () => {
     expect(names?.length).toBeGreaterThan(5);
     expect(settings).toEqual({ document: 0, offscreen: 1 });
   });
+
+  it('paints the names in a layer of their own, so a name that moves repaints no window under it', async () => {
+    // Painted with the windows, every plate that moved had WebKit repaint the content under it:
+    // dragging a window over five hundred lost a quarter of its frames.
+    current = await stage([{ id: 'a', heading: 0, distance: 3, label: 'Ahead' }]);
+    const view = current.views.get('v');
+    await view?.update();
+    const layer = view?.root.querySelector<HTMLElement>(`[${DOM_ATTRIBUTES.layer}="names"]`);
+    if (layer === null || layer === undefined) {
+      throw new Error('no layer of names');
+    }
+    expect(
+      [...layer.querySelectorAll(`[${DOM_ATTRIBUTES.label}]`)].map((n) => n.textContent),
+    ).toEqual(['Ahead']);
+    expect(getComputedStyle(layer).willChange).toBe('transform');
+  });
 });
