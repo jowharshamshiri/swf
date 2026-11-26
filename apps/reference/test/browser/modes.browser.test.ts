@@ -446,8 +446,14 @@ describe('the spatial overview (FR-128, UX-005)', () => {
       root
         .querySelector(`[data-wsb="page.overview.board.unit#${id}"]`)
         ?.classList.contains('wsb-stage__unit--quiet');
+    const named = (id: string) =>
+      root
+        .querySelector(`[data-wsb="page.overview.board.unit#${id}"]`)
+        ?.classList.contains('wsb-stage__unit--titled');
     expect(quiet('board')).toBe(true);
+    expect(named('board')).toBe(false);
     expect(quiet('reading')).toBe(false);
+    expect(named('reading')).toBe(true);
     // Into a group of its own, a window's card says so, and the group is named beside the board.
     await app.commands.run('reference.window.regroup', {
       id: 'reading',

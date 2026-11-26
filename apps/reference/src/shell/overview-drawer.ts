@@ -15,8 +15,8 @@ import { CARD, layOverview, overviewScene } from '../overview.js';
  * the horizon across. Each window is a card where the overview model puts it (`layOverview`):
  * across the board exactly at its heading, as near its elevation as the cards beside it allow. A
  * card's strip is the colour of the group it is in; its frame is in the selection's colour while it
- * is selected and ringed while it is focused; a window the panorama does not show now, one its
- * group hides, and one the search leaves out are faded. Names and what each card says are the
+ * is selected and ringed while it is focused; a window the panorama does not show now, and one its
+ * group hides, are faded, and one the search leaves out is barely there, unnamed. Names and what each card says are the
  * stage's units, real text over the drawing.
  *
  * It is read from the scene, previews included, every time the scene changes, and keeps nothing
@@ -27,7 +27,7 @@ import { CARD, layOverview, overviewScene } from '../overview.js';
 /** The strip across the top of the board where its regions are named, in CSS pixels. */
 export const OVERVIEW_HEAD = 24;
 /** A card's coloured strip, in its own pixels. */
-const BAND = 5;
+const BAND = 7;
 /** A card's corner radius, in its own pixels. */
 const RADIUS = 4;
 /** Room for a region's name, in CSS pixels. */
@@ -335,10 +335,11 @@ export class OverviewDrawer {
     g.stroke();
     g.setLineDash([]);
 
-    const faded = (entry: OverviewEntry) =>
-      !entry.visible ||
-      !shown.has(entry.id) ||
-      (this.#found !== null && !this.#found.has(entry.id));
+    // Left out by the search: barely there. Not shown in the panorama now, or hidden by its
+    // group: faded.
+    const left = (entry: OverviewEntry) => this.#found !== null && !this.#found.has(entry.id);
+    const faded = (entry: OverviewEntry) => left(entry) || !entry.visible || !shown.has(entry.id);
+    const alpha = (entry: OverviewEntry) => (left(entry) ? 0.25 : faded(entry) ? 0.45 : 1);
     const units: StageUnit[] = [];
     const reading = (key: string, title: string, centre: number, x?: number) => {
       units.push({
@@ -373,7 +374,7 @@ export class OverviewDrawer {
     if (layout.kind === 'crowded') {
       // Too many for cards: each window a dot where it stands, and the list names them.
       for (const entry of scene.entries) {
-        g.globalAlpha = faded(entry) ? 0.35 : 1;
+        g.globalAlpha = alpha(entry);
         g.fillStyle = entry.selected ? ink.accent : ink.quiet;
         g.beginPath();
         g.arc(across(entry.heading), down(entry.elevation), DOT, 0, 2 * Math.PI);
@@ -401,7 +402,7 @@ export class OverviewDrawer {
         const w = layout.width;
         const h = layout.height;
         const radius = Math.min(RADIUS * scale, w / 4, h / 4);
-        g.globalAlpha = faded(entry) ? 0.4 : 1;
+        g.globalAlpha = alpha(entry);
         g.fillStyle = ink.card;
         g.beginPath();
         g.roundRect(x, y, w, h, radius);
@@ -413,7 +414,7 @@ export class OverviewDrawer {
         g.beginPath();
         g.roundRect(x, y, w, Math.max(2, BAND * scale), [radius, radius, 0, 0]);
         g.fill();
-        g.globalAlpha = faded(entry) ? 0.4 : 1;
+        g.globalAlpha = alpha(entry);
         g.strokeStyle = entry.selected ? ink.accent : ink.rule;
         g.lineWidth = entry.selected ? 2 : 1;
         g.beginPath();
@@ -428,7 +429,8 @@ export class OverviewDrawer {
           g.stroke();
         }
         boxes.push({ id: entry.id, x, y, width: w, height: h });
-        const titled = w >= TITLED;
+        // A card the search leaves out keeps its place, unnamed, so the ones it finds stand out.
+        const titled = w >= TITLED && !left(entry);
         const open = titled && scale >= OPEN;
         units.push({
           key: entry.id,
@@ -462,10 +464,13 @@ export class OverviewDrawer {
       side: t.format(entry.heading < 0 ? 'where.left' : 'where.right'),
       distance: Number(entry.distance.toFixed(1)),
     });
+    // Each said once: a group named as the category is one mark.
     const marks = [
-      ...(entry.group === null ? [] : [entry.group.label]),
-      ...(entry.category === null ? [] : [entry.category]),
-      ...(entry.parts > 1 ? [t.format('overview.parts', { count: entry.parts })] : []),
+      ...new Set([
+        ...(entry.group === null ? [] : [entry.group.label]),
+        ...(entry.category === null ? [] : [entry.category]),
+        ...(entry.parts > 1 ? [t.format('overview.parts', { count: entry.parts })] : []),
+      ]),
     ];
     const line = `<p><span>${escape(where)}</span></p>`;
     return marks.length === 0
