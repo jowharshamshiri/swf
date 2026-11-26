@@ -1048,16 +1048,16 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "ec93a14023d7b489d8df8b512e6fffe47768de3023a2243dc1ab35860b997ecb",
+      "fingerprint": "50a626cb350c6fe2a5567f14fd4f0acd229bd4e9221ea57cdbdea6635a9a7077",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppFeatures.lean",
         "start": {
-          "line": 303,
+          "line": 324,
           "column": 1
         },
         "end": {
-          "line": 328,
+          "line": 349,
           "column": 112
         }
       }
@@ -1081,16 +1081,16 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "3c44cede7d8e829d01031d940f96051e7984f87b5d0f4741562d815f5d88ecca",
+      "fingerprint": "97e10c81b2068447f34fa3c814fa720bd8964a24af725ea26e01a70b88c23b21",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppFeatures.lean",
         "start": {
-          "line": 373,
+          "line": 394,
           "column": 1
         },
         "end": {
-          "line": 388,
+          "line": 409,
           "column": 60
         }
       }
@@ -1114,16 +1114,16 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "7f19670531a66160fa6a13b5dde2e6c44922057aa78901a44ef4f4686d97edbe",
+      "fingerprint": "c8094d558648a74c4d87b475a2bf2c47a22a4981ac20b3e5f8f64af203949905",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppFeatures.lean",
         "start": {
-          "line": 366,
+          "line": 387,
           "column": 1
         },
         "end": {
-          "line": 371,
+          "line": 392,
           "column": 17
         }
       }
@@ -1147,16 +1147,16 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "5400138267d99b2bf88a37bc9bfed00a0c7ed1ab9dda35e5e5a44d8e8fa63b84",
+      "fingerprint": "e5ab2873c07994ad99cabce090a02d9ead145d89464bc72b5334dea9c1672206",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppFeatures.lean",
         "start": {
-          "line": 330,
+          "line": 351,
           "column": 1
         },
         "end": {
-          "line": 334,
+          "line": 355,
           "column": 86
         }
       }
@@ -1180,16 +1180,16 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "d1feaacee987826812c72ec53a1b16610b5ea3a15bf6b8e74ff7b37a3197536e",
+      "fingerprint": "3e9eb0648734f1da670f8985872e9f71408aaf92a2eb16807715042bbb0110ad",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppFeatures.lean",
         "start": {
-          "line": 343,
+          "line": 364,
           "column": 1
         },
         "end": {
-          "line": 364,
+          "line": 385,
           "column": 70
         }
       }
@@ -1213,16 +1213,16 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "bf040600c70b0b0177f8a29700e12178830c68c4576412a014b3242f046bf738",
+      "fingerprint": "30aa5745ae26b3df815975e8d26d322e958354b577a692c46fe9cabeed53fb20",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppFeatures.lean",
         "start": {
-          "line": 336,
+          "line": 357,
           "column": 1
         },
         "end": {
-          "line": 341,
+          "line": 362,
           "column": 81
         }
       }
@@ -1729,13 +1729,13 @@
       }
     },
     {
-      "name": "Swf.AppSnap.invalid_input_refused",
+      "name": "Swf.AppSnap.edge_keeps_distance",
       "relation": "lungo.law",
       "subjects": [
         "Swf.AppSnap.snapResolve"
       ],
       "specifications": [],
-      "statement": "∀ (movingId : String) (m : Swf.AppSnap.SnapSeen) (neighbours : Array Swf.AppSnap.SnapNeighbour)\n  (settings : Swf.AppFeatures.SnapSettings) (field : String),\n  Swf.AppSnap.snapInvalid m neighbours settings = some field →\n    Swf.AppSnap.snapResolve movingId m neighbours settings = Swf.AppSnap.SnapOutcome.invalid field",
+      "statement": "∀ (movingId : String) (m : Swf.AppSnap.SnapSeen) (neighbours : Array Swf.AppSnap.SnapNeighbour)\n  (settings : Swf.AppFeatures.SnapSettings) (rings : Array Float) (a d u : Option Swf.AppSnap.SnapCandidate),\n  Swf.AppSnap.snapResolve movingId m neighbours settings rings = Swf.AppSnap.SnapOutcome.snapped a d u →\n    Swf.AppSnap.edged a = true ∨ Swf.AppSnap.edged d = true → u = none",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -1747,16 +1747,49 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "b9104067f64a9687b10192edcdd5f62331579ef8bf1fe056a25a795e1478fcbb",
+      "fingerprint": "195b5df4109d3762b303929958e197247c1d12ab20386c84f3c8f0b8cdf82c41",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppSnap.lean",
         "start": {
-          "line": 438,
+          "line": 572,
           "column": 1
         },
         "end": {
-          "line": 443,
+          "line": 579,
+          "column": 43
+        }
+      }
+    },
+    {
+      "name": "Swf.AppSnap.invalid_input_refused",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppSnap.snapResolve"
+      ],
+      "specifications": [],
+      "statement": "∀ (movingId : String) (m : Swf.AppSnap.SnapSeen) (neighbours : Array Swf.AppSnap.SnapNeighbour)\n  (settings : Swf.AppFeatures.SnapSettings) (rings : Array Float) (field : String),\n  Swf.AppSnap.snapInvalid m neighbours settings rings = some field →\n    Swf.AppSnap.snapResolve movingId m neighbours settings rings = Swf.AppSnap.SnapOutcome.invalid field",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "b3b368490216e269367af5de62e1b732c6ea24af73d9438aa98b387d77f085c7",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppSnap.lean",
+        "start": {
+          "line": 505,
+          "column": 1
+        },
+        "end": {
+          "line": 510,
           "column": 25
         }
       }
@@ -1768,7 +1801,7 @@
         "Swf.AppSnap.snapResolve"
       ],
       "specifications": [],
-      "statement": "∀ (movingId : String) (m : Swf.AppSnap.SnapSeen) (neighbours : Array Swf.AppSnap.SnapNeighbour)\n  (settings : Swf.AppFeatures.SnapSettings) (a d : Option Swf.AppSnap.SnapCandidate),\n  Swf.AppSnap.snapResolve movingId m neighbours settings = Swf.AppSnap.SnapOutcome.snapped a d →\n    ∀ (c : Swf.AppSnap.SnapCandidate) (o : Swf.AppSnap.SnapOption),\n      o ∈ Swf.AppSnap.snapOptions movingId m neighbours settings →\n        o.reachable = true →\n          o.axis = Swf.AppSnap.SnapAxis.across ∧ a = some c ∨ o.axis = Swf.AppSnap.SnapAxis.down ∧ d = some c →\n            ¬(Swf.Order.magnitudeKey o.candidate.delta < Swf.Order.magnitudeKey c.delta ∨\n                Swf.Order.magnitudeKey o.candidate.delta = Swf.Order.magnitudeKey c.delta ∧\n                  o.candidate.constraint.rank < c.constraint.rank)",
+      "statement": "∀ (movingId : String) (m : Swf.AppSnap.SnapSeen) (neighbours : Array Swf.AppSnap.SnapNeighbour)\n  (settings : Swf.AppFeatures.SnapSettings) (rings : Array Float) (a d u : Option Swf.AppSnap.SnapCandidate),\n  Swf.AppSnap.snapResolve movingId m neighbours settings rings = Swf.AppSnap.SnapOutcome.snapped a d u →\n    ∀ (c : Swf.AppSnap.SnapCandidate) (o : Swf.AppSnap.SnapOption),\n      o ∈ Swf.AppSnap.snapOptions movingId m neighbours settings rings →\n        o.reachable = true →\n          o.axis = Swf.AppSnap.SnapAxis.across ∧ a = some c ∨\n              o.axis = Swf.AppSnap.SnapAxis.down ∧ d = some c ∨ o.axis = Swf.AppSnap.SnapAxis.out ∧ u = some c →\n            ¬(Swf.Order.magnitudeKey o.candidate.delta < Swf.Order.magnitudeKey c.delta ∨\n                Swf.Order.magnitudeKey o.candidate.delta = Swf.Order.magnitudeKey c.delta ∧\n                  o.candidate.constraint.rank < c.constraint.rank)",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -1780,17 +1813,83 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "2f889b15a15fa3eb124653deff02baac05a7da3e096f8ea1ac20bff446bcd1d7",
+      "fingerprint": "73329d6781a4ea472a94ef4f1e69e1fe368a5234da538e9b2f5f1775f9cf592f",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppSnap.lean",
         "start": {
-          "line": 375,
+          "line": 434,
           "column": 1
         },
         "end": {
-          "line": 398,
-          "column": 10
+          "line": 463,
+          "column": 12
+        }
+      }
+    },
+    {
+      "name": "Swf.AppSnap.no_spoke_without_spokes",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppSnap.snapResolve"
+      ],
+      "specifications": [],
+      "statement": "∀ (movingId : String) (m : Swf.AppSnap.SnapSeen) (neighbours : Array Swf.AppSnap.SnapNeighbour)\n  (settings : Swf.AppFeatures.SnapSettings) (rings : Array Float) (a d u : Option Swf.AppSnap.SnapCandidate),\n  Swf.AppSnap.snapResolve movingId m neighbours settings rings = Swf.AppSnap.SnapOutcome.snapped a d u →\n    ¬settings.spoke * (Swf.AppSnap.pi / 180) > 0 →\n      ∀ (c : Swf.AppSnap.SnapCandidate), a = some c → c.constraint ≠ Swf.AppSnap.SnapConstraint.spoke",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "839abd4cc568f0576989ecf68b41bf387f6940eb28ac0d201ee724d6a7795efa",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppSnap.lean",
+        "start": {
+          "line": 551,
+          "column": 1
+        },
+        "end": {
+          "line": 570,
+          "column": 29
+        }
+      }
+    },
+    {
+      "name": "Swf.AppSnap.ring_snap_reaches_a_ring",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppSnap.snapResolve"
+      ],
+      "specifications": [],
+      "statement": "∀ (movingId : String) (m : Swf.AppSnap.SnapSeen) (neighbours : Array Swf.AppSnap.SnapNeighbour)\n  (settings : Swf.AppFeatures.SnapSettings) (rings : Array Float) (a d u : Option Swf.AppSnap.SnapCandidate),\n  Swf.AppSnap.snapResolve movingId m neighbours settings rings = Swf.AppSnap.SnapOutcome.snapped a d u →\n    ∀ (c : Swf.AppSnap.SnapCandidate),\n      u = some c →\n        ∃ i, i < rings.size ∧ c.constraint = Swf.AppSnap.SnapConstraint.ring i ∧ c.delta = rings[i]! - m.distance",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "47c2199332afbd0612abdcb3d476f7efb3a652a857f9da8fd87f3fc36643d28b",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppSnap.lean",
+        "start": {
+          "line": 540,
+          "column": 1
+        },
+        "end": {
+          "line": 549,
+          "column": 72
         }
       }
     },
@@ -1801,7 +1900,7 @@
         "Swf.AppSnap.snapResolve"
       ],
       "specifications": [],
-      "statement": "∀ (movingId : String) (m : Swf.AppSnap.SnapSeen) (neighbours : Array Swf.AppSnap.SnapNeighbour)\n  (settings : Swf.AppFeatures.SnapSettings) (a d : Option Swf.AppSnap.SnapCandidate),\n  Swf.AppSnap.snapResolve movingId m neighbours settings = Swf.AppSnap.SnapOutcome.snapped a d →\n    (∀ (c : Swf.AppSnap.SnapCandidate),\n        a = some c →\n          ∃ o,\n            o ∈ Swf.AppSnap.snapOptions movingId m neighbours settings ∧\n              o.axis = Swf.AppSnap.SnapAxis.across ∧ o.candidate = c ∧ o.reachable = true) ∧\n      ∀ (c : Swf.AppSnap.SnapCandidate),\n        d = some c →\n          ∃ o,\n            o ∈ Swf.AppSnap.snapOptions movingId m neighbours settings ∧\n              o.axis = Swf.AppSnap.SnapAxis.down ∧ o.candidate = c ∧ o.reachable = true",
+      "statement": "∀ (movingId : String) (m : Swf.AppSnap.SnapSeen) (neighbours : Array Swf.AppSnap.SnapNeighbour)\n  (settings : Swf.AppFeatures.SnapSettings) (rings : Array Float) (a d u : Option Swf.AppSnap.SnapCandidate),\n  Swf.AppSnap.snapResolve movingId m neighbours settings rings = Swf.AppSnap.SnapOutcome.snapped a d u →\n    ∀ (axis : Swf.AppSnap.SnapAxis) (c : Swf.AppSnap.SnapCandidate),\n      axis = Swf.AppSnap.SnapAxis.across ∧ a = some c ∨\n          axis = Swf.AppSnap.SnapAxis.down ∧ d = some c ∨ axis = Swf.AppSnap.SnapAxis.out ∧ u = some c →\n        ∃ o,\n          o ∈ Swf.AppSnap.snapOptions movingId m neighbours settings rings ∧\n            o.axis = axis ∧ o.candidate = c ∧ o.reachable = true",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -1813,17 +1912,17 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "911d98ec5f51aeb3453257f2a71c8af61bb6e324299808e6c13ae529e0b32cb7",
+      "fingerprint": "a43fd6b0659e04deecea2f919523ad616721c8446078438498024e3d58f9c4ae",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppSnap.lean",
         "start": {
-          "line": 314,
+          "line": 368,
           "column": 1
         },
         "end": {
-          "line": 335,
-          "column": 31
+          "line": 392,
+          "column": 24
         }
       }
     },
@@ -1834,7 +1933,7 @@
         "Swf.AppSnap.snapResolve"
       ],
       "specifications": [],
-      "statement": "∀ (movingId : String) (m : Swf.AppSnap.SnapSeen) (neighbours : Array Swf.AppSnap.SnapNeighbour)\n  (settings : Swf.AppFeatures.SnapSettings) (a d : Option Swf.AppSnap.SnapCandidate),\n  Swf.AppSnap.snapResolve movingId m neighbours settings = Swf.AppSnap.SnapOutcome.snapped a d →\n    ∀ (c : Swf.AppSnap.SnapCandidate),\n      a = some c ∨ d = some c →\n        ∃ o,\n          o ∈ Swf.AppSnap.snapOptions movingId m neighbours settings ∧\n            o.candidate = c ∧ ↑(Swf.Order.magnitudeKey o.distance) ≤ Swf.Order.floatKey o.threshold",
+      "statement": "∀ (movingId : String) (m : Swf.AppSnap.SnapSeen) (neighbours : Array Swf.AppSnap.SnapNeighbour)\n  (settings : Swf.AppFeatures.SnapSettings) (rings : Array Float) (a d u : Option Swf.AppSnap.SnapCandidate),\n  Swf.AppSnap.snapResolve movingId m neighbours settings rings = Swf.AppSnap.SnapOutcome.snapped a d u →\n    ∀ (c : Swf.AppSnap.SnapCandidate),\n      a = some c ∨ d = some c ∨ u = some c →\n        ∃ o,\n          o ∈ Swf.AppSnap.snapOptions movingId m neighbours settings rings ∧\n            o.candidate = c ∧ ↑(Swf.Order.magnitudeKey o.distance) ≤ Swf.Order.floatKey o.threshold",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -1846,16 +1945,16 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "b8d507ba3b53ff1e6dfbff7b0485499401c51f8cadec5567a797c80d35745d42",
+      "fingerprint": "e4bf7d43c5f1007bbcafe42701eef5a9c274b4eb7755515f7bd9d1336e196d02",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppSnap.lean",
         "start": {
-          "line": 337,
+          "line": 394,
           "column": 1
         },
         "end": {
-          "line": 350,
+          "line": 409,
           "column": 64
         }
       }
@@ -1867,7 +1966,7 @@
         "Swf.AppSnap.snapResolve"
       ],
       "specifications": [],
-      "statement": "∀ (movingId : String) (m : Swf.AppSnap.SnapSeen) (neighbours : Array Swf.AppSnap.SnapNeighbour)\n  (settings : Swf.AppFeatures.SnapSettings),\n  Swf.AppSnap.snapInvalid m neighbours settings = none →\n    ¬m.distance > 0 → Swf.AppSnap.snapResolve movingId m neighbours settings = Swf.AppSnap.SnapOutcome.unsnapped",
+      "statement": "∀ (movingId : String) (m : Swf.AppSnap.SnapSeen) (neighbours : Array Swf.AppSnap.SnapNeighbour)\n  (settings : Swf.AppFeatures.SnapSettings) (rings : Array Float),\n  Swf.AppSnap.snapInvalid m neighbours settings rings = none →\n    ¬m.distance > 0 → Swf.AppSnap.snapResolve movingId m neighbours settings rings = Swf.AppSnap.SnapOutcome.unsnapped",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -1879,16 +1978,16 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "1f7698f2763c13f9debf9e12062b9e7e61c6037d5ebf36433defc575a87a053a",
+      "fingerprint": "80d4e1b7780d0cad48f60d059a217a8764c8dd8421e44e79396a6173396caba1",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppSnap.lean",
         "start": {
-          "line": 431,
+          "line": 498,
           "column": 1
         },
         "end": {
-          "line": 436,
+          "line": 503,
           "column": 29
         }
       }
@@ -1900,7 +1999,7 @@
         "Swf.AppSnap.snapResolve"
       ],
       "specifications": [],
-      "statement": "∀ (movingId : String) (m : Swf.AppSnap.SnapSeen) (neighbours : Array Swf.AppSnap.SnapNeighbour)\n  (settings : Swf.AppFeatures.SnapSettings),\n  Swf.AppSnap.snapInvalid m neighbours settings = none →\n    m.distance > 0 →\n      (Swf.AppSnap.snapResolve movingId m neighbours settings = Swf.AppSnap.SnapOutcome.unsnapped ↔\n        ∀ (o : Swf.AppSnap.SnapOption),\n          o ∈ Swf.AppSnap.snapOptions movingId m neighbours settings → o.reachable = false)",
+      "statement": "∀ (movingId : String) (m : Swf.AppSnap.SnapSeen) (neighbours : Array Swf.AppSnap.SnapNeighbour)\n  (settings : Swf.AppFeatures.SnapSettings) (rings : Array Float),\n  Swf.AppSnap.snapInvalid m neighbours settings rings = none →\n    m.distance > 0 →\n      (Swf.AppSnap.snapResolve movingId m neighbours settings rings = Swf.AppSnap.SnapOutcome.unsnapped ↔\n        ∀ (o : Swf.AppSnap.SnapOption),\n          o ∈ Swf.AppSnap.snapOptions movingId m neighbours settings rings → o.reachable = false)",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -1912,17 +2011,17 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "a752ff580854a8102506c15552141641a779f6c30726401376eddd1cfee26ffe",
+      "fingerprint": "be1c1ef985bf071f809f83e4049192b4f62eaaeb2d19928c83b5c1cae09a4feb",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppSnap.lean",
         "start": {
-          "line": 400,
+          "line": 465,
           "column": 1
         },
         "end": {
-          "line": 429,
-          "column": 18
+          "line": 496,
+          "column": 38
         }
       }
     },
@@ -6117,11 +6216,11 @@
         "package": "swf_models",
         "file": "Swf/AppFeatures.lean",
         "start": {
-          "line": 206,
+          "line": 220,
           "column": 1
         },
         "end": {
-          "line": 213,
+          "line": 227,
           "column": 45
         }
       }
@@ -6373,12 +6472,16 @@
           "lean_uint64_of_nat_mk",
           "lean_uint64_to_float",
           "lean_uint64_to_nat",
-          "lean_usize_of_nat"
+          "lean_usize_of_nat",
+          "round"
         ]
       },
       "claims": [
+        "Swf.AppSnap.edge_keeps_distance",
         "Swf.AppSnap.invalid_input_refused",
         "Swf.AppSnap.nearest_wins",
+        "Swf.AppSnap.no_spoke_without_spokes",
+        "Swf.AppSnap.ring_snap_reaches_a_ring",
         "Swf.AppSnap.snap_is_candidate",
         "Swf.AppSnap.snap_within_threshold",
         "Swf.AppSnap.unseen_no_snap",
@@ -6391,11 +6494,11 @@
         "package": "swf_models",
         "file": "Swf/AppSnap.lean",
         "start": {
-          "line": 213,
+          "line": 254,
           "column": 1
         },
         "end": {
-          "line": 225,
+          "line": 266,
           "column": 80
         }
       }

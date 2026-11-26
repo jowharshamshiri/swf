@@ -13,10 +13,10 @@
     "Swf/AppComposition.lean": "134595b34019753a47a70c3c5a7666d55d4d82eceecfc810a4a549eaf608ed25",
     "Swf/AppCursor.lean": "0dd3b5872225738d8c53e8833bf4b0395f0b808bebbbf5e532641172b2af802b",
     "Swf/AppDepth.lean": "25f2b92dc3e1f676b790e6dfccf260704a0769d9580435933de89c9eb9c10b5e",
-    "Swf/AppFeatures.lean": "97994e88febf9e569659d48feddc888cbe531a7f318c21504eadfc92dddbe3dd",
+    "Swf/AppFeatures.lean": "3780f0b9e775065f44abb759d40d276e3b5438145d70aa44ceeb3a3be4cb66c4",
     "Swf/AppOrbit.lean": "52a1d039613f00b068a595be34237b4382f3e54db3d678e425c0f4753d0c1aa0",
     "Swf/AppScenarios.lean": "3df1fb42dd429ef2a8869e49beac97ae69f69227d90f46234578a2c4684f6948",
-    "Swf/AppSnap.lean": "84a06501409c1a3b160e21efac2746f806d746e7021706d2addd76570515d1d6",
+    "Swf/AppSnap.lean": "830653c1678ea668fa06c7b45ce5faea62eac16354286f5686b9dbbfe1d940a6",
     "Swf/AppWheel.lean": "f381f9f0675a089a50bc88c9d4981c3f811f6f1e176535ad0ab9f4ad200018e1",
     "Swf/AppWorkspaces.lean": "44b79442c01be58764578405e8d63024e287c856db6d080c394be4652d859b18",
     "Swf/Arbitration.lean": "47ef2f12b3479a3ca4a066653f2c8f5010b5cea840dd1c0fa40d69bca01a8de0",
@@ -39,9 +39,9 @@
   "project": ".",
   "link_directives": [],
   "output_digests": {
-    "assurance.json": "6700de3498c8b7b939f379ee716fb852223de15acf4124b62500b84a3114c732",
-    "index.d.ts": "fc9ae8b1edb2ab13dfeca65fbcf1b12a8cf74285b935c0ed5b3964718cb144ce",
-    "index.js": "78579cf817c86636e416c49fc33c59d7edbb971f0ae4516587d1ff74d0ceff86"
+    "assurance.json": "8494fb7ae67777f1a719a14dbaedc4b90a03ca4fa2e326a3f0e4daf041b3af97",
+    "index.d.ts": "5d9f98ef9fd7197b2bac48f21e4ec8da54ee2757d73a3fb55d8a4caa20453bc5",
+    "index.js": "be20a3c2bd3dbebd10e97e338ae8f3c04c00eb67cb710201dedbcc05f5e62103"
   },
   "platform_products": [
     "program.wasm"

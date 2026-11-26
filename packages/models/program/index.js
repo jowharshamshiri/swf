@@ -733,11 +733,13 @@ export function snapSettingsType() {
       L.FLOAT.encode(w, v.linear);
       L.FLOAT.encode(w, v.angular);
       L.FLOAT.encode(w, v.padding);
+      L.FLOAT.encode(w, v.spoke);
+      L.FLOAT.encode(w, v.ring);
     },
     (r) => {
       const c = r.u32();
       if (c !== 0) throw new L.MalformedError(`constructor index ${c} of Swf.AppFeatures.SnapSettings`);
-      return ({ linear: L.FLOAT.decode(r), angular: L.FLOAT.decode(r), padding: L.FLOAT.decode(r) });
+      return ({ linear: L.FLOAT.decode(r), angular: L.FLOAT.decode(r), padding: L.FLOAT.decode(r), spoke: L.FLOAT.decode(r), ring: L.FLOAT.decode(r) });
     },
   );
 }
@@ -756,6 +758,7 @@ export function snapOutcomeType() {
           w.u32(1);
           L.option(snapCandidateType()).encode(w, v.across);
           L.option(snapCandidateType()).encode(w, v.down);
+          L.option(snapCandidateType()).encode(w, v.out);
           return;
         case "invalid":
           w.u32(2);
@@ -769,7 +772,7 @@ export function snapOutcomeType() {
       const c = r.u32();
       switch (c) {
         case 0: return ({ kind: "unsnapped" });
-        case 1: return ({ kind: "snapped", across: L.option(snapCandidateType()).decode(r), down: L.option(snapCandidateType()).decode(r) });
+        case 1: return ({ kind: "snapped", across: L.option(snapCandidateType()).decode(r), down: L.option(snapCandidateType()).decode(r), out: L.option(snapCandidateType()).decode(r) });
         case 2: return ({ kind: "invalid", field: L.STRING.decode(r) });
         default: throw new L.MalformedError(`constructor index ${c} of Swf.AppSnap.SnapOutcome`);
       }
@@ -3757,6 +3760,13 @@ export function snapConstraintType() {
         case "horizon":
           w.u32(2);
           return;
+        case "spoke":
+          w.u32(3);
+          return;
+        case "ring":
+          w.u32(4);
+          L.NAT.encode(w, v.ring);
+          return;
         default:
           throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.AppSnap.SnapConstraint`);
       }
@@ -3767,6 +3777,8 @@ export function snapConstraintType() {
         case 0: return ({ kind: "edge", side: snapSideType().decode(r), neighbour: L.NAT.decode(r) });
         case 1: return ({ kind: "align", line: snapLineType().decode(r), neighbour: L.NAT.decode(r) });
         case 2: return ({ kind: "horizon" });
+        case 3: return ({ kind: "spoke" });
+        case 4: return ({ kind: "ring", ring: L.NAT.decode(r) });
         default: throw new L.MalformedError(`constructor index ${c} of Swf.AppSnap.SnapConstraint`);
       }
     },
@@ -5067,16 +5079,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "ec93a14023d7b489d8df8b512e6fffe47768de3023a2243dc1ab35860b997ecb",
+      "fingerprint": "50a626cb350c6fe2a5567f14fd4f0acd229bd4e9221ea57cdbdea6635a9a7077",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppFeatures.lean",
         "start": {
-          "line": 303,
+          "line": 324,
           "column": 1
         },
         "end": {
-          "line": 328,
+          "line": 349,
           "column": 112
         }
       }
@@ -5100,16 +5112,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "3c44cede7d8e829d01031d940f96051e7984f87b5d0f4741562d815f5d88ecca",
+      "fingerprint": "97e10c81b2068447f34fa3c814fa720bd8964a24af725ea26e01a70b88c23b21",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppFeatures.lean",
         "start": {
-          "line": 373,
+          "line": 394,
           "column": 1
         },
         "end": {
-          "line": 388,
+          "line": 409,
           "column": 60
         }
       }
@@ -5133,16 +5145,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "7f19670531a66160fa6a13b5dde2e6c44922057aa78901a44ef4f4686d97edbe",
+      "fingerprint": "c8094d558648a74c4d87b475a2bf2c47a22a4981ac20b3e5f8f64af203949905",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppFeatures.lean",
         "start": {
-          "line": 366,
+          "line": 387,
           "column": 1
         },
         "end": {
-          "line": 371,
+          "line": 392,
           "column": 17
         }
       }
@@ -5166,16 +5178,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "5400138267d99b2bf88a37bc9bfed00a0c7ed1ab9dda35e5e5a44d8e8fa63b84",
+      "fingerprint": "e5ab2873c07994ad99cabce090a02d9ead145d89464bc72b5334dea9c1672206",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppFeatures.lean",
         "start": {
-          "line": 330,
+          "line": 351,
           "column": 1
         },
         "end": {
-          "line": 334,
+          "line": 355,
           "column": 86
         }
       }
@@ -5199,16 +5211,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "d1feaacee987826812c72ec53a1b16610b5ea3a15bf6b8e74ff7b37a3197536e",
+      "fingerprint": "3e9eb0648734f1da670f8985872e9f71408aaf92a2eb16807715042bbb0110ad",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppFeatures.lean",
         "start": {
-          "line": 343,
+          "line": 364,
           "column": 1
         },
         "end": {
-          "line": 364,
+          "line": 385,
           "column": 70
         }
       }
@@ -5232,16 +5244,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "bf040600c70b0b0177f8a29700e12178830c68c4576412a014b3242f046bf738",
+      "fingerprint": "30aa5745ae26b3df815975e8d26d322e958354b577a692c46fe9cabeed53fb20",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppFeatures.lean",
         "start": {
-          "line": 336,
+          "line": 357,
           "column": 1
         },
         "end": {
-          "line": 341,
+          "line": 362,
           "column": 81
         }
       }
@@ -5748,13 +5760,13 @@ export const ASSURANCE = L.parseAssurance({
       }
     },
     {
-      "name": "Swf.AppSnap.invalid_input_refused",
+      "name": "Swf.AppSnap.edge_keeps_distance",
       "relation": "lungo.law",
       "subjects": [
         "Swf.AppSnap.snapResolve"
       ],
       "specifications": [],
-      "statement": "∀ (movingId : String) (m : Swf.AppSnap.SnapSeen) (neighbours : Array Swf.AppSnap.SnapNeighbour)\n  (settings : Swf.AppFeatures.SnapSettings) (field : String),\n  Swf.AppSnap.snapInvalid m neighbours settings = some field →\n    Swf.AppSnap.snapResolve movingId m neighbours settings = Swf.AppSnap.SnapOutcome.invalid field",
+      "statement": "∀ (movingId : String) (m : Swf.AppSnap.SnapSeen) (neighbours : Array Swf.AppSnap.SnapNeighbour)\n  (settings : Swf.AppFeatures.SnapSettings) (rings : Array Float) (a d u : Option Swf.AppSnap.SnapCandidate),\n  Swf.AppSnap.snapResolve movingId m neighbours settings rings = Swf.AppSnap.SnapOutcome.snapped a d u →\n    Swf.AppSnap.edged a = true ∨ Swf.AppSnap.edged d = true → u = none",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -5766,16 +5778,49 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "b9104067f64a9687b10192edcdd5f62331579ef8bf1fe056a25a795e1478fcbb",
+      "fingerprint": "195b5df4109d3762b303929958e197247c1d12ab20386c84f3c8f0b8cdf82c41",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppSnap.lean",
         "start": {
-          "line": 438,
+          "line": 572,
           "column": 1
         },
         "end": {
-          "line": 443,
+          "line": 579,
+          "column": 43
+        }
+      }
+    },
+    {
+      "name": "Swf.AppSnap.invalid_input_refused",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppSnap.snapResolve"
+      ],
+      "specifications": [],
+      "statement": "∀ (movingId : String) (m : Swf.AppSnap.SnapSeen) (neighbours : Array Swf.AppSnap.SnapNeighbour)\n  (settings : Swf.AppFeatures.SnapSettings) (rings : Array Float) (field : String),\n  Swf.AppSnap.snapInvalid m neighbours settings rings = some field →\n    Swf.AppSnap.snapResolve movingId m neighbours settings rings = Swf.AppSnap.SnapOutcome.invalid field",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "b3b368490216e269367af5de62e1b732c6ea24af73d9438aa98b387d77f085c7",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppSnap.lean",
+        "start": {
+          "line": 505,
+          "column": 1
+        },
+        "end": {
+          "line": 510,
           "column": 25
         }
       }
@@ -5787,7 +5832,7 @@ export const ASSURANCE = L.parseAssurance({
         "Swf.AppSnap.snapResolve"
       ],
       "specifications": [],
-      "statement": "∀ (movingId : String) (m : Swf.AppSnap.SnapSeen) (neighbours : Array Swf.AppSnap.SnapNeighbour)\n  (settings : Swf.AppFeatures.SnapSettings) (a d : Option Swf.AppSnap.SnapCandidate),\n  Swf.AppSnap.snapResolve movingId m neighbours settings = Swf.AppSnap.SnapOutcome.snapped a d →\n    ∀ (c : Swf.AppSnap.SnapCandidate) (o : Swf.AppSnap.SnapOption),\n      o ∈ Swf.AppSnap.snapOptions movingId m neighbours settings →\n        o.reachable = true →\n          o.axis = Swf.AppSnap.SnapAxis.across ∧ a = some c ∨ o.axis = Swf.AppSnap.SnapAxis.down ∧ d = some c →\n            ¬(Swf.Order.magnitudeKey o.candidate.delta < Swf.Order.magnitudeKey c.delta ∨\n                Swf.Order.magnitudeKey o.candidate.delta = Swf.Order.magnitudeKey c.delta ∧\n                  o.candidate.constraint.rank < c.constraint.rank)",
+      "statement": "∀ (movingId : String) (m : Swf.AppSnap.SnapSeen) (neighbours : Array Swf.AppSnap.SnapNeighbour)\n  (settings : Swf.AppFeatures.SnapSettings) (rings : Array Float) (a d u : Option Swf.AppSnap.SnapCandidate),\n  Swf.AppSnap.snapResolve movingId m neighbours settings rings = Swf.AppSnap.SnapOutcome.snapped a d u →\n    ∀ (c : Swf.AppSnap.SnapCandidate) (o : Swf.AppSnap.SnapOption),\n      o ∈ Swf.AppSnap.snapOptions movingId m neighbours settings rings →\n        o.reachable = true →\n          o.axis = Swf.AppSnap.SnapAxis.across ∧ a = some c ∨\n              o.axis = Swf.AppSnap.SnapAxis.down ∧ d = some c ∨ o.axis = Swf.AppSnap.SnapAxis.out ∧ u = some c →\n            ¬(Swf.Order.magnitudeKey o.candidate.delta < Swf.Order.magnitudeKey c.delta ∨\n                Swf.Order.magnitudeKey o.candidate.delta = Swf.Order.magnitudeKey c.delta ∧\n                  o.candidate.constraint.rank < c.constraint.rank)",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -5799,17 +5844,83 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "2f889b15a15fa3eb124653deff02baac05a7da3e096f8ea1ac20bff446bcd1d7",
+      "fingerprint": "73329d6781a4ea472a94ef4f1e69e1fe368a5234da538e9b2f5f1775f9cf592f",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppSnap.lean",
         "start": {
-          "line": 375,
+          "line": 434,
           "column": 1
         },
         "end": {
-          "line": 398,
-          "column": 10
+          "line": 463,
+          "column": 12
+        }
+      }
+    },
+    {
+      "name": "Swf.AppSnap.no_spoke_without_spokes",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppSnap.snapResolve"
+      ],
+      "specifications": [],
+      "statement": "∀ (movingId : String) (m : Swf.AppSnap.SnapSeen) (neighbours : Array Swf.AppSnap.SnapNeighbour)\n  (settings : Swf.AppFeatures.SnapSettings) (rings : Array Float) (a d u : Option Swf.AppSnap.SnapCandidate),\n  Swf.AppSnap.snapResolve movingId m neighbours settings rings = Swf.AppSnap.SnapOutcome.snapped a d u →\n    ¬settings.spoke * (Swf.AppSnap.pi / 180) > 0 →\n      ∀ (c : Swf.AppSnap.SnapCandidate), a = some c → c.constraint ≠ Swf.AppSnap.SnapConstraint.spoke",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "839abd4cc568f0576989ecf68b41bf387f6940eb28ac0d201ee724d6a7795efa",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppSnap.lean",
+        "start": {
+          "line": 551,
+          "column": 1
+        },
+        "end": {
+          "line": 570,
+          "column": 29
+        }
+      }
+    },
+    {
+      "name": "Swf.AppSnap.ring_snap_reaches_a_ring",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppSnap.snapResolve"
+      ],
+      "specifications": [],
+      "statement": "∀ (movingId : String) (m : Swf.AppSnap.SnapSeen) (neighbours : Array Swf.AppSnap.SnapNeighbour)\n  (settings : Swf.AppFeatures.SnapSettings) (rings : Array Float) (a d u : Option Swf.AppSnap.SnapCandidate),\n  Swf.AppSnap.snapResolve movingId m neighbours settings rings = Swf.AppSnap.SnapOutcome.snapped a d u →\n    ∀ (c : Swf.AppSnap.SnapCandidate),\n      u = some c →\n        ∃ i, i < rings.size ∧ c.constraint = Swf.AppSnap.SnapConstraint.ring i ∧ c.delta = rings[i]! - m.distance",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "47c2199332afbd0612abdcb3d476f7efb3a652a857f9da8fd87f3fc36643d28b",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppSnap.lean",
+        "start": {
+          "line": 540,
+          "column": 1
+        },
+        "end": {
+          "line": 549,
+          "column": 72
         }
       }
     },
@@ -5820,7 +5931,7 @@ export const ASSURANCE = L.parseAssurance({
         "Swf.AppSnap.snapResolve"
       ],
       "specifications": [],
-      "statement": "∀ (movingId : String) (m : Swf.AppSnap.SnapSeen) (neighbours : Array Swf.AppSnap.SnapNeighbour)\n  (settings : Swf.AppFeatures.SnapSettings) (a d : Option Swf.AppSnap.SnapCandidate),\n  Swf.AppSnap.snapResolve movingId m neighbours settings = Swf.AppSnap.SnapOutcome.snapped a d →\n    (∀ (c : Swf.AppSnap.SnapCandidate),\n        a = some c →\n          ∃ o,\n            o ∈ Swf.AppSnap.snapOptions movingId m neighbours settings ∧\n              o.axis = Swf.AppSnap.SnapAxis.across ∧ o.candidate = c ∧ o.reachable = true) ∧\n      ∀ (c : Swf.AppSnap.SnapCandidate),\n        d = some c →\n          ∃ o,\n            o ∈ Swf.AppSnap.snapOptions movingId m neighbours settings ∧\n              o.axis = Swf.AppSnap.SnapAxis.down ∧ o.candidate = c ∧ o.reachable = true",
+      "statement": "∀ (movingId : String) (m : Swf.AppSnap.SnapSeen) (neighbours : Array Swf.AppSnap.SnapNeighbour)\n  (settings : Swf.AppFeatures.SnapSettings) (rings : Array Float) (a d u : Option Swf.AppSnap.SnapCandidate),\n  Swf.AppSnap.snapResolve movingId m neighbours settings rings = Swf.AppSnap.SnapOutcome.snapped a d u →\n    ∀ (axis : Swf.AppSnap.SnapAxis) (c : Swf.AppSnap.SnapCandidate),\n      axis = Swf.AppSnap.SnapAxis.across ∧ a = some c ∨\n          axis = Swf.AppSnap.SnapAxis.down ∧ d = some c ∨ axis = Swf.AppSnap.SnapAxis.out ∧ u = some c →\n        ∃ o,\n          o ∈ Swf.AppSnap.snapOptions movingId m neighbours settings rings ∧\n            o.axis = axis ∧ o.candidate = c ∧ o.reachable = true",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -5832,17 +5943,17 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "911d98ec5f51aeb3453257f2a71c8af61bb6e324299808e6c13ae529e0b32cb7",
+      "fingerprint": "a43fd6b0659e04deecea2f919523ad616721c8446078438498024e3d58f9c4ae",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppSnap.lean",
         "start": {
-          "line": 314,
+          "line": 368,
           "column": 1
         },
         "end": {
-          "line": 335,
-          "column": 31
+          "line": 392,
+          "column": 24
         }
       }
     },
@@ -5853,7 +5964,7 @@ export const ASSURANCE = L.parseAssurance({
         "Swf.AppSnap.snapResolve"
       ],
       "specifications": [],
-      "statement": "∀ (movingId : String) (m : Swf.AppSnap.SnapSeen) (neighbours : Array Swf.AppSnap.SnapNeighbour)\n  (settings : Swf.AppFeatures.SnapSettings) (a d : Option Swf.AppSnap.SnapCandidate),\n  Swf.AppSnap.snapResolve movingId m neighbours settings = Swf.AppSnap.SnapOutcome.snapped a d →\n    ∀ (c : Swf.AppSnap.SnapCandidate),\n      a = some c ∨ d = some c →\n        ∃ o,\n          o ∈ Swf.AppSnap.snapOptions movingId m neighbours settings ∧\n            o.candidate = c ∧ ↑(Swf.Order.magnitudeKey o.distance) ≤ Swf.Order.floatKey o.threshold",
+      "statement": "∀ (movingId : String) (m : Swf.AppSnap.SnapSeen) (neighbours : Array Swf.AppSnap.SnapNeighbour)\n  (settings : Swf.AppFeatures.SnapSettings) (rings : Array Float) (a d u : Option Swf.AppSnap.SnapCandidate),\n  Swf.AppSnap.snapResolve movingId m neighbours settings rings = Swf.AppSnap.SnapOutcome.snapped a d u →\n    ∀ (c : Swf.AppSnap.SnapCandidate),\n      a = some c ∨ d = some c ∨ u = some c →\n        ∃ o,\n          o ∈ Swf.AppSnap.snapOptions movingId m neighbours settings rings ∧\n            o.candidate = c ∧ ↑(Swf.Order.magnitudeKey o.distance) ≤ Swf.Order.floatKey o.threshold",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -5865,16 +5976,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "b8d507ba3b53ff1e6dfbff7b0485499401c51f8cadec5567a797c80d35745d42",
+      "fingerprint": "e4bf7d43c5f1007bbcafe42701eef5a9c274b4eb7755515f7bd9d1336e196d02",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppSnap.lean",
         "start": {
-          "line": 337,
+          "line": 394,
           "column": 1
         },
         "end": {
-          "line": 350,
+          "line": 409,
           "column": 64
         }
       }
@@ -5886,7 +5997,7 @@ export const ASSURANCE = L.parseAssurance({
         "Swf.AppSnap.snapResolve"
       ],
       "specifications": [],
-      "statement": "∀ (movingId : String) (m : Swf.AppSnap.SnapSeen) (neighbours : Array Swf.AppSnap.SnapNeighbour)\n  (settings : Swf.AppFeatures.SnapSettings),\n  Swf.AppSnap.snapInvalid m neighbours settings = none →\n    ¬m.distance > 0 → Swf.AppSnap.snapResolve movingId m neighbours settings = Swf.AppSnap.SnapOutcome.unsnapped",
+      "statement": "∀ (movingId : String) (m : Swf.AppSnap.SnapSeen) (neighbours : Array Swf.AppSnap.SnapNeighbour)\n  (settings : Swf.AppFeatures.SnapSettings) (rings : Array Float),\n  Swf.AppSnap.snapInvalid m neighbours settings rings = none →\n    ¬m.distance > 0 → Swf.AppSnap.snapResolve movingId m neighbours settings rings = Swf.AppSnap.SnapOutcome.unsnapped",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -5898,16 +6009,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "1f7698f2763c13f9debf9e12062b9e7e61c6037d5ebf36433defc575a87a053a",
+      "fingerprint": "80d4e1b7780d0cad48f60d059a217a8764c8dd8421e44e79396a6173396caba1",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppSnap.lean",
         "start": {
-          "line": 431,
+          "line": 498,
           "column": 1
         },
         "end": {
-          "line": 436,
+          "line": 503,
           "column": 29
         }
       }
@@ -5919,7 +6030,7 @@ export const ASSURANCE = L.parseAssurance({
         "Swf.AppSnap.snapResolve"
       ],
       "specifications": [],
-      "statement": "∀ (movingId : String) (m : Swf.AppSnap.SnapSeen) (neighbours : Array Swf.AppSnap.SnapNeighbour)\n  (settings : Swf.AppFeatures.SnapSettings),\n  Swf.AppSnap.snapInvalid m neighbours settings = none →\n    m.distance > 0 →\n      (Swf.AppSnap.snapResolve movingId m neighbours settings = Swf.AppSnap.SnapOutcome.unsnapped ↔\n        ∀ (o : Swf.AppSnap.SnapOption),\n          o ∈ Swf.AppSnap.snapOptions movingId m neighbours settings → o.reachable = false)",
+      "statement": "∀ (movingId : String) (m : Swf.AppSnap.SnapSeen) (neighbours : Array Swf.AppSnap.SnapNeighbour)\n  (settings : Swf.AppFeatures.SnapSettings) (rings : Array Float),\n  Swf.AppSnap.snapInvalid m neighbours settings rings = none →\n    m.distance > 0 →\n      (Swf.AppSnap.snapResolve movingId m neighbours settings rings = Swf.AppSnap.SnapOutcome.unsnapped ↔\n        ∀ (o : Swf.AppSnap.SnapOption),\n          o ∈ Swf.AppSnap.snapOptions movingId m neighbours settings rings → o.reachable = false)",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -5931,17 +6042,17 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "a752ff580854a8102506c15552141641a779f6c30726401376eddd1cfee26ffe",
+      "fingerprint": "be1c1ef985bf071f809f83e4049192b4f62eaaeb2d19928c83b5c1cae09a4feb",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppSnap.lean",
         "start": {
-          "line": 400,
+          "line": 465,
           "column": 1
         },
         "end": {
-          "line": 429,
-          "column": 18
+          "line": 496,
+          "column": 38
         }
       }
     },
@@ -10136,11 +10247,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppFeatures.lean",
         "start": {
-          "line": 206,
+          "line": 220,
           "column": 1
         },
         "end": {
-          "line": 213,
+          "line": 227,
           "column": 45
         }
       }
@@ -10392,12 +10503,16 @@ export const ASSURANCE = L.parseAssurance({
           "lean_uint64_of_nat_mk",
           "lean_uint64_to_float",
           "lean_uint64_to_nat",
-          "lean_usize_of_nat"
+          "lean_usize_of_nat",
+          "round"
         ]
       },
       "claims": [
+        "Swf.AppSnap.edge_keeps_distance",
         "Swf.AppSnap.invalid_input_refused",
         "Swf.AppSnap.nearest_wins",
+        "Swf.AppSnap.no_spoke_without_spokes",
+        "Swf.AppSnap.ring_snap_reaches_a_ring",
         "Swf.AppSnap.snap_is_candidate",
         "Swf.AppSnap.snap_within_threshold",
         "Swf.AppSnap.unseen_no_snap",
@@ -10410,11 +10525,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppSnap.lean",
         "start": {
-          "line": 213,
+          "line": 254,
           "column": 1
         },
         "end": {
-          "line": 225,
+          "line": 266,
           "column": 80
         }
       }
@@ -12617,9 +12732,9 @@ export const leanTypes = Object.freeze({
   "Swf.AppCursor.WrapOutcome": Object.freeze({ fingerprint: "a234a4daab6e873a9822b6838345cc4ef7b0b26879e4a32d25b91b750aa77a8e", type: wrapOutcomeType }),
   "Swf.AppDepth.DepthQuery": Object.freeze({ fingerprint: "c0a4fd17fa88fb5d52a00b7108f6fd22a9906f0e6bf12e281e59ac9e87a82bfb", type: depthQueryType }),
   "Swf.AppDepth.DepthAnswer": Object.freeze({ fingerprint: "989cb3c1acd36cbed2e785c4bc15e761c6955cd7b7fb792d04676ab9de87f244", type: depthAnswerType }),
-  "Swf.AppFeatures.FeatureSettings": Object.freeze({ fingerprint: "5ade7e9be6242dde4bc0d521bbf3b7afce6078a24d71cbc3cae19517cf6788a0", type: featureSettingsType }),
+  "Swf.AppFeatures.FeatureSettings": Object.freeze({ fingerprint: "1a94e67abc68c86857f05c8d317eaf8b34a0e36b34807cd2a6ae90bc3bba2d9a", type: featureSettingsType }),
   "Swf.Json": Object.freeze({ fingerprint: "44adb8c006802c79becdc00b1fa4e555bcbcd2b22f75fd40160944f233b7f49e", type: jsonType }),
-  "Swf.AppFeatures.FeaturesUpdate": Object.freeze({ fingerprint: "3804a04c969c2faa901d491dc871ef0fde2972e5c6d7ed2a7e99d4a8c1374ba8", type: featuresUpdateType }),
+  "Swf.AppFeatures.FeaturesUpdate": Object.freeze({ fingerprint: "eb23286cfd01a2df6f1ffbc0bbe181bace6d48e42e0adf23e46ed7c2a601cd0e", type: featuresUpdateType }),
   "Swf.AppOrbit.OrbitState": Object.freeze({ fingerprint: "4f3a6fe55bfa54943759447b963f7ab7fc928f6c4858e32da376f7c964ea08ed", type: orbitStateType }),
   "Swf.AppOrbit.OrbitCandidate": Object.freeze({ fingerprint: "af4008d5d204b958c06bc3fbb12c23d54049cb243d6905d58bd2655ed051e83e", type: orbitCandidateType }),
   "Swf.AppOrbit.OrbitEvent": Object.freeze({ fingerprint: "83e7b135b5619ce76d3f12aef584bf7366435ef4c8cd4324a02185eb69d176af", type: orbitEventType }),
@@ -12629,8 +12744,8 @@ export const leanTypes = Object.freeze({
   "Swf.AppScenarios.GuideAnswer": Object.freeze({ fingerprint: "9b54e2e2a7d78e9cc23d22190d9573a0dd475a529b8bcb8a1e5ef6375768695f", type: guideAnswerType }),
   "Swf.AppSnap.SnapSeen": Object.freeze({ fingerprint: "cb222a04da1a873be41eb0d3be51da61c3a1cdef305e1d490be5c750ddd551a8", type: snapSeenType }),
   "Swf.AppSnap.SnapNeighbour": Object.freeze({ fingerprint: "9bbd6f2ff6ffff868c65696cd51fee8479506f2f3f574812c77214c3bbdbd58a", type: snapNeighbourType }),
-  "Swf.AppFeatures.SnapSettings": Object.freeze({ fingerprint: "05d09b5528bf70d0d0b5bdb7154a8215305c5f485cd37e3179bb0fc75700b0a3", type: snapSettingsType }),
-  "Swf.AppSnap.SnapOutcome": Object.freeze({ fingerprint: "5aba7b46f6aa4e8691b8b44a2974ee22110552ca4cd7db8604e874d45bf21fce", type: snapOutcomeType }),
+  "Swf.AppFeatures.SnapSettings": Object.freeze({ fingerprint: "47b1fd6ac8c558a38f85175772c6c9c0a3aeb4a04924ff62282b345597d19579", type: snapSettingsType }),
+  "Swf.AppSnap.SnapOutcome": Object.freeze({ fingerprint: "60872f1c740f02a363fa8924d58ccd1701c96ba8cc4bb56c3ff8f823b0a8d4d7", type: snapOutcomeType }),
   "Swf.AppWheel.Burst": Object.freeze({ fingerprint: "014e3caf9908dcdf125ecdba3a6aa23194f608325e0cb0a4ac8641353c7164d4", type: burstType }),
   "Swf.AppWheel.WheelEvent": Object.freeze({ fingerprint: "b3b3fa87389f19461d4fba326e571bb83ebd43bb63db5bbdf0b02fd73ab48be7", type: wheelEventType }),
   "Swf.AppWheel.WheelOutcome": Object.freeze({ fingerprint: "9c774a5e69690ffd9d6c24be3626b0b7fdd2d08443bf4c746212f8ffda786185", type: wheelOutcomeType }),
@@ -12705,7 +12820,7 @@ export const leanTypes = Object.freeze({
   "Swf.AppOrbit.OrbitNavigation": Object.freeze({ fingerprint: "8cbc5241413f47546748cc0185a9073e1b4552a41fabf4d515036072ea5afbf0", type: orbitNavigationType }),
   "Swf.AppOrbit.OrbitNode": Object.freeze({ fingerprint: "f536e1c61b51e4c6625d7255be347867ab85921cc3ed7edbaf674d8bd403bcbf", type: orbitNodeType }),
   "Swf.AppOrbit.OrbitCommand": Object.freeze({ fingerprint: "ca02c4137f9f4fadca31e768c381ff3c0896742bcff44fc7f2d3ca3ff5b8e469", type: orbitCommandType }),
-  "Swf.AppSnap.SnapCandidate": Object.freeze({ fingerprint: "e68ee7b099602577e099f0df94df36ecac682ec5949967f59999075ae2fbf614", type: snapCandidateType }),
+  "Swf.AppSnap.SnapCandidate": Object.freeze({ fingerprint: "bbeba7904b0baf4a010e43c1138dafe660881b627d32d7ca70a978c4dc644309", type: snapCandidateType }),
   "Swf.AppWheel.WheelStep": Object.freeze({ fingerprint: "875edee1e11d414038b3b002c250ca0274b864153ad5e8e5fce0e8ffdd7faedc", type: wheelStepType }),
   "Swf.AppWorkspaces.SaverState": Object.freeze({ fingerprint: "90da128eb07d95b58a31059160a872149140b50684da7b090f4c44806ec20de4", type: saverStateType }),
   "Swf.Arbitration.HitRegion": Object.freeze({ fingerprint: "630e6511912da7ad8ebe5ae5914ade664c8515454874900bb0821d78cc9e0bd8", type: hitRegionType }),
@@ -12730,7 +12845,7 @@ export const leanTypes = Object.freeze({
   "Swf.Surface.Release": Object.freeze({ fingerprint: "c86983c9af4e3ad8cd45eb8729699fbcd25fce764f7d43da2b19763c672fafeb", type: releaseType }),
   "Swf.ViewMode.ProjectionSetting": Object.freeze({ fingerprint: "97b34823a98c76e376fd8ca30ade4a7f301eeb0077d62d331825fc32f174adbf", type: projectionSettingType }),
   "Swf.ViewMode.Quat": Object.freeze({ fingerprint: "e8a26ff475b891483592b41e9ed64c444f631505486a1cd3299c5ddcfbf1a7a7", type: quatType }),
-  "Swf.AppSnap.SnapConstraint": Object.freeze({ fingerprint: "3961fc6b2375da64e410b695ada4e32fcc307dc39ba2a2925f1cce9aba038c01", type: snapConstraintType }),
+  "Swf.AppSnap.SnapConstraint": Object.freeze({ fingerprint: "01a18972ba78a997588bae9160deaa9920bb2943fcdd08f2af2a7fa4cf6f5a9f", type: snapConstraintType }),
   "Swf.AppWheel.WheelAction": Object.freeze({ fingerprint: "9771333c98282fba76c2f51446f94ddd0665b3fa22ee19540524918dd0d28b65", type: wheelActionType }),
   "Swf.Fallback.Strategy": Object.freeze({ fingerprint: "a86de2295cd433fc186ec98f01ab35dd1f6570cdef96a73eb439b3f9e10d43e0", type: strategyType }),
   "Swf.Fallback.TransformMode": Object.freeze({ fingerprint: "2a4b8b93f5cb1a459e477132dd8b25c77dd354e4f13b6211f852f8e47e16681c", type: transformModeType }),
@@ -12785,8 +12900,8 @@ export class SwfModels {
   guideStep(current, a) {
     return this.#program.invoke("swf_models__call_l_Swf_dAppScenarios_dguideStep", [], [[L.option(guideType()), current], [guideEventType(), a]], L.value(guideAnswerType()));
   }
-  snapResolve(movingId, m, neighbours, settings) {
-    return this.#program.invoke("swf_models__call_l_Swf_dAppSnap_dsnapResolve", [], [[L.STRING, movingId], [snapSeenType(), m], [L.array(snapNeighbourType()), neighbours], [snapSettingsType(), settings]], L.value(snapOutcomeType()));
+  snapResolve(movingId, m, neighbours, settings, rings) {
+    return this.#program.invoke("swf_models__call_l_Swf_dAppSnap_dsnapResolve", [], [[L.STRING, movingId], [snapSeenType(), m], [L.array(snapNeighbourType()), neighbours], [snapSettingsType(), settings], [L.array(L.FLOAT), rings]], L.value(snapOutcomeType()));
   }
   wheelStep(current, event) {
     return this.#program.invoke("swf_models__call_l_Swf_dAppWheel_dwheelStep", [], [[L.option(burstType()), current], [wheelEventType(), event]], L.value(wheelOutcomeType()));

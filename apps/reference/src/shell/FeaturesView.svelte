@@ -37,7 +37,7 @@
     model.messages.format(id, params);
   const DEGREES = 180 / Math.PI;
   /** Settings said under their own fields when refused. */
-  const NUMBER_FIELDS = ['depth.full', 'depth.compact', 'snap.linear', 'snap.angular', 'snap.padding'];
+  const NUMBER_FIELDS = ['depth.full', 'depth.compact', 'snap.linear', 'snap.angular', 'snap.padding', 'snap.spoke', 'snap.ring'];
   const round = (value: number, digits: number) => Number(value.toFixed(digits));
 
   const status = $derived(model.policies);
@@ -307,6 +307,12 @@
             )}
             {@render numberField('snap-padding', t('snap.padding'), t('snap.padding.hint'), status.features.snap.padding, 'reference.snap.configure', 'snap.padding', false, (padding) =>
               model.run('reference.snap.configure', { padding }),
+            )}
+            {@render numberField('snap-spoke', t('snap.spoke'), t('snap.spoke.hint'), status.features.snap.spoke, 'reference.snap.configure', 'snap.spoke', false, (spoke) =>
+              model.run('reference.snap.configure', { spoke }),
+            )}
+            {@render numberField('snap-ring', t('snap.ring'), t('snap.ring.hint'), status.features.snap.ring, 'reference.snap.configure', 'snap.ring', false, (ring) =>
+              model.run('reference.snap.configure', { ring }),
             )}
           {/if}
         </Stack>

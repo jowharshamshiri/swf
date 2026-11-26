@@ -17,6 +17,7 @@ import {
   zoomed,
 } from '../map.js';
 import type { Messages } from '../messages.js';
+import { ringsOf } from '../features.js';
 import { fieldOfViewOf } from '../modes.js';
 
 /**
@@ -330,7 +331,9 @@ export class MapDrawer {
           toGround(this.#view, drag.from[0], drag.from[1]),
           () => {
             const features = policies.status().features;
-            return features.enabled.snap ? features.snap : null;
+            return features.enabled.snap
+              ? { settings: features.snap, rings: ringsOf(features.depth) }
+              : null;
           },
         );
       }

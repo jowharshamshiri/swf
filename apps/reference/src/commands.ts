@@ -69,6 +69,8 @@ export interface AppCommandSpecs {
     readonly linear?: number;
     readonly angular?: number;
     readonly padding?: number;
+    readonly spoke?: number;
+    readonly ring?: number;
   };
   'reference.depth.configure': { readonly full?: number; readonly compact?: number };
   'reference.navigation.set': { readonly target: 'camera' | 'orbit' };

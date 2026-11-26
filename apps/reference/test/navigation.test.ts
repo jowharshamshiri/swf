@@ -261,7 +261,9 @@ describe('the radar', () => {
       note('b', { heading: 40, distance: 3, elevation: 20 }),
     ]);
     const [bx, , bz] = centreOf(ws, 'b');
-    const settings = () => policies.status().features.snap;
+    // Spokes and rings off: what is checked is the line-up with a.
+    policies.configure({ snap: { spoke: 0, ring: 0 } });
+    const settings = () => ({ settings: policies.status().features.snap, rings: [] });
     const drag = new MarkerDrag(ws, VIEWPORT, 'b', [bx, bz], settings);
     // On the ground to 1.2° right of straight ahead: within the 2° line-up with a's heading.
     const target = 1.2 / DEGREES;

@@ -572,7 +572,8 @@ export function snapNeighbourType(): L.Type<SnapNeighbour>;
 
 /**
  * Magnetic positioning's thresholds: world units within which an edge snaps, degrees within
- * which a centre lines up, and world units of gap kept between snapped edges.
+ * which a centre lines up, world units of gap kept between snapped edges, degrees between the spokes
+ * a window's heading snaps to, and world units within which its distance snaps to a ring.
  */
 export interface SnapSettings {
   /** World units within which an edge snaps to a neighbour's; finite, zero or more. */
@@ -584,6 +585,16 @@ export interface SnapSettings {
   readonly angular: number;
   /** World units of gap kept between snapped edges; finite, zero or more. */
   readonly padding: number;
+  /**
+   * Degrees between the spokes round the camera a window's heading snaps to, within the angular
+   * threshold; finite, zero (no spokes) to 90.
+   */
+  readonly spoke: number;
+  /**
+   * World units within which a window's distance from the camera snaps to a ring; finite, zero
+   * (no rings) or more.
+   */
+  readonly ring: number;
 }
 /** The descriptor of Swf.AppFeatures.SnapSettings: how its values cross the boundary. */
 export function snapSettingsType(): L.Type<SnapSettings>;
@@ -601,6 +612,8 @@ export type SnapOutcome =
       readonly across: L.Option<SnapCandidate>;
       /** The field `down` of Lean's Swf.AppSnap.SnapOutcome.snapped. */
       readonly down: L.Option<SnapCandidate>;
+      /** The field `out` of Lean's Swf.AppSnap.SnapOutcome.snapped. */
+      readonly out: L.Option<SnapCandidate>;
     }
   | {
       /** A number at this field is not finite. */
@@ -2251,11 +2264,11 @@ export type OrbitCommand =
 /** The descriptor of Swf.AppOrbit.OrbitCommand: how its values cross the boundary. */
 export function orbitCommandType(): L.Type<OrbitCommand>;
 
-/** A snap on one axis: how far to turn the window, in radians, and why. */
+/** A snap on one axis: how far to turn or move the window, and why. */
 export interface SnapCandidate {
   /**
-   * How far to turn the window along the axis, in radians: positive to the right across, and
-   * upwards down the elevation.
+   * How far to turn the window along the axis, in radians, positive to the right across and
+   * upwards down the elevation; or, out, how far to move it away from the camera, in world units.
    */
   readonly delta: number;
   /** What the window lines up with. */
@@ -2727,6 +2740,16 @@ export type SnapConstraint =
       /** Its centre lines up with the horizon. */
       readonly kind: "horizon";
     }
+  | {
+      /** Its centre's heading goes to the nearest spoke round the camera. */
+      readonly kind: "spoke";
+    }
+  | {
+      /** Its distance from the camera goes to ring `ring`, by its place in the rings. */
+      readonly kind: "ring";
+      /** The field `ring` of Lean's Swf.AppSnap.SnapConstraint.ring. */
+      readonly ring: bigint;
+    }
 ;
 /** The descriptor of Swf.AppSnap.SnapConstraint: how its values cross the boundary. */
 export function snapConstraintType(): L.Type<SnapConstraint>;
@@ -2981,11 +3004,11 @@ export class SwfModels {
   guideStep(current: L.Option<Guide>, a: GuideEvent): GuideAnswer;
   /**
    * The snap for the moving window (`movingId`, seen as `m`) among `neighbours` (in a stable
-   * order: ties go to the first). A window seen from no distance does not snap.
+   * order: ties go to the first) and the `rings`. A window seen from no distance does not snap.
    *
-   * Lean's Swf.AppSnap.snapResolve : String → Swf.AppSnap.SnapSeen → Array Swf.AppSnap.SnapNeighbour → Swf.AppFeatures.SnapSettings → Swf.AppSnap.SnapOutcome
+   * Lean's Swf.AppSnap.snapResolve : String →   Swf.AppSnap.SnapSeen →     Array Swf.AppSnap.SnapNeighbour → Swf.AppFeatures.SnapSettings → Array Float → Swf.AppSnap.SnapOutcome
    */
-  snapResolve(movingId: string, m: SnapSeen, neighbours: Array<SnapNeighbour>, settings: SnapSettings): SnapOutcome;
+  snapResolve(movingId: string, m: SnapSeen, neighbours: Array<SnapNeighbour>, settings: SnapSettings, rings: Array<number>): SnapOutcome;
   /**
    * The step a wheel event takes from the burst under way.
    *

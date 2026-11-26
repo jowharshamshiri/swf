@@ -38,6 +38,16 @@ export interface SnapSettings {
   readonly angular: number;
   /** World units of gap kept between snapped edges; windows closer than it are pushed apart. */
   readonly padding: number;
+  /**
+   * Degrees between the spokes round the camera a window's heading snaps to, within the angular
+   * threshold: 0 for none, at most 90.
+   */
+  readonly spoke: number;
+  /**
+   * World units within which a window's distance from the camera snaps to a ring ({@link ringsOf}):
+   * 0 for none.
+   */
+  readonly ring: number;
 }
 
 /**
@@ -63,9 +73,18 @@ export const ALL_ENABLED: Readonly<Record<FeatureId, boolean>> = Object.freeze(
 /** The defaults: the combined preset (every module on), with the specification's parameters. */
 export const DEFAULT_FEATURES: FeatureSettings = Object.freeze({
   enabled: ALL_ENABLED,
-  snap: Object.freeze({ linear: 0.08, angular: 2, padding: 0.04 }),
+  snap: Object.freeze({ linear: 0.08, angular: 2, padding: 0.04, spoke: 15, ring: 0.3 }),
   depth: Object.freeze({ full: 4, compact: 5.5 }),
 });
+
+/**
+ * The rings round the camera, nearest first, in world units: one within each band semantic depth
+ * draws by (near enough to show whole, compact, a label alone). Windows are arranged on them, and
+ * magnetic positioning snaps a window's distance to them.
+ */
+export function ringsOf(depth: DepthBands): readonly [number, number, number] {
+  return [depth.full * 0.75, (depth.full + depth.compact) / 2, depth.compact * 1.15];
+}
 
 /** A change to the settings: only what it names changes. */
 export interface FeaturePatch {

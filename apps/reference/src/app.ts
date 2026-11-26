@@ -81,6 +81,7 @@ import { aroundCamera, arrangedAround, inView, placedAt } from './map.js';
 import type { Modes } from './modes.js';
 import { createModes, MAP, OVERVIEW, PANORAMA } from './modes.js';
 import type { FeaturePatch } from './features.js';
+import { ringsOf } from './features.js';
 import type { Policies } from './policies.js';
 import { createPolicies } from './policies.js';
 import type { PresetId } from './presets.js';
@@ -1170,11 +1171,10 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
       return workspace.dispatch({ type: 'node.patch', id, transform }, { source: 'user' });
     },
     arrangeWindows() {
-      const { full, compact } = policies.status().features.depth;
       const commands = arrangedAround(
         workspace.getState(),
         VIEWPORT_ID,
-        [full * 0.75, (full + compact) / 2, compact * 1.15],
+        ringsOf(policies.status().features.depth),
         (node) => {
           const colour = node.metadata[COLOUR_KEY];
           return typeof colour === 'string' ? colour : '';

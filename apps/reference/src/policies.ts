@@ -15,7 +15,7 @@ import { viewGeometryOf } from '@swf/presentation';
 import type { ProjectionRegistry } from '@swf/projections';
 import { projectionFor } from '@swf/projections';
 import type { FeaturePatch, FeatureSettings } from './features.js';
-import { DEFAULT_FEATURES, updateFeatures } from './features.js';
+import { DEFAULT_FEATURES, ringsOf, updateFeatures } from './features.js';
 import type { Snap } from './magnetic.js';
 import { magneticMovePolicy } from './magnetic-policy.js';
 import type { OrbitEvent, OrbitState } from './orbit.js';
@@ -227,6 +227,7 @@ export function createPolicies(options: PolicyOptions): Policies {
       unregisterSnap = router.registerPolicy(
         magneticMovePolicy({
           settings: () => features.snap,
+          rings: () => ringsOf(features.depth),
           report: ({ gestureId, snap }) => {
             if (gesture?.gestureId === gestureId) {
               gesture = Object.freeze({ ...gesture, snap });

@@ -33,7 +33,8 @@ structure FeatureFlags where
 deriving DecidableEq
 
 /-- Magnetic positioning's thresholds: world units within which an edge snaps, degrees within
-which a centre lines up, and world units of gap kept between snapped edges. -/
+which a centre lines up, world units of gap kept between snapped edges, degrees between the spokes
+a window's heading snaps to, and world units within which its distance snaps to a ring. -/
 structure SnapSettings where
   /-- World units within which an edge snaps to a neighbour's; finite, zero or more. -/
   linear : Float
@@ -42,6 +43,12 @@ structure SnapSettings where
   angular : Float
   /-- World units of gap kept between snapped edges; finite, zero or more. -/
   padding : Float
+  /-- Degrees between the spokes round the camera a window's heading snaps to, within the angular
+  threshold; finite, zero (no spokes) to 90. -/
+  spoke : Float
+  /-- World units within which a window's distance from the camera snaps to a ring; finite, zero
+  (no rings) or more. -/
+  ring : Float
 
 /-- Semantic depth's bands, in world units from the camera: a window nearer than `full` shows its
 content, one nearer than `compact` a compact preview, and one farther its label alone. -/
@@ -91,6 +98,9 @@ inductive FeaturesUpdate where
 /-- The largest angular snap threshold, in degrees: beyond it everything would snap to
 everything. -/
 def maxAngularSnap : Float := 15
+
+/-- The widest spacing of spokes, in degrees: a quarter turn. -/
+def maxSpoke : Float := 90
 
 /-- The modules, by stable ID, in the order the specification lists them. -/
 def featureIds : List String :=
@@ -155,12 +165,15 @@ def flagsCheck (current : FeatureFlags) (v : Json) : Checked FeatureFlags := do
 /-- The snap settings a patch's `snap` object sets. -/
 def snapCheck (current : SnapSettings) (v : Json) : Checked SnapSettings := do
   let ms ← record v "snap"
-  known ms ["linear", "angular", "padding"] "snap"
+  known ms ["linear", "angular", "padding", "spoke", "ring"] "snap"
   let linear ← number ms "linear" "snap.linear" nonNegativeOk .notNonNegative current.linear
   let angular ← number ms "angular" "snap.angular" nonNegativeOk .notNonNegative current.angular
   let padding ← number ms "padding" "snap.padding" nonNegativeOk .notNonNegative current.padding
+  let spoke ← number ms "spoke" "snap.spoke" nonNegativeOk .notNonNegative current.spoke
+  let ring ← number ms "ring" "snap.ring" nonNegativeOk .notNonNegative current.ring
   if angular > maxAngularSnap then .error ("snap.angular", .tooWide maxAngularSnap)
-  else .ok { linear, angular, padding }
+  else if spoke > maxSpoke then .error ("snap.spoke", .tooWide maxSpoke)
+  else .ok { linear, angular, padding, spoke, ring }
 
 /-- The bands a patch's `depth` object sets; when they end out of order, the field refused is the
 one the patch named last of the two (compact, unless it named full alone). -/
@@ -185,7 +198,8 @@ def section? {α : Type} (ms : Array (String × Json)) (key : String) (check : J
 def sameNumber (a b : Float) : Bool := a.toBits == b.toBits
 
 def SnapSettings.same (a b : SnapSettings) : Bool :=
-  sameNumber a.linear b.linear && sameNumber a.angular b.angular && sameNumber a.padding b.padding
+  sameNumber a.linear b.linear && sameNumber a.angular b.angular && sameNumber a.padding b.padding &&
+    sameNumber a.spoke b.spoke && sameNumber a.ring b.ring
 
 def DepthBands.same (a b : DepthBands) : Bool :=
   sameNumber a.full b.full && sameNumber a.compact b.compact
@@ -216,7 +230,7 @@ def featuresUpdate (current : FeatureSettings) (patch : Json) : FeaturesUpdate :
 
 def SnapSettings.valid (s : SnapSettings) : Bool :=
   nonNegativeOk s.linear && nonNegativeOk s.angular && !(s.angular > maxAngularSnap) &&
-    nonNegativeOk s.padding
+    nonNegativeOk s.padding && nonNegativeOk s.spoke && !(s.spoke > maxSpoke) && nonNegativeOk s.ring
 
 def DepthBands.valid (d : DepthBands) : Bool :=
   positiveOk d.full && positiveOk d.compact && d.compact > d.full
@@ -235,7 +249,7 @@ theorem number_ok {ms : Array (String × Json)} {key field : String} {ok : Float
 theorem snapCheck_valid {current s : SnapSettings} {v : Json} (hc : current.valid = true)
     (h : snapCheck current v = .ok s) : s.valid = true := by
   simp only [SnapSettings.valid, Bool.and_eq_true] at hc
-  obtain ⟨⟨⟨hl, ha⟩, -⟩, hp⟩ := hc
+  obtain ⟨⟨⟨⟨⟨⟨hl, ha⟩, -⟩, hp⟩, hs⟩, -⟩, hr⟩ := hc
   unfold snapCheck at h
   simp only [bind, Except.bind] at h
   split at h; · cases h
@@ -246,10 +260,17 @@ theorem snapCheck_valid {current s : SnapSettings} {v : Json} (hc : current.vali
   rename_i a ha'
   split at h; · cases h
   rename_i p hp'
+  split at h; · cases h
+  rename_i sp hs'
+  split at h; · cases h
+  rename_i r hr'
   split at h
   · cases h
-  · cases h
-    simp_all [SnapSettings.valid, number_ok hl hl', number_ok ha ha', number_ok hp hp']
+  · split at h
+    · cases h
+    · cases h
+      simp_all [SnapSettings.valid, number_ok hl hl', number_ok ha ha', number_ok hp hp',
+        number_ok hs hs', number_ok hr hr']
 
 theorem depthCheck_valid {current d : DepthBands} {v : Json} (hc : current.valid = true)
     (h : depthCheck current v = .ok d) : d.valid = true := by
@@ -301,7 +322,7 @@ theorem featuresCheck_ok {current : FeatureSettings} {patch : Json}
   split at hms <;> simp_all
 
 /-- Settings that were valid stay valid: every snap threshold a finite number, zero or more, the
-angular one at most `maxAngularSnap` degrees, and both depth bands above zero with the compact
+angular one at most `maxAngularSnap` degrees and the spokes at most `maxSpoke` apart, and both depth bands above zero with the compact
 one ending farther. -/
 @[lungo_claim "lungo.law" subject featuresUpdate]
 theorem accepted_settings_valid (current : FeatureSettings) (patch : Json)

@@ -30,15 +30,16 @@ import type { SnapSettings } from './features.js';
  *   to that edge, leaving the padding between them, so windows that nearly touch or slightly
  *   overlap end side by side with the gap: the linear threshold, in world units at the moving
  *   window's distance;
- * - its centre's heading or elevation to a neighbour's, or its elevation to the horizon: the
- *   angular threshold, in degrees.
- * Each axis takes the nearest snap on it; at the same distance edges win over line-ups, line-ups
- * over the horizon, and then the first neighbour. Only neighbours side by side with the window
+ * - its centre's heading or elevation to a neighbour's, its elevation to the horizon, or its
+ *   heading to a spoke round the camera (every so many degrees): the angular threshold, in degrees;
+ * - its distance from the camera to a ring ({@link ringsOf}): the ring threshold, in world units.
+ * Each axis (across, down, out) takes the nearest snap on it; at the same distance edges win over
+ * line-ups, line-ups over the horizon, the spokes and the rings, and then the first neighbour. Only neighbours side by side with the window
  * snap: those whose distance from the camera is within a quarter of its own; farther ones lie
  * behind it. The snap is decided by the Lean model `Swf.AppSnap` (models/Swf/AppSnap.lean),
  * where it is proved to be the nearest within reach; this module measures where the windows are
- * seen from the camera, and turns the window by the snap: it keeps its distance and keeps facing
- * the camera as it did. Nothing here touches a scene.
+ * seen from the camera, and turns the window by the snap, and moves it out to its ring: it keeps
+ * facing the camera as it did. Nothing here touches a scene.
  */
 
 /** A window as snapping sees it. */
@@ -67,20 +68,27 @@ export type SnapConstraint =
       readonly neighbourId: Id;
       readonly neighbourLabel: string;
     }
-  | { readonly kind: 'horizon' };
+  | { readonly kind: 'horizon' }
+  /** Its heading on a spoke round the camera, at `degrees` right of straight ahead. */
+  | { readonly kind: 'spoke'; readonly degrees: number }
+  /** Its distance on the ring `distance` world units from the camera. */
+  | { readonly kind: 'ring'; readonly distance: number };
 
-/** The snap for a proposed place: how far to turn the window, in radians, and why. */
+/** The snap for a proposed place: how far to turn the window, in radians, and move it, and why. */
 export interface Snap {
   /** To the right about the camera's vertical. */
   readonly heading: number;
   /** Up about the camera. */
   readonly elevation: number;
+  /** Away from the camera, in world units. */
+  readonly distance: number;
   readonly constraints: readonly SnapConstraint[];
 }
 
 export const NO_SNAP: Snap = Object.freeze({
   heading: 0,
   elevation: 0,
+  distance: 0,
   constraints: Object.freeze([]),
 });
 
@@ -99,19 +107,29 @@ function seen(box: SnapBox, eye: Vec3): Lean.SnapSeen {
 
 /**
  * The snap for a window proposed at `moving`, among `neighbours` (in a stable order: ties go to
- * the first), as seen from `eye`. Throws a RangeError when a number it weighs is not finite.
+ * the first) and the `rings` (distances from the camera, in world units), as seen from `eye`.
+ * Throws a RangeError when a number it weighs is not finite.
  */
 export function resolveSnap(
   moving: SnapBox,
   neighbours: readonly SnapBox[],
   eye: Vec3,
   settings: SnapSettings,
+  rings: readonly number[],
 ): Snap {
+  const m = seen(moving, eye);
   const outcome = models.snapResolve(
     moving.id,
-    seen(moving, eye),
+    m,
     neighbours.map((neighbour) => ({ id: neighbour.id, seen: seen(neighbour, eye) })),
-    { linear: settings.linear, angular: settings.angular, padding: settings.padding },
+    {
+      linear: settings.linear,
+      angular: settings.angular,
+      padding: settings.padding,
+      spoke: settings.spoke,
+      ring: settings.ring,
+    },
+    [...rings],
   );
   switch (outcome.kind) {
     case 'invalid':
@@ -124,6 +142,19 @@ export function resolveSnap(
         if (c.kind === 'horizon') {
           return Object.freeze({ kind: 'horizon' });
         }
+        if (c.kind === 'spoke') {
+          return Object.freeze({
+            kind: 'spoke',
+            degrees: ((m.heading + candidate.delta) * 180) / Math.PI,
+          });
+        }
+        if (c.kind === 'ring') {
+          const ring = rings[Number(c.ring)];
+          if (ring === undefined) {
+            throw new Error(`the snap names ring ${String(c.ring)}, which is not given`);
+          }
+          return Object.freeze({ kind: 'ring', distance: ring });
+        }
         const neighbour = neighbours[Number(c.neighbour)];
         if (neighbour === undefined) {
           throw new Error(`the snap names neighbour ${String(c.neighbour)}, which is not given`);
@@ -135,12 +166,13 @@ export function resolveSnap(
             : { kind: 'align', axis: c.line.kind, ...named },
         );
       };
-      const chosen = [outcome.across, outcome.down].filter(
+      const chosen = [outcome.across, outcome.down, outcome.out].filter(
         (c): c is Lean.SnapCandidate => c !== null,
       );
       return Object.freeze({
         heading: outcome.across?.delta ?? 0,
         elevation: outcome.down?.delta ?? 0,
+        distance: outcome.out?.delta ?? 0,
         constraints: Object.freeze(chosen.map(constraintOf)),
       });
     }
@@ -158,9 +190,10 @@ function direction(heading: number, elevation: number): Vec3 {
 
 /**
  * The local transform of a window placed at `world` (its proposed world matrix, under the parent
- * of `placement`) once a snap has turned it about the eye: the shortest turn that takes its centre
- * from where it is seen to where the snap puts it, so it keeps its distance and its facing. Null
- * when the parent's placement cannot be inverted or decomposed.
+ * of `placement`) once a snap has turned it about the eye and moved it out: the shortest turn that
+ * takes its centre from where it is seen to where the snap puts it, so it keeps its facing, then
+ * along its line from the eye by the snap's distance. Null when the parent's placement cannot be
+ * inverted or decomposed.
  */
 export function snappedTransform(
   placement: Placement,
@@ -188,14 +221,13 @@ export function snappedTransform(
     return null;
   }
   const placed = decomposed.transform;
-  const snappedWorld =
-    turn === null
-      ? world
-      : mat4FromTransform({
-          position: add(eye, quatRotate(turn, offset)),
-          rotation: quatNormalize(quatMultiply(turn, placed.rotation)),
-          scale: placed.scale,
-        });
+  const out = (distance + snap.distance) / distance;
+  const turned = turn === null ? offset : quatRotate(turn, offset);
+  const snappedWorld = mat4FromTransform({
+    position: add(eye, [turned[0] * out, turned[1] * out, turned[2] * out]),
+    rotation: turn === null ? placed.rotation : quatNormalize(quatMultiply(turn, placed.rotation)),
+    scale: placed.scale,
+  });
   const local = mat4Decompose(mat4Multiply(toParent, snappedWorld));
   return local.ok ? local.transform : null;
 }

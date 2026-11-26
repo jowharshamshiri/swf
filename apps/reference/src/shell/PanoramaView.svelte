@@ -122,6 +122,10 @@
         return t(`snap.align.${c.axis}`, { label: c.neighbourLabel });
       case 'horizon':
         return t('snap.horizon');
+      case 'spoke':
+        return t('snap.spoke.at', { degrees: Math.round(c.degrees) });
+      case 'ring':
+        return t('snap.ring.at', { distance: Number(c.distance.toFixed(2)) });
     }
   };
   const snapText = (constraints: readonly SnapConstraint[]) =>

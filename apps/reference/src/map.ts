@@ -393,6 +393,13 @@ export function arrangedAround(
   });
 }
 
+/** What a marker's drag snaps with, while magnetic positioning is on. */
+export interface MarkerSnap {
+  readonly settings: SnapSettings;
+  /** The rings round the camera, nearest first, in world units. */
+  readonly rings: readonly number[];
+}
+
 /**
  * A marker being dragged: each move previews the window moved on the ground as far as the pointer
  * moved from where it grabbed the marker, so the grabbed point stays under the pointer; letting go
@@ -410,7 +417,7 @@ export class MarkerDrag {
   readonly #from: readonly [number, number];
   #last: SceneCommand[] | null = null;
   #ended = false;
-  readonly #snap: (() => SnapSettings | null) | null;
+  readonly #snap: (() => MarkerSnap | null) | null;
   readonly #neighbours: readonly SnapBox[];
   #snapped: Snap = NO_SNAP;
 
@@ -419,7 +426,7 @@ export class MarkerDrag {
     viewportId: Id,
     nodeId: Id,
     grabbed: readonly [number, number],
-    snap: (() => SnapSettings | null) | null = null,
+    snap: (() => MarkerSnap | null) | null = null,
   ) {
     const state = workspace.getState();
     const viewport = state.viewports.get(viewportId);
@@ -474,14 +481,17 @@ export class MarkerDrag {
     if (stood === null) {
       return false;
     }
-    const settings = this.#snap?.() ?? null;
+    const magnet = this.#snap?.() ?? null;
     let transform = stood;
     this.#snapped = NO_SNAP;
-    if (settings !== null) {
+    if (magnet !== null) {
       const placement = placementOf(state, this.nodeId);
       const world = worldAt(placement, stood);
       const box = boxOf(state, this.nodeId, world);
-      const snap = box === null ? NO_SNAP : resolveSnap(box, this.#neighbours, this.#eye, settings);
+      const snap =
+        box === null
+          ? NO_SNAP
+          : resolveSnap(box, this.#neighbours, this.#eye, magnet.settings, magnet.rings);
       const snapped = snappedTransform(placement, world, this.#eye, snap);
       if (snapped !== null) {
         transform = snapped;

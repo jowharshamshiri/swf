@@ -804,6 +804,7 @@
     "snap": {
       "heading": 0,
       "elevation": 0.010471976,
+      "distance": 0,
       "constraints": [
         {
           "kind": "horizon"

@@ -353,6 +353,12 @@ export const ENGLISH = Object.freeze({
   'snap.angular.hint': 'Degrees, at most 15.',
   'snap.padding': 'Gap between windows',
   'snap.padding.hint': 'World units.',
+  'snap.spoke': 'Spokes every',
+  'snap.spoke.hint':
+    'Degrees round you, at most 90; 0 for none. A heading within the line-up angle of a spoke goes to it.',
+  'snap.ring': 'Ring snap distance',
+  'snap.ring.hint':
+    'World units; 0 for none. A distance this near a ring goes to it: the rings are where Arrange round lays windows.',
   'cursor.title': 'Wrapped cursor',
   'cursor.detail':
     'A window or the view carried past one edge of the panorama comes back in at the other, where the seam behind you is.',
@@ -396,6 +402,8 @@ export const ENGLISH = Object.freeze({
   'snap.align.heading': 'in line with {label}',
   'snap.align.elevation': 'level with {label}',
   'snap.horizon': 'level with the horizon',
+  'snap.spoke.at': 'on the spoke at {degrees}°',
+  'snap.ring.at': 'on the ring {distance} units out',
   'history.label': 'History',
   'representation.compact': 'A compact preview, by distance',
   'representation.label': 'Its label alone, by distance',

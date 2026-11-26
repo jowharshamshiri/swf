@@ -52,6 +52,8 @@ export interface SnapReport {
 export interface MagneticOptions {
   /** The settings now: read at every proposal, so a change applies to the next move. */
   readonly settings: () => SnapSettings;
+  /** The rings round the camera now, nearest first, in world units: read at every proposal. */
+  readonly rings: () => readonly number[];
   /** Hears each preview's snap. */
   readonly report: (report: SnapReport) => void;
 }
@@ -138,7 +140,13 @@ class MagneticMove implements GestureHandler {
     const snap =
       box === null
         ? NO_SNAP
-        : resolveSnap(box, this.#neighbours, this.#eye, this.#options.settings());
+        : resolveSnap(
+            box,
+            this.#neighbours,
+            this.#eye,
+            this.#options.settings(),
+            this.#options.rings(),
+          );
     const transform =
       snap.constraints.length === 0
         ? moved
