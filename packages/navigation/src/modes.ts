@@ -6,7 +6,6 @@ import type {
   WorkspaceMutator,
   WorkspaceReader,
 } from '@swf/core';
-import type { MessageId } from './messages.js';
 import type { ModeMachine, ModeTraits, ViewSettings } from './mode-machine.js';
 import { initialMode, observedMode, transition } from './mode-machine.js';
 
@@ -20,7 +19,11 @@ import { initialMode, observedMode, transition } from './mode-machine.js';
 export interface ViewMode {
   /** A stable ID, stored as the viewport's mode. */
   readonly id: string;
-  readonly name: MessageId;
+  /**
+   * Its name, as the ID of the message a host's interface names it by: the navigation interface's
+   * messages name the modes this package registers (`mode.<id>`).
+   */
+  readonly name: string;
   /**
    * The projection the viewport shows this mode with. A panoramic mode shows the panorama's own
    * instead, at the field of view the reader last set ({@link Modes.fieldOfView}); this is the one
@@ -44,15 +47,21 @@ export interface ViewMode {
   activate?(context: ModeContext): () => void;
 }
 
+/** What a mode active in a viewport works with. */
 export interface ModeContext {
+  /** The viewport it is active in. */
   readonly viewportId: Id;
+  /** The workspace it shows. */
   readonly workspace: WorkspaceReader & WorkspaceMutator;
   /** Leaves the mode for the view it was entered from, as the system: when what it shows is gone. */
   readonly back: () => void;
 }
 
+/** What a mode being entered works out its view from. */
 export interface EnterContext {
+  /** The viewport it is entered in. */
   readonly viewportId: Id;
+  /** The workspace as it is. */
   readonly workspace: WorkspaceReader;
   /** The entity the mode is asked to present, when the request names one. */
   readonly target: Id | null;
@@ -60,6 +69,7 @@ export interface EnterContext {
 
 /** A mode that cannot be entered or left as asked, and why, naming the field at fault. */
 export class ModeRefusal extends Error {
+  /** The field at fault. */
   readonly field: string;
 
   constructor(field: string, message: string) {
@@ -69,11 +79,13 @@ export class ModeRefusal extends Error {
   }
 }
 
+/** How a mode is switched to. */
 export interface SwitchOptions {
   /** The entity the mode presents (the window a focus is on). */
   readonly target?: Id;
 }
 
+/** A viewport's view modes: those registered, the one shown, and moving between them. */
 export interface Modes {
   /** Registers a mode; the returned function unregisters it (never the active one). */
   register(mode: ViewMode): () => void;
@@ -106,6 +118,7 @@ export interface Modes {
    * or `mode` while the active mode frames its own view.
    */
   fieldOfView(degrees: number): TxResult;
+  /** Stops following the workspace and stops the active mode's work. */
   dispose(): void;
 }
 
@@ -113,7 +126,12 @@ export interface Modes {
  * The panorama's horizontal field of view, in degrees: the whole circle at most, and never so
  * narrow that the panorama stops being one (a quarter of it, about).
  */
-export const FIELD_OF_VIEW = Object.freeze({ min: 85, max: 360 });
+export const FIELD_OF_VIEW: {
+  /** The narrowest, in degrees. */
+  readonly min: number;
+  /** The widest: the whole circle. */
+  readonly max: number;
+} = Object.freeze({ min: 85, max: 360 });
 
 /** The panorama's vertical angle for each degree across: 120° down for the whole 360° across. */
 const VERTICAL_PER_HORIZONTAL = 120 / 360;
@@ -138,6 +156,7 @@ export function fieldOfViewOf(projection: ProjectionSetting): number {
   return horizontal;
 }
 
+/** The panorama: the whole circle round the camera, at the field of view the reader sets. */
 export const PANORAMA: ViewMode = Object.freeze({
   id: 'panorama',
   name: 'mode.panorama',
@@ -161,6 +180,10 @@ export const OVERVIEW: ViewMode = Object.freeze({
   panoramic: true,
 });
 
+/**
+ * The view modes of one viewport of a workspace, none registered yet: the viewport's record says
+ * which is shown.
+ */
 export function createModes(workspace: WorkspaceReader & WorkspaceMutator, viewportId: Id): Modes {
   const modes = new Map<string, ViewMode>();
   /** Every mode ID in the order it was first registered. */

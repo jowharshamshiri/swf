@@ -14,7 +14,7 @@
     StatusItem,
     Tabs,
   } from '@wsb/uikit/components';
-  import { VIEWPORT_ID } from '../app.js';
+  import { FOCUS_ID, MAP, OVERVIEW, VIEWPORT_ID } from '@swf/navigation';
   import { handleOf } from '@wsb/uikit/handles';
   import { Application } from '@wsb/uikit/surfaces/application';
   import type { MessageId } from '../messages.js';
@@ -26,8 +26,6 @@
   import type { ShellModel } from './model.svelte.js';
   import Palette from './Palette.svelte';
   import CentreView from './CentreView.svelte';
-  import { FOCUS_ID } from '../focus.js';
-  import { MAP, OVERVIEW } from '../modes.js';
   import SceneView from './SceneView.svelte';
   import ScenariosView from './ScenariosView.svelte';
   import StatusBody from './StatusBody.svelte';
@@ -98,7 +96,7 @@
       const redo = (key === 'z' && event.shiftKey) || (key === 'y' && !event.shiftKey);
       if (undo || redo) {
         event.preventDefault();
-        void model.run(undo ? 'reference.history.undo' : 'reference.history.redo', {});
+        void model.run(undo ? 'swf.history.undo' : 'swf.history.redo', {});
         return;
       }
       if (key === 's' && !event.shiftKey) {
@@ -109,12 +107,12 @@
     }
     if (event.key === 'Escape' && model.policies?.gesture != null) {
       event.preventDefault();
-      void model.run('reference.gesture.cancel', {});
+      void model.run('swf.gesture.cancel', {});
       return;
     }
     if (event.key === 'Escape' && model.status?.mode === FOCUS_ID) {
       event.preventDefault();
-      void model.run('reference.focus.exit', {});
+      void model.run('swf.focus.exit', {});
       return;
     }
     if (event.target === model.app.root && !command && !event.altKey) {
@@ -136,19 +134,19 @@
       const mode = modes[digit - 1];
       if (mode !== undefined && listed.includes(mode)) {
         event.preventDefault();
-        void model.run('reference.mode.switch', { mode: mode.value });
+        void model.run('swf.mode.switch', { mode: mode.value });
       }
       return;
     }
     const key = event.key.toLowerCase();
     if (key === 'f' && model.policies?.features.enabled.focus === true) {
       event.preventDefault();
-      void model.run('reference.focus.enter', {});
+      void model.run('swf.focus.enter', {});
       return;
     }
     if (key === 'm' && model.policies?.features.enabled.map === true) {
       event.preventDefault();
-      void model.run('reference.mode.switch', { mode: MAP.id });
+      void model.run('swf.mode.switch', { mode: MAP.id });
       return;
     }
     if (event.key === 'Delete' || event.key === 'Backspace') {
@@ -162,7 +160,7 @@
     }
     if (event.key === 'Escape' && (model.status?.mode === MAP.id || model.status?.mode === OVERVIEW.id)) {
       event.preventDefault();
-      void model.run('reference.mode.back', {});
+      void model.run('swf.mode.back', {});
     }
   }
 
@@ -254,7 +252,7 @@
   const modes = $derived(
     model.modes.map((mode) => ({
       value: mode.id,
-      label: t(mode.name),
+      label: model.messages.named(mode.name),
       disabled: mode.id === FOCUS_ID && !focusable,
     })),
   );
@@ -327,7 +325,7 @@
       options={modes.map((mode) => ({ value: mode.value, label: mode.label, disabled: mode.disabled }))}
       value={status.mode}
       onchange={(mode) => {
-        void model.run('reference.mode.switch', { mode });
+        void model.run('swf.mode.switch', { mode });
       }}
     />
   {:else if status !== null && modes.length > 1}
@@ -337,7 +335,7 @@
       items={modes}
       selected={status.mode}
       onselect={(mode) => {
-        void model.run('reference.mode.switch', { mode });
+        void model.run('swf.mode.switch', { mode });
       }}
     />
   {/if}
@@ -360,7 +358,7 @@
       ]}
       selected={policies.orbit.navigation}
       onselect={(target) => {
-        void model.run('reference.navigation.set', { target: target as 'camera' | 'orbit' });
+        void model.run('swf.navigation.set', { target: target as 'camera' | 'orbit' });
       }}
     />
   {/if}
@@ -371,7 +369,7 @@
     size="small"
     disabled={!model.history.undo}
     onpress={() => {
-      void model.run('reference.history.undo', {});
+      void model.run('swf.history.undo', {});
     }}
   />
   <IconButton
@@ -381,7 +379,7 @@
     size="small"
     disabled={!model.history.redo}
     onpress={() => {
-      void model.run('reference.history.redo', {});
+      void model.run('swf.history.redo', {});
     }}
   />
   <IconButton

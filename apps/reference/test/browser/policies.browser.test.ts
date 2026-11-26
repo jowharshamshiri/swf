@@ -7,9 +7,9 @@ import { equirectangular } from '@swf/projections';
 import { afterEach, describe, expect, it } from 'vitest';
 import { commands } from 'vitest/browser';
 import type { ReferenceApp } from '../../src/app.js';
-import { createReferenceApp, VIEWPORT_ID } from '../../src/app.js';
+import { createReferenceApp } from '../../src/app.js';
 import type { AppConfig } from '../../src/config.js';
-import { orbitHeading } from '../../src/orbit.js';
+import { VIEWPORT_ID, orbitHeading } from '@swf/navigation';
 import { planPreset, WORKSPACE_GROUP_ID } from '../../src/presets.js';
 
 declare module 'vitest/browser' {
@@ -161,7 +161,7 @@ describe('the wrapped cursor across the seam (§33.2 scenario 2, FR-107, FR-123)
       }
     }
     // One undo puts back exactly the one change.
-    expect((await a.commands.run('reference.history.undo', {})).status).toBe('done');
+    expect((await a.commands.run('swf.history.undo', {})).status).toBe('done');
     expect(a.workspace.getState().nodes.get('window-01')?.transform).toEqual(
       before.nodes.get('window-01')?.transform,
     );
@@ -216,9 +216,7 @@ describe('workspace orbit beside camera navigation (FR-068, FR-106, FR-121)', ()
     // A camera turn is view state: nothing was added to undo.
     expect(a.workspace.history()).toHaveLength(history);
 
-    expect((await a.commands.run('reference.navigation.set', { target: 'orbit' })).status).toBe(
-      'done',
-    );
+    expect((await a.commands.run('swf.navigation.set', { target: 'orbit' })).status).toBe('done');
     const turned = camera();
     await dragSky();
     expect(gestures.slice(-2)).toEqual(['start orbit.turn workspace', 'end committed']);
@@ -227,7 +225,7 @@ describe('workspace orbit beside camera navigation (FR-068, FR-106, FR-121)', ()
     // The live note moved with its group on screen.
     const f = await frame(a);
     expect(f.frame.sceneRevision).toBe(a.workspace.getState().revision);
-    expect((await a.commands.run('reference.history.undo', {})).status).toBe('done');
+    expect((await a.commands.run('swf.history.undo', {})).status).toBe('done');
     expect(a.workspace.getState().nodes.get(WORKSPACE_GROUP_ID)?.transform).toEqual(group);
     expect(camera()).toEqual(turned);
   });

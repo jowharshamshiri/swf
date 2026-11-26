@@ -2,11 +2,9 @@ import type { SceneState } from '@swf/core';
 import type * as Lean from '@swf/models';
 import { models } from '@swf/models';
 import type { AppCommandId, AppCommandSpecs } from './commands.js';
-import type { DepthBands, FeatureId } from './features.js';
-import { FOCUS_ID } from './focus.js';
+import type { DepthBands, FeatureId, Pose } from '@swf/navigation';
+import { FOCUS_ID, wrapDegrees } from '@swf/navigation';
 import type { MessageId } from './messages.js';
-import type { Pose } from './pose.js';
-import { wrapDegrees } from './pose.js';
 import type { NamedWorkspace } from './workspaces.js';
 
 /**
@@ -179,7 +177,7 @@ const behind: Scenario = {
       text: 'scenario.behind.select',
       hint: 'scenario.behind.select.hint',
       holds: (world) => selected(world, DESK),
-      show: () => command('reference.window.inspect', { id: DESK }),
+      show: () => command('swf.window.inspect', { id: DESK }),
     },
     {
       id: 'move',
@@ -189,7 +187,7 @@ const behind: Scenario = {
       show: (world) => {
         // Straight across the camera: as far round as it was in front, now behind.
         const [x, , z] = poseIn(world, DESK).position;
-        return command('reference.window.place', { id: DESK, x: -x, z: -z });
+        return command('swf.window.place', { id: DESK, x: -x, z: -z });
       },
     },
     {
@@ -213,21 +211,21 @@ const hidden: Scenario = {
       text: 'scenario.hidden.find',
       hint: 'scenario.hidden.find.hint',
       holds: (world) => selected(world, TASKS),
-      show: () => command('reference.window.inspect', { id: TASKS }),
+      show: () => command('swf.window.inspect', { id: TASKS }),
     },
     {
       id: 'face',
       text: 'scenario.hidden.face',
       hint: 'scenario.hidden.face.hint',
       holds: (world) => stands(world, TASKS, (pose) => offCamera(world, pose) < FACING),
-      show: () => command('reference.window.reveal', { id: TASKS }),
+      show: () => command('swf.window.reveal', { id: TASKS }),
     },
     {
       id: 'read',
       text: 'scenario.hidden.read',
       hint: 'scenario.hidden.read.hint',
       holds: (world) => world.mode === FOCUS_ID && world.scene.focusedId === TASKS,
-      show: () => command('reference.focus.enter', { id: TASKS }),
+      show: () => command('swf.focus.enter', { id: TASKS }),
     },
   ],
 };
@@ -243,7 +241,7 @@ const depth: Scenario = {
       text: 'scenario.depth.select',
       hint: 'scenario.depth.select.hint',
       holds: (world) => selected(world, MEDIA),
-      show: () => command('reference.window.inspect', { id: MEDIA }),
+      show: () => command('swf.window.inspect', { id: MEDIA }),
     },
     {
       id: 'near',
@@ -251,7 +249,7 @@ const depth: Scenario = {
       hint: 'scenario.depth.near.hint',
       holds: (world) => stands(world, MEDIA, (pose) => pose.distance < world.depth.full),
       show: (world) =>
-        command('reference.window.place', {
+        command('swf.window.place', {
           id: MEDIA,
           ...atDistance(poseIn(world, MEDIA), Math.max(world.depth.full - 1, 2)),
         }),
@@ -262,7 +260,7 @@ const depth: Scenario = {
       hint: 'scenario.depth.far.hint',
       holds: (world) => stands(world, MEDIA, (pose) => pose.distance >= world.depth.compact),
       show: (world) =>
-        command('reference.window.place', {
+        command('swf.window.place', {
           id: MEDIA,
           ...atDistance(poseIn(world, MEDIA), world.depth.compact + 1.5),
         }),
@@ -281,7 +279,7 @@ const focus: Scenario = {
       text: 'scenario.focus.enter',
       hint: 'scenario.focus.enter.hint',
       holds: (world) => world.mode === FOCUS_ID,
-      show: () => command('reference.focus.enter', { id: DESK }),
+      show: () => command('swf.focus.enter', { id: DESK }),
     },
     {
       id: 'switch',
@@ -291,14 +289,14 @@ const focus: Scenario = {
         world.mode === FOCUS_ID &&
         world.scene.focusedId !== null &&
         world.scene.focusedId !== last(due).scene.focusedId,
-      show: () => command('reference.focus.step', { direction: 'right' }),
+      show: () => command('swf.focus.step', { direction: 'right' }),
     },
     {
       id: 'leave',
       text: 'scenario.focus.leave',
       hint: 'scenario.focus.leave.hint',
       holds: (world) => world.mode !== FOCUS_ID,
-      show: () => command('reference.focus.exit', {}),
+      show: () => command('swf.focus.exit', {}),
     },
   ],
 };
@@ -317,22 +315,21 @@ const compose: Scenario = {
         const owner = ownerOf(world, SOURCES_SURFACE);
         return owner !== null && owner !== BOARD;
       },
-      show: () => command('reference.surface.detach', { surfaceId: SOURCES_SURFACE }),
+      show: () => command('swf.surface.detach', { surfaceId: SOURCES_SURFACE }),
     },
     {
       id: 'move',
       text: 'scenario.compose.move',
       hint: 'scenario.compose.move.hint',
       holds: (world) => ownerOf(world, SOURCES_SURFACE) === DESK,
-      show: () => command('reference.surface.move', { surfaceId: SOURCES_SURFACE, windowId: DESK }),
+      show: () => command('swf.surface.move', { surfaceId: SOURCES_SURFACE, windowId: DESK }),
     },
     {
       id: 'back',
       text: 'scenario.compose.back',
       hint: 'scenario.compose.back.hint',
       holds: (world) => ownerOf(world, SOURCES_SURFACE) === BOARD,
-      show: () =>
-        command('reference.surface.move', { surfaceId: SOURCES_SURFACE, windowId: BOARD }),
+      show: () => command('swf.surface.move', { surfaceId: SOURCES_SURFACE, windowId: BOARD }),
     },
   ],
 };
@@ -364,7 +361,7 @@ const restore: Scenario = {
       holds: (world, due) => !sameLayout(world.scene, last(due).scene),
       show: (world) => {
         const [x, , z] = poseIn(world, BUILDS).position;
-        return command('reference.window.place', { id: BUILDS, x: -x, z: -z });
+        return command('swf.window.place', { id: BUILDS, x: -x, z: -z });
       },
     },
     {

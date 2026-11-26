@@ -2,9 +2,9 @@ import { createWorkspace } from '@swf/core';
 import { createPresentationRegistry } from '@swf/presentation';
 import { createProjectionRegistry, equirectangular } from '@swf/projections';
 import { describe, expect, it } from 'vitest';
-import type { ViewMode } from '../src/modes.js';
-import { createModes, PANORAMA } from '../src/modes.js';
-import { CAMERA_ID, planPreset, presetCommands } from '../src/presets.js';
+import { planPreset, presetCommands } from '../src/presets.js';
+import type { ViewMode } from '@swf/navigation';
+import { CAMERA_ID, PANORAMA, createModes } from '@swf/navigation';
 
 function scene() {
   const ws = createWorkspace({ id: 'test' });

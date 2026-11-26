@@ -13,7 +13,9 @@ import { fromJson, models, toJson } from '@swf/models';
 
 /** A viewport's view settings, as they were when a mode was entered. */
 export interface ViewSettings {
+  /** The viewport's mode. */
   readonly mode: string;
+  /** The viewport's projection. */
   readonly projection: ProjectionSetting;
   /** The rotation of the viewport's camera. */
   readonly camera: Quat;

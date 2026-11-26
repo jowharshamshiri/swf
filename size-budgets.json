@@ -83,6 +83,13 @@
       "gzip": 11459
     }
   },
+  "@swf/navigation": {
+    "budget": 29440,
+    "recorded": {
+      "minified": 80723,
+      "gzip": 26607
+    }
+  },
   "@swf/benchmark": {
     "budget": 6912,
     "recorded": {

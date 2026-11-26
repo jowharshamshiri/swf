@@ -56,7 +56,7 @@
           disabled={model.selected === null}
           onpress={() => {
             if (model.selected !== null) {
-              void model.run('reference.window.reveal', { id: model.selected.id });
+              void model.run('swf.window.reveal', { id: model.selected.id });
             }
           }}
         />
@@ -66,7 +66,7 @@
           size="small"
           disabled={model.status === null || model.status.windows === 0}
           onpress={() => {
-            void model.run('reference.window.arrange', {});
+            void model.run('swf.window.arrange', {});
           }}
         />
       </Stack>

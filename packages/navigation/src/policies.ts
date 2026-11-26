@@ -26,7 +26,7 @@ import { createWheelBursts } from './wheel-burst.js';
 import { wrappedInput } from './wrapped-cursor.js';
 
 /**
- * The reference application's optional modules at work: each installed through the framework's
+ * Navigation's optional capabilities at work: each installed through the framework's
  * public contracts while its feature is on, and taken out, hooks and all, when it is turned off:
  * - focus and context, and the spatial map: their view modes, registered with the modes;
  * - workspace orbit: the viewport's background-drag navigation and the orbit root, and the keys
@@ -35,7 +35,7 @@ import { wrappedInput } from './wrapped-cursor.js';
  * - magnetic positioning: an interaction policy for window moves;
  * - the wrapped cursor: between the pointer device and the framework, with a virtual cursor;
  * - composition and persistence: their commands and controls, which ask {@link Policies.status}
- *   whether they are on (the application turns saving as the workspace changes on and off).
+ *   whether they are on (the host turns saving as the workspace changes on and off).
  * It also follows the gestures the framework runs, so the shell can show each one's preview, the
  * constraint in force, how to cancel it, and how it ended.
  */
@@ -43,6 +43,7 @@ import { wrappedInput } from './wrapped-cursor.js';
 /** A policy's refusal, naming the field at fault. */
 export class PolicyRefusal extends Error {
   constructor(
+    /** The field at fault. */
     readonly field: string,
     message: string,
   ) {
@@ -60,13 +61,15 @@ const WINDOW_GESTURES: readonly string[] = Object.freeze([
 
 /** A gesture running: the framework's, or a burst of the wheel over a window. */
 export interface RunningGesture {
+  /** The gesture's ID. */
   readonly gestureId: string;
   /** The command it does, such as `node.move`, `orbit.turn` or `camera.turn`. */
   readonly operation: string;
+  /** The window it acts on, or null for one that acts on none (a turn of the camera). */
   readonly nodeId: Id | null;
   /** Whether magnetic positioning weighs where it puts the window: a magnetic move. */
   readonly snaps: boolean;
-  /** Whether it is a burst of the wheel, the application's own, rather than the framework's. */
+  /** Whether it is a burst of the wheel, navigation's own, rather than the framework's. */
   readonly wheel: boolean;
   /** The snap in force, while a magnetic move previews one. */
   readonly snap: Snap | null;
@@ -74,9 +77,13 @@ export interface RunningGesture {
 
 /** How the last gesture ended. */
 export interface EndedGesture {
+  /** The command it did. */
   readonly operation: string;
+  /** The window it acted on, or null. */
   readonly nodeId: Id | null;
+  /** How it ended: committed, put down where it was, or cancelled. */
   readonly outcome: 'committed' | 'unchanged' | 'cancelled';
+  /** Why it was cancelled, or null when it was not. */
   readonly reason: CancelReason | null;
   /** The snap its commit resolved to. */
   readonly snap: Snap | null;
@@ -84,16 +91,25 @@ export interface EndedGesture {
 
 /** What the policies show: read again whenever a listener is told something changed. */
 export interface PolicyStatus {
+  /** The capabilities' settings. */
   readonly features: FeatureSettings;
+  /** Workspace orbit's state. */
   readonly orbit: OrbitState;
   /** The wrapped cursor can wrap in the view as it is (it shows the whole circle). */
   readonly wraps: boolean;
+  /** The gesture running, or null. */
   readonly gesture: RunningGesture | null;
+  /** How the last gesture ended, or null before any. */
   readonly ended: EndedGesture | null;
 }
 
+/**
+ * The capabilities at work in one viewport: each turned on and off, and the policies that carry it.
+ */
 export interface Policies {
+  /** What the policies show now. */
   status(): PolicyStatus;
+  /** Calls `listener` whenever the status changes; returns what stops it. */
   subscribe(listener: () => void): () => void;
   /**
    * Changes the features' settings; a policy turned off is taken out at once, one turned on is
@@ -138,23 +154,36 @@ export interface Policies {
    * container. The returned function stops.
    */
   attach(viewport: PresentedViewport, container: HTMLElement): () => void;
+  /** Takes the policies out and stops following the workspace and the router. */
   dispose(): void;
 }
 
+/** What the policies act in and on. */
 export interface PolicyOptions {
+  /** The workspace. */
   readonly workspace: Workspace;
+  /** The router the policies and input go through. */
   readonly router: InteractionRouter;
+  /** The projections the viewport's view is drawn by. */
   readonly projections: ProjectionRegistry;
+  /** The viewport. */
   readonly viewportId: Id;
   /** The modes the focus and map features register while they are on. */
   readonly modes: Modes;
+  /** The focus mode, registered while focus is on. */
   readonly focusMode: ViewMode;
+  /** The map mode, registered while the map is on. */
   readonly mapMode: ViewMode;
   /** The mode a viewport goes back to when the mode it shows is turned off. */
   readonly homeModeId: string;
+  /** The settings to start with. Default: {@link DEFAULT_FEATURES}. */
   readonly features?: FeatureSettings;
 }
 
+/**
+ * The capabilities' policies in a viewport, each on as `features` says, its policies installed
+ * through the router and its modes registered.
+ */
 export function createPolicies(options: PolicyOptions): Policies {
   const { workspace, router, projections, viewportId, modes } = options;
   const focusModeId = options.focusMode.id;
@@ -375,7 +404,7 @@ export function createPolicies(options: PolicyOptions): Policies {
         kind: 'command',
         command: 'orbit.turn',
         args: { viewportId, angle: (degrees * Math.PI) / 180 },
-        deviceId: 'reference.controls',
+        deviceId: 'swf.navigation.controls',
         timestamp: performance.now(),
       });
       const outcome = result.operation?.outcome;
@@ -419,7 +448,7 @@ export function createPolicies(options: PolicyOptions): Policies {
       }
       const commands = [{ type: 'node.patch' as const, id: rootId, transform }];
       if (preview) {
-        const id = open ?? `reference.orbit.turn-to/${String(scene.revision)}`;
+        const id = open ?? `swf.orbit.turn-to/${String(scene.revision)}`;
         turnPreview = id;
         return workspace.preview(id, commands, { source: 'user' });
       }

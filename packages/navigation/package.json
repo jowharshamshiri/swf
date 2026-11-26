@@ -1,0 +1,44 @@
+{
+  "name": "@swf/navigation",
+  "version": "0.1.0",
+  "description": "Navigation and spatial interaction for the Spatial Workspace Framework: a host's own content presented in a panorama with focus, the map and radar, the overview and search, orbiting, magnetic snapping, semantic depth, composition, and the capabilities and experiments that switch each on and off, every action a named command.",
+  "license": "Apache-2.0",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jowharshamshiri/swf.git",
+    "directory": "packages/navigation"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "CHANGELOG.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@swf/backend-dom": "0.1.0",
+    "@swf/backend-geometry": "0.1.0",
+    "@swf/core": "0.1.0",
+    "@swf/interaction": "0.1.0",
+    "@swf/math": "0.1.0",
+    "@swf/models": "0.1.0",
+    "@swf/presentation": "0.1.0",
+    "@swf/projections": "0.1.0",
+    "@swf/surfaces": "0.1.0"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  }
+}

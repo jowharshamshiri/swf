@@ -359,8 +359,8 @@ describe('the reference controls (QA-009, UX-013, NFR-024)', () => {
       const { model, root, driver, settle } = await start('?preset=sparse');
       expect(getComputedStyle(root).getPropertyValue('--wsb-motion-base').trim()).toBe('0ms');
       // Going to a window, focusing it and showing the map are instant: the camera jumps.
-      await model.run('reference.window.reveal', { id: FIRST.id });
-      await model.run('reference.focus.enter', { id: FIRST.id });
+      await model.run('swf.window.reveal', { id: FIRST.id });
+      await model.run('swf.focus.enter', { id: FIRST.id });
       driver.act('editor.actions.mode#map', 'press');
       await settle();
       expect(document.getAnimations().filter((a) => a.playState === 'running')).toEqual([]);
@@ -459,7 +459,7 @@ describe('the reference controls (QA-009, UX-013, NFR-024)', () => {
     expect((said?.width ?? 0) * (said?.height ?? 0)).toBeLessThanOrEqual(1);
     expect(announcer === null ? '' : getComputedStyle(announcer).overflow).toBe('hidden');
     // A refusal is said over the inspector, once, as an alert.
-    const near = await model.run('reference.window.pose', { id: FIRST.id, reach: 0 });
+    const near = await model.run('swf.window.pose', { id: FIRST.id, reach: 0 });
     expect(near).toBe(false);
     await settle();
     const refused = root.querySelector('[data-wsb="page.inspector.refusal"]');
@@ -468,7 +468,7 @@ describe('the reference controls (QA-009, UX-013, NFR-024)', () => {
     expect(root.querySelectorAll('[role="alert"]')).toHaveLength(1);
     // Another refusal takes its place, said once.
     const asked: unknown = 'yes';
-    await model.run('reference.window.lock', { id: FIRST.id, locked: asked as boolean });
+    await model.run('swf.window.lock', { id: FIRST.id, locked: asked as boolean });
     await settle();
     const refusal = root.querySelector('[data-wsb="page.inspector.refusal"]');
     expect(refusal?.getAttribute('role')).toBe('alert');
@@ -481,18 +481,22 @@ describe('a control for every gesture, for touch, pen and keyboard (UX-014, UX-0
   it('offers each pointer gesture’s operation as a control that needs no gesture', async () => {
     const { model, app, driver, settle } = await start('?preset=sparse');
     // A new gesture policy fails here until it is given its control below.
-    expect(app.router.policyIds().filter((id) => id.startsWith('swf.'))).toEqual([
+    expect(
+      app.router
+        .policyIds()
+        .filter((id) => id.startsWith('swf.') && !id.startsWith('swf.navigation.')),
+    ).toEqual([
       'swf.background-navigation/1',
       'swf.pinch-depth/1',
       'swf.tap-select/1',
       'swf.window-move/1',
       'swf.window-resize/1',
     ]);
-    expect(app.router.policyIds().filter((id) => id.startsWith('reference.'))).toEqual([
-      'reference.depth-drag/1',
-      'reference.magnetic-move/1',
-      'reference.select-toggle/1',
-      'reference.turn-drag/1',
+    expect(app.router.policyIds().filter((id) => id.startsWith('swf.navigation.'))).toEqual([
+      'swf.navigation.depth-drag/1',
+      'swf.navigation.magnetic-move/1',
+      'swf.navigation.select-toggle/1',
+      'swf.navigation.turn-drag/1',
     ]);
     const pose = () =>
       app.poseOf(FIRST.id) ??
@@ -542,7 +546,7 @@ describe('a control for every gesture, for touch, pen and keyboard (UX-014, UX-0
     await settle();
     expect(pose().turned).toBeGreaterThan(before.turned);
     // A background drag turns the camera: the window's Reveal turns it to the window.
-    await model.run('reference.window.reveal', { id: SPARSE[2]?.id ?? '' });
+    await model.run('swf.window.reveal', { id: SPARSE[2]?.id ?? '' });
     driver.act(`page.inspector.window.reveal#${SPARSE[2]?.id ?? ''}`, 'press');
     await settle();
     // ... or the workspace, from the experiment panel.

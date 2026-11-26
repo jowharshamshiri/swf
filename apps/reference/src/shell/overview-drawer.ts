@@ -2,11 +2,9 @@ import type { Hue, StageUnit } from '@wsb/uikit/components';
 import { HUES } from '@wsb/uikit/components';
 import { resolvePalette } from '@wsb/uikit/primitives';
 import type { ReferenceApp } from '../app.js';
-import { VIEWPORT_ID } from '../app.js';
-import { inView } from '../map.js';
+import type { OverviewEntry, OverviewLayout, OverviewScene } from '@swf/navigation';
+import { CARD, VIEWPORT_ID, inView, layOverview, overviewScene } from '@swf/navigation';
 import type { Messages } from '../messages.js';
-import type { OverviewEntry, OverviewLayout, OverviewScene } from '../overview.js';
-import { CARD, layOverview, overviewScene } from '../overview.js';
 
 /**
  * Draws the spatial overview on the kit's stage and works it. The board is the whole sphere round
@@ -288,7 +286,7 @@ export class OverviewDrawer {
     }
     const ink = this.#inks;
     const presented = app.workspace.getPresented();
-    const scene = overviewScene(presented, VIEWPORT_ID);
+    const scene = overviewScene(presented, VIEWPORT_ID, app.windows.category);
     const board = { width, height: Math.max(0, height - OVERVIEW_HEAD) };
     const layout = layOverview(scene.entries, board.width, board.height);
     const shown = new Set(

@@ -1,11 +1,17 @@
 import type { Workspace } from '@swf/core';
 import { cameraRotation } from '@swf/projections';
 import { describe, expect, it } from 'vitest';
-import { regroupWindow } from '../src/composition.js';
-import { aroundCamera } from '../src/map.js';
-import type { OverviewEntry, OverviewLayout } from '../src/overview.js';
-import { CARD, CARD_SCALES, layOverview, overviewScene } from '../src/overview.js';
-import { CAMERA_ID } from '../src/presets.js';
+import type { OverviewEntry, OverviewLayout } from '@swf/navigation';
+import { categoryOf } from '../src/presets.js';
+import {
+  CAMERA_ID,
+  CARD,
+  CARD_SCALES,
+  aroundCamera,
+  layOverview,
+  overviewScene,
+  regroupWindow,
+} from '@swf/navigation';
 import { policyWorld, VIEWPORT } from './policy-world.js';
 
 /** A board about the size the overview has in the reference application's centre. */
@@ -20,7 +26,7 @@ const laid = (layout: OverviewLayout) => {
 
 /** The overview of a workspace as it is now: what the overview reads, and where its cards stand. */
 function overviewOf(ws: Workspace, board = BOARD) {
-  const scene = overviewScene(ws.getPresented(), VIEWPORT);
+  const scene = overviewScene(ws.getPresented(), VIEWPORT, categoryOf);
   return { scene, layout: layOverview(scene.entries, board.width, board.height) };
 }
 

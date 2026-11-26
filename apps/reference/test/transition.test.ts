@@ -3,11 +3,18 @@ import { createWorkspace } from '@swf/core';
 import { createPresentationRegistry } from '@swf/presentation';
 import { createProjectionRegistry, equirectangular, headingPitchOf } from '@swf/projections';
 import { describe, expect, it } from 'vitest';
-import { createFocusMode, FOCUS_ID } from '../src/focus.js';
-import { createModes, PANORAMA } from '../src/modes.js';
-import { CAMERA_ID, planPreset, presetCommands } from '../src/presets.js';
-import type { ViewTransitions } from '../src/transition.js';
-import { createViewTransitions, TRANSITION_MS, TRANSITION_PREVIEW } from '../src/transition.js';
+import { planPreset, presetCommands } from '../src/presets.js';
+import type { ViewTransitions } from '@swf/navigation';
+import {
+  CAMERA_ID,
+  FOCUS_ID,
+  PANORAMA,
+  TRANSITION_MS,
+  TRANSITION_PREVIEW,
+  createFocusMode,
+  createModes,
+  createViewTransitions,
+} from '@swf/navigation';
 
 /** Frames run when the test says, as a page's animation frames run when the browser says. */
 class Frames {

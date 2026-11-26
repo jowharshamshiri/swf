@@ -10,7 +10,7 @@
   import { Button, Stack, Stage, Text, Toolbar } from '@wsb/uikit/components';
   import { handleOf, keyed } from '@wsb/uikit/handles';
   import { onDestroy } from 'svelte';
-  import type { Neighbour } from '../focus.js';
+  import type { Neighbour } from '@swf/navigation';
   import type { MessageId } from '../messages.js';
   import type { ShellModel } from './model.svelte.js';
   import { StripDrawer } from './strip-drawer.js';
@@ -57,10 +57,10 @@
         hidden = labels;
       },
       onfocus: (id) => {
-        void model.run('reference.focus.enter', { id });
+        void model.run('swf.focus.enter', { id });
       },
       onstep: (direction) => {
-        void model.run('reference.focus.step', { direction });
+        void model.run('swf.focus.step', { direction });
       },
     });
   });
@@ -98,7 +98,7 @@
           size="small"
           variant="ghost"
           onpress={() => {
-            void model.run('reference.focus.step', { direction: 'left' });
+            void model.run('swf.focus.step', { direction: 'left' });
           }}
         />
       {/if}
@@ -108,7 +108,7 @@
           label={t('focus.left', { label: neighbour.label, degrees: degrees(neighbour) })}
           size="small"
           onpress={() => {
-            void model.run('reference.focus.enter', { id: neighbour.id });
+            void model.run('swf.focus.enter', { id: neighbour.id });
           }}
         />
       {/each}
@@ -118,7 +118,7 @@
           label={t('focus.right', { label: neighbour.label, degrees: degrees(neighbour) })}
           size="small"
           onpress={() => {
-            void model.run('reference.focus.enter', { id: neighbour.id });
+            void model.run('swf.focus.enter', { id: neighbour.id });
           }}
         />
       {/each}
@@ -129,7 +129,7 @@
           size="small"
           variant="ghost"
           onpress={() => {
-            void model.run('reference.focus.step', { direction: 'right' });
+            void model.run('swf.focus.step', { direction: 'right' });
           }}
         />
       {/if}

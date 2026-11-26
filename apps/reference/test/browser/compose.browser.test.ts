@@ -217,7 +217,7 @@ describe('importing a workspace (FR-201, UX-016)', () => {
     await settle();
     expect(model.status?.windows).toBe(7);
     // Replacing is one undoable change.
-    await model.run('reference.history.undo', {});
+    await model.run('swf.history.undo', {});
     await settle();
     expect(model.status?.windows).toBe(6);
     model.beginImport('broken.json', '{\n  "schema": "swf.workspace/1",\n  "nodes": [,]\n}');
@@ -279,7 +279,7 @@ describe('the developer panel (FR-194, ADM-001–004, §33.2 scenario 7)', () =>
     // Every other window is presented as itself and still takes commands.
     const app = model.app;
     expect(app?.runtime.get('window-02-surface')?.state).toBe('presented');
-    expect(await model.run('reference.window.place', { id: 'window-02', y: 0.5 })).toBe(true);
+    expect(await model.run('swf.window.place', { id: 'window-02', y: 0.5 })).toBe(true);
     // A note is single-owner: the second view says it is shown in the first.
     driver.act('page.developer.second.open', 'press');
     // The second view draws on canvases: what it stands in for, and why, is read from its frame.
@@ -349,7 +349,7 @@ describe('the developer panel (FR-194, ADM-001–004, §33.2 scenario 7)', () =>
       store: createMemoryStore(),
       saveFile: (name, text) => files.push({ name, text }),
     });
-    await model.run('reference.window.place', { id: 'window-02', y: 0.4 });
+    await model.run('swf.window.place', { id: 'window-02', y: 0.4 });
     driver.act('worktree.view#developer', 'press');
     await settle();
     driver.act('page.developer.section#measures', 'press');

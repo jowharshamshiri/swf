@@ -2,16 +2,17 @@ import { keyed } from '@wsb/uikit/handles';
 import { createMemoryStore } from '@swf/persistence';
 import { describe, expect, it } from 'vitest';
 import type { ReferenceApp } from '../../src/app.js';
-import type { ExperimentId } from '../../src/experiments.js';
+import type { ExperimentId } from '@swf/navigation';
 import {
   CAPABILITY_ORDER,
-  EXPERIMENT_IDS,
+  DEFAULT_FEATURES,
   EXPERIMENTS,
+  EXPERIMENT_IDS,
+  FIELD_OF_VIEW,
   experimentPlan,
-} from '../../src/experiments.js';
-import { DEFAULT_FEATURES } from '../../src/features.js';
+  fieldOfViewOf,
+} from '@swf/navigation';
 import { ENGLISH } from '../../src/messages.js';
-import { FIELD_OF_VIEW, fieldOfViewOf } from '../../src/modes.js';
 import type { Mounted } from './shell-harness.js';
 import { layout, start } from './shell-harness.js';
 

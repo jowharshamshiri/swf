@@ -28,9 +28,12 @@ const FULLNESS: Readonly<Record<Representation, number>> = Object.freeze({
   label: 0,
 });
 
-/** The status of the space a frame of the viewport shows. */
-export function spaceStatus(frame: RenderFrame): SpaceStatus {
-  const scene = mapScene(frame.scene, frame.viewportId);
+/**
+ * The status of the space a frame of the viewport shows, each window's part link read under the
+ * host's `partKey`.
+ */
+export function spaceStatus(frame: RenderFrame, partKey: string): SpaceStatus {
+  const scene = mapScene(frame.scene, frame.viewportId, partKey);
   const shownAs = new Map<Id, Representation>();
   for (const planned of frame.planned) {
     const owner = frame.scene.surfaces.get(planned.fragment.surfaceId)?.ownerNodeId;

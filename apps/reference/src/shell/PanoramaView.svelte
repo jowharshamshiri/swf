@@ -6,8 +6,8 @@
   import { handleOf } from '@wsb/uikit/handles';
   import { onMount } from 'svelte';
   import { DEFAULT_CONFIG } from '../config.js';
-  import { FOCUS_ID } from '../focus.js';
-  import type { SnapConstraint } from '../magnetic.js';
+  import type { SnapConstraint } from '@swf/navigation';
+  import { FOCUS_ID } from '@swf/navigation';
   import type { MessageId } from '../messages.js';
   import type { ShellModel } from './model.svelte.js';
   import { PanoramaGuides } from './panorama-guides.js';
@@ -53,7 +53,7 @@
       const box = element.getBoundingClientRect();
       const id = app.windowAt(event.clientX - box.left, event.clientY - box.top);
       if (id !== null) {
-        void model.run('reference.focus.enter', { id });
+        void model.run('swf.focus.enter', { id });
       }
     };
     element.addEventListener('dblclick', focusAt);
@@ -283,7 +283,7 @@
             size="small"
             onpress={() => {
               model.dismissOutcome();
-              void model.run('reference.history.undo', {});
+              void model.run('swf.history.undo', {});
             }}
           />
         {/if}
@@ -314,7 +314,7 @@
             size="small"
             variant="primary"
             onpress={() => {
-              void model.run('reference.gesture.drop', {});
+              void model.run('swf.gesture.drop', {});
             }}
           />
         {/if}
@@ -323,7 +323,7 @@
           label={t('gesture.cancel')}
           size="small"
           onpress={() => {
-            void model.run('reference.gesture.cancel', {});
+            void model.run('swf.gesture.cancel', {});
           }}
         />
       {/snippet}
@@ -340,7 +340,7 @@
             size="small"
             onpress={() => {
               dismissed = ended.last;
-              void model.run('reference.history.undo', {});
+              void model.run('swf.history.undo', {});
             }}
           />
         {/if}
@@ -368,7 +368,7 @@
           size="small"
           disabled={!model.history.undo}
           onpress={() => {
-            void model.run('reference.history.undo', {});
+            void model.run('swf.history.undo', {});
           }}
         />
       {/snippet}
@@ -385,7 +385,7 @@
             icon="chevron-right"
             size="small"
             onpress={() => {
-              void model.run('reference.focus.step', { direction: 'right' });
+              void model.run('swf.focus.step', { direction: 'right' });
             }}
           />
         {/if}
@@ -395,7 +395,7 @@
           label={t('focus.close')}
           size="small"
           onpress={() => {
-            void model.run('reference.focus.exit', {});
+            void model.run('swf.focus.exit', {});
           }}
         />
       {/snippet}

@@ -18,8 +18,7 @@ holds small hosts, each run by the tests.
 - `@swf/math`: vectors, unit quaternions, position/rotation/scale transforms, affine matrices,
   rays, axis-aligned boxes, and a seeded random sequence that is the same on every engine. The world is right-handed and +Y up; the default camera looks along
   -Z with +X to the right. Lengths are arbitrary world units.
-- `@swf/models`: the framework's and the reference application's state machines and decision
-  logic, written in Lean with their invariants proved, and compiled by lungo into one WebAssembly
+- `@swf/models`: the framework's state machines and decision logic, its navigation's among them, written in Lean with their invariants proved, and compiled by lungo into one WebAssembly
   program that this package loads once when it is first imported (see
   [State machines and decision logic](#state-machines-and-decision-logic)). Only the packages that
   decide something through it depend on it.
@@ -65,6 +64,15 @@ holds small hosts, each run by the tests.
   a validator that matches it, policy parameters and opaque extension state with size limits,
   two-phase restore with format migrations, a replaceable storage interface with in-memory, Web
   Storage and IndexedDB stores, and the save state machine.
+- `@swf/navigation`: the whole navigation experience for a host's own content. `createNavigation`
+  presents the host's surfaces in one viewport in the host's element, through both backends, with
+  the view modes (the panorama, focus with its strip, the map and the overview) and the view moving
+  between them, the eight capabilities (focus, workspace orbit, the map and radar, the wrapped
+  cursor, magnetic snapping, semantic depth, composition, and saving, which the host's own saving
+  follows) and the experiments that isolate each, search, and the window operations every
+  navigation control runs, each a named `swf.*` command (`createNavigationCommands`). It also
+  exports the geometry a host's own controls draw from: the map and radar, the focus strip and the
+  overview's layout. It never looks into the content.
 - `@swf/benchmark`: the performance benchmark. Seeded standard and stress fixtures, a host that
   presents a fixture through the framework as an application would, the measures a run takes in
   the page (frame intervals, input-to-preview latency, hit queries), the statistics results are
@@ -965,21 +973,21 @@ by the DOM one.
 
 Every string the application shows is a message with a stable ID, in English unless a translation
 pack is given, and each action is a command with a stable ID (`reference.preset.load`,
-`reference.scene.reset`, `reference.scene.reseed`, `reference.mode.switch`,
-`reference.mode.back`, `reference.view.fov`, `reference.view.heading`,
-`reference.backend.switch`, `reference.window.reveal`, `reference.window.bringFront`,
-`reference.window.sendBehind`, `reference.window.arrange`, `reference.focus.enter`,
-`reference.focus.exit`, `reference.focus.step`, `reference.window.map`,
-`reference.window.inspect`, `reference.window.place`, `reference.window.nudge`,
+`reference.scene.reset`, `reference.scene.reseed`, `swf.mode.switch`,
+`swf.mode.back`, `swf.view.fov`, `swf.view.heading`,
+`swf.backend.switch`, `swf.window.reveal`, `swf.window.bringFront`,
+`swf.window.sendBehind`, `swf.window.arrange`, `swf.focus.enter`,
+`swf.focus.exit`, `swf.focus.step`, `swf.window.map`,
+`swf.window.inspect`, `swf.window.place`, `reference.window.nudge`,
 `reference.window.turn`, `reference.window.resize`, `reference.window.size`,
-`reference.window.face`, `reference.window.lock`, `reference.gesture.grab`,
-`reference.gesture.drop`, `reference.feature.set`,
-`reference.feature.reset`, `reference.snap.configure`, `reference.depth.configure`,
-`reference.navigation.set`, `reference.orbit.designate`, `reference.orbit.turn`,
-`reference.orbit.turnTo`,
-`reference.history.undo`, `reference.history.redo`, `reference.gesture.cancel`,
-`reference.experiment.run`, `reference.window.remove`, `reference.surface.detach`,
-`reference.surface.move`, `reference.window.merge`, `reference.window.regroup`,
+`reference.window.face`, `swf.window.lock`, `swf.gesture.grab`,
+`swf.gesture.drop`, `swf.feature.set`,
+`swf.feature.reset`, `swf.snap.configure`, `swf.depth.configure`,
+`swf.navigation.set`, `swf.orbit.designate`, `swf.orbit.turn`,
+`swf.orbit.turnTo`,
+`swf.history.undo`, `swf.history.redo`, `swf.gesture.cancel`,
+`swf.experiment.run`, `swf.window.remove`, `swf.surface.detach`,
+`swf.surface.move`, `swf.window.merge`, `swf.window.regroup`,
 `reference.window.add`,
 `reference.workspace.save`, `reference.workspace.open`, `reference.workspace.delete`,
 `reference.workspace.deleteAll`, `reference.workspace.export`, `reference.workspace.import`,
@@ -1165,7 +1173,7 @@ capabilities one at a time or together. Its head says which experiment the switc
 to try it, comparing the behaviour with the capability off; any other combination is said to be a
 custom one, naming what is on. Under it are the experiments: **Everything combined** and **01 Focus
 and context** to **08 Persistent workspaces**, each turning its capability on and every other off
-and setting the view up to show it (`reference.experiment.run`): focus on the selected window (the
+and setting the view up to show it (`swf.experiment.run`): focus on the selected window (the
 panorama while none is selected), drags turning the workspace (while a group is designated), the
 whole circle in view for the seamless 360° experiment, the map, and otherwise the panorama with
 drags turning the camera. An experiment changes no window and nothing undo puts back. Then the
@@ -1300,7 +1308,7 @@ be picked.
 ### Developer panel
 
 Staging builds and the development server have a Developer panel on the right: at its head the
-backend that presents the panorama (DOM or geometry, `reference.backend.switch`), then five
+backend that presents the panorama (DOM or geometry, `swf.backend.switch`), then five
 sections. It reads through the framework's public APIs only, changes the scene only as a host does,
 and never looks into a surface's content.
 
@@ -1449,6 +1457,8 @@ with `npm run size -- --record` in the same commit, whose message gives the old 
 `@swf/models` is at 56576 bytes: it is the compiled program of every proved decision model the
 framework and the reference application run, so it grows with each model (56428 bytes
 measured, the names model included).
+`@swf/navigation` starts at 29440 bytes, 10% over its first measured size (26607) rounded up to the
+next 256: the composition of the framework into the navigation experience and its capabilities.
 `@swf/presentation` (14592) and `@swf/backend-geometry` (8704) are where placing every window's name
 over a view takes them: `placeNames` and `windowNames`, and the geometry renderer's names, frames
 and edge marks.

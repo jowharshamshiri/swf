@@ -1,8 +1,8 @@
 import { createWorkspace } from '@swf/core';
 import { describe, expect, it } from 'vitest';
-import { CAMERA_ID, planPreset, presetCommands } from '../src/presets.js';
-import type { StripCard, StripLayout, StripWindow } from '../src/strip.js';
-import { stripLayout, stripWindows } from '../src/strip.js';
+import { planPreset, presetCommands } from '../src/presets.js';
+import { CAMERA_ID, stripLayout, stripWindows } from '@swf/navigation';
+import type { StripCard, StripLayout, StripWindow } from '@swf/navigation';
 
 const METRICS = Object.freeze({ least: 96, most: 160, gap: 6 });
 

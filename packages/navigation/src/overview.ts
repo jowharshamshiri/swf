@@ -1,9 +1,8 @@
-import type { Id, SceneState } from '@swf/core';
+import type { Id, NodeRecord, SceneState } from '@swf/core';
 import { ancestorIds, effectiveState } from '@swf/core';
 import { models } from '@swf/models';
 import { headingPitchOf } from '@swf/projections';
 import { poseOf, wrapDegrees } from './pose.js';
-import { CATEGORY_KEY } from './presets.js';
 
 /**
  * The spatial overview: every window of the scene as a card on a board that is the whole sphere
@@ -18,13 +17,17 @@ import { CATEGORY_KEY } from './presets.js';
 
 /** A group a window is in, as the overview names it. */
 export interface OverviewGroup {
+  /** The group's ID. */
   readonly id: Id;
+  /** Its name: its label, or its ID. */
   readonly label: string;
 }
 
 /** A window as the overview shows it. */
 export interface OverviewEntry {
+  /** The window's ID. */
   readonly id: Id;
+  /** Its name: its label, or its ID. */
   readonly label: string;
   /** Degrees right of where the camera faces, from −180 to 180. */
   readonly heading: number;
@@ -36,7 +39,9 @@ export interface OverviewEntry {
   readonly behind: boolean;
   /** Shown, as the groups it is in leave it. */
   readonly visible: boolean;
+  /** Selected. */
   readonly selected: boolean;
+  /** Focused. */
   readonly focused: boolean;
   /**
    * The innermost group it is in below the scene's top group (the whole workspace), or null when
@@ -49,6 +54,7 @@ export interface OverviewEntry {
   readonly parts: number;
 }
 
+/** The scene as the overview shows it: its windows and their groups. */
 export interface OverviewScene {
   /** Every active window, in scene order. */
   readonly entries: readonly OverviewEntry[];
@@ -56,8 +62,15 @@ export interface OverviewScene {
   readonly groups: readonly OverviewGroup[];
 }
 
-/** The scene as the overview shows it, seen from the viewport's camera. */
-export function overviewScene(state: SceneState, viewportId: Id): OverviewScene {
+/**
+ * The scene as the overview shows it, seen from the viewport's camera, each window in the category
+ * the host gives it (`category`), or in none.
+ */
+export function overviewScene(
+  state: SceneState,
+  viewportId: Id,
+  category: (node: NodeRecord) => string | null,
+): OverviewScene {
   const viewport = state.viewports.get(viewportId);
   const camera = viewport === undefined ? undefined : state.cameras.get(viewport.cameraId);
   if (camera === undefined) {
@@ -90,7 +103,6 @@ export function overviewScene(state: SceneState, viewportId: Id): OverviewScene 
       groups.set(group.id, group);
     }
     const heading = wrapDegrees(pose.heading - facing);
-    const category = node.metadata[CATEGORY_KEY];
     entries.push({
       id: node.id,
       label: node.label ?? node.id,
@@ -102,7 +114,7 @@ export function overviewScene(state: SceneState, viewportId: Id): OverviewScene 
       selected: state.selection.includes(node.id),
       focused: state.focusedId === node.id,
       group,
-      category: typeof category === 'string' ? category : null,
+      category: category(node),
       parts: parts.get(node.id) ?? 0,
     });
   }
@@ -113,7 +125,14 @@ export function overviewScene(state: SceneState, viewportId: Id): OverviewScene 
 }
 
 /** A card's own size, in CSS pixels, before it is drawn at the board's scale, and the room between. */
-export const CARD = Object.freeze({ width: 176, height: 76, gap: 8 });
+export const CARD: {
+  /** A card's width, in CSS pixels. */
+  readonly width: number;
+  /** A card's height, in CSS pixels. */
+  readonly height: number;
+  /** The gap between cards, in CSS pixels. */
+  readonly gap: number;
+} = Object.freeze({ width: 176, height: 76, gap: 8 });
 
 /** The scales a card is tried at, largest first: the board takes the first that holds every card. */
 export const CARD_SCALES: readonly number[] = Object.freeze([
@@ -122,24 +141,32 @@ export const CARD_SCALES: readonly number[] = Object.freeze([
 
 /** Where a window's card stands on the board, in CSS pixels from the board's top-left corner. */
 export interface OverviewCard {
+  /** The window's ID. */
   readonly id: Id;
+  /** Its left edge. */
   readonly x: number;
+  /** Its top edge. */
   readonly y: number;
 }
 
 /** The board laid out, or too crowded to lay out as cards. */
 export type OverviewLayout =
   | {
+      /** Every card fits. */
       readonly kind: 'laid';
       /** The scale every card is drawn at. */
       readonly scale: number;
-      /** A card's size on the board, in CSS pixels. */
+      /** A card's width on the board, in CSS pixels. */
       readonly width: number;
+      /** A card's height on the board, in CSS pixels. */
       readonly height: number;
       /** Highest window first. */
       readonly cards: readonly OverviewCard[];
     }
-  | { readonly kind: 'crowded' };
+  | {
+      /** Too many windows for cards even at the smallest scale. */
+      readonly kind: 'crowded';
+    };
 
 /** Tenths of a degree, as the model takes a place round the camera. */
 const tenths = (degrees: number, most: number): bigint =>

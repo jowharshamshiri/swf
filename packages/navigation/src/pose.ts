@@ -29,12 +29,17 @@ export interface Pose {
   readonly turned: number;
   /** Its world position. */
   readonly position: Vec3;
-  /** Its frame's width and height, in world units. */
+  /** Its frame's width, in world units. */
   readonly width: number;
+  /** Its frame's height, in world units. */
   readonly height: number;
+  /** Locked: not moved, turned or sized. */
   readonly locked: boolean;
+  /** Its host lets it be moved. */
   readonly movable: boolean;
+  /** Its host lets it be turned. */
   readonly rotatable: boolean;
+  /** Its host lets it be sized. */
   readonly resizable: boolean;
 }
 
@@ -87,8 +92,9 @@ export interface PoseTarget {
   readonly y?: number | undefined;
   /** Degrees it is turned to the right from facing the camera. */
   readonly turned?: number | undefined;
-  /** Its frame's width and height, in world units. */
+  /** Its frame's width, in world units. */
   readonly width?: number | undefined;
+  /** Its frame's height, in world units. */
   readonly height?: number | undefined;
 }
 

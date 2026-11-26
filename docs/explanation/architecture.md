@@ -44,28 +44,31 @@ decision is fixed in its model, where the proof says whether the fix keeps what 
 
 ## The packages and what each may use
 
-| Package                 | May import                                                                |
-| ----------------------- | ------------------------------------------------------------------------- |
-| `@swf/math`             | nothing                                                                   |
-| `@swf/models`           | lungo-ts (its WebAssembly host)                                           |
-| `@swf/core`             | math, models                                                              |
-| `@swf/surfaces`         | math, core, models                                                        |
-| `@swf/presentation`     | math, core, surfaces, models                                              |
-| `@swf/projections`      | math, core, presentation                                                  |
-| `@swf/interaction`      | math, core, presentation, projections, models                             |
-| `@swf/backend-dom`      | math, core, surfaces, presentation, projections, interaction              |
-| `@swf/backend-geometry` | math, core, surfaces, presentation, projections                           |
-| `@swf/persistence`      | math, core, models                                                        |
-| `@swf/diagnostics`      | core, surfaces, presentation                                              |
-| `@swf/conformance`      | math, core, surfaces, presentation                                        |
-| `@swf/benchmark`        | math, core, surfaces, presentation, projections, interaction, backend-dom |
+| Package                 | May import                                                                                          |
+| ----------------------- | --------------------------------------------------------------------------------------------------- |
+| `@swf/math`             | nothing                                                                                             |
+| `@swf/models`           | lungo-ts (its WebAssembly host)                                                                     |
+| `@swf/core`             | math, models                                                                                        |
+| `@swf/surfaces`         | math, core, models                                                                                  |
+| `@swf/presentation`     | math, core, surfaces, models                                                                        |
+| `@swf/projections`      | math, core, presentation                                                                            |
+| `@swf/interaction`      | math, core, presentation, projections, models                                                       |
+| `@swf/backend-dom`      | math, core, surfaces, presentation, projections, interaction                                        |
+| `@swf/backend-geometry` | math, core, surfaces, presentation, projections                                                     |
+| `@swf/persistence`      | math, core, models                                                                                  |
+| `@swf/navigation`       | math, models, core, surfaces, presentation, projections, interaction, backend-dom, backend-geometry |
+| `@swf/diagnostics`      | core, surfaces, presentation                                                                        |
+| `@swf/conformance`      | math, core, surfaces, presentation                                                                  |
+| `@swf/benchmark`        | math, core, surfaces, presentation, projections, interaction, backend-dom                           |
 
 A package may import only what its row lists, and the architecture test
 (`packages/presentation/test/architecture.test.ts`) fails any other import. In particular, nothing
 below the presentation contracts reaches a concrete renderer or compositor: the scene,
 persistence and interaction see only contracts. `@swf/models` is used only by the packages that
-decide something through it. The reference application depends on the packages' public entry
-points alone, like any host; it is the only part built on a UI kit, its future host's.
+decide something through it. `@swf/navigation` sits above them all: it composes the framework into
+the navigation experience a host shows its content with. The reference application depends on the
+packages' public entry points alone, like any host; it is the only part built on a UI kit, its
+future host's.
 
 ## Why so many packages
 

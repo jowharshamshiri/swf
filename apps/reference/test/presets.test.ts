@@ -13,7 +13,6 @@ import { describe, expect, it } from 'vitest';
 import type { PresetId } from '../src/presets.js';
 import {
   addedWindow,
-  CAMERA_ID,
   composites,
   planPreset,
   PRESET_IDS,
@@ -21,6 +20,7 @@ import {
   PRESETS,
   presetCommands,
 } from '../src/presets.js';
+import { CAMERA_ID } from '@swf/navigation';
 import { MAX_SEED } from '@swf/math';
 
 const W = 1440;

@@ -9,9 +9,13 @@ import { viewGeometryOf } from '@swf/presentation';
 import { equirectangular } from '@swf/projections';
 import { afterEach, describe, expect, it } from 'vitest';
 import { commands } from 'vitest/browser';
-import { VIEWPORT_ID } from '../../src/app.js';
-import { ALL_ENABLED, DEFAULT_FEATURES, FEATURE_IDS } from '../../src/features.js';
-import { MAGNETIC_POLICY_ID } from '../../src/magnetic-policy.js';
+import {
+  ALL_ENABLED,
+  DEFAULT_FEATURES,
+  FEATURE_IDS,
+  MAGNETIC_POLICY_ID,
+  VIEWPORT_ID,
+} from '@swf/navigation';
 import { WORKSPACE_GROUP_ID } from '../../src/presets.js';
 import { parseConfig } from '../../src/config.js';
 import { createMessages, ENGLISH } from '../../src/messages.js';
@@ -170,10 +174,10 @@ describe('the shell (UX-001, UX-015)', () => {
     if (first === undefined) {
       throw new Error('the studio has no window');
     }
-    await model.run('reference.window.inspect', { id: first.id });
+    await model.run('swf.window.inspect', { id: first.id });
     const offending: string[] = [];
     for (const mode of ['panorama', 'map', 'overview', 'focus', 'panorama'] as const) {
-      await model.run('reference.mode.switch', { mode });
+      await model.run('swf.mode.switch', { mode });
       await settle();
       offending.push(
         ...labelsOf(root)

@@ -5,9 +5,9 @@ import { createMemoryStore } from '@swf/persistence';
 import { createPresentationRegistry } from '@swf/presentation';
 import { createProjectionRegistry, equirectangular } from '@swf/projections';
 import { afterEach, describe, expect, it } from 'vitest';
-import { PANORAMA } from '../src/modes.js';
 import type { PresetId } from '../src/presets.js';
-import { CAMERA_ID, planPreset, presetCommands } from '../src/presets.js';
+import { planPreset, presetCommands } from '../src/presets.js';
+import { CAMERA_ID, PANORAMA } from '@swf/navigation';
 import type { Workspaces } from '../src/workspaces.js';
 import {
   createWorkspaces,

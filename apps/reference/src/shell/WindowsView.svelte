@@ -20,16 +20,8 @@
   } from '@wsb/uikit/components';
   import { handleOf, keyed } from '@wsb/uikit/handles';
   import type { MessageId } from '../messages.js';
-  import type { SearchFilters, SearchResult, SortKey } from '../search.js';
-  import {
-    ATTACHMENT_FILTERS,
-    COVERAGE_FILTERS,
-    LOCK_FILTERS,
-    NO_FILTERS,
-    PAGE_SIZE,
-    SORT_KEYS,
-    VISIBILITY_FILTERS,
-  } from '../search.js';
+  import type { SearchFilters, SearchResult, SortKey } from '@swf/navigation';
+  import { ATTACHMENT_FILTERS, COVERAGE_FILTERS, LOCK_FILTERS, NO_FILTERS, PAGE_SIZE, SORT_KEYS, VISIBILITY_FILTERS } from '@swf/navigation';
   import type { ShellModel } from './model.svelte.js';
   import WindowActions from './WindowActions.svelte';
 
@@ -113,7 +105,7 @@
       void model.select(result.id);
     }}
     onopen={() => {
-      void model.run('reference.window.reveal', { id: result.id });
+      void model.run('swf.window.reveal', { id: result.id });
     }}
   />
 {/snippet}

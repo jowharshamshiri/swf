@@ -2,8 +2,9 @@ import { worldMatrix } from '@swf/core';
 import { quatFromAxisAngle } from '@swf/math';
 import type { RenderFrame, Representation } from '@swf/presentation';
 import { describe, expect, it } from 'vitest';
-import { CAMERA_ID } from '../src/presets.js';
-import { spaceStatus } from '../src/space.js';
+import { CAMERA_ID } from '@swf/navigation';
+import { PART_OF_KEY } from '../src/app.js';
+import { spaceStatus } from '@swf/navigation';
 import { policyWorld, VIEWPORT } from './policy-world.js';
 
 /** A frame of the studio showing these windows' surfaces, each fragment as it is represented. */
@@ -54,6 +55,7 @@ describe('the status of the space, in the reader’s terms', () => {
         [b, 'compact'],
         [c, 'label'],
       ]),
+      PART_OF_KEY,
     );
     expect(status.windows).toBe(13);
     expect(status.inView).toBe(3);
@@ -73,7 +75,7 @@ describe('the status of the space, in the reader’s terms', () => {
         },
       ]);
       expect(result.status).toBe('committed');
-      const status = spaceStatus(frameOf(world, []));
+      const status = spaceStatus(frameOf(world, []), PART_OF_KEY);
       expect(status.facing).toBe(heading);
       expect(status.behind).toBe(behindOf(world, heading));
       expect(status.inView).toBe(0);

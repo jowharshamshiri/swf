@@ -2,19 +2,21 @@ import { createWorkspace, worldMatrix } from '@swf/core';
 import { createPresentationRegistry } from '@swf/presentation';
 import { cameraRotation, createProjectionRegistry, equirectangular } from '@swf/projections';
 import { describe, expect, it } from 'vitest';
-import type { MapView } from '../src/map.js';
+import { planPreset, presetCommands } from '../src/presets.js';
+import type { MapView } from '@swf/navigation';
+import { PART_OF_KEY } from '../src/app.js';
 import {
+  CAMERA_ID,
   MAP_SCALE,
-  mapScene,
   MarkerDrag,
+  PANORAMA,
+  mapScene,
   markerAt,
   placedAt,
   toGround,
   toMap,
   zoomed,
-} from '../src/map.js';
-import { PANORAMA } from '../src/modes.js';
-import { CAMERA_ID, planPreset, presetCommands } from '../src/presets.js';
+} from '@swf/navigation';
 
 function scene() {
   const ws = createWorkspace({ id: 'test' });
@@ -69,13 +71,13 @@ describe('the spatial map (FR-124, UX-004, WF-05)', () => {
 
   it('shows the camera, and each window in front of or behind it', () => {
     const ws = scene();
-    const ahead = mapScene(ws.getState(), 'v');
+    const ahead = mapScene(ws.getState(), 'v', PART_OF_KEY);
     const side = (id: string) => ahead.markers.find((m) => m.id === id)?.side;
     // window-07 is straight ahead; window-01 sits on the seam straight behind.
     expect(side('window-07')).toBe('front');
     expect(side('window-01')).toBe('behind');
     ws.dispatch({ type: 'camera.patch', id: CAMERA_ID, rotation: cameraRotation(Math.PI, 0) });
-    const turned = mapScene(ws.getState(), 'v');
+    const turned = mapScene(ws.getState(), 'v', PART_OF_KEY);
     expect(turned.camera.heading).toBeCloseTo(Math.PI, 9);
     expect(turned.markers.find((m) => m.id === 'window-07')?.side).toBe('behind');
     expect(turned.markers.find((m) => m.id === 'window-01')?.side).toBe('front');
@@ -83,7 +85,7 @@ describe('the spatial map (FR-124, UX-004, WF-05)', () => {
 
   it('picks the marker under a point, within reach', () => {
     const ws = scene();
-    const map = mapScene(ws.getState(), 'v');
+    const map = mapScene(ws.getState(), 'v', PART_OF_KEY);
     const marker = map.markers.find((m) => m.id === 'window-07');
     if (marker === undefined) throw new Error('no marker');
     const [px, py] = toMap(VIEW, marker.x, marker.z);

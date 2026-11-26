@@ -858,6 +858,11 @@ export interface Messages {
   readonly locale: string;
   /** The message with its parameters filled in; numbers formatted for the locale. */
   format(id: MessageId, params?: MessageParams): string;
+  /**
+   * A message named by an ID that only the running application knows (a view mode's name, which
+   * any module may register): as {@link format}, or an Error naming an ID the catalogue has not.
+   */
+  named(id: string, params?: MessageParams): string;
   /** A number as the locale writes it. */
   number(value: number): string;
 }
@@ -875,18 +880,25 @@ export function createMessages(locale = 'en', pack: MessagePack = {}): Messages 
     }
   }
   const numbers = new Intl.NumberFormat(locale);
+  const format = (id: MessageId, params: MessageParams = {}): string => {
+    const template = pack[id] ?? ENGLISH[id];
+    return template.replace(PARAM, (_, name: string) => {
+      if (!Object.hasOwn(params, name)) {
+        throw new Error(`message "${id}" needs the parameter "${name}"`);
+      }
+      const value = params[name];
+      return typeof value === 'number' ? numbers.format(value) : String(value);
+    });
+  };
   return Object.freeze({
     locale,
     number: (value: number) => numbers.format(value),
-    format(id: MessageId, params: MessageParams = {}): string {
-      const template = pack[id] ?? ENGLISH[id];
-      return template.replace(PARAM, (_, name: string) => {
-        if (!Object.hasOwn(params, name)) {
-          throw new Error(`message "${id}" needs the parameter "${name}"`);
-        }
-        const value = params[name];
-        return typeof value === 'number' ? numbers.format(value) : String(value);
-      });
+    format,
+    named(id: string, params: MessageParams = {}): string {
+      if (!Object.hasOwn(ENGLISH, id)) {
+        throw new Error(`no message "${id}"`);
+      }
+      return format(id as MessageId, params);
     },
   });
 }

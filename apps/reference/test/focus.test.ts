@@ -3,10 +3,20 @@ import { createWorkspace } from '@swf/core';
 import { createPresentationRegistry } from '@swf/presentation';
 import { createProjectionRegistry, equirectangular, headingPitchOf } from '@swf/projections';
 import { describe, expect, it } from 'vitest';
-import type { FocusOptions } from '../src/focus.js';
-import { createFocusMode, FOCUS_ID, focusContext, focusFrame } from '../src/focus.js';
-import { createModes, MAP, ModeRefusal, OVERVIEW, PANORAMA } from '../src/modes.js';
-import { CAMERA_ID, planPreset, presetCommands } from '../src/presets.js';
+import { planPreset, presetCommands } from '../src/presets.js';
+import type { FocusOptions } from '@swf/navigation';
+import {
+  CAMERA_ID,
+  FOCUS_ID,
+  MAP,
+  ModeRefusal,
+  OVERVIEW,
+  PANORAMA,
+  createFocusMode,
+  createModes,
+  focusContext,
+  focusFrame,
+} from '@swf/navigation';
 
 const OPTIONS: FocusOptions = { fill: 0.75, maxMagnification: 2.5, pixelsPerUnit: 160 };
 const DEGREES = 180 / Math.PI;

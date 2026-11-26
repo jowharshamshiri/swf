@@ -1,5 +1,6 @@
 import type {
   Id,
+  NodeRecord,
   SceneCommand,
   SceneState,
   TxResult,
@@ -39,12 +40,23 @@ export interface MapView {
   readonly centre: readonly [number, number];
   /** CSS pixels per world unit. */
   readonly scale: number;
-  /** The map's size in CSS pixels. */
+  /** The map's width in CSS pixels. */
   readonly width: number;
+  /** The map's height in CSS pixels. */
   readonly height: number;
 }
 
-export const MAP_SCALE = Object.freeze({ min: 8, max: 480, initial: 60, step: 1.25 });
+/** How far the map zooms, in CSS pixels per world unit, and by what factor a step zooms it. */
+export const MAP_SCALE: {
+  /** The farthest out. */
+  readonly min: number;
+  /** The nearest in. */
+  readonly max: number;
+  /** Where the map starts. */
+  readonly initial: number;
+  /** The factor one step of zoom multiplies or divides by. */
+  readonly step: number;
+} = Object.freeze({ min: 8, max: 480, initial: 60, step: 1.25 });
 
 /** Where a world point on the ground plane (X, Z) is on the map. */
 export function toMap(view: MapView, x: number, z: number): [number, number] {
@@ -75,7 +87,9 @@ export function zoomed(view: MapView, factor: number, px: number, py: number): M
 
 /** The camera as the map shows it. */
 export interface MapCamera {
+  /** Its world X. */
   readonly x: number;
+  /** Its world Z. */
   readonly z: number;
   /** Radians right of straight ahead (-Z). */
   readonly heading: number;
@@ -83,11 +97,15 @@ export interface MapCamera {
 
 /** A window as the map shows it. */
 export interface MapMarker {
+  /** The window's ID. */
   readonly id: Id;
+  /** Its name. */
   readonly label: string;
-  /** World position. */
+  /** Its centre's world X. */
   readonly x: number;
+  /** Its centre's world height. */
   readonly y: number;
+  /** Its centre's world Z. */
   readonly z: number;
   /** The ends of the window's width on the ground plane: the line it stands on, from above. */
   readonly ends: readonly [readonly [number, number], readonly [number, number]];
@@ -95,20 +113,29 @@ export interface MapMarker {
   readonly side: 'front' | 'behind';
   /** World units from the camera on the ground plane. */
   readonly distance: number;
+  /** Shown, as its own and its groups' visibility have it. */
   readonly visible: boolean;
+  /** Selected. */
   readonly selected: boolean;
+  /** Focused. */
   readonly focused: boolean;
-  /** The window it is a part of ({@link PART_OF_KEY}), or null for one that is no part. */
+  /** The window it is a part of ({@link partOf}), or null for one that is no part. */
   readonly partOf: Id | null;
 }
 
+/** The scene from above: the camera and every active window. */
 export interface MapScene {
+  /** The camera. */
   readonly camera: MapCamera;
+  /** Every active window, in scene order. */
   readonly markers: readonly MapMarker[];
 }
 
-/** The scene from above, as the viewport's camera sees it: every active window, in scene order. */
-export function mapScene(state: SceneState, viewportId: Id): MapScene {
+/**
+ * The scene from above, as the viewport's camera sees it: every active window, in scene order, with
+ * the window it is a part of read under the host's `partKey`.
+ */
+export function mapScene(state: SceneState, viewportId: Id, partKey: string): MapScene {
   const viewport = state.viewports.get(viewportId);
   const camera = viewport === undefined ? undefined : state.cameras.get(viewport.cameraId);
   if (camera === undefined) {
@@ -150,7 +177,7 @@ export function mapScene(state: SceneState, viewportId: Id): MapScene {
       visible: effective.visible,
       selected: state.selection.includes(node.id),
       focused: state.focusedId === node.id,
-      partOf: partOf(node),
+      partOf: partOf(node, partKey),
     });
   }
   return { camera: { x: ex, z: ez, heading }, markers };
@@ -331,17 +358,18 @@ const RING_RISE = Object.freeze([-0.3, 0, 0.3]);
 /**
  * The commands that arrange the windows round the camera, as one change: every window standing on
  * its own (not one nested in another window) that is not locked, in order of what it shows, then
- * its colour, then its name, spread evenly round the whole circle from straight ahead of the
- * camera, and laid in turn on three rings at the `rings` distances (near, middle, far), the farther
- * a little higher; each keeps facing the camera as it did. Locked windows keep their places. Throws
- * a RangeError for a ring distance that is not positive and finite, or rings not nearest first;
- * an Error for a window whose group's placement cannot be inverted.
+ * the host's key for it (`keyOf`, such as its colour), then its name, spread evenly round the
+ * whole circle from straight ahead of the camera, and laid in turn on three rings at the `rings`
+ * distances (near, middle, far), the farther a little higher; each keeps facing the camera as it
+ * did. Locked windows keep their places. Throws a RangeError for a ring distance that is not
+ * positive and finite, or rings not nearest first; an Error for a window whose group's placement
+ * cannot be inverted.
  */
 export function arrangedAround(
   state: SceneState,
   viewportId: Id,
   rings: readonly [number, number, number],
-  colourOf: (node: { readonly metadata: Readonly<Record<string, unknown>> }) => string,
+  keyOf: (node: NodeRecord) => string,
 ): SceneCommand[] {
   if (!rings.every((r, i) => Number.isFinite(r) && r > 0 && (i === 0 || r > (rings[i - 1] ?? 0)))) {
     throw new RangeError(
@@ -371,7 +399,7 @@ export function arrangedAround(
     return true;
   });
   const key = (node: (typeof windows)[number]) =>
-    [[...node.tags].sort().join(','), colourOf(node), node.label ?? node.id, node.id] as const;
+    [[...node.tags].sort().join(','), keyOf(node), node.label ?? node.id, node.id] as const;
   windows.sort((a, b) => {
     const [ka, kb] = [key(a), key(b)];
     for (let i = 0; i < ka.length; i += 1) {
@@ -400,6 +428,7 @@ export function arrangedAround(
 
 /** What a marker's drag snaps with, while magnetic positioning is on. */
 export interface MarkerSnap {
+  /** Magnetic positioning's settings. */
   readonly settings: SnapSettings;
   /** The rings round the camera, nearest first, in world units. */
   readonly rings: readonly number[];
@@ -413,6 +442,7 @@ export interface MarkerSnap {
  * settings), each place is snapped to the windows beside it first, as a move in the panorama is.
  */
 export class MarkerDrag {
+  /** The window dragged. */
   readonly nodeId: Id;
   readonly #workspace: WorkspaceReader & WorkspaceMutator;
   readonly #previewId: string;
@@ -454,7 +484,7 @@ export class MarkerDrag {
     this.#eye = camera.position;
     this.#grabbed = [gx, gz];
     this.#from = [at[0], at[2]];
-    this.#previewId = `reference.map/${nodeId}/${String(state.revision)}`;
+    this.#previewId = `swf.map/${nodeId}/${String(state.revision)}`;
     this.#snap = snap;
     this.#neighbours = snap === null ? [] : snapNeighbours(state, nodeId);
   }
@@ -521,6 +551,7 @@ export class MarkerDrag {
     return this.#workspace.transaction(this.#last, { source: 'user', previewId: this.#previewId });
   }
 
+  /** Ends the drag without a change: the preview is discarded, and the window is where it was. */
   cancel(): void {
     if (this.#ended) {
       return;
@@ -534,7 +565,9 @@ export class MarkerDrag {
 
 /** A part linked to the window it came from, as the panorama draws it. */
 export interface PartLink {
+  /** The part's ID. */
   readonly part: Id;
+  /** The ID of the window it came from. */
   readonly origin: Id;
   /**
    * The line between them in the view's CSS pixels, along the shortest way round seen from the
@@ -584,8 +617,8 @@ export function traced(
 const LINK_STEPS = 32;
 
 /**
- * Every part in the scene linked to the window it came from ({@link PART_OF_KEY}), as the
- * viewport's projection draws the line between their centres: directions from the camera turned
+ * Every part in the scene linked to the window it came from ({@link partOf}, under the host's
+ * `partKey`), as the viewport's projection draws the line between their centres: directions from the camera turned
  * evenly from one to the other, each placed at its image nearest the last one, so the line follows
  * the view and breaks only where it leaves it or crosses the seam.
  */
@@ -593,6 +626,7 @@ export function partLinks(
   state: SceneState,
   viewportId: Id,
   projections: { get(id: string): ProjectionModule | undefined },
+  partKey: string,
 ): PartLink[] {
   const view = viewGeometryOf(state, viewportId);
   const module = projections.get(view.projectionId);
@@ -614,7 +648,7 @@ export function partLinks(
   };
   const links: PartLink[] = [];
   for (const node of state.nodes.values()) {
-    const origin = partOf(node);
+    const origin = partOf(node, partKey);
     if (
       node.kind !== 'window' ||
       effectiveState(state.nodes, node.id)?.active !== true ||

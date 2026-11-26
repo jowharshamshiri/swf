@@ -2,7 +2,7 @@ import type * as Lean from '@swf/models';
 import { models, toJson } from '@swf/models';
 
 /**
- * The reference application's eight behaviour modules (DLV-007, AC-015), each turned on or off on
+ * Navigation's eight capabilities (DLV-007, AC-015), each turned on or off on
  * its own, and the parameters of those that have any. Every module reads only these settings and
  * the framework's public contracts; none depends on another, so any one can be off while the rest
  * stay on. Turning a module off removes its hooks and its controls and never changes the scene's
@@ -28,6 +28,7 @@ export const FEATURE_IDS = [
   'composition',
   'persistence',
 ] as const;
+/** A capability, by its ID. */
 export type FeatureId = (typeof FEATURE_IDS)[number];
 
 /** Magnetic positioning: how near counts as touching, and the gap it keeps between windows. */
@@ -55,13 +56,19 @@ export interface SnapSettings {
  * content, one nearer than `compact` a compact preview, and one farther its label alone.
  */
 export interface DepthBands {
+  /** World units from the camera within which a window shows its content. */
   readonly full: number;
+  /** World units within which it shows a compact preview; more than `full`. */
   readonly compact: number;
 }
 
+/** The capabilities' settings: which is on, and the parameters of snapping and semantic depth. */
 export interface FeatureSettings {
+  /** Whether each capability is on. */
   readonly enabled: Readonly<Record<FeatureId, boolean>>;
+  /** Magnetic snapping's parameters. */
   readonly snap: SnapSettings;
+  /** Semantic depth's bands. */
   readonly depth: DepthBands;
 }
 
@@ -88,15 +95,20 @@ export function ringsOf(depth: DepthBands): readonly [number, number, number] {
 
 /** A change to the settings: only what it names changes. */
 export interface FeaturePatch {
+  /** The capabilities turned on or off. */
   readonly enabled?: Partial<Record<FeatureId, boolean>>;
+  /** Snapping's parameters changed. */
   readonly snap?: Partial<SnapSettings>;
+  /** Semantic depth's bands changed. */
   readonly depth?: Partial<DepthBands>;
 }
 
-/** A setting the application cannot use, by its field. */
+/** A setting navigation cannot use, by its field. */
 export class FeatureError extends Error {
   constructor(
+    /** The setting at fault. */
     readonly field: string,
+    /** Why it cannot be used. */
     readonly reason: string,
   ) {
     super(`${field}: ${reason}`);

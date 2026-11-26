@@ -14,7 +14,7 @@ import { cameraRotation, headingPitchOf } from '@swf/projections';
 
 /**
  * The view's transitions: a change of what the view frames (entering a focus, moving it to another
- * window, leaving it) is committed at once, and the application then shows the view moving there
+ * window, leaving it) is committed at once, and navigation then shows the view moving there
  * from what was shown, over a few frames, as a preview of the view's own records that the
  * presentation follows; the committed view is the truth throughout, and once the transition ends
  * the preview is gone and the committed view is shown. When to start, carry on, finish or end one
@@ -23,7 +23,7 @@ import { cameraRotation, headingPitchOf } from '@swf/projections';
  */
 
 /** The preview a transition shows the view through. */
-export const TRANSITION_PREVIEW = 'reference.view.transition';
+export const TRANSITION_PREVIEW = 'swf.view.transition';
 
 /** How long a transition lasts, in milliseconds. */
 export const TRANSITION_MS = 260;
@@ -37,9 +37,11 @@ interface ViewPose {
 
 type Poses = ReadonlyMap<Id, ViewPose>;
 
+/** What view transitions follow and pace themselves by. */
 export interface ViewTransitionsOptions {
+  /** The workspace whose views move. */
   readonly workspace: WorkspaceReader & WorkspaceMutator;
-  /** The viewports whose views move: the application's, then those that come and go with it. */
+  /** The viewports whose views move: the host's, then those that come and go with it. */
   readonly viewportIds: readonly Id[];
   /** What the view of the first viewport frames in a scene. */
   readonly framing: (state: SceneState) => Lean.Framing;
@@ -53,9 +55,11 @@ export interface ViewTransitionsOptions {
   readonly durationMs?: number;
 }
 
+/** The view's transitions: the view moving into a focus, between focused windows and out of it. */
 export interface ViewTransitions {
   /** Whether a transition is under way. */
   running(): boolean;
+  /** Stops following the workspace, ending a transition under way. */
   dispose(): void;
 }
 
@@ -152,7 +156,7 @@ export function createViewTransitions(options: ViewTransitionsOptions): ViewTran
   };
   /**
    * The run under way: the view it moves from and what is shown now. It moves to the view as
-   * committed, which the application may fit (to a new size) while it runs.
+   * committed, which the host may fit (to a new size) while it runs.
    */
   let run: { from: Poses; shown: Poses } | null = null;
   let cancelFrame: (() => void) | null = null;

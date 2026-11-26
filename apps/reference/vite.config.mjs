@@ -19,6 +19,7 @@ const PACKAGES = [
   'backend-geometry',
   'diagnostics',
   'persistence',
+  'navigation',
 ];
 
 /**

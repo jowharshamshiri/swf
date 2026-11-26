@@ -1,9 +1,13 @@
 import { representationFor, viewGeometryOf } from '@swf/presentation';
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_FEATURES } from '../src/features.js';
-import { FOCUS_ID } from '../src/focus.js';
+import {
+  DEFAULT_FEATURES,
+  FOCUS_ID,
+  distanceFrom,
+  representationAt,
+  semanticDepth,
+} from '@swf/navigation';
 import { planPreset } from '../src/presets.js';
-import { distanceFrom, representationAt, semanticDepth } from '../src/semantic-depth.js';
 import { policyWorld, VIEWPORT } from './policy-world.js';
 
 const BANDS = { full: 4, compact: 5.5 };

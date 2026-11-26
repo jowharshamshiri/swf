@@ -1,24 +1,24 @@
 import type { StageUnit } from '@wsb/uikit/components';
 import { resolvePalette } from '@wsb/uikit/primitives';
 import type { ReferenceApp } from '../app.js';
-import { VIEWPORT_ID } from '../app.js';
-import type { MapScene, MapView } from '../map.js';
+import type { MapScene, MapView } from '@swf/navigation';
 import {
-  inView,
   MAP_SCALE,
-  mapScene,
   MarkerDrag,
+  VIEWPORT_ID,
+  fieldOfViewOf,
+  inView,
+  mapScene,
   markerAt,
   radarReach,
   radarView,
   ringStep,
+  ringsOf,
   toGround,
   toMap,
   zoomed,
-} from '../map.js';
+} from '@swf/navigation';
 import type { Messages } from '../messages.js';
-import { ringsOf } from '../features.js';
-import { fieldOfViewOf } from '../modes.js';
 import { models } from '@swf/models';
 
 /**
@@ -349,7 +349,8 @@ export class MapDrawer {
 
   /** The scene as every view shows it now: open previews included. */
   #scene(): MapScene {
-    return mapScene(this.#options.app.workspace.getPresented(), VIEWPORT_ID);
+    const { app } = this.#options;
+    return mapScene(app.workspace.getPresented(), VIEWPORT_ID, app.windows.partOfKey);
   }
 
   #setView(view: MapView): void {

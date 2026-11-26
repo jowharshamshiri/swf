@@ -3,15 +3,25 @@ import { createOperationTrace } from '@swf/diagnostics';
 import { createMemoryStore } from '@swf/persistence';
 import { viewGeometryOf } from '@swf/presentation';
 import { describe, expect, it } from 'vitest';
-import { detachSurface, mergeWindow, moveSurface } from '../src/composition.js';
-import type { FeatureSettings } from '../src/features.js';
-import { DEFAULT_FEATURES, updateFeatures } from '../src/features.js';
-import { FOCUS_ID, focusContext } from '../src/focus.js';
-import { MarkerDrag, placedAt } from '../src/map.js';
-import { MAP, OVERVIEW, PANORAMA } from '../src/modes.js';
 import type { PresetId } from '../src/presets.js';
-import { CAMERA_ID } from '../src/presets.js';
-import { distanceFrom, representationAt } from '../src/semantic-depth.js';
+import type { FeatureSettings } from '@swf/navigation';
+import {
+  CAMERA_ID,
+  DEFAULT_FEATURES,
+  FOCUS_ID,
+  MAP,
+  MarkerDrag,
+  OVERVIEW,
+  PANORAMA,
+  detachSurface,
+  distanceFrom,
+  focusContext,
+  mergeWindow,
+  moveSurface,
+  placedAt,
+  representationAt,
+  updateFeatures,
+} from '@swf/navigation';
 import { createWorkspaces } from '../src/workspaces.js';
 import type { PolicyWorld } from './policy-world.js';
 import { drag, pointOn, policyWorld, screenOf, VIEWPORT, W } from './policy-world.js';

@@ -5,9 +5,8 @@ import type { NameObstacle, NameRequest, ScreenPoint } from '@swf/presentation';
 import { placeNames, viewGeometryOf, windowNames } from '@swf/presentation';
 import { headingPitchOf, projectionFor } from '@swf/projections';
 import type { ReferenceApp } from '../app.js';
-import { VIEWPORT_ID } from '../app.js';
-import type { PartLink } from '../map.js';
-import { partLinks, traced } from '../map.js';
+import type { PartLink } from '@swf/navigation';
+import { VIEWPORT_ID, partLinks, traced } from '@swf/navigation';
 import type { Messages } from '../messages.js';
 
 /**
@@ -248,7 +247,7 @@ export class PanoramaGuides {
     }
     const domain = projection.describeDomain();
     const seams = domain.fullCircle && domain.seamWrapping ? [0, width] : [];
-    const links = partLinks(state, VIEWPORT_ID, app.projections);
+    const links = partLinks(state, VIEWPORT_ID, app.projections, app.windows.partOfKey);
     const toward = (a: number, e: number): Vec3 => [
       Math.sin(a) * Math.cos(e),
       Math.sin(e),

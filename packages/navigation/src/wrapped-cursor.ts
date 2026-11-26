@@ -19,13 +19,16 @@ import { models } from '@swf/models';
 
 /** The pointers the framework took, by device and pointer: the ones that wrap. */
 export interface WrapState {
+  /** Each taken pointer, by its device and pointer ID. */
   readonly taken: ReadonlySet<string>;
 }
 
+/** No pointer taken: the state before any. */
 export const NO_POINTERS: WrapState = Object.freeze({ taken: Object.freeze(new Set<string>()) });
 
 /** What the view allows: its width in CSS pixels, and whether its edges meet at a seam. */
 export interface WrapFrame {
+  /** The view's width, in CSS pixels. */
   readonly width: number;
   /** The view shows the whole circle with its seam at the edges (full 360°, seam wrapping). */
   readonly wraps: boolean;
@@ -33,8 +36,15 @@ export interface WrapFrame {
 
 /** The intent to pass on, and where to draw the virtual cursor (null: draw none). */
 export interface Wrapped {
+  /** The intent to pass on, its point wrapped. */
   readonly intent: PointerIntent;
-  readonly cursor: { readonly x: number; readonly y: number } | null;
+  /** Where to draw the virtual cursor, in CSS pixels of the view, or null for none. */
+  readonly cursor: {
+    /** CSS pixels from the view's left edge. */
+    readonly x: number;
+    /** CSS pixels from the view's top edge. */
+    readonly y: number;
+  } | null;
 }
 
 const keyOf = (p: PointerIntent) => `${p.deviceId}\u0000${String(p.pointerId)}`;
@@ -81,6 +91,7 @@ export function afterDispatch(
   return taken === null ? state : Object.freeze({ taken: Object.freeze(new Set(taken)) });
 }
 
+/** What the wrapped cursor takes input from, follows and draws with. */
 export interface WrappedInputOptions {
   /** The device's own adapter. */
   readonly device: InputAdapter;
@@ -99,7 +110,7 @@ export interface WrappedInputOptions {
 export function wrappedInput(options: WrappedInputOptions): InputAdapter {
   const { device } = options;
   return Object.freeze({
-    id: 'reference.wrapped-cursor/1',
+    id: 'swf.navigation.wrapped-cursor/1',
     apiVersion: INTERACTION_API_VERSION,
     connect(dispatch: (intent: InputIntent) => DispatchResult): () => void {
       let state = NO_POINTERS;

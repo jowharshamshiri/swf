@@ -6,10 +6,8 @@
   // previews as the slider moves and is one undoable change when let go.
   import { Button, Notice, Slider, Stack, Text, Toolbar } from '@wsb/uikit/components';
   import { handleOf } from '@wsb/uikit/handles';
-  import { VIEWPORT_ID } from '../app.js';
+  import { FIELD_OF_VIEW, VIEWPORT_ID, cameraHeading, fieldOfViewOf, orbitHeading } from '@swf/navigation';
   import type { MessageId } from '../messages.js';
-  import { FIELD_OF_VIEW, fieldOfViewOf } from '../modes.js';
-  import { cameraHeading, orbitHeading } from '../orbit.js';
   import type { ShellModel } from './model.svelte.js';
 
   interface Props {
@@ -67,7 +65,7 @@
             label={t('view.fov.whole')}
             size="small"
             onpress={() => {
-              void model.run('reference.view.fov', { degrees: FIELD_OF_VIEW.max });
+              void model.run('swf.view.fov', { degrees: FIELD_OF_VIEW.max });
             }}
           />
         {:else}
@@ -81,7 +79,7 @@
             field
             disabled={!view.panoramic}
             oninput={(degrees) => {
-              void model.run('reference.view.fov', { degrees });
+              void model.run('swf.view.fov', { degrees });
             }}
           />
         {/if}
@@ -99,7 +97,7 @@
           unit="°"
           field
           oninput={(degrees) => {
-            void model.run('reference.view.heading', { degrees });
+            void model.run('swf.view.heading', { degrees });
           }}
         />
       </Stack>
@@ -114,10 +112,10 @@
           field
           disabled={turnBlocked !== null}
           oninput={(degrees) => {
-            void model.run('reference.orbit.turnTo', { degrees, preview: true });
+            void model.run('swf.orbit.turnTo', { degrees, preview: true });
           }}
           onchange={(degrees) => {
-            void model.run('reference.orbit.turnTo', { degrees });
+            void model.run('swf.orbit.turnTo', { degrees });
           }}
         />
         {#if turnBlocked !== null}

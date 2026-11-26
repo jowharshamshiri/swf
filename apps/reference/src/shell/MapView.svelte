@@ -7,9 +7,8 @@
   import { Button, EmptyState, Facts, Field, Input, Stack, Stage, Text } from '@wsb/uikit/components';
   import { handleOf } from '@wsb/uikit/handles';
   import { onDestroy } from 'svelte';
-  import { VIEWPORT_ID } from '../app.js';
-  import type { MapView } from '../map.js';
-  import { MAP_SCALE, mapScene } from '../map.js';
+  import type { MapView } from '@swf/navigation';
+  import { MAP_SCALE, VIEWPORT_ID, mapScene } from '@swf/navigation';
   import type { MessageId } from '../messages.js';
   import { MapDrawer } from './map-drawer.js';
   import type { ShellModel } from './model.svelte.js';
@@ -86,7 +85,7 @@
     if (app === null || id === undefined) {
       return null;
     }
-    return mapScene(app.workspace.getState(), VIEWPORT_ID).markers.find((m) => m.id === id) ?? null;
+    return mapScene(app.workspace.getState(), VIEWPORT_ID, app.windows.partOfKey).markers.find((m) => m.id === id) ?? null;
   });
 
   function place(axis: 'x' | 'y' | 'z', text: string): void {
@@ -105,7 +104,7 @@
         : axis === 'x'
           ? { x: value, z: marker.z }
           : { x: marker.x, z: value };
-    void model.run('reference.window.place', { id: marker.id, ...at });
+    void model.run('swf.window.place', { id: marker.id, ...at });
   }
 </script>
 

@@ -19,7 +19,7 @@ import { models } from '@swf/models';
  * new one, and several windows gathered into a new group together. A window can be broken into
  * parts, each of its surfaces but the first in a window of its own, and parts put back together.
  * A window made from another's surface keeps a link to the window it came from
- * ({@link PART_OF_KEY}), so its parts can be shown linked and recombined. Each step is decided from the committed scene alone by the Lean model
+ * ({@link partOf}), so its parts can be shown linked and recombined. Each step is decided from the committed scene alone by the Lean model
  * `Swf.AppComposition` (models/Swf/AppComposition.lean), where it is proved that no surface is
  * lost and that a new node's ID is free; this module lays the windows out round their surfaces
  * and turns the decision into the scene commands of one undoable transaction. Only associations
@@ -31,22 +31,34 @@ import { models } from '@swf/models';
  * A window's frame around its surfaces, in world units: room for the title above, a margin at
  * the sides and below, and a gap between surfaces side by side.
  */
-export const WINDOW_FRAME = Object.freeze({ side: 0.08, top: 0.2, bottom: 0.08, gap: 0.06 });
+export const WINDOW_FRAME: {
+  /** The margin at each side. */
+  readonly side: number;
+  /** The room above, for the title. */
+  readonly top: number;
+  /** The margin below. */
+  readonly bottom: number;
+  /** The gap between surfaces side by side. */
+  readonly gap: number;
+} = Object.freeze({ side: 0.08, top: 0.2, bottom: 0.08, gap: 0.06 });
 
 /**
- * The metadata key a window made from another window's surface keeps that window's ID under: the
- * window it is a part of, the first one when parts are broken again.
+ * The window a window is a part of, or null for one that is no part: the ID a window made from
+ * another window's surface keeps under the host's part key (`partKey`, a `host.` or `ext.` metadata
+ * key the host names in {@link WindowTraits.partOfKey}), the first window when parts are broken
+ * again.
  */
-export const PART_OF_KEY = 'host.reference.partOf';
-
-/** The window a window is a part of, or null for one that is no part. */
-export function partOf(node: { readonly metadata: Readonly<Record<string, unknown>> }): Id | null {
-  const origin = node.metadata[PART_OF_KEY];
+export function partOf(
+  node: { readonly metadata: Readonly<Record<string, unknown>> },
+  partKey: string,
+): Id | null {
+  const origin = node.metadata[partKey];
   return typeof origin === 'string' ? origin : null;
 }
 
 /** Where a window's surfaces go, side by side in their order, and the window's size round them. */
 export interface SurfaceLayout {
+  /** The window's size round its surfaces, in world units. */
   readonly bounds: Vec3;
   /** Each surface's place in the window, in the order given. */
   readonly offsets: readonly Vec3[];
@@ -73,23 +85,46 @@ export function layoutSurfaces(sizes: readonly (readonly [number, number])[]): S
 /** What a composition step plans, or why it cannot be done, naming the field at fault. */
 export type CompositionPlan =
   | {
+      /** It can be done. */
       readonly kind: 'plan';
+      /** The commands of the one transaction that does it. */
       readonly commands: readonly SceneCommand[];
       /** The window the step created, if it created one. */
       readonly createdWindowId: Id | null;
     }
-  | { readonly kind: 'refused'; readonly field: string; readonly reason: string };
+  | {
+      /** It cannot be done. */
+      readonly kind: 'refused';
+      /** The field at fault. */
+      readonly field: string;
+      /** Why. */
+      readonly reason: string;
+    };
 
 /** What a window made for a detached surface is given besides its place: the host's say. */
 export interface NewWindow {
+  /** Its tags. */
   readonly tags: readonly string[];
+  /** Its metadata, under keys namespaced as the host's. */
   readonly metadata: Readonly<Record<string, JsonValue>>;
 }
 
 /** Where a window is moved: into a group that exists, or into a new group of its own. */
 export type GroupTarget =
-  | { readonly kind: 'group'; readonly id: Id }
-  | { readonly kind: 'new'; readonly id: Id; readonly label: string };
+  | {
+      /** A group that exists. */
+      readonly kind: 'group';
+      /** The group's ID. */
+      readonly id: Id;
+    }
+  | {
+      /** A new group. */
+      readonly kind: 'new';
+      /** The new group's ID, one no node or surface holds. */
+      readonly id: Id;
+      /** The new group's name. */
+      readonly label: string;
+    };
 
 const planned = (commands: SceneCommand[], createdWindowId: Id | null = null): CompositionPlan =>
   Object.freeze({ kind: 'plan', commands: Object.freeze(commands), createdWindowId });
@@ -538,6 +573,7 @@ export function groupWindows(
 /** A composition step that cannot be done, naming the field at fault. */
 export class CompositionRefusal extends Error {
   constructor(
+    /** The field at fault. */
     readonly field: string,
     message: string,
   ) {

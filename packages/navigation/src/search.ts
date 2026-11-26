@@ -5,7 +5,7 @@ import { ancestorIds, findNodes, fold, worldMatrix } from '@swf/core';
  * Finding windows by what the workspace says about them: their IDs, labels and tags, the
  * descriptive metadata the host exposes, and the groups they are in. It never looks at what a
  * window shows. Matching is the kernel's (`findNodes`: Unicode-normalized, case-insensitive
- * substrings); this module adds the filters only the application can answer (how each window's
+ * substrings); this module adds the filters only the host's navigation can answer (how each window's
  * surface is attached, whether the viewport shows it), sorting, a debounce for typing, and pages.
  */
 
@@ -15,6 +15,7 @@ export const PAGE_SIZE = 50;
 /** How long typing must pause before the query runs, by default (in milliseconds). */
 export const DEFAULT_DEBOUNCE_MS = 100;
 
+/** What results are sorted by ({@link SortKey}). */
 export const SORT_KEYS = ['recent', 'label', 'distance', 'group', 'id'] as const;
 /**
  * `recent`: most recently focused first (never-focused last); `label`; `distance` from the
@@ -22,9 +23,13 @@ export const SORT_KEYS = ['recent', 'label', 'distance', 'group', 'id'] as const
  */
 export type SortKey = (typeof SORT_KEYS)[number];
 
+/** The visibility filter's choices. */
 export const VISIBILITY_FILTERS = ['any', 'visible', 'hidden'] as const;
+/** The lock filter's choices. */
 export const LOCK_FILTERS = ['any', 'locked', 'unlocked'] as const;
+/** The attachment filter's choices: how a window's content is attached. */
 export const ATTACHMENT_FILTERS = ['any', 'attached', 'pending', 'unbound', 'failed'] as const;
+/** The coverage filter's choices: whether the viewport shows a window. */
 export const COVERAGE_FILTERS = ['any', 'in-view', 'out-of-view'] as const;
 
 /** How a window's content is attached: shown or ready, on its way, not bound, or failed. */
@@ -32,24 +37,36 @@ export type Attachment = Exclude<(typeof ATTACHMENT_FILTERS)[number], 'any'>;
 /** Whether the viewport shows any of a window. */
 export type Coverage = Exclude<(typeof COVERAGE_FILTERS)[number], 'any'>;
 
+/** What narrows the results, each `any` for no narrowing. */
 export interface SearchFilters {
   /** Only windows inside this group (at any depth), or null for any. */
   readonly group: Id | null;
   /** By effective visibility, inherited from the groups a window is in. */
   readonly visibility: (typeof VISIBILITY_FILTERS)[number];
+  /** By whether it is locked. */
   readonly lock: (typeof LOCK_FILTERS)[number];
+  /** By how its content is attached. */
   readonly attachment: (typeof ATTACHMENT_FILTERS)[number];
+  /** By whether the viewport shows any of it. */
   readonly coverage: (typeof COVERAGE_FILTERS)[number];
 }
 
+/** What is searched for: text, filters and an order. */
 export interface SearchQuery {
+  /**
+   * The text matched against IDs, labels, tags, the host's metadata and groups; empty for every
+   * window.
+   */
   readonly text: string;
+  /** The filters. */
   readonly filters: SearchFilters;
+  /** What the results are sorted by. */
   readonly sort: SortKey;
   /** The sort key runs the other way; ties still go by label, then ID. */
   readonly descending: boolean;
 }
 
+/** No filter: every window. */
 export const NO_FILTERS: SearchFilters = Object.freeze({
   group: null,
   visibility: 'any',
@@ -58,6 +75,7 @@ export const NO_FILTERS: SearchFilters = Object.freeze({
   coverage: 'any',
 });
 
+/** The query search starts with: no text, no filter, most recently focused first. */
 export const DEFAULT_QUERY: SearchQuery = Object.freeze({
   text: '',
   filters: NO_FILTERS,
@@ -67,12 +85,17 @@ export const DEFAULT_QUERY: SearchQuery = Object.freeze({
 
 /** A window found, as a result row shows it. */
 export interface SearchResult {
+  /** The window's ID. */
   readonly id: Id;
+  /** Its name: its label, or its ID. */
   readonly label: string;
   /** The labels (or IDs) of the groups it is in, outermost first. */
   readonly groups: readonly string[];
+  /** Its tags. */
   readonly tags: readonly string[];
+  /** How its content is attached. */
   readonly attachment: Attachment;
+  /** Whether the viewport shows any of it. */
   readonly coverage: Coverage;
   /** World units from the camera. */
   readonly distance: number;
@@ -80,17 +103,25 @@ export interface SearchResult {
 
 /** A group a window can be in, as the group filter offers it. */
 export interface GroupOption {
+  /** The group's ID. */
   readonly id: Id;
+  /** Its name: its label, or its ID. */
   readonly label: string;
 }
 
+/** The timers the debounce runs on. */
 export interface Timers {
+  /** Runs `run` once after `ms` milliseconds; returns a handle that clears it. */
   set(run: () => void, ms: number): unknown;
+  /** Clears a timer before it runs. */
   clear(handle: unknown): void;
 }
 
+/** What search reads the windows from, and how it learns what only the host knows. */
 export interface SearchOptions {
+  /** The workspace searched. */
   readonly workspace: WorkspaceReader;
+  /** The viewport distances and coverage are measured in. */
   readonly viewportId: Id;
   /** The host-exposed metadata keys the text also matches. */
   readonly metadataKeys: readonly string[];
@@ -105,18 +136,25 @@ export interface SearchOptions {
   watch?(refresh: () => void): () => void;
   /** Default {@link DEFAULT_DEBOUNCE_MS}. */
   readonly debounceMs?: number;
+  /** Default: the window's timers. */
   readonly timers?: Timers;
 }
 
+/**
+ * Finding windows: the query, typed text that settles into it, and the results a page at a time.
+ */
 export interface Search {
   /** The query results are for; `typed` is the text as typed, ahead of it while it settles. */
   query(): SearchQuery;
+  /** The text as typed, ahead of the query while typing settles. */
   typed(): string;
   /** Typing is waiting for its pause. */
   pending(): boolean;
   /** Text as it is typed: the query takes it once typing pauses for the debounce. */
   setText(text: string): void;
+  /** Changes the filters it names, at once. */
   setFilters(filters: Partial<SearchFilters>): void;
+  /** Sorts by a key, ascending unless `descending`. */
   setSort(sort: SortKey, descending?: boolean): void;
   /** Every filter back to none; the text stays. */
   clearFilters(): void;
@@ -132,6 +170,7 @@ export interface Search {
   groups(): readonly GroupOption[];
   /** Called whenever the query or the results change. */
   subscribe(listener: () => void): () => void;
+  /** Stops following the workspace and clears a pending query. */
   dispose(): void;
 }
 
@@ -163,6 +202,7 @@ function oneOf<T extends string>(field: string, value: unknown, allowed: readonl
   return value as T;
 }
 
+/** Search over a workspace, starting from {@link DEFAULT_QUERY}. */
 export function createSearch(options: SearchOptions): Search {
   const { workspace, viewportId, metadataKeys } = options;
   const debounceMs = options.debounceMs ?? DEFAULT_DEBOUNCE_MS;

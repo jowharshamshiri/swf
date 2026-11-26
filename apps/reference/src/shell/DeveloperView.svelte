@@ -29,8 +29,8 @@
   import { mat4Decompose } from '@swf/math';
   import { standInReason } from '@swf/presentation';
   import { onDestroy, untrack } from 'svelte';
-  import { BACKEND_IDS } from '../config.js';
-  import type { BackendId } from '../config.js';
+  import type { BackendId } from '@swf/navigation';
+  import { BACKEND_IDS } from '@swf/navigation';
   import type { Devtools, SimulatedFailure } from '../devtools.js';
   import { createDevtools, SIMULATED_FAILURES } from '../devtools.js';
   import type { MessageId } from '../messages.js';
@@ -282,7 +282,7 @@
           items={BACKEND_IDS.map((id) => ({ value: id, label: t(`backend.${id}`) }))}
           selected={model.status.backend ?? ''}
           onselect={(backend) => {
-            void model.run('reference.backend.switch', { backend: backend as BackendId });
+            void model.run('swf.backend.switch', { backend: backend as BackendId });
           }}
         />
       </Section>

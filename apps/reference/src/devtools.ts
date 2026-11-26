@@ -9,10 +9,14 @@ import type { SurfaceAdapter, SurfaceCapabilities } from '@swf/surfaces';
 import { ADAPTER_API_VERSION } from '@swf/surfaces';
 import { resolvePalette } from '@wsb/uikit/primitives';
 import type { ReferenceApp } from './app.js';
-import { LAYERED_RENDERER_ID, VIEWPORT_ID } from './app.js';
-import { layoutSurfaces } from './composition.js';
-import { PANORAMA } from './modes.js';
-import { CAMERA_ID, WORKSPACE_GROUP_ID } from './presets.js';
+import { WORKSPACE_GROUP_ID } from './presets.js';
+import {
+  CAMERA_ID,
+  LAYERED_RENDERER_ID,
+  PANORAMA,
+  VIEWPORT_ID,
+  layoutSurfaces,
+} from '@swf/navigation';
 
 /**
  * The developer tools of staging builds and development (§22, DLV-010): a session-only record

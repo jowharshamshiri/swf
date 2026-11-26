@@ -7,7 +7,8 @@ import { equirectangular } from '@swf/projections';
 import { afterEach, describe, expect, it } from 'vitest';
 import { commands } from 'vitest/browser';
 import type { ReferenceApp } from '../../src/app.js';
-import { createReferenceApp, VIEWPORT_ID } from '../../src/app.js';
+import { createReferenceApp } from '../../src/app.js';
+import { VIEWPORT_ID } from '@swf/navigation';
 import type { AppConfig } from '../../src/config.js';
 import type { PresetId } from '../../src/presets.js';
 import { planPreset } from '../../src/presets.js';
@@ -276,7 +277,7 @@ describe('the panorama on the geometry backend', () => {
     const a = await start({ preset: 'sparse', backend: 'geometry' });
     await frame(a);
     expect(a.status().backend).toBe('geometry');
-    const outcome = await a.commands.run('reference.backend.switch', { backend: 'dom' });
+    const outcome = await a.commands.run('swf.backend.switch', { backend: 'dom' });
     expect(outcome).toEqual({ status: 'done' });
     await frame(a);
     expect(a.status().backend).toBe('dom');

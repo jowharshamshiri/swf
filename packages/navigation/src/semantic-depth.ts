@@ -22,7 +22,7 @@ import type { DepthBands } from './features.js';
  * measures the distances and asks it once per frame for every window.
  */
 
-export const SEMANTIC_DEPTH_ID = 'reference.semantic-depth/1';
+export const SEMANTIC_DEPTH_ID = 'swf.navigation.semantic-depth/1';
 
 /** The representation for a distance from the camera, by the bands. */
 export function representationAt(distance: number, bands: DepthBands): Representation {
@@ -42,7 +42,9 @@ export function distanceFrom(scene: SceneState, nodeId: Id, view: ViewGeometry):
   return distanceOf(world, eyeOf(view));
 }
 
+/** How semantic depth draws: the bands it chooses a window's representation by. */
 export interface SemanticDepthOptions {
+  /** The distances that bound each representation. */
   readonly bands: DepthBands;
   /**
    * The mode in which the focused window is presented in full whatever its distance: focus shows

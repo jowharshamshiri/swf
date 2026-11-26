@@ -36,7 +36,7 @@
   size="small"
   disabled={disabled || !focusOn}
   onpress={() => {
-    void model.run('reference.focus.enter', { id });
+    void model.run('swf.focus.enter', { id });
   }}
 />
 <IconButton
@@ -46,7 +46,7 @@
   size="small"
   {disabled}
   onpress={() => {
-    void model.run('reference.window.reveal', { id });
+    void model.run('swf.window.reveal', { id });
   }}
 />
 <IconButton
@@ -56,7 +56,7 @@
   size="small"
   {disabled}
   onpress={() => {
-    void model.run('reference.window.bringFront', { id });
+    void model.run('swf.window.bringFront', { id });
   }}
 />
 <IconButton
@@ -66,7 +66,7 @@
   size="small"
   {disabled}
   onpress={() => {
-    void model.run('reference.window.sendBehind', { id });
+    void model.run('swf.window.sendBehind', { id });
   }}
 />
 <IconButton
@@ -88,7 +88,7 @@
     pressed={chosen}
     {disabled}
     onpress={() => {
-      void model.run('reference.selection.toggle', { id });
+      void model.run('swf.selection.toggle', { id });
     }}
   />
 {/if}

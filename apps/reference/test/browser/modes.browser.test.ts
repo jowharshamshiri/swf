@@ -10,9 +10,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { commands } from 'vitest/browser';
 import type { ReferenceApp } from '../../src/app.js';
 import { parseConfig } from '../../src/config.js';
-import { MAP_SCALE, mapScene, toMap } from '../../src/map.js';
+import { MAP_SCALE, mapScene, overviewScene, toMap } from '@swf/navigation';
 import { createMessages, ENGLISH } from '../../src/messages.js';
-import { overviewScene } from '../../src/overview.js';
 import { ShellModel } from '../../src/shell/model.svelte.js';
 import Shell from '../../src/shell/Shell.svelte';
 
@@ -148,7 +147,7 @@ describe('focus and context in the shell (FR-120, UX-003)', () => {
 
   it('refuses focus with nothing to focus, saying why', async () => {
     const { model, root, settle } = await start('?preset=sparse');
-    await model.run('reference.focus.enter', {});
+    await model.run('swf.focus.enter', {});
     await settle();
     expect(root.textContent).toContain('select a window to focus');
   });
@@ -247,7 +246,7 @@ describe('the spatial map (FR-124, UX-004, WF-05)', () => {
       await settle();
     }
     // The selected window's name is written larger: it is still written whole, on one line.
-    await app.commands.run('reference.window.inspect', { id: 'builds' });
+    await app.commands.run('swf.window.inspect', { id: 'builds' });
     await settle();
     const clipped = [
       ...root.querySelectorAll<HTMLElement>(
@@ -311,7 +310,9 @@ describe('the spatial map (FR-124, UX-004, WF-05)', () => {
       width: surface.box.width,
       height: surface.box.height,
     };
-    const board = mapScene(app.workspace.getState(), 'main').markers.find((m) => m.id === 'board');
+    const board = mapScene(app.workspace.getState(), 'main', app.windows.partOfKey).markers.find(
+      (m) => m.id === 'board',
+    );
     const name = titled.find((t) => t.key === 'board')?.box;
     if (board === undefined || name === undefined)
       throw new Error('the project board is not named');
@@ -474,10 +475,10 @@ describe('names in the panorama (FR-122)', () => {
   it('names the windows in the strip under the overview and the map legibly, in either backend: none cut at its edge, none over another window or name', async () => {
     const { model, app, settle } = await start('?preset=studio', { width: 1600, height: 1000 });
     for (const backend of ['dom', 'geometry'] as const) {
-      await model.run('reference.backend.switch', { backend });
+      await model.run('swf.backend.switch', { backend });
       await expect.poll(() => model.status?.backend, { timeout: 5000 }).toBe(backend);
       for (const mode of ['overview', 'map', 'panorama'] as const) {
-        await model.run('reference.mode.switch', { mode });
+        await model.run('swf.mode.switch', { mode });
         await settle();
         const f = await frame(app);
         const names = panoramaNames(app, f);
@@ -563,9 +564,11 @@ describe('the spatial overview (FR-128, UX-005)', () => {
     driver.act('page.overview.selected.reveal#metrics', 'press');
     await settle();
     expect(app.status().mode).toBe('panorama');
-    const metrics = overviewScene(app.workspace.getState(), 'main').entries.find(
-      (e) => e.id === 'metrics',
-    );
+    const metrics = overviewScene(
+      app.workspace.getState(),
+      'main',
+      app.windows.category,
+    ).entries.find((e) => e.id === 'metrics');
     expect(Math.abs(metrics?.heading ?? 180)).toBeLessThan(1);
     // Back in the overview its card stands in the middle; a double press on another focuses it.
     driver.act('editor.actions.mode#overview', 'press');
@@ -610,7 +613,7 @@ describe('the spatial overview (FR-128, UX-005)', () => {
     await settle();
     const wasBehind = cardCentre(root, 'reading');
     // The reading list, behind the camera, brought in front: its card moves to the middle.
-    await app.commands.run('reference.window.bringFront', { id: 'reading' });
+    await app.commands.run('swf.window.bringFront', { id: 'reading' });
     await settle();
     await expect
       .poll(() => Math.abs(cardCentre(root, 'reading') - boardCentre(root)), { timeout: 2000 })
@@ -641,7 +644,7 @@ describe('the spatial overview (FR-128, UX-005)', () => {
     expect(quiet('reading')).toBe(false);
     expect(named('reading')).toBe(true);
     // Into a group of its own, a window's card says so, and the group is named beside the board.
-    await app.commands.run('reference.window.regroup', {
+    await app.commands.run('swf.window.regroup', {
       id: 'reading',
       groupId: null,
       label: 'Research',

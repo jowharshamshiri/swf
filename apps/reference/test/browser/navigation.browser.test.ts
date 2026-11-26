@@ -6,13 +6,21 @@ import type { Vec3 } from '@swf/math';
 import { resolvePalette } from '@wsb/uikit/primitives';
 import { describe, expect, it } from 'vitest';
 import { commands } from 'vitest/browser';
-import { VIEWPORT_ID } from '../../src/app.js';
-import { FOCUS_ID } from '../../src/focus.js';
-import { inView, mapScene, radarView, toMap } from '../../src/map.js';
 import { ENGLISH } from '../../src/messages.js';
-import { FIELD_OF_VIEW, MAP, OVERVIEW } from '../../src/modes.js';
-import { orbitHeading } from '../../src/orbit.js';
-import { CAMERA_ID } from '../../src/presets.js';
+import {
+  CAMERA_ID,
+  FIELD_OF_VIEW,
+  FOCUS_ID,
+  MAP,
+  OVERVIEW,
+  VIEWPORT_ID,
+  inView,
+  mapScene,
+  orbitHeading,
+  radarView,
+  toMap,
+} from '@swf/navigation';
+import { PART_OF_KEY } from '../../src/app.js';
 import type { ShellModel } from '../../src/shell/model.svelte.js';
 import { RADAR_MARGIN } from '../../src/shell/map-drawer.js';
 import { PanoramaGuides } from '../../src/shell/panorama-guides.js';
@@ -91,7 +99,7 @@ function radar(root: HTMLElement) {
 function dotOf(model: ShellModel, root: HTMLElement, id: string): [number, number] {
   const { viewport } = radar(root);
   const box = viewport.getBoundingClientRect();
-  const scene = mapScene(app(model).workspace.getState(), VIEWPORT_ID);
+  const scene = mapScene(app(model).workspace.getState(), VIEWPORT_ID, PART_OF_KEY);
   const view = radarView(scene, box.width, box.height, RADAR_MARGIN);
   const marker = scene.markers.find((m) => m.id === id);
   if (marker === undefined) {
@@ -245,7 +253,7 @@ describe('the panorama’s guides', () => {
         );
       expect(overlaps(layout)).toEqual([]);
       // Turned to 45°, where the camera faces is said there, and the 45° heading gives way to it.
-      await model.run('reference.view.heading', { degrees: 45 });
+      await model.run('swf.view.heading', { degrees: 45 });
       layout = await drawn();
       expect(layout.facing?.degrees).toBe(45);
       expect(layout.facing?.x).toBeCloseTo(view.width / 2, 0);
@@ -253,8 +261,8 @@ describe('the panorama’s guides', () => {
       expect(words(layout)).not.toContain('45°');
       expect(overlaps(layout)).toEqual([]);
       // Narrower, the grid follows the field of view: 45° is now a quarter of the way across.
-      await model.run('reference.view.heading', { degrees: 0 });
-      await model.run('reference.view.fov', { degrees: 180 });
+      await model.run('swf.view.heading', { degrees: 0 });
+      await model.run('swf.view.fov', { degrees: 180 });
       layout = await drawn();
       expect(xOf(45)).toBeCloseTo((3 * view.width) / 4, 0);
       expect(overlaps(layout)).toEqual([]);
@@ -310,13 +318,13 @@ describe('the radar beside the panorama', () => {
   it('writes every name and reading legibly, none over another, whichever window is selected and focused and wherever the camera faces', async () => {
     const { model, root, settle } = await visit('?preset=studio');
     const a = app(model);
-    const ids = mapScene(a.workspace.getState(), VIEWPORT_ID).markers.map((m) => m.id);
+    const ids = mapScene(a.workspace.getState(), VIEWPORT_ID, PART_OF_KEY).markers.map((m) => m.id);
     expect(ids.length).toBeGreaterThan(8);
     const overlaps: string[] = [];
     for (const heading of [0, 62, -120]) {
-      await model.run('reference.view.heading', { degrees: heading });
+      await model.run('swf.view.heading', { degrees: heading });
       for (const [i, id] of ids.entries()) {
-        await model.run('reference.window.inspect', { id });
+        await model.run('swf.window.inspect', { id });
         const focused = ids[(i + 3) % ids.length] ?? id;
         a.workspace.dispatch({ type: 'focus.set', id: focused }, { source: 'user' });
         await settle();
@@ -357,9 +365,9 @@ describe('the radar beside the panorama', () => {
     const { model, root, settle } = await visit('?preset=seam');
     const a = app(model);
     // window-07 is straight ahead; window-01 is on the seam straight behind.
-    await model.run('reference.window.inspect', { id: 'window-07' });
+    await model.run('swf.window.inspect', { id: 'window-07' });
     a.workspace.dispatch({ type: 'focus.set', id: 'window-04' }, { source: 'user' });
-    await model.run('reference.view.fov', { degrees: 120 });
+    await model.run('swf.view.fov', { degrees: 120 });
     await settle();
     await nextFrame();
     await nextFrame();
@@ -434,7 +442,7 @@ describe('the radar beside the panorama', () => {
       frame.width,
     );
     // One undo puts it back.
-    await model.run('reference.history.undo', {});
+    await model.run('swf.history.undo', {});
     expect(centreOf(model, id)[0]).toBeCloseTo(before[0], 9);
   });
 });
@@ -453,11 +461,11 @@ describe('the view’s controls', () => {
     driver.act('page.view.fov', 'key', 'ArrowRight');
     await settle();
     expect(fieldOfView(model)).toBe(FIELD_OF_VIEW.min + 1);
-    await model.run('reference.mode.switch', { mode: MAP.id });
+    await model.run('swf.mode.switch', { mode: MAP.id });
     await settle();
     expect(fieldOfView(model)).toBe(FIELD_OF_VIEW.min + 1);
-    await model.run('reference.mode.switch', { mode: 'panorama' });
-    await model.run('reference.focus.enter', { id: 'window-01' });
+    await model.run('swf.mode.switch', { mode: 'panorama' });
+    await model.run('swf.focus.enter', { id: 'window-01' });
     await settle();
     // Focus frames its window: the control says so and sets nothing.
     expect(
@@ -465,7 +473,7 @@ describe('the view’s controls', () => {
         root.querySelector<HTMLElement>('[data-wsb="page.view.fov"]')?.hasAttribute('disabled'),
     ).toBe(true);
     expect(root.textContent).toContain(ENGLISH['view.fov.focus']);
-    await model.run('reference.focus.exit', {});
+    await model.run('swf.focus.exit', {});
     await settle();
     expect(fieldOfView(model)).toBe(FIELD_OF_VIEW.min + 1);
   });
@@ -488,7 +496,7 @@ describe('the view’s controls', () => {
     expect(turned).toBeGreaterThan(0);
     expect(turn(headingOf(before), headingOf(centreOf(model, 'window-02')))).toBeCloseTo(turned, 6);
     expect(a.workspace.history()).toHaveLength(history + 1);
-    await model.run('reference.history.undo', {});
+    await model.run('swf.history.undo', {});
     expect(centreOf(model, 'window-02')[0]).toBeCloseTo(before[0], 9);
   });
 
@@ -509,7 +517,7 @@ describe('the view’s controls', () => {
 describe('the seam', () => {
   it('turns the camera across it with every window moving on steadily, never jumping', async () => {
     const { model, root, settle } = await visit();
-    await model.run('reference.view.heading', { degrees: 170 });
+    await model.run('swf.view.heading', { degrees: 170 });
     await settle();
     const a = app(model);
     const width = a.root.getBoundingClientRect().width;
@@ -521,7 +529,7 @@ describe('the seam', () => {
     let last = xs();
     const step = width / 360;
     for (let degrees = 171; degrees <= 190; degrees += 1) {
-      await model.run('reference.view.heading', {
+      await model.run('swf.view.heading', {
         degrees: degrees > 180 ? degrees - 360 : degrees,
       });
       await settle();
@@ -583,7 +591,7 @@ describe('how windows look', () => {
     // It reads the DOM backend's own elements: the DOM backend, by name.
     const { model, root, settle } = await visit('?preset=seam&backend=dom');
     const a = app(model);
-    await model.run('reference.window.inspect', { id: 'window-07' });
+    await model.run('swf.window.inspect', { id: 'window-07' });
     a.workspace.dispatch({ type: 'focus.set', id: 'window-04' }, { source: 'user' });
     await settle();
     await nextFrame();
@@ -623,7 +631,7 @@ describe('how windows look', () => {
       pixel(there(guides, 'the guides'), there(atFront, 'window-07').x + 7, box.top + 4)[3],
     ).toBe(0);
     // Out of view at a narrow field of view, a window is not drawn in the panorama at all.
-    await model.run('reference.view.fov', { degrees: 120 });
+    await model.run('swf.view.fov', { degrees: 120 });
     await settle();
     await nextFrame();
     expect(chromeOf(root, 'window-04')).toBeNull();
@@ -635,8 +643,8 @@ describe('quick actions on a window', () => {
   it('brings it in front of the camera, sends it behind, centres the view on it and focuses it', async () => {
     const { model, driver, settle } = await visit();
     const a = app(model);
-    await model.run('reference.view.heading', { degrees: 30 });
-    await model.run('reference.window.inspect', { id: 'window-03' });
+    await model.run('swf.view.heading', { degrees: 30 });
+    await model.run('swf.window.inspect', { id: 'window-03' });
     await settle();
     const distance = Math.hypot(centreOf(model, 'window-03')[0], centreOf(model, 'window-03')[2]);
     const label = a.workspace.getState().nodes.get('window-03')?.label ?? '';
@@ -691,7 +699,7 @@ describe('quick actions on a window', () => {
         expect(h - (headings[i - 1] ?? 0)).toBeCloseTo(60, 6);
       }
     });
-    await model.run('reference.window.inspect', { id: 'window-05' });
+    await model.run('swf.window.inspect', { id: 'window-05' });
     await settle();
     driver.act('page.radar.locate', 'press');
     await settle();

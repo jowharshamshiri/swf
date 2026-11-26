@@ -41,7 +41,7 @@ import {
  * the last one is committed once, when the pointer is released.
  */
 
-export const MAGNETIC_POLICY_ID = 'reference.magnetic-move/1';
+export const MAGNETIC_POLICY_ID = 'swf.navigation.magnetic-move/1';
 
 /** What a running snapping move reports, as it goes: which window, and the snap in force. */
 export interface SnapReport {

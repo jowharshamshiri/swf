@@ -1,0 +1,24 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "rootDir": "src",
+    "outDir": "dist",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "lib": ["ES2023", "DOM", "DOM.Iterable"]
+  },
+  "include": ["src"],
+  "references": [
+    { "path": "../math/tsconfig.build.json" },
+    { "path": "../models/tsconfig.build.json" },
+    { "path": "../core/tsconfig.build.json" },
+    { "path": "../surfaces/tsconfig.build.json" },
+    { "path": "../presentation/tsconfig.build.json" },
+    { "path": "../projections/tsconfig.build.json" },
+    { "path": "../interaction/tsconfig.build.json" },
+    { "path": "../backend-dom/tsconfig.build.json" },
+    { "path": "../backend-geometry/tsconfig.build.json" }
+  ]
+}

@@ -26,22 +26,45 @@ export interface OrbitState {
   readonly rootId: Id | null;
 }
 
+/** Something that changes workspace orbit: what drags turn, the group it turns, or the policy. */
 export type OrbitEvent =
-  /** Background drags turn this from now on. */
-  | { readonly kind: 'navigate'; readonly to: NavigationTarget }
-  /** Designates the group orbit turns, or none. */
-  | { readonly kind: 'designate'; readonly nodeId: Id | null }
-  /** The policy is turned on or off. */
-  | { readonly kind: 'enable'; readonly enabled: boolean };
+  | {
+      /** Background drags turn this from now on. */
+      readonly kind: 'navigate';
+      /** The camera, or the orbit group. */
+      readonly to: NavigationTarget;
+    }
+  | {
+      /** Designates the group orbit turns, or none. */
+      readonly kind: 'designate';
+      /** The group's ID, or null for none. */
+      readonly nodeId: Id | null;
+    }
+  | {
+      /** The policy is turned on or off. */
+      readonly kind: 'enable';
+      /** On, or off. */
+      readonly enabled: boolean;
+    };
 
+/** What an orbit event leads to: the next state and the commands that make it, or a refusal. */
 export type OrbitTransition =
   | {
+      /** It can happen. */
       readonly kind: 'next';
+      /** The state after it. */
       readonly state: OrbitState;
       /** The commands that make it: one transaction, or none when nothing changes. */
       readonly commands: readonly SceneCommand[];
     }
-  | { readonly kind: 'refused'; readonly field: string; readonly reason: string };
+  | {
+      /** It cannot. */
+      readonly kind: 'refused';
+      /** The field at fault. */
+      readonly field: string;
+      /** Why. */
+      readonly reason: string;
+    };
 
 /** The orbit state of a viewport in a scene, with the policy on or off. */
 export function orbitStateOf(scene: SceneState, viewportId: Id, enabled: boolean): OrbitState {

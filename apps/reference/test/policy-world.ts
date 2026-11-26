@@ -8,14 +8,17 @@ import { createPresentationRegistry, viewGeometryOf } from '@swf/presentation';
 import type { ProjectionRegistry } from '@swf/projections';
 import { createProjectionRegistry, equirectangular } from '@swf/projections';
 import { expect } from 'vitest';
-import type { FeatureSettings } from '../src/features.js';
-import { createFocusMode } from '../src/focus.js';
-import type { Modes } from '../src/modes.js';
-import { createModes, MAP, PANORAMA } from '../src/modes.js';
-import type { Policies } from '../src/policies.js';
-import { createPolicies } from '../src/policies.js';
 import type { PlannedWindow, PresetId } from '../src/presets.js';
-import { CAMERA_ID, planPreset, presetCommands } from '../src/presets.js';
+import { planPreset, presetCommands } from '../src/presets.js';
+import type { FeatureSettings, Modes, Policies } from '@swf/navigation';
+import {
+  CAMERA_ID,
+  MAP,
+  PANORAMA,
+  createFocusMode,
+  createModes,
+  createPolicies,
+} from '@swf/navigation';
 
 /** The viewport the reference application presents (as `app.ts` names it). */
 export const VIEWPORT = 'main';

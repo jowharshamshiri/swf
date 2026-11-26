@@ -39,9 +39,9 @@ import { mat4FromTransform, mat4Multiply, quatFromAxisAngle, quatRotate, sub } f
  * on its content wherever a plain drag would move it (a proxy, or with Alt held).
  */
 
-export const DEPTH_DRAG_POLICY_ID = 'reference.depth-drag/1';
-export const TURN_DRAG_POLICY_ID = 'reference.turn-drag/1';
-export const SELECT_TOGGLE_POLICY_ID = 'reference.select-toggle/1';
+export const DEPTH_DRAG_POLICY_ID = 'swf.navigation.depth-drag/1';
+export const TURN_DRAG_POLICY_ID = 'swf.navigation.turn-drag/1';
+export const SELECT_TOGGLE_POLICY_ID = 'swf.navigation.select-toggle/1';
 
 /**
  * How far a pixel of pointer travel takes a gesture: the depth drag scales the window's distance
@@ -323,7 +323,7 @@ export const selectTogglePolicy: InteractionPolicy = Object.freeze({
   },
 });
 
-/** The manipulation policies, as the application registers them. */
+/** The manipulation policies, as navigation registers them. */
 export const MANIPULATION_POLICIES: readonly InteractionPolicy[] = Object.freeze([
   depthDragPolicy,
   turnDragPolicy,

@@ -1,9 +1,8 @@
 import { models } from '@swf/models';
 import type { FeatureId } from './features.js';
-import type { MessageId } from './messages.js';
 
 /**
- * The reference application's experiments: each of its eight capabilities tried alone, or all of
+ * Navigation's experiments: each of its eight capabilities tried alone, or all of
  * them together, as the experiment panel offers them. An experiment is configuration and nothing
  * else: it turns the feature modules on or off through the policies' own `configure`, and sets the
  * view up to show the capability it isolates (the view mode, what a drag on the panorama's
@@ -26,6 +25,7 @@ export const EXPERIMENT_IDS = [
   'composition',
   'persistence',
 ] as const;
+/** An experiment, by its ID: `everything`, or one capability alone. */
 export type ExperimentId = (typeof EXPERIMENT_IDS)[number];
 
 /** The capabilities in the order the experiments number them: the switches' order in the panel. */
@@ -42,14 +42,16 @@ export const CAPABILITY_ORDER: readonly FeatureId[] = Object.freeze([
 
 /** What the panel says of an experiment. */
 export interface Experiment {
+  /** Its ID. */
   readonly id: ExperimentId;
   /** Its number: ∞ for every capability together, else 01 to 08. */
   readonly number: string;
-  readonly name: MessageId;
-  /** What it shows, in a line. */
-  readonly summary: MessageId;
-  /** What to try, and what to turn off to compare the behaviour without it. */
-  readonly trial: MessageId;
+  /** Its name, as the ID of the message a host's interface names it by. */
+  readonly name: `experiment.${ExperimentId}`;
+  /** What it shows, in a line, as the ID of the message that says it. */
+  readonly summary: `experiment.${ExperimentId}.summary`;
+  /** What to try, and what to turn off to compare the behaviour without it, as a message's ID. */
+  readonly trial: `experiment.${ExperimentId}.trial`;
 }
 
 const experiment = (id: ExperimentId, number: string): Experiment =>
@@ -61,6 +63,7 @@ const experiment = (id: ExperimentId, number: string): Experiment =>
     trial: `experiment.${id}.trial`,
   });
 
+/** Every experiment, by its ID, numbered in the order of {@link EXPERIMENT_IDS}. */
 export const EXPERIMENTS: Readonly<Record<ExperimentId, Experiment>> = Object.freeze(
   Object.fromEntries(
     EXPERIMENT_IDS.map((id, index) => [
@@ -85,7 +88,9 @@ export interface ExperimentContext {
 
 /** An experiment as it is applied: the modules on, and the view set up to show it. */
 export interface ExperimentPlan {
+  /** Whether each capability is on. */
   readonly enabled: Readonly<Record<FeatureId, boolean>>;
+  /** The view mode it is shown in. */
   readonly view: 'panorama' | 'focus' | 'map';
   /** What a drag on the panorama's background turns. */
   readonly navigation: 'camera' | 'orbit';

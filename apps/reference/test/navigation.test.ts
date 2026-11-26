@@ -1,21 +1,26 @@
 import type { Workspace } from '@swf/core';
 import { cameraRotation, headingPitchOf } from '@swf/projections';
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_FEATURES } from '../src/features.js';
-import { FOCUS_ID } from '../src/focus.js';
 import {
+  CAMERA_ID,
+  DEFAULT_FEATURES,
+  FIELD_OF_VIEW,
+  FOCUS_ID,
+  MAP,
+  MarkerDrag,
+  ModeRefusal,
+  OVERVIEW,
+  PolicyRefusal,
   aroundCamera,
   arrangedAround,
   mapScene,
-  MarkerDrag,
+  orbitHeading,
+  panoramaProjection,
   radarReach,
   radarView,
   ringStep,
-} from '../src/map.js';
-import { FIELD_OF_VIEW, MAP, ModeRefusal, OVERVIEW, panoramaProjection } from '../src/modes.js';
-import { orbitHeading } from '../src/orbit.js';
-import { PolicyRefusal } from '../src/policies.js';
-import { CAMERA_ID } from '../src/presets.js';
+} from '@swf/navigation';
+import { PART_OF_KEY } from '../src/app.js';
 import { centreOf, note, policyWorld, VIEWPORT, worldOf } from './policy-world.js';
 
 const DEGREES = 180 / Math.PI;
@@ -247,7 +252,7 @@ describe('the radar', () => {
       note('near', { heading: 0, distance: 2 }),
       note('far', { heading: 170, distance: 6 }),
     ]);
-    const scene = mapScene(ws.getState(), VIEWPORT);
+    const scene = mapScene(ws.getState(), VIEWPORT, PART_OF_KEY);
     // 6 × 1.1 = 6.6, rounded up to the next 2-unit ring.
     expect(radarReach(scene)).toBe(8);
     const view = radarView(scene, 300, 200, 20);

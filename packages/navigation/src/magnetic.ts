@@ -44,35 +44,56 @@ import type { SnapSettings } from './features.js';
 
 /** A window as snapping sees it. */
 export interface SnapBox {
+  /** The window's ID. */
   readonly id: Id;
+  /** Its name. */
   readonly label: string;
   /** World centre. */
   readonly centre: Vec3;
-  /** Half its width and height, in world units. */
+  /** Half its width, in world units. */
   readonly halfWidth: number;
+  /** Half its height, in world units. */
   readonly halfHeight: number;
 }
 
 /** A snap in force: what the moving window lines up with. */
 export type SnapConstraint =
   | {
+      /** An edge against a neighbour's. */
       readonly kind: 'edge';
       /** The moving window's edge that snapped. */
       readonly side: 'left' | 'right' | 'top' | 'bottom';
+      /** The neighbour's ID. */
       readonly neighbourId: Id;
+      /** The neighbour's name. */
       readonly neighbourLabel: string;
     }
   | {
+      /** Its centre lined up with a neighbour's. */
       readonly kind: 'align';
+      /** Which way: in heading or in elevation. */
       readonly axis: 'heading' | 'elevation';
+      /** The neighbour's ID. */
       readonly neighbourId: Id;
+      /** The neighbour's name. */
       readonly neighbourLabel: string;
     }
-  | { readonly kind: 'horizon' }
-  /** Its heading on a spoke round the camera, at `degrees` right of straight ahead. */
-  | { readonly kind: 'spoke'; readonly degrees: number }
-  /** Its distance on the ring `distance` world units from the camera. */
-  | { readonly kind: 'ring'; readonly distance: number };
+  | {
+      /** Its centre on the horizon. */
+      readonly kind: 'horizon';
+    }
+  | {
+      /** Its heading on a spoke round the camera. */
+      readonly kind: 'spoke';
+      /** The spoke, in degrees right of straight ahead. */
+      readonly degrees: number;
+    }
+  | {
+      /** Its distance on a ring round the camera. */
+      readonly kind: 'ring';
+      /** The ring, in world units from the camera. */
+      readonly distance: number;
+    };
 
 /** The snap for a proposed place: how far to turn the window, in radians, and move it, and why. */
 export interface Snap {
@@ -82,9 +103,11 @@ export interface Snap {
   readonly elevation: number;
   /** Away from the camera, in world units. */
   readonly distance: number;
+  /** What it lines up with. */
   readonly constraints: readonly SnapConstraint[];
 }
 
+/** No snap: nothing moves, nothing lines up. */
 export const NO_SNAP: Snap = Object.freeze({
   heading: 0,
   elevation: 0,

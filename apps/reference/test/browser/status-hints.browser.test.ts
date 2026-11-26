@@ -49,8 +49,8 @@ describe('the status bar’s hints', () => {
       const app = m.model.app;
       if (app === null) throw new Error('no application');
       // Beside it: drags that turn the workspace, and a change not saved yet.
-      await m.model.run('reference.navigation.set', { target: 'orbit' });
-      await m.model.run('reference.window.sendBehind', { id: 'desk' });
+      await m.model.run('swf.navigation.set', { target: 'orbit' });
+      await m.model.run('swf.window.sendBehind', { id: 'desk' });
       await m.settle();
       expect(m.root.textContent).toContain(ENGLISH['navigation.status.orbit']);
       expect(m.root.textContent).toContain(ENGLISH['save.dirty']);
@@ -61,7 +61,7 @@ describe('the status bar’s hints', () => {
       whole(m, HINTS.keys, ENGLISH['panorama.keys.short']);
       // In focus: how to move it.
       app.root.blur();
-      await m.model.run('reference.focus.enter', { id: 'builds' });
+      await m.model.run('swf.focus.enter', { id: 'builds' });
       await m.settle();
       whole(m, HINTS.focus, ENGLISH['focus.hint.short']);
       // Each says the whole of itself when asked (its title).

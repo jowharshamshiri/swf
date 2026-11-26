@@ -2,10 +2,14 @@ import { worldMatrix } from '@swf/core';
 import { placementOf } from '@swf/interaction';
 import type { Vec3 } from '@swf/math';
 import { describe, expect, it } from 'vitest';
-import type { SnapSettings } from '../src/features.js';
-import type { SnapBox } from '../src/magnetic.js';
-import { NO_SNAP, resolveSnap, snappedTransform, worldAt } from '../src/magnetic.js';
-import { MAGNETIC_POLICY_ID } from '../src/magnetic-policy.js';
+import type { SnapBox, SnapSettings } from '@swf/navigation';
+import {
+  MAGNETIC_POLICY_ID,
+  NO_SNAP,
+  resolveSnap,
+  snappedTransform,
+  worldAt,
+} from '@swf/navigation';
 import { centreOf, note, policyWorld, screenOf, VIEWPORT } from './policy-world.js';
 
 const RAD = Math.PI / 180;

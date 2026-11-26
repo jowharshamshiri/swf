@@ -23,6 +23,7 @@ export default defineConfig({
       '@swf/conformance': source('conformance'),
       '@swf/diagnostics': source('diagnostics'),
       '@swf/persistence': source('persistence'),
+      '@swf/navigation': source('navigation'),
       '@swf/benchmark': source('benchmark'),
     },
   },

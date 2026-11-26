@@ -1,6 +1,6 @@
 import type { SceneCommand } from '@swf/core';
 import { cameraRotation } from '@swf/projections';
-import { layoutSurfaces, WINDOW_FRAME } from './composition.js';
+import { WINDOW_FRAME, layoutSurfaces } from '@swf/navigation';
 import type { MessageId } from './messages.js';
 import type { Random } from '@swf/math';
 import { createRandom, seedIssue } from '@swf/math';
@@ -71,9 +71,6 @@ export interface Preset {
 /** The adapter types demo content is bound through. */
 export const NOTE_ADAPTER = 'reference.note/1';
 export const TILE_ADAPTER = 'reference.tile/1';
-
-/** The camera every preset is seen from. */
-export const CAMERA_ID = 'camera';
 
 /** A value from the sequence in steps of 1/`per`: exact, so the same on every engine. */
 function stepped(random: Random, min: number, max: number, per: number): number {
@@ -527,6 +524,22 @@ const RADIANS = Math.PI / 180;
 export const COLOUR_KEY = 'host.reference.colour';
 export const CATEGORY_KEY = 'host.reference.category';
 export const SEARCHABLE_METADATA: readonly string[] = Object.freeze([COLOUR_KEY, CATEGORY_KEY]);
+
+/** A window's category ({@link CATEGORY_KEY}), or null for one without. */
+export function categoryOf(node: {
+  readonly metadata: Readonly<Record<string, unknown>>;
+}): string | null {
+  const category = node.metadata[CATEGORY_KEY];
+  return typeof category === 'string' ? category : null;
+}
+
+/** A window's colour's name ({@link COLOUR_KEY}), or null for one without. */
+export function colourOf(node: {
+  readonly metadata: Readonly<Record<string, unknown>>;
+}): string | null {
+  const colour = node.metadata[COLOUR_KEY];
+  return typeof colour === 'string' ? colour : null;
+}
 
 const COLOURS = [
   'Red',

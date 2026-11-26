@@ -2,10 +2,7 @@ import { keyed } from '@wsb/uikit/handles';
 import { createMemoryStore } from '@swf/persistence';
 import { describe, expect, it } from 'vitest';
 import type { ReferenceApp } from '../../src/app.js';
-import { VIEWPORT_ID } from '../../src/app.js';
-import { FOCUS_ID } from '../../src/focus.js';
-import { cameraHeading } from '../../src/orbit.js';
-import { wrapDegrees } from '../../src/pose.js';
+import { FOCUS_ID, VIEWPORT_ID, cameraHeading, wrapDegrees } from '@swf/navigation';
 import type { ScenarioId } from '../../src/scenarios.js';
 import { SCENARIO_LAYOUT } from '../../src/scenarios.js';
 import type { ShellModel } from '../../src/shell/model.svelte.js';
@@ -318,7 +315,7 @@ describe('adding a window from the controls', () => {
   it('adds it ahead of the camera in a workspace that is turned round it', async () => {
     const m = await start('', { store: createMemoryStore(), autosaveDelayMs: 0 });
     const app = appOf(m.model);
-    expect(await m.model.run('reference.orbit.turn', { degrees: 75 })).toBe(true);
+    expect(await m.model.run('swf.orbit.turn', { degrees: 75 })).toBe(true);
     m.driver.act('workshop.view#windows', 'press');
     await m.settle();
     m.driver.act('page.windows.add', 'press');

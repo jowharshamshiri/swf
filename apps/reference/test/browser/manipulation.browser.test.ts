@@ -8,10 +8,8 @@ import { equirectangular } from '@swf/projections';
 import { describe, expect, it } from 'vitest';
 import { commands, userEvent } from 'vitest/browser';
 import type { ReferenceApp } from '../../src/app.js';
-import { VIEWPORT_ID } from '../../src/app.js';
 import { ENGLISH } from '../../src/messages.js';
-import { poseOf } from '../../src/pose.js';
-import { CAMERA_ID } from '../../src/presets.js';
+import { CAMERA_ID, VIEWPORT_ID, poseOf } from '@swf/navigation';
 import type { Mounted } from './shell-harness.js';
 import { same, start } from './shell-harness.js';
 
@@ -54,7 +52,7 @@ async function visit(): Promise<Mounted & { readonly app: ReferenceApp }> {
   expect(m.driver.has('page.inspector')).toBe(true);
   // Each gesture's place exactly as the pointer takes it, with no snap at release.
   app.policies.configure({ enabled: { snap: false } });
-  expect(await m.model.run('reference.view.fov', { degrees: 120 })).toBe(true);
+  expect(await m.model.run('swf.view.fov', { degrees: 120 })).toBe(true);
   await m.settle();
   return { ...m, app };
 }
@@ -204,8 +202,8 @@ describe('a window handled directly in the panorama', () => {
     await dragFrom(m, onFrame(app, 'window-01'), [0, 10], 6, ['Shift'], reach);
     expect(poseIn(app.workspace.getState(), 'window-01').reach).toBeLessThan(farther.reach);
     expect(app.workspace.history()).toHaveLength(history + 2);
-    expect(await m.model.run('reference.history.undo', {})).toBe(true);
-    expect(await m.model.run('reference.history.undo', {})).toBe(true);
+    expect(await m.model.run('swf.history.undo', {})).toBe(true);
+    expect(await m.model.run('swf.history.undo', {})).toBe(true);
     expect(app.workspace.getState().nodes.get('window-01')?.transform).toEqual(
       before.nodes.get('window-01')?.transform,
     );
@@ -236,7 +234,7 @@ describe('a window handled directly in the panorama', () => {
       await nextFrame();
       await m.settle();
       const change = reach() - start;
-      expect(await m.model.run('reference.gesture.cancel', {})).toBe(true);
+      expect(await m.model.run('swf.gesture.cancel', {})).toBe(true);
       await commands.mouse('up', x + 12, y);
       await m.settle();
       return { delivered: delivered.splice(0), change };
@@ -297,7 +295,7 @@ describe('a window handled directly in the panorama', () => {
     await commands.wheel(x, y, 0, -100, ['Shift']);
     await commands.wheel(x, y, 0, -100, ['Shift']);
     expect(reach()).toBeGreaterThan(start);
-    expect(await m.model.run('reference.gesture.cancel', {})).toBe(true);
+    expect(await m.model.run('swf.gesture.cancel', {})).toBe(true);
     await m.settle();
     expect(reach()).toBeCloseTo(start, 9);
     expect(app.workspace.getState().nodes.get('window-01')?.transform).toEqual(
@@ -358,7 +356,7 @@ describe('a window handled directly in the panorama', () => {
     expect(slider(m, 'width')).toBe(
       Number(app.workspace.getState().nodes.get('window-01')?.bounds[0].toFixed(2)),
     );
-    expect(await m.model.run('reference.history.undo', {})).toBe(true);
+    expect(await m.model.run('swf.history.undo', {})).toBe(true);
     expect(app.workspace.getState().nodes.get('window-01')?.bounds).toEqual(before?.bounds);
   });
 
@@ -428,7 +426,7 @@ describe('a window handled directly in the panorama', () => {
       }
     }
     expect(bar(m)).toContain('Resized Tile 01');
-    expect(await m.model.run('reference.history.undo', {})).toBe(true);
+    expect(await m.model.run('swf.history.undo', {})).toBe(true);
     expect(app.workspace.getState().nodes.get('window-01')?.bounds).toEqual(
       before.nodes.get('window-01')?.bounds,
     );
@@ -441,7 +439,7 @@ describe('a window handled directly in the panorama', () => {
     const m = await visit();
     const { app, driver, settle } = m;
     // Both windows in view: Tile 01 at 15° left, Note 02 at 67° right.
-    expect(await m.model.run('reference.view.heading', { degrees: 25 })).toBe(true);
+    expect(await m.model.run('swf.view.heading', { degrees: 25 })).toBe(true);
     await settle();
     const tap = async (id: string, modifiers: readonly string[] = []) => {
       const [x, y] = onFrame(app, id);
@@ -484,7 +482,7 @@ describe('a window handled directly in the panorama', () => {
     expect(app.workspace.getState().selection).toEqual(['window-01']);
     await tap('window-02');
     expect(app.workspace.getState().selection).toEqual(['window-02']);
-    expect(await m.model.run('reference.history.undo', {})).toBe(true);
+    expect(await m.model.run('swf.history.undo', {})).toBe(true);
     expect(app.workspace.getState().nodes.has(groupId)).toBe(false);
   });
 
@@ -496,12 +494,12 @@ describe('a window handled directly in the panorama', () => {
     driver.act('page.inspector.window.focus#window-01', 'press');
     await settle();
     expect(app.workspace.getState().focusedId).toBe('window-01');
-    expect(await m.model.run('reference.focus.exit', {})).toBe(true);
-    expect(await m.model.run('reference.selection.toggle', { id: 'window-02' })).toBe(true);
+    expect(await m.model.run('swf.focus.exit', {})).toBe(true);
+    expect(await m.model.run('swf.selection.toggle', { id: 'window-02' })).toBe(true);
     await settle();
     // Ctrl and click on one of them in the panorama gives the panorama the keyboard, as a click in
     // a list does: Delete then removes both.
-    expect(await m.model.run('reference.view.heading', { degrees: 25 })).toBe(true);
+    expect(await m.model.run('swf.view.heading', { degrees: 25 })).toBe(true);
     await settle();
     const [x, y] = onFrame(app, 'window-01');
     await commands.mouse('move', x, y);
@@ -576,7 +574,7 @@ describe('a window handled directly in the panorama', () => {
         throw new Error('no application');
       }
       expect(app.status().backend).toBe(backend);
-      expect(await m.model.run('reference.window.sendBehind', { id: 'window-01' })).toBe(true);
+      expect(await m.model.run('swf.window.sendBehind', { id: 'window-01' })).toBe(true);
       await m.settle();
       const history = app.workspace.history().length;
       // Host content may hold any control: a button in a note, with the keyboard.
@@ -642,13 +640,13 @@ describe('the inspector’s sliders', () => {
     expect(poseIn(app.workspace.getState(), 'window-01').position[1]).toBeCloseTo(1.5, 9);
     expect(app.workspace.history()).toHaveLength(history + 3);
     // Changed by another route, the sliders show the scene; undone, they show it again.
-    expect(await m.model.run('reference.window.sendBehind', { id: 'window-01' })).toBe(true);
+    expect(await m.model.run('swf.window.sendBehind', { id: 'window-01' })).toBe(true);
     await m.settle();
     expect(slider(m, 'heading')).toBe(
       Math.round(poseIn(app.workspace.getState(), 'window-01').heading),
     );
     for (let i = 0; i < 4; i += 1) {
-      expect(await m.model.run('reference.history.undo', {})).toBe(true);
+      expect(await m.model.run('swf.history.undo', {})).toBe(true);
     }
     await m.settle();
     expect(app.workspace.getState().nodes.get('window-01')?.transform).toEqual(
@@ -665,7 +663,7 @@ describe('the inspector’s sliders', () => {
     await m.settle();
     const facts = () => m.root.querySelector('[aria-label="Selected window"]')?.textContent ?? '';
     expect(facts()).toContain(ENGLISH['inspector.side.front']);
-    expect(await m.model.run('reference.window.sendBehind', { id: 'window-01' })).toBe(true);
+    expect(await m.model.run('swf.window.sendBehind', { id: 'window-01' })).toBe(true);
     await m.settle();
     expect(facts()).toContain(ENGLISH['inspector.side.behind']);
     driver.act('page.inspector.lock', 'toggle');
@@ -714,9 +712,9 @@ describe('breaking a window into parts', () => {
     expect(parts.some((id) => app.workspace.getState().nodes.has(id))).toBe(false);
     expect(app.workspace.history()).toHaveLength(history + 2);
     // One undo brings the parts back; another puts the board together as it was.
-    expect(await m.model.run('reference.history.undo', {})).toBe(true);
+    expect(await m.model.run('swf.history.undo', {})).toBe(true);
     expect(parts.every((id) => app.workspace.getState().nodes.has(id))).toBe(true);
-    expect(await m.model.run('reference.history.undo', {})).toBe(true);
+    expect(await m.model.run('swf.history.undo', {})).toBe(true);
     expect(app.workspace.getState().nodes.get('board')?.surfaceIds).toEqual(surfaces);
   });
 });

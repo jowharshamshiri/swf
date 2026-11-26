@@ -8,8 +8,7 @@
   import { Tiling } from '@wsb/uikit/components';
   import type { TilingNode, TilingTile } from '@wsb/uikit/components';
   import { handleOf } from '@wsb/uikit/handles';
-  import { FOCUS_ID } from '../focus.js';
-  import { MAP, OVERVIEW } from '../modes.js';
+  import { FOCUS_ID, MAP, OVERVIEW } from '@swf/navigation';
   import type { MessageId } from '../messages.js';
   import MapView from './MapView.svelte';
   import type { ShellModel } from './model.svelte.js';

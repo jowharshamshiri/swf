@@ -32,6 +32,18 @@ const ALLOWED: Readonly<Record<string, readonly string[]>> = {
   conformance: ['@swf/math', '@swf/core', '@swf/surfaces', '@swf/presentation'],
   diagnostics: ['@swf/core', '@swf/surfaces', '@swf/presentation'],
   persistence: ['@swf/math', '@swf/core', '@swf/models'],
+  // Navigation composes the framework for a host: both backends present its viewport.
+  navigation: [
+    '@swf/math',
+    '@swf/models',
+    '@swf/core',
+    '@swf/surfaces',
+    '@swf/presentation',
+    '@swf/projections',
+    '@swf/interaction',
+    '@swf/backend-dom',
+    '@swf/backend-geometry',
+  ],
   // The benchmark presents its fixtures as a host would, with the DOM backend.
   benchmark: [
     '@swf/math',

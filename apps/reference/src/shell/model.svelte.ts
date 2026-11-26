@@ -1,20 +1,21 @@
-import type { SpaceStatus } from '../space.js';
-import { spaceStatus } from '../space.js';
+import type { PolicyStatus, Pose, SpaceStatus, ViewMode } from '@swf/navigation';
+import {
+  VIEWPORT_ID,
+  cameraHeading,
+  experimentOf,
+  orbitHeading,
+  spaceStatus,
+} from '@swf/navigation';
 import type { CommandOutcome } from '@swf/interaction';
 import { KEYBOARD_HOLD_ID } from '@swf/interaction';
 import type { FrameMetrics, Representation } from '@swf/presentation';
 import type { AppStatus, ReferenceApp, ReferenceAppOptions } from '../app.js';
-import { createReferenceApp, VIEWPORT_ID } from '../app.js';
+import { createReferenceApp } from '../app.js';
 import type { AppCommandId, AppCommandSpecs } from '../commands.js';
 import { APP_COMMAND_NAMES } from '../commands.js';
 import type { AppConfig } from '../config.js';
 import { ConfigError } from '../config.js';
 import type { MessageId, Messages } from '../messages.js';
-import { cameraHeading, orbitHeading } from '../orbit.js';
-import type { Pose } from '../pose.js';
-import type { PolicyStatus } from '../policies.js';
-import type { ViewMode } from '../modes.js';
-import { experimentOf } from '../experiments.js';
 import type { NamedWorkspace, SnapshotPreview, WorkspacesStatus } from '../workspaces.js';
 import { WorkspaceRefusal } from '../workspaces.js';
 import type { ScenarioStatus } from '../scenarios.js';
@@ -57,10 +58,10 @@ export interface Outcome {
 
 /** The quick actions whose outcome is said, by the message that says it. */
 const OUTCOMES = Object.freeze({
-  'reference.window.bringFront': { message: 'outcome.bringFront', undoable: true },
-  'reference.window.sendBehind': { message: 'outcome.sendBehind', undoable: true },
-  'reference.window.arrange': { message: 'outcome.arrange', undoable: true },
-  'reference.window.reveal': { message: 'outcome.reveal', undoable: false },
+  'swf.window.bringFront': { message: 'outcome.bringFront', undoable: true },
+  'swf.window.sendBehind': { message: 'outcome.sendBehind', undoable: true },
+  'swf.window.arrange': { message: 'outcome.arrange', undoable: true },
+  'swf.window.reveal': { message: 'outcome.reveal', undoable: false },
 } as const);
 
 /** What the workspaces view says after an action. */
@@ -133,9 +134,9 @@ const OPERATION_NAMES: Readonly<Record<string, MessageId>> = Object.freeze({
 /** The commands that move a window, and what is said once each is done. */
 const PLACING: Readonly<Partial<Record<AppCommandId, 'moved' | 'turned' | 'resized'>>> =
   Object.freeze({
-    'reference.window.place': 'moved',
-    'reference.window.bringFront': 'moved',
-    'reference.window.sendBehind': 'moved',
+    'swf.window.place': 'moved',
+    'swf.window.bringFront': 'moved',
+    'swf.window.sendBehind': 'moved',
   });
 
 /** The commands the scene view runs: their refusals are said there, the rest over the centre. */
@@ -147,14 +148,14 @@ const SCENE_COMMANDS: readonly AppCommandId[] = Object.freeze([
 
 /** The commands the experiment panel runs: their refusals are said there, by their field. */
 const FEATURE_COMMANDS: readonly AppCommandId[] = Object.freeze([
-  'reference.experiment.run',
-  'reference.feature.set',
-  'reference.feature.reset',
-  'reference.snap.configure',
-  'reference.depth.configure',
-  'reference.navigation.set',
-  'reference.orbit.designate',
-  'reference.orbit.turn',
+  'swf.experiment.run',
+  'swf.feature.set',
+  'swf.feature.reset',
+  'swf.snap.configure',
+  'swf.depth.configure',
+  'swf.navigation.set',
+  'swf.orbit.designate',
+  'swf.orbit.turn',
 ]);
 
 /** The commands the workspaces view runs: their refusals are said there. */
@@ -178,30 +179,30 @@ const SCENARIO_COMMANDS: readonly AppCommandId[] = Object.freeze([
 
 /** The commands the inspector runs: their refusals are said there. */
 const INSPECTOR_COMMANDS: readonly AppCommandId[] = Object.freeze([
-  'reference.window.pose',
-  'reference.window.lock',
-  'reference.gesture.grab',
-  'reference.gesture.drop',
-  'reference.window.remove',
-  'reference.surface.detach',
-  'reference.surface.move',
-  'reference.window.merge',
-  'reference.window.split',
-  'reference.window.recombine',
-  'reference.window.regroup',
-  'reference.window.group',
-  'reference.window.bringFront',
-  'reference.window.sendBehind',
+  'swf.window.pose',
+  'swf.window.lock',
+  'swf.gesture.grab',
+  'swf.gesture.drop',
+  'swf.window.remove',
+  'swf.surface.detach',
+  'swf.surface.move',
+  'swf.window.merge',
+  'swf.window.split',
+  'swf.window.recombine',
+  'swf.window.regroup',
+  'swf.window.group',
+  'swf.window.bringFront',
+  'swf.window.sendBehind',
 ]);
 
 /** The commands the radar runs: their refusals are said there. */
-const RADAR_COMMANDS: readonly AppCommandId[] = Object.freeze(['reference.window.arrange']);
+const RADAR_COMMANDS: readonly AppCommandId[] = Object.freeze(['swf.window.arrange']);
 
 /** The commands the view's controls run: their refusals are said there. */
 const VIEW_COMMANDS: readonly AppCommandId[] = Object.freeze([
-  'reference.view.fov',
-  'reference.view.heading',
-  'reference.orbit.turnTo',
+  'swf.view.fov',
+  'swf.view.heading',
+  'swf.orbit.turnTo',
 ]);
 
 export class ShellModel {
@@ -438,7 +439,8 @@ export class ShellModel {
           this.frame = event.metrics;
           this.fallbacks = event.fallbacks.length;
           const presented = app.viewport.lastFrame();
-          this.space = presented === null ? null : spaceStatus(presented.frame);
+          this.space =
+            presented === null ? null : spaceStatus(presented.frame, app.windows.partOfKey);
           this.#readSelection();
         }
       }),
@@ -627,9 +629,9 @@ export class ShellModel {
       return;
     }
     switch (id) {
-      case 'reference.window.pose': {
+      case 'swf.window.pose': {
         // A pose shown while a control moves is said by the control; the change made, once.
-        const pose = params as AppCommandSpecs['reference.window.pose'];
+        const pose = params as AppCommandSpecs['swf.window.pose'];
         if (pose.preview === true) {
           return;
         }
@@ -645,10 +647,10 @@ export class ShellModel {
         );
         return;
       }
-      case 'reference.window.lock':
+      case 'swf.window.lock':
         this.announce(
           this.messages.format(
-            (params as AppCommandSpecs['reference.window.lock']).locked
+            (params as AppCommandSpecs['swf.window.lock']).locked
               ? 'announce.locked'
               : 'announce.unlocked',
             { label: this.#labelOf(windowId) },
@@ -664,10 +666,10 @@ export class ShellModel {
       case 'reference.window.add':
         this.#say('announce.added', this.#app?.workspace.getState().selection[0] ?? null);
         return;
-      case 'reference.history.undo':
+      case 'swf.history.undo':
         this.announce(this.messages.format('announce.undone'));
         return;
-      case 'reference.history.redo':
+      case 'swf.history.redo':
         this.announce(this.messages.format('announce.redone'));
         return;
       default:
@@ -755,7 +757,7 @@ export class ShellModel {
       only === undefined
         ? this.messages.format('removed.windows', { count: ids.length })
         : (this.#app?.workspace.getState().nodes.get(only)?.label ?? only);
-    const done = await this.run('reference.window.remove', { ids });
+    const done = await this.run('swf.window.remove', { ids });
     if (done) {
       const last = this.#app?.workspace.history().at(-1);
       this.removal = last === undefined ? null : { ids, label, transactionId: last.transactionId };
@@ -766,7 +768,7 @@ export class ShellModel {
   /** Undoes the removal said, while it is still the last change. */
   async undoRemoval(): Promise<boolean> {
     this.removal = null;
-    return this.run('reference.history.undo', {});
+    return this.run('swf.history.undo', {});
   }
 
   dismissRemoval(): void {
@@ -889,12 +891,12 @@ export class ShellModel {
 
   /** Selects a window, as pressing it in a list or on the map does: nothing else changes. */
   async select(id: string): Promise<boolean> {
-    return this.run('reference.window.inspect', { id });
+    return this.run('swf.window.inspect', { id });
   }
 
   /** Selects a window and opens the inspector on it. */
   async inspect(id: string): Promise<boolean> {
-    const done = await this.run('reference.window.inspect', { id });
+    const done = await this.run('swf.window.inspect', { id });
     if (done) {
       this.inspections += 1;
     }
@@ -903,7 +905,7 @@ export class ShellModel {
 
   /** Selects a window, shows the map, and centres the map on it. */
   async showInMap(id: string): Promise<boolean> {
-    const done = await this.run('reference.window.map', { id });
+    const done = await this.run('swf.window.map', { id });
     if (done) {
       this.mapRequest = { id, count: (this.mapRequest?.count ?? 0) + 1 };
     }

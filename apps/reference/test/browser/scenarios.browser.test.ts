@@ -7,8 +7,7 @@ import { cameraRotation, equirectangular } from '@swf/projections';
 import { describe, expect, it } from 'vitest';
 import { commands, userEvent } from 'vitest/browser';
 import type { ReferenceApp } from '../../src/app.js';
-import { VIEWPORT_ID } from '../../src/app.js';
-import { MAP_SCALE, toMap } from '../../src/map.js';
+import { MAP_SCALE, VIEWPORT_ID, toMap } from '@swf/navigation';
 import { NOTE_ADAPTER, planPreset, WORKSPACE_GROUP_ID } from '../../src/presets.js';
 import type { ShellModel } from '../../src/shell/model.svelte.js';
 import { endVisits, layout, same, start } from './shell-harness.js';
@@ -277,7 +276,7 @@ describe('losing the renderer in an active scene (§33.2 scenario 6, NFR-013, §
       .toMatch(/^Backend unavailable/);
     expect(app.workspace.serialize()).toEqual(before);
     // Commands and transactions still work while nothing presents (NFR-013).
-    expect(await model.run('reference.window.place', { id: 'window-02', y: 0.4 })).toBe(true);
+    expect(await model.run('swf.window.place', { id: 'window-02', y: 0.4 })).toBe(true);
     const placed = app.workspace.serialize();
     expect(worldMatrix(app.workspace.getState().nodes, 'window-02')?.[13]).toBeCloseTo(0.4, 9);
     // A compatible backend back: presented again, with the layout as it was left.

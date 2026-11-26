@@ -1,10 +1,8 @@
 import type { SceneCommand, SceneState } from '@swf/core';
 import { createWorkspace } from '@swf/core';
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_FEATURES } from '../src/features.js';
-import { FOCUS_ID } from '../src/focus.js';
-import { poseOf } from '../src/pose.js';
-import { CAMERA_ID, planPreset, presetCommands } from '../src/presets.js';
+import { planPreset, presetCommands } from '../src/presets.js';
+import { CAMERA_ID, DEFAULT_FEATURES, FOCUS_ID, poseOf } from '@swf/navigation';
 import type { ScenarioWorld } from '../src/scenarios.js';
 import { createScenarios, SCENARIO_IDS, SCENARIOS, ScenarioRefusal } from '../src/scenarios.js';
 
@@ -126,7 +124,7 @@ describe('guided scenarios', () => {
     scenarios.start('behind');
     expect(await scenarios.demonstration()).toEqual({
       kind: 'command',
-      command: { id: 'reference.window.inspect', params: { id: 'desk' } },
+      command: { id: 'swf.window.inspect', params: { id: 'desk' } },
     });
     s.change({ type: 'selection.set', ids: ['desk'] });
     await scenarios.observe();
@@ -136,7 +134,7 @@ describe('guided scenarios', () => {
     expect(shown).toEqual({
       kind: 'command',
       command: {
-        id: 'reference.window.place',
+        id: 'swf.window.place',
         params: { id: 'desk', x: -(desk?.position[0] ?? NaN), z: -(desk?.position[2] ?? NaN) },
       },
     });

@@ -1,15 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { AppCommandId } from '../src/commands.js';
-import type { ExperimentId } from '../src/experiments.js';
+import type { ExperimentId, FeatureId } from '@swf/navigation';
 import {
   CAPABILITY_ORDER,
-  EXPERIMENT_IDS,
   EXPERIMENTS,
+  EXPERIMENT_IDS,
+  FEATURE_IDS,
   experimentOf,
   experimentPlan,
-} from '../src/experiments.js';
-import type { FeatureId } from '../src/features.js';
-import { FEATURE_IDS } from '../src/features.js';
+} from '@swf/navigation';
 import { ENGLISH } from '../src/messages.js';
 
 /** Every combination of the eight switches, as a number's bits in the modules' order. */
@@ -122,14 +121,14 @@ describe('the experiment panel holds only configuration (brief §5: no logic dup
 
   /** The commands that only configure: the feature modules' switches and settings, and the view. */
   const CONFIGURATION: readonly AppCommandId[] = [
-    'reference.experiment.run',
-    'reference.feature.set',
-    'reference.feature.reset',
-    'reference.snap.configure',
-    'reference.depth.configure',
-    'reference.navigation.set',
-    'reference.orbit.designate',
-    'reference.orbit.turn',
+    'swf.experiment.run',
+    'swf.feature.set',
+    'swf.feature.reset',
+    'swf.snap.configure',
+    'swf.depth.configure',
+    'swf.navigation.set',
+    'swf.orbit.designate',
+    'swf.orbit.turn',
   ];
 
   it('imports nothing of any capability’s module: the kit, the experiments’ table, and types', () => {
@@ -142,7 +141,7 @@ describe('the experiment panel holds only configuration (brief §5: no logic dup
       if (from.startsWith('@wsb/uikit/')) {
         continue;
       }
-      expect(from, `a value imported from ${from}`).toBe('../experiments.js');
+      expect(from, `a value imported from ${from}`).toBe('@swf/navigation');
       const imported = (names ?? '')
         .replace(/[{}\s]/g, '')
         .split(',')

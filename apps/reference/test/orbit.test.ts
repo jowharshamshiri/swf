@@ -1,17 +1,18 @@
 import { DEFAULT_SETTINGS } from '@swf/interaction';
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_FEATURES } from '../src/features.js';
-import type { OrbitState } from '../src/orbit.js';
+import { WORKSPACE_GROUP_ID } from '../src/presets.js';
+import type { OrbitState } from '@swf/navigation';
 import {
+  CAMERA_ID,
+  DEFAULT_FEATURES,
+  PolicyRefusal,
   cameraHeading,
   orbitHeading,
   orbitKeymap,
   orbitRepair,
   orbitStateOf,
   orbitTransition,
-} from '../src/orbit.js';
-import { PolicyRefusal } from '../src/policies.js';
-import { CAMERA_ID, WORKSPACE_GROUP_ID } from '../src/presets.js';
+} from '@swf/navigation';
 import { centreOf, drag, policyWorld, VIEWPORT } from './policy-world.js';
 
 const DEGREES = 180 / Math.PI;

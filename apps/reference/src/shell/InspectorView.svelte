@@ -28,7 +28,6 @@
   } from '@wsb/uikit/components';
   import { handleOf, keyed } from '@wsb/uikit/handles';
   import type { MessageId } from '../messages.js';
-  import { partOf } from '../composition.js';
   import { contentOf } from '../presets.js';
   import type { ShellModel } from './model.svelte.js';
   import WindowActions from './WindowActions.svelte';
@@ -48,10 +47,11 @@
   // The selected window's surfaces, the other windows and the groups, from the same scene.
   const scene = $derived.by(() => {
     void model.revision;
-    const state = model.app?.workspace.getState();
-    if (state === undefined || selected === null) {
+    const app = model.app;
+    if (app === null || selected === null) {
       return null;
     }
+    const state = app.workspace.getState();
     const node = state.nodes.get(selected.id);
     if (node === undefined) {
       return null;
@@ -79,10 +79,10 @@
       .filter((n) => n.kind === 'group' && n.status === 'active' && n.id !== node.parentId)
       .map((n) => ({ value: n.id, label: nameOf(n) }));
     // The window it is a part of, and how many parts that one (or this one) has.
-    const originId = partOf(node);
+    const originId = app.partOf(node);
     const origin = originId === null ? undefined : state.nodes.get(originId);
     const parts = [...state.nodes.values()].filter(
-      (n) => n.kind === 'window' && n.status === 'active' && partOf(n) === (originId ?? node.id),
+      (n) => n.kind === 'window' && n.status === 'active' && app.partOf(n) === (originId ?? node.id),
     ).length;
     return {
       surfaces,
@@ -254,7 +254,7 @@
 
   /** Poses the selected window by one slider: shown while it moves, committed once when let go. */
   function pose(id: string, field: PoseField, value: number, preview: boolean): void {
-    void model.run('reference.window.pose', { id, [field]: value, preview });
+    void model.run('swf.window.pose', { id, [field]: value, preview });
   }
   const PLACE_FIELDS: readonly PoseField[] = ['heading', 'reach', 'y'];
   const STAND_FIELDS: readonly PoseField[] = ['turned', 'width', 'height'];
@@ -316,7 +316,7 @@
                 size="small"
                 variant="primary"
                 onpress={() => {
-                  void model.run('reference.gesture.drop', {});
+                  void model.run('swf.gesture.drop', {});
                 }}
               />
               <Button
@@ -324,7 +324,7 @@
                 label={t('gesture.cancel')}
                 size="small"
                 onpress={() => {
-                  void model.run('reference.gesture.cancel', {});
+                  void model.run('swf.gesture.cancel', {});
                 }}
               />
             {:else}
@@ -334,7 +334,7 @@
                 size="small"
                 disabled={!(canMove || canTurn || canSize)}
                 onpress={() => {
-                  void model.run('reference.gesture.grab', { id: selected.id });
+                  void model.run('swf.gesture.grab', { id: selected.id });
                 }}
               />
             {/if}
@@ -346,7 +346,7 @@
             detail={t('inspector.lock.detail')}
             checked={selected.locked}
             onchange={(locked) => {
-              void model.run('reference.window.lock', { id: selected.id, locked });
+              void model.run('swf.window.lock', { id: selected.id, locked });
             }}
           />
         </Stack>
@@ -372,7 +372,7 @@
                         size="small"
                         disabled={scene.surfaces.length < 2}
                         onpress={() => {
-                          void model.run('reference.surface.detach', { surfaceId: surface.id });
+                          void model.run('swf.surface.detach', { surfaceId: surface.id });
                         }}
                       />
                     {/if}
@@ -394,7 +394,7 @@
                   size="small"
                   disabled={scene.surfaces.length < 2}
                   onpress={() => {
-                    void model.run('reference.window.split', { id: selected.id });
+                    void model.run('swf.window.split', { id: selected.id });
                   }}
                 />
                 <Button
@@ -404,7 +404,7 @@
                   size="small"
                   disabled={scene.parts === 0}
                   onpress={() => {
-                    void model.run('reference.window.recombine', { id: selected.id });
+                    void model.run('swf.window.recombine', { id: selected.id });
                   }}
                 />
               </Stack>
@@ -446,7 +446,7 @@
                     size="small"
                     disabled={surfaceId === '' || chosen.movingTo === ''}
                     onpress={() => {
-                      void model.run('reference.surface.move', { surfaceId, windowId: chosen.movingTo });
+                      void model.run('swf.surface.move', { surfaceId, windowId: chosen.movingTo });
                     }}
                   />
                 </Stack>
@@ -469,7 +469,7 @@
                     size="small"
                     disabled={chosen.mergeInto === ''}
                     onpress={() => {
-                      void model.run('reference.window.merge', { id: selected.id, targetId: chosen.mergeInto });
+                      void model.run('swf.window.merge', { id: selected.id, targetId: chosen.mergeInto });
                     }}
                   />
                 </Stack>
@@ -510,7 +510,7 @@
                   size="small"
                   disabled={chosen.group === '' || (chosen.group === NEW_GROUP && groupName.trim() === '')}
                   onpress={() => {
-                    void model.run('reference.window.regroup', {
+                    void model.run('swf.window.regroup', {
                       id: selected.id,
                       groupId: chosen.group === NEW_GROUP ? null : chosen.group,
                       label: groupName,
@@ -548,7 +548,7 @@
                 disabled={togetherLabel.trim() === ''}
                 onpress={() => {
                   void model
-                    .run('reference.window.group', {
+                    .run('swf.window.group', {
                       windowIds: together.map((w) => w.id),
                       label: togetherLabel,
                     })

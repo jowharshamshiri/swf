@@ -29,9 +29,8 @@
   } from '@wsb/uikit/components';
   import { handleOf, keyed } from '@wsb/uikit/handles';
   import type { AppCommandId } from '../commands.js';
-  import type { ExperimentId } from '../experiments.js';
-  import { CAPABILITY_ORDER, EXPERIMENT_IDS, EXPERIMENTS } from '../experiments.js';
-  import type { FeatureId } from '../features.js';
+  import type { ExperimentId, FeatureId } from '@swf/navigation';
+  import { CAPABILITY_ORDER, EXPERIMENTS, EXPERIMENT_IDS } from '@swf/navigation';
   import type { MessageId } from '../messages.js';
   import type { ShellModel } from './model.svelte.js';
 
@@ -50,11 +49,11 @@
   const enabled = $derived(status?.features.enabled ?? null);
 
   function toggle(feature: FeatureId, on: boolean): void {
-    void model.run('reference.feature.set', { feature, enabled: on });
+    void model.run('swf.feature.set', { feature, enabled: on });
   }
 
   function choose(experiment: ExperimentId): void {
-    void model.run('reference.experiment.run', { experiment });
+    void model.run('swf.experiment.run', { experiment });
   }
 
   /** An experiment by its number and name. */
@@ -198,7 +197,7 @@
         ]}
         selected={status.orbit.navigation}
         onselect={(target) => {
-          void model.run('reference.navigation.set', {
+          void model.run('swf.navigation.set', {
             target: target as 'camera' | 'orbit',
           });
         }}
@@ -212,7 +211,7 @@
         options={[{ value: '', label: t('orbit.group.none') }, ...(scene?.groups ?? [])]}
         value={scene?.rootId ?? ''}
         onchange={(value) => {
-          void model.run('reference.orbit.designate', { id: value === '' ? null : value });
+          void model.run('swf.orbit.designate', { id: value === '' ? null : value });
         }}
       />
     {/snippet}
@@ -223,7 +222,7 @@
         label={t('orbit.turn.left')}
         disabled={status.orbit.rootId === null}
         onpress={() => {
-          void model.run('reference.orbit.turn', { degrees: -15 });
+          void model.run('swf.orbit.turn', { degrees: -15 });
         }}
       />
       <Button
@@ -231,7 +230,7 @@
         label={t('orbit.turn.right')}
         disabled={status.orbit.rootId === null}
         onpress={() => {
-          void model.run('reference.orbit.turn', { degrees: 15 });
+          void model.run('swf.orbit.turn', { degrees: 15 });
         }}
       />
     </Stack>
@@ -312,11 +311,11 @@
             {#if feature === 'orbit'}
               {@render orbitSettings()}
             {:else if feature === 'depth' && enabled.depth}
-              {@render numberField('depth-full', t('depth.full'), t('depth.full.hint'), status.features.depth.full, 'reference.depth.configure', 'depth.full', false, (full) =>
-                model.run('reference.depth.configure', { full }),
+              {@render numberField('depth-full', t('depth.full'), t('depth.full.hint'), status.features.depth.full, 'swf.depth.configure', 'depth.full', false, (full) =>
+                model.run('swf.depth.configure', { full }),
               )}
-              {@render numberField('depth-compact', t('depth.compact'), t('depth.compact.hint'), status.features.depth.compact, 'reference.depth.configure', 'depth.compact', false, (compact) =>
-                model.run('reference.depth.configure', { compact }),
+              {@render numberField('depth-compact', t('depth.compact'), t('depth.compact.hint'), status.features.depth.compact, 'swf.depth.configure', 'depth.compact', false, (compact) =>
+                model.run('swf.depth.configure', { compact }),
               )}
             {:else if feature === 'cursor' && enabled.cursor}
               <Notice tone="info" title={t('cursor.limits')} handle={handleOf`page.experiments.cursor.limits`} />
@@ -324,20 +323,20 @@
                 <Text quiet>{t('cursor.unavailable')}</Text>
               {/if}
             {:else if feature === 'snap' && enabled.snap}
-              {@render numberField('snap-linear', t('snap.linear'), t('snap.linear.hint'), status.features.snap.linear, 'reference.snap.configure', 'snap.linear', false, (linear) =>
-                model.run('reference.snap.configure', { linear }),
+              {@render numberField('snap-linear', t('snap.linear'), t('snap.linear.hint'), status.features.snap.linear, 'swf.snap.configure', 'snap.linear', false, (linear) =>
+                model.run('swf.snap.configure', { linear }),
               )}
-              {@render numberField('snap-angular', t('snap.angular'), t('snap.angular.hint'), status.features.snap.angular, 'reference.snap.configure', 'snap.angular', false, (angular) =>
-                model.run('reference.snap.configure', { angular }),
+              {@render numberField('snap-angular', t('snap.angular'), t('snap.angular.hint'), status.features.snap.angular, 'swf.snap.configure', 'snap.angular', false, (angular) =>
+                model.run('swf.snap.configure', { angular }),
               )}
-              {@render numberField('snap-padding', t('snap.padding'), t('snap.padding.hint'), status.features.snap.padding, 'reference.snap.configure', 'snap.padding', false, (padding) =>
-                model.run('reference.snap.configure', { padding }),
+              {@render numberField('snap-padding', t('snap.padding'), t('snap.padding.hint'), status.features.snap.padding, 'swf.snap.configure', 'snap.padding', false, (padding) =>
+                model.run('swf.snap.configure', { padding }),
               )}
-              {@render numberField('snap-spoke', t('snap.spoke'), t('snap.spoke.hint'), status.features.snap.spoke, 'reference.snap.configure', 'snap.spoke', false, (spoke) =>
-                model.run('reference.snap.configure', { spoke }),
+              {@render numberField('snap-spoke', t('snap.spoke'), t('snap.spoke.hint'), status.features.snap.spoke, 'swf.snap.configure', 'snap.spoke', false, (spoke) =>
+                model.run('swf.snap.configure', { spoke }),
               )}
-              {@render numberField('snap-ring', t('snap.ring'), t('snap.ring.hint'), status.features.snap.ring, 'reference.snap.configure', 'snap.ring', false, (ring) =>
-                model.run('reference.snap.configure', { ring }),
+              {@render numberField('snap-ring', t('snap.ring'), t('snap.ring.hint'), status.features.snap.ring, 'swf.snap.configure', 'snap.ring', false, (ring) =>
+                model.run('swf.snap.configure', { ring }),
               )}
             {/if}
           </Stack>
@@ -352,7 +351,7 @@
             icon="undo"
             onpress={() => {
               typed = {};
-              void model.run('reference.feature.reset', {});
+              void model.run('swf.feature.reset', {});
             }}
           />
         </Stack>

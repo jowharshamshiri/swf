@@ -34,7 +34,7 @@ import { models } from '@swf/models';
 /** How long the wheel rests before its burst is committed, in milliseconds. */
 export const WHEEL_REST_MS = 300;
 
-/** What the bursts tell the application: a burst started, or how one ended. */
+/** What the bursts tell their owner: a burst started, or how one ended. */
 export type BurstReport =
   | { readonly kind: 'started'; readonly burstId: string; readonly nodeId: Id }
   | {
@@ -105,7 +105,7 @@ export function createWheelBursts(options: WheelBurstOptions): WheelBursts {
         const { nodeId, depth } = action.burst;
         if (shown === null) {
           const burstId = `wheel-${String(next++)}`;
-          shown = { burstId, previewId: `reference.${burstId}/${nodeId}` };
+          shown = { burstId, previewId: `swf.${burstId}/${nodeId}` };
           options.report({ kind: 'started', burstId, nodeId });
         }
         workspace.preview(shown.previewId, movedBy(nodeId, depth), { source: 'user' });
@@ -202,7 +202,7 @@ export function createWheelBursts(options: WheelBurstOptions): WheelBursts {
   return Object.freeze({
     input(device: InputAdapter): InputAdapter {
       return Object.freeze({
-        id: 'reference.wheel-burst/1',
+        id: 'swf.navigation.wheel-burst/1',
         apiVersion: INTERACTION_API_VERSION,
         connect(dispatch: (intent: InputIntent) => DispatchResult): () => void {
           return device.connect((intent) => {

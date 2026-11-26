@@ -5,9 +5,7 @@
   import { tick } from 'svelte';
   import { handleOf } from '@wsb/uikit/handles';
   import type { AppCommandId, AppCommandSpecs } from '../commands.js';
-  import { BACKEND_IDS } from '../config.js';
-  import { CAPABILITY_ORDER, EXPERIMENT_IDS, EXPERIMENTS } from '../experiments.js';
-  import { FOCUS_ID } from '../focus.js';
+  import { BACKEND_IDS, CAPABILITY_ORDER, EXPERIMENTS, EXPERIMENT_IDS, FOCUS_ID } from '@swf/navigation';
   import type { MessageId } from '../messages.js';
   import { PRESET_IDS, PRESETS } from '../presets.js';
   import { SCENARIO_IDS, SCENARIOS } from '../scenarios.js';
@@ -61,8 +59,8 @@
     ...model.modes.map((mode) =>
       command(
         `mode.${mode.id}`,
-        t('command.mode.switch.named', { mode: t(mode.name) }),
-        'reference.mode.switch',
+        t('command.mode.switch.named', { mode: model.messages.named(mode.name) }),
+        'swf.mode.switch',
         { mode: mode.id },
       ),
     ),
@@ -72,7 +70,7 @@
           command(
             'focus.enter',
             t('command.focus.enter.named', { label: model.selected.label ?? model.selected.id }),
-            'reference.focus.enter',
+            'swf.focus.enter',
             { id: model.selected.id },
           ),
         ]),
@@ -97,25 +95,25 @@
             t(model.selected.locked ? 'command.window.unlock.named' : 'command.window.lock.named', {
               label: model.selected.label ?? model.selected.id,
             }),
-            'reference.window.lock',
+            'swf.window.lock',
             { id: model.selected.id, locked: !model.selected.locked },
           ),
           command(
             'gesture.grab',
             t('command.gesture.grab.named', { label: model.selected.label ?? model.selected.id }),
-            'reference.gesture.grab',
+            'swf.gesture.grab',
             { id: model.selected.id },
           ),
           command(
             'window.bringFront',
             t('command.window.bringFront.named', { label: model.selected.label ?? model.selected.id }),
-            'reference.window.bringFront',
+            'swf.window.bringFront',
             { id: model.selected.id },
           ),
           command(
             'window.sendBehind',
             t('command.window.sendBehind.named', { label: model.selected.label ?? model.selected.id }),
-            'reference.window.sendBehind',
+            'swf.window.sendBehind',
             { id: model.selected.id },
           ),
         ]),
@@ -134,20 +132,20 @@
       : []),
     ...(model.status?.mode === FOCUS_ID
       ? [
-          command('focus.exit', t('command.focus.exit'), 'reference.focus.exit', {}),
-          command('focus.left', t('command.focus.step.left'), 'reference.focus.step', {
+          command('focus.exit', t('command.focus.exit'), 'swf.focus.exit', {}),
+          command('focus.left', t('command.focus.step.left'), 'swf.focus.step', {
             direction: 'left',
           }),
-          command('focus.right', t('command.focus.step.right'), 'reference.focus.step', {
+          command('focus.right', t('command.focus.step.right'), 'swf.focus.step', {
             direction: 'right',
           }),
         ]
       : []),
     ...(model.history.undo
-      ? [command('history.undo', t('command.history.undo'), 'reference.history.undo', {})]
+      ? [command('history.undo', t('command.history.undo'), 'swf.history.undo', {})]
       : []),
     ...(model.history.redo
-      ? [command('history.redo', t('command.history.redo'), 'reference.history.redo', {})]
+      ? [command('history.redo', t('command.history.redo'), 'swf.history.redo', {})]
       : []),
     // The experimental interface, where the build carries the experiment panel.
     ...(experimental
@@ -159,7 +157,7 @@
                 number: EXPERIMENTS[experiment].number,
                 name: t(EXPERIMENTS[experiment].name),
               }),
-              'reference.experiment.run',
+              'swf.experiment.run',
               { experiment },
             ),
           ),
@@ -170,28 +168,28 @@
               t(on ? 'command.feature.set.off' : 'command.feature.set.on', {
                 feature: t(`feature.${feature}`),
               }),
-              'reference.feature.set',
+              'swf.feature.set',
               { feature, enabled: !on },
             );
           }),
-          command('feature.reset', t('command.feature.reset'), 'reference.feature.reset', {}),
+          command('feature.reset', t('command.feature.reset'), 'swf.feature.reset', {}),
         ]
       : []),
     ...(model.policies?.features.enabled.orbit === true
       ? [
-          command('navigation.camera', t('command.navigation.camera'), 'reference.navigation.set', {
+          command('navigation.camera', t('command.navigation.camera'), 'swf.navigation.set', {
             target: 'camera',
           }),
           ...(model.policies.orbit.rootId === null
             ? []
             : [
-                command('navigation.orbit', t('command.navigation.orbit'), 'reference.navigation.set', {
+                command('navigation.orbit', t('command.navigation.orbit'), 'swf.navigation.set', {
                   target: 'orbit',
                 }),
-                command('orbit.left', t('command.orbit.turn.left'), 'reference.orbit.turn', {
+                command('orbit.left', t('command.orbit.turn.left'), 'swf.orbit.turn', {
                   degrees: -15,
                 }),
-                command('orbit.right', t('command.orbit.turn.right'), 'reference.orbit.turn', {
+                command('orbit.right', t('command.orbit.turn.right'), 'swf.orbit.turn', {
                   degrees: 15,
                 }),
               ]),
@@ -223,7 +221,7 @@
       command(
         `backend.${backend}`,
         t('command.backend.switch.named', { backend: t(`backend.${backend}`) }),
-        'reference.backend.switch',
+        'swf.backend.switch',
         { backend },
       ),
     ),
@@ -231,7 +229,7 @@
       value: `window.${window.id}`,
       label: t('command.window.reveal.named', { label: window.label }),
       detail: t('palette.window'),
-      run: () => model.run('reference.window.reveal', { id: window.id }),
+      run: () => model.run('swf.window.reveal', { id: window.id }),
     })),
   ]);
 

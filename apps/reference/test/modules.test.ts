@@ -1,7 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FEATURE_IDS } from '../src/features.js';
-import { FOCUS_ID } from '../src/focus.js';
-import { MAP, PANORAMA } from '../src/modes.js';
+import { FEATURE_IDS, FOCUS_ID, MAP, PANORAMA } from '@swf/navigation';
 import { plannedByKey, planPreset } from '../src/presets.js';
 import { policyWorld } from './policy-world.js';
 

@@ -47,6 +47,7 @@ Each package has one entry point, its name; nothing is imported from a package's
 | `@swf/backend-dom`      | `DomRenderer`, `DomCompositor`, `createDomInput`, `animationFrames`                                      |
 | `@swf/backend-geometry` | `GeometryRenderer`, `LayeredRenderer`, `LayerCompositor`                                                 |
 | `@swf/persistence`      | `createPersistence`, `createSaver`, `createMemoryStore`, `createWebStorageStore`, `createIndexedDbStore` |
+| `@swf/navigation`       | `createNavigation`, `Navigation`, `WindowTraits`, `createNavigationCommands`, `NavigationCommandSpecs`   |
 | `@swf/diagnostics`      | `createDiagnostics`, `createOperationTrace`, `exportDiagnostics`                                         |
 | `@swf/conformance`      | `adapterConformance`, `backendConformance`, `handoffConformance`, `runConformance`                       |
 | `@swf/benchmark`        | `planFixture`, `createBenchmarkHost`, `recordFrames`, `summarize`                                        |

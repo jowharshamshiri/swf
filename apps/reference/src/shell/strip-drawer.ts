@@ -1,11 +1,9 @@
 import type { StageUnit } from '@wsb/uikit/components';
 import { resolvePalette } from '@wsb/uikit/primitives';
 import type { ReferenceApp } from '../app.js';
-import { VIEWPORT_ID } from '../app.js';
+import type { StripCard, StripMetrics } from '@swf/navigation';
+import { FOCUS_ID, VIEWPORT_ID, stripLayout, stripWindows } from '@swf/navigation';
 import type { ContentPreview } from '../content.js';
-import { FOCUS_ID } from '../focus.js';
-import type { StripCard, StripMetrics } from '../strip.js';
-import { stripLayout, stripWindows } from '../strip.js';
 
 /**
  * Draws the focus strip on the kit's stage and works it: each window a card where the strip's

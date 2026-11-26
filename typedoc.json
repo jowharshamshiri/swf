@@ -15,6 +15,7 @@
     "packages/conformance",
     "packages/diagnostics",
     "packages/persistence",
+    "packages/navigation",
     "packages/benchmark"
   ],
   "packageOptions": {

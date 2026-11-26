@@ -12,8 +12,10 @@ import { ModeRefusal, PANORAMA } from './modes.js';
  * moves. Leaving it puts the camera back.
  */
 
+/** The focus mode's ID. */
 export const FOCUS_ID = 'focus';
 
+/** How focus frames a window. */
 export interface FocusOptions {
   /** Share of the viewport's width or height the focused window fills, whichever binds first. */
   readonly fill: number;
@@ -30,9 +32,11 @@ export interface FocusOptions {
 export interface FocusFrame {
   /** The camera's heading and pitch to face the window, in radians. */
   readonly heading: number;
+  /** The camera's pitch, in radians. */
   readonly pitch: number;
   /** The equirectangular coverage that frames it, in degrees. */
   readonly horizontal: number;
+  /** The vertical coverage, in degrees. */
   readonly vertical: number;
 }
 
@@ -96,7 +100,9 @@ export function focusFrame(
 
 /** Another window, as the focus's context shows it. */
 export interface Neighbour {
+  /** The window's ID. */
   readonly id: Id;
+  /** Its name: its label, or its ID. */
   readonly label: string;
   /** Degrees it lies to the right of the focused window as the camera sees them (left negative). */
   readonly bearing: number;
@@ -104,7 +110,9 @@ export interface Neighbour {
 
 /** The windows around a focused one: those to its left and to its right, each nearest first. */
 export interface FocusContext {
+  /** Those to its left, nearest first. */
   readonly left: readonly Neighbour[];
+  /** Those to its right, nearest first. */
   readonly right: readonly Neighbour[];
 }
 

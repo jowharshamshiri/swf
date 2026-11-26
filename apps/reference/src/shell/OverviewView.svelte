@@ -22,12 +22,9 @@
   } from '@wsb/uikit/components';
   import { handleOf, keyed } from '@wsb/uikit/handles';
   import { onDestroy } from 'svelte';
-  import { VIEWPORT_ID } from '../app.js';
+  import type { OverviewLayout, SearchResult } from '@swf/navigation';
+  import { NO_FILTERS, PAGE_SIZE, VIEWPORT_ID, overviewScene } from '@swf/navigation';
   import type { MessageId } from '../messages.js';
-  import type { OverviewLayout } from '../overview.js';
-  import { overviewScene } from '../overview.js';
-  import { NO_FILTERS, PAGE_SIZE } from '../search.js';
-  import type { SearchResult } from '../search.js';
   import type { ShellModel } from './model.svelte.js';
   import { groupHue, OverviewDrawer } from './overview-drawer.js';
   import WindowActions from './WindowActions.svelte';
@@ -66,7 +63,7 @@
         void model.select(id);
       },
       onopen: (id) => {
-        void model.run('reference.focus.enter', { id });
+        void model.run('swf.focus.enter', { id });
       },
     });
   });
@@ -108,7 +105,7 @@
   const groups = $derived.by(() => {
     void model.revision;
     const app = model.app;
-    return app === null ? [] : overviewScene(app.workspace.getState(), VIEWPORT_ID).groups;
+    return app === null ? [] : overviewScene(app.workspace.getState(), VIEWPORT_ID, app.windows.category).groups;
   });
   /** Where a window stands, in words: the list says what the board shows, for whoever cannot see it. */
   const whereOf = (id: string): string | null => {
@@ -176,7 +173,7 @@
               void model.select(row.id);
             }}
             onopen={() => {
-              void model.run('reference.focus.enter', { id: row.id });
+              void model.run('swf.focus.enter', { id: row.id });
             }}
           />
         {/each}

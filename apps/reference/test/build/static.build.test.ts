@@ -6,7 +6,7 @@ import type { Browser, Page } from 'playwright';
 import { chromium } from 'playwright';
 import { build } from 'vite';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { DEFAULT_FEATURES } from '../../src/features.js';
+import { DEFAULT_FEATURES } from '@swf/navigation';
 import { planPreset, presetIssue } from '../../src/presets.js';
 
 /**

@@ -4,13 +4,9 @@ import { headingPitchOf } from '@swf/projections';
 import { describe, expect, it } from 'vitest';
 import { commands } from 'vitest/browser';
 import type { ReferenceApp } from '../../src/app.js';
-import { VIEWPORT_ID } from '../../src/app.js';
 import type { NoteTexts } from '../../src/content.js';
-import { FOCUS_ID } from '../../src/focus.js';
-import { PANORAMA } from '../../src/modes.js';
-import { CAMERA_ID } from '../../src/presets.js';
+import { CAMERA_ID, FOCUS_ID, PANORAMA, VIEWPORT_ID, stripWindows } from '@swf/navigation';
 import type { ShellModel } from '../../src/shell/model.svelte.js';
-import { stripWindows } from '../../src/strip.js';
 import { endVisits, layout, start } from './shell-harness.js';
 
 declare module 'vitest/browser' {

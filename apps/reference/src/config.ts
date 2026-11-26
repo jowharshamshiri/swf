@@ -1,10 +1,8 @@
 import type { PresetId } from './presets.js';
 import { PRESETS, presetIssue } from './presets.js';
 import { seedIssue } from '@swf/math';
-
-/** The presentation backends a viewport can be shown with. */
-export const BACKEND_IDS = ['dom', 'geometry'] as const;
-export type BackendId = (typeof BACKEND_IDS)[number];
+import type { BackendId } from '@swf/navigation';
+import { BACKEND_IDS } from '@swf/navigation';
 
 /** How the application starts: which scene, from which seed, on which backend. */
 export interface AppConfig {

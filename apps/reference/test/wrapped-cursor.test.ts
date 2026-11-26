@@ -2,9 +2,15 @@ import type { DispatchResult, InputAdapter, InputIntent, PointerIntent } from '@
 import { NO_MODIFIERS } from '@swf/interaction';
 import type { Vec3 } from '@swf/math';
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_FEATURES, updateFeatures } from '../src/features.js';
-import type { WrapState } from '../src/wrapped-cursor.js';
-import { afterDispatch, NO_POINTERS, wrappedInput, wrapPointer } from '../src/wrapped-cursor.js';
+import type { WrapState } from '@swf/navigation';
+import {
+  DEFAULT_FEATURES,
+  NO_POINTERS,
+  afterDispatch,
+  updateFeatures,
+  wrapPointer,
+  wrappedInput,
+} from '@swf/navigation';
 import { pointOn, policyWorld, screenOf, VIEWPORT, W } from './policy-world.js';
 
 const sample = (phase: PointerIntent['phase'], x: number, pointerId = 1): PointerIntent => ({

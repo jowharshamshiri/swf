@@ -38,6 +38,9 @@
       "path": "packages/persistence/tsconfig.build.json"
     },
     {
+      "path": "packages/navigation/tsconfig.build.json"
+    },
+    {
       "path": "packages/benchmark/tsconfig.build.json"
     }
   ]

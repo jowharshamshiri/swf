@@ -13,7 +13,9 @@ import type { Vec3 } from '@swf/math';
 
 /** A window as the strip shows it. */
 export interface StripWindow {
+  /** The window's ID. */
   readonly id: Id;
+  /** Its name: its label, or its ID. */
   readonly label: string;
   /** Degrees it lies to the right of the focused window round the camera, in (-180, 180]. */
   readonly bearing: number;
@@ -22,7 +24,12 @@ export interface StripWindow {
   /** It is the focused window. */
   readonly focused: boolean;
   /** Its surfaces' binding keys, left to right, each with its share of the window's width. */
-  readonly surfaces: readonly { readonly key: string; readonly share: number }[];
+  readonly surfaces: readonly {
+    /** The surface's binding key. */
+    readonly key: string;
+    /** Its share of the window's width, from 0 to 1. */
+    readonly share: number;
+  }[];
 }
 
 /** How large a strip's cards may be, in CSS pixels. */
@@ -37,19 +44,29 @@ export interface StripMetrics {
 
 /** Where a card lies in the strip, in CSS pixels from its top-left. */
 export interface StripCard {
+  /** The window it shows. */
   readonly window: StripWindow;
+  /** Its left edge. */
   readonly x: number;
+  /** Its top edge. */
   readonly y: number;
+  /** Its width. */
   readonly width: number;
+  /** Its height. */
   readonly height: number;
+  /** The row it is in: 0 the top one, 1 the second. */
   readonly row: 0 | 1;
 }
 
+/** The strip laid out: the cards that fit, and the windows that do not. */
 export interface StripLayout {
+  /** The cards shown, left to right. */
   readonly cards: readonly StripCard[];
   /** The windows not shown, to the left and to the right, in order. */
   readonly hidden: {
+    /** Those to the left. */
     readonly left: readonly StripWindow[];
+    /** Those to the right. */
     readonly right: readonly StripWindow[];
   };
 }

@@ -5,22 +5,23 @@ import { createPersistence } from '@swf/persistence';
 import { createPresentationRegistry } from '@swf/presentation';
 import { cameraRotation, createProjectionRegistry, equirectangular } from '@swf/projections';
 import { describe, expect, it } from 'vitest';
-import type { CompositionPlan } from '../src/composition.js';
+import { planPreset, presetCommands, WORKSPACE_GROUP_ID } from '../src/presets.js';
+import type { CompositionPlan } from '@swf/navigation';
 import {
+  CAMERA_ID,
+  PANORAMA,
+  WINDOW_FRAME,
   detachSurface,
   groupWindows,
   layoutSurfaces,
   mergeWindow,
   moveSurface,
-  PART_OF_KEY,
+  partLinks,
   recombineParts,
-  splitWindow,
   regroupWindow,
-  WINDOW_FRAME,
-} from '../src/composition.js';
-import { partLinks } from '../src/map.js';
-import { PANORAMA } from '../src/modes.js';
-import { CAMERA_ID, planPreset, presetCommands, WORKSPACE_GROUP_ID } from '../src/presets.js';
+  splitWindow,
+} from '@swf/navigation';
+import { PART_OF_KEY } from '../src/app.js';
 
 /** A workspace holding the composed preset: Board (three surfaces), window-04 and window-05. */
 function composed(): Workspace {
@@ -371,7 +372,7 @@ describe('multi-surface composition (FR-126, WF-06, AC-016)', () => {
     expect(right('window-02')).toBeGreaterThan(right('board'));
     expect(right('window-03')).toBeGreaterThan(right('window-02'));
     // Each part is linked to the board in the panorama, its line in one run straight ahead.
-    const links = partLinks(state, 'main', { get: () => equirectangular });
+    const links = partLinks(state, 'main', { get: () => equirectangular }, PART_OF_KEY);
     expect(links.map((link) => [link.part, link.origin])).toEqual([
       ['window-02', 'board'],
       ['window-03', 'board'],
@@ -396,7 +397,7 @@ describe('multi-surface composition (FR-126, WF-06, AC-016)', () => {
       ]).status,
     ).toBe('committed');
     const width = state.viewports.get('main')?.size.width ?? 0;
-    const across = partLinks(ws.getState(), 'main', { get: () => equirectangular });
+    const across = partLinks(ws.getState(), 'main', { get: () => equirectangular }, PART_OF_KEY);
     expect(across.some((link) => link.runs.length === 2)).toBe(true);
     for (const run of across.flatMap((link) => link.runs)) {
       for (let i = 1; i < run.length; i += 1) {

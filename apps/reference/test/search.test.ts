@@ -3,16 +3,9 @@ import { createWorkspace } from '@swf/core';
 import { createPresentationRegistry } from '@swf/presentation';
 import { createProjectionRegistry, equirectangular } from '@swf/projections';
 import { describe, expect, it } from 'vitest';
-import { PANORAMA } from '../src/modes.js';
-import {
-  CAMERA_ID,
-  colourName,
-  planPreset,
-  SEARCHABLE_METADATA,
-  presetCommands,
-} from '../src/presets.js';
-import type { Attachment, Coverage, Timers } from '../src/search.js';
-import { createSearch, DEFAULT_QUERY, PAGE_SIZE } from '../src/search.js';
+import { colourName, planPreset, SEARCHABLE_METADATA, presetCommands } from '../src/presets.js';
+import type { Attachment, Coverage, Timers } from '@swf/navigation';
+import { CAMERA_ID, DEFAULT_QUERY, PAGE_SIZE, PANORAMA, createSearch } from '@swf/navigation';
 
 /** Timers the test runs by hand. */
 function manualTimers() {
