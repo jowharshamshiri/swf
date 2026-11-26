@@ -217,7 +217,9 @@ describe('the panorama on the DOM backend (UX-002, WF-01)', () => {
     await commands.mouse('up', W - 4, y);
     unwatch();
     expect(gestures).toEqual(['start node.move window-01', 'end committed']);
-    expect(a.workspace.getState().revision).toBe(revision + 1);
+    // Two revisions: the window taken is selected, which undo does not count, then the move.
+    expect(a.workspace.getState().revision).toBe(revision + 2);
+    expect(a.workspace.getState().selection).toEqual(['window-01']);
     // The drag previewed the window at every step on the way but the first, which is within the
     // pointer's slop and only starts the drag.
     expect(steps).toBeGreaterThan(8);

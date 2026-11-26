@@ -149,7 +149,8 @@ describe('the wrapped cursor across the seam (§33.2 scenario 2, FR-107, FR-123)
     expect(drawn?.y).toBeCloseTo(y, 0);
     expect(virtualCursor()).toBeNull();
     expect(gestures).toEqual(['start node.move window-01', 'end committed']);
-    expect(a.workspace.getState().revision).toBe(before.revision + 1);
+    // The window taken is selected (not an undo step), then the move is committed once.
+    expect(a.workspace.getState().revision).toBe(before.revision + 2);
     // The grabbed point of the same window is under where the pointer wrapped to.
     const [ax, ay] = screenOf(a, 'window-01', grabbed, last - W);
     expect(ax).toBeCloseTo(last - W, 0);
@@ -297,6 +298,7 @@ describe('magnetic positioning in the panorama (FR-125, UX-007)', () => {
     const id = 'window-07';
     const gestures = gesturesOf(a);
     const before = a.workspace.getState();
+    const historyBefore = a.workspace.history().length;
     const [x, y] = screenOf(a, id, [0, 0, 0]);
     const lift = 1.5 / (120 / H);
     await commands.mouse('move', x, y);
@@ -314,12 +316,15 @@ describe('magnetic positioning in the panorama (FR-125, UX-007)', () => {
     );
     expect(level).toHaveLength(1);
     expect(worldMatrix(a.workspace.getPresented().nodes, id)?.[13]).toBeCloseTo(0, 9);
-    expect(a.workspace.getState()).toBe(before);
+    // Nothing is committed while it moves but its selection, which undo does not count.
+    expect(a.workspace.getState().nodes).toStrictEqual(before.nodes);
+    expect(a.workspace.getState().selection).toEqual([id]);
     await commands.mouse('up', x, y - lift);
     expect(gestures).toEqual([`start node.move ${id}`, 'end committed']);
     const m = worldMatrix(a.workspace.getState().nodes, id);
     expect(m?.[13]).toBeCloseTo(0, 9);
     expect(a.policies.status().ended).toMatchObject({ outcome: 'committed', nodeId: id });
-    expect(a.workspace.getState().revision).toBe(before.revision + 1);
+    expect(a.workspace.getState().revision).toBe(before.revision + 2);
+    expect(a.workspace.history()).toHaveLength(historyBefore + 1);
   });
 });
