@@ -769,9 +769,11 @@ export class MapDrawer {
     // across the window's own line, to its left, above it or below it: a place across the line is
     // taken only where every place clear of it is off the map or taken. One that must be written
     // takes the first of those that lies wholly on the map; a name with no such place keeps the
-    // first, partly off the map.
+    // first, partly off the map. The names with the fewest places are weighed first, so a name
+    // with room elsewhere does not take the one place another has.
     const whole = (x: number, y: number, size: { width: number; height: number }) =>
       x >= 0 && y >= 0 && x + size.width <= view.width && y + size.height <= view.height;
+    const names: { unit: Label; name: number; kept: boolean }[][] = [];
     order.forEach((marker, i) => {
       const [mx, my] = toMap(view, marker.x, marker.z);
       const size = this.#measure(marker.label);
@@ -797,8 +799,9 @@ export class MapDrawer {
       if (first === undefined) {
         throw new Error('a name has nowhere to go');
       }
-      for (const [x, y] of places.length === 0 ? [first] : kept ? places.slice(0, 1) : places) {
-        candidates.push({
+      const offers = places.length === 0 ? [first] : kept ? places.slice(0, 1) : places;
+      names.push(
+        offers.map(([x, y]) => ({
           unit: unit(marker.id, marker.label, x, y, size, {
             depth: marker.selected ? 3 : marker.focused ? 2 : 1,
             emphasis: marker.selected
@@ -809,9 +812,11 @@ export class MapDrawer {
           }),
           name: i,
           kept,
-        });
-      }
+        })),
+      );
     });
+    // Stable: names with as many places keep the order they are drawn in.
+    candidates.push(...names.sort((a, b) => a.length - b.length).flat());
     let next = order.length;
     // In front and behind: where the line through the camera along its heading meets the map's
     // edges (EDGE inside them), ahead of it and behind it, or beside that point along the edge

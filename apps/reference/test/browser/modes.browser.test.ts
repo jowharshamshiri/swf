@@ -307,6 +307,31 @@ describe('the spatial map (FR-124, UX-004, WF-05)', () => {
     }
   });
 
+  it('gives a name with few places room before names that have others', async () => {
+    // Wide, three steps out: Media Notes stands at the map's right edge, where its name fits only
+    // to its left, above or below, each a place Code Review's name, to the right of its own mark,
+    // would take; Code Review has room to its left.
+    const { app, root, driver, settle } = await start('?preset=studio', {
+      width: 1600,
+      height: 1000,
+    });
+    driver.act('editor.actions.mode#map', 'press');
+    await settle();
+    for (let i = 0; i < 3; i++) {
+      driver.act('page.map.zoom-out', 'press');
+      await settle();
+    }
+    const units = [...root.querySelectorAll('[data-wsb^="page.map.unit#"]')].map((unit) => ({
+      key: (unit.getAttribute('data-wsb') ?? '').slice('page.map.unit#'.length),
+      titled: unit.classList.contains('wsb-stage__unit--titled'),
+    }));
+    const windows = units.filter(
+      (u) => app.workspace.getState().nodes.get(u.key)?.kind === 'window',
+    );
+    expect(windows.map((u) => u.key)).toContain('media');
+    expect(windows.filter((u) => !u.titled).map((u) => u.key)).toEqual([]);
+  });
+
   it('raises a window with the height control, which a map from above cannot show', async () => {
     const { app, driver, root, settle } = await start('?preset=seam');
     await current?.model.showInMap('window-02');
