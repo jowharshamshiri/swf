@@ -1,0 +1,42 @@
+{
+  "name": "@swf/benchmark",
+  "version": "0.1.0",
+  "description": "The Spatial Workspace Framework's performance benchmark: seeded standard and stress fixtures, a host that presents them, in-page measures, statistics and a resource probe for disposal soaks.",
+  "license": "Apache-2.0",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jowharshamshiri/swf.git",
+    "directory": "packages/benchmark"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "CHANGELOG.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@swf/backend-dom": "git+https://github.com/jowharshamshiri/swf.git#backend-dom/v0.1.0",
+    "@swf/core": "git+https://github.com/jowharshamshiri/swf.git#core/v0.1.0",
+    "@swf/interaction": "git+https://github.com/jowharshamshiri/swf.git#interaction/v0.1.0",
+    "@swf/math": "git+https://github.com/jowharshamshiri/swf.git#math/v0.1.0",
+    "@swf/presentation": "git+https://github.com/jowharshamshiri/swf.git#presentation/v0.1.0",
+    "@swf/projections": "git+https://github.com/jowharshamshiri/swf.git#projections/v0.1.0",
+    "@swf/surfaces": "git+https://github.com/jowharshamshiri/swf.git#surfaces/v0.1.0"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  }
+}
