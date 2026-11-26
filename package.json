@@ -1,0 +1,39 @@
+{
+  "name": "@swf/conformance",
+  "version": "0.1.0",
+  "description": "Conformance suites for Spatial Workspace Framework adapters, renderers and compositors, with reference mocks.",
+  "license": "Apache-2.0",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jowharshamshiri/swf.git",
+    "directory": "packages/conformance"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "CHANGELOG.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@swf/core": "git+https://github.com/jowharshamshiri/swf.git#core/v0.1.0",
+    "@swf/math": "git+https://github.com/jowharshamshiri/swf.git#math/v0.1.0",
+    "@swf/presentation": "git+https://github.com/jowharshamshiri/swf.git#presentation/v0.1.0",
+    "@swf/surfaces": "git+https://github.com/jowharshamshiri/swf.git#surfaces/v0.1.0"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  }
+}

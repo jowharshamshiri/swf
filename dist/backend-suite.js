@@ -1,0 +1,285 @@
+import { createWorkspace } from '@swf/core';
+import { conditionFor, createPresentationRegistry, createViewOutput, fragmentId, planFrame, } from '@swf/presentation';
+import { check, ConformanceFailure } from './harness.js';
+import { mockCapabilities } from './mock-adapter.js';
+import { failWith, releaseAll, runEach, using } from './release.js';
+const VIEWPORT = 'conformance-view';
+const PROFILES = [
+    Object.freeze({
+        id: 'conformance.perspective/1',
+        mapping: 'affine',
+        seamWrapping: false,
+        exactInverse: true,
+    }),
+    Object.freeze({
+        id: 'conformance.panorama/1',
+        mapping: 'nonlinear',
+        seamWrapping: true,
+        exactInverse: true,
+    }),
+];
+/** The kinds of surface every backend must handle, each by its capabilities (null: unbound). */
+const SURFACES = [
+    // A live single-owner element crossing a seam: two fragments, one of them the native owner.
+    { id: 'live', capabilities: mockCapabilities(), fragments: 2 },
+    {
+        id: 'drawn',
+        capabilities: mockCapabilities({
+            attachStrategy: 'drawable',
+            nativeInteraction: 'none',
+            transformFidelity: 'exact',
+            viewportSharing: 'shared',
+        }),
+        fragments: 1,
+    },
+    {
+        id: 'proxied',
+        capabilities: mockCapabilities({
+            attachStrategy: 'proxy-only',
+            nativeInteraction: 'none',
+            transformFidelity: 'proxy',
+            uvAddressing: false,
+            cursorMapping: false,
+        }),
+        fragments: 1,
+    },
+    { id: 'unbound', capabilities: null, fragments: 1 },
+];
+/** The conformance scene, in a new workspace the caller disposes. */
+async function scene() {
+    const workspace = createWorkspace({ id: 'conformance' });
+    const result = workspace.transaction([
+        { type: 'node.create', node: { id: 'w', kind: 'window', bounds: [4, 2, 0.01] } },
+        ...SURFACES.map((s, i) => ({
+            type: 'surface.attach',
+            surface: {
+                id: s.id,
+                ownerNodeId: 'w',
+                bindingKey: s.capabilities === null ? null : `key-${s.id}`,
+                adapterTypeId: 'conformance.view/1',
+                bounds: [1, 0.5, 0.01],
+                transform: {
+                    position: [i - 1.5, 0, 0],
+                    rotation: [0, 0, 0, 1],
+                    scale: [1, 1, 1],
+                },
+            },
+        })),
+    ]);
+    if (result.status !== 'committed') {
+        failWith(new ConformanceFailure('the conformance scene could not be built'), await runEach([() => workspace.dispose()]));
+    }
+    return workspace;
+}
+function fragments(order) {
+    const out = [];
+    SURFACES.forEach((s, i) => {
+        for (let ordinal = 0; ordinal < s.fragments; ordinal++) {
+            out.push(Object.freeze({
+                id: fragmentId(VIEWPORT, s.id, ordinal),
+                surfaceId: s.id,
+                viewportId: VIEWPORT,
+                ordinal,
+                bounds: [100 * i + 600 * ordinal, 50, 90, 45],
+                corners: null,
+                depth: 3 + (i % 2),
+                geometricFidelity: 'exact',
+                nativeOwner: ordinal === 0,
+            }));
+        }
+    });
+    return order === 'forward' ? out : out.reverse();
+}
+function view(profile) {
+    return Object.freeze({
+        viewportId: VIEWPORT,
+        width: 1280,
+        height: 720,
+        devicePixelRatio: 1,
+        camera: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+        near: 0.05,
+        far: null,
+        projectionId: profile.id,
+        projectionConfig: null,
+    });
+}
+function plan(workspace, state, renderer, compositor, profile, order = 'forward') {
+    const capabilities = new Map(SURFACES.map((s) => [s.id, s.capabilities]));
+    return planFrame({
+        scene: state,
+        view: view(profile),
+        output: createViewOutput(state, VIEWPORT, fragments(order)),
+        renderer: { id: renderer.id, capabilities: renderer.capabilities() },
+        compositor: { id: compositor.id, capabilities: compositor.capabilities() },
+        projection: profile,
+        condition: (id) => conditionFor(capabilities.get(id) ?? null),
+        viewportOwns: () => true,
+        geometry: (id) => workspace.surfaceGeometry(id),
+    });
+}
+function layerSignature(frame) {
+    return frame.layers.map((l) => `${l.id}@${l.category}`).join(' ');
+}
+/**
+ * The renderer and compositor conformance cases that the contracts fix: valid registration,
+ * sessions bound to their viewport, every planned fragment realized exactly once in the layer its
+ * negotiation chose (so fragment IDs map back to one surface), no live element mounted twice, a
+ * deterministic order that follows the plan, composition that keeps that order, an unchanged
+ * scene, and idempotent release. Nothing runs until a case's `run` is called; each run takes
+ * fresh backends from the fixture, and releases every session it prepared and disposes the
+ * workspace it made however it ends, failing or not.
+ */
+export function backendConformance(fixture) {
+    const target = (viewportId) => ({
+        viewportId,
+        container: fixture.container?.(viewportId) ?? {},
+    });
+    /**
+     * A workspace with the scene, and a renderer and compositor session for it, which `dispose`
+     * releases (the compositor's first) before disposing the workspace. When a step fails, what was
+     * made before it is released the same way and the failure passed on.
+     */
+    const prepared = async (profile) => {
+        const workspace = await scene();
+        /** How to release each thing made so far, in the order they were made. */
+        const made = [() => workspace.dispose()];
+        try {
+            const state = workspace.getState();
+            const renderer = fixture.renderer();
+            const compositor = fixture.compositor();
+            const rendererSession = await renderer.prepare(state, view(profile));
+            made.push(() => rendererSession.release());
+            const compositorSession = await compositor.prepare(target(VIEWPORT), rendererSession);
+            made.push(() => compositorSession.release());
+            return {
+                workspace,
+                state,
+                renderer,
+                compositor,
+                rendererSession,
+                compositorSession,
+                dispose: () => releaseAll([...made].reverse()),
+            };
+        }
+        catch (error) {
+            return failWith(error, await runEach([...made].reverse()));
+        }
+    };
+    /** Runs `body` with what {@link prepared} makes, disposing it however `body` ends. */
+    const withPrepared = async (profile, body) => using(await prepared(profile), (p) => p.dispose(), body);
+    const forEachProfile = (name, body) => ({
+        name,
+        async run() {
+            for (const profile of PROFILES) {
+                await withPrepared(profile, (p) => {
+                    body(p, profile);
+                });
+            }
+            return 'passed';
+        },
+    });
+    return [
+        {
+            name: 'registers a renderer and a compositor with versioned contracts and valid capabilities',
+            run() {
+                const registry = createPresentationRegistry();
+                registry.registerRenderer(fixture.renderer());
+                registry.registerCompositor(fixture.compositor());
+                return Promise.resolve('passed');
+            },
+        },
+        forEachProfile('prepares sessions bound to their viewport', (p) => {
+            check(p.rendererSession.viewportId === VIEWPORT, 'the renderer session names another viewport');
+            check(p.rendererSession.rendererId === p.renderer.id, 'the renderer session names another renderer');
+            check(p.compositorSession.viewportId === VIEWPORT, 'the compositor session names another viewport');
+            check(p.compositorSession.compositorId === p.compositor.id, 'the compositor session names another compositor');
+        }),
+        forEachProfile('realizes every planned fragment exactly once, in the layer its negotiation chose', (p, profile) => {
+            const frame = plan(p.workspace, p.state, p.renderer, p.compositor, profile);
+            const rendered = p.rendererSession.render(frame);
+            for (const planned of frame.planned) {
+                const layers = rendered.layers.filter((l) => l.fragmentId === planned.fragment.id);
+                check(layers.length === 1, `fragment "${planned.fragment.id}" was realized ${String(layers.length)} times`);
+                const [layer] = layers;
+                check(layer?.category === planned.negotiation.layer, `fragment "${planned.fragment.id}" went in a ${String(layer?.category)} layer, but negotiation chose ${planned.negotiation.layer}`);
+                check(layer.surfaceId === frame.output.surfaceOf(planned.fragment.id), `the layer of fragment "${planned.fragment.id}" names surface "${String(layer.surfaceId)}"`);
+            }
+            check(rendered.size.width === frame.view.width &&
+                rendered.size.height === frame.view.height &&
+                rendered.size.devicePixelRatio === frame.view.devicePixelRatio, 'the rendered frame names another view size');
+            const ids = rendered.layers.map((l) => l.id);
+            check(new Set(ids).size === ids.length, 'two layers share an ID');
+            const unknown = rendered.layers.find((l) => l.fragmentId !== null && frame.output.surfaceOf(l.fragmentId) === undefined);
+            check(unknown === undefined, `a layer refers to unknown fragment "${String(unknown?.fragmentId)}"`);
+        }),
+        forEachProfile('never mounts one surface’s live element twice', (p, profile) => {
+            const rendered = p.rendererSession.render(plan(p.workspace, p.state, p.renderer, p.compositor, profile));
+            const live = rendered.layers.filter((l) => l.category === 'content-native');
+            const surfaces = live.map((l) => l.surfaceId);
+            check(new Set(surfaces).size === surfaces.length, 'a surface has more than one native content layer');
+        }),
+        forEachProfile('orders layers by the plan, the same way every time', (p, profile) => {
+            const frame = plan(p.workspace, p.state, p.renderer, p.compositor, profile);
+            const once = p.rendererSession.render(frame);
+            const twice = p.rendererSession.render(frame);
+            check(layerSignature(once) === layerSignature(twice), 'the same frame rendered differently');
+            const shuffled = p.rendererSession.render(plan(p.workspace, p.state, p.renderer, p.compositor, profile, 'reverse'));
+            check(layerSignature(once) === layerSignature(shuffled), 'the order depends on the order fragments were supplied in');
+            const planOrder = frame.planned.map((pl) => pl.fragment.id);
+            const layerOrder = once.layers.flatMap((l) => (l.fragmentId === null ? [] : [l.fragmentId]));
+            check(planOrder.join(' ') === layerOrder.join(' '), 'content layers do not follow the plan order');
+        }),
+        forEachProfile('composes every layer once, keeping the rendered order when ordering is explicit', (p, profile) => {
+            const rendered = p.rendererSession.render(plan(p.workspace, p.state, p.renderer, p.compositor, profile));
+            const composed = p.compositorSession.compose(rendered);
+            const ids = rendered.layers.map((l) => l.id);
+            check([...composed.order].sort().join(' ') === [...ids].sort().join(' '), 'the composed frame does not hold each rendered layer exactly once');
+            if (p.compositor.capabilities().ordering === 'explicit') {
+                check(composed.order.join(' ') === ids.join(' '), 'an explicit-ordering compositor changed the order');
+            }
+            check(composed.sceneRevision === rendered.sceneRevision, 'the composed frame names another revision');
+            check(composed.occlusion === p.compositor.capabilities().occlusion, `the composed frame resolves occlusion by ${composed.occlusion}, not as the compositor declares`);
+        }),
+        forEachProfile('writes nothing when the same frame is rendered and composed again (NFR-005)', (p, profile) => {
+            const frame = plan(p.workspace, p.state, p.renderer, p.compositor, profile);
+            p.compositorSession.compose(p.rendererSession.render(frame));
+            const rendered = p.rendererSession.render(frame);
+            const composed = p.compositorSession.compose(rendered);
+            check(rendered.writes === 0, `rendering an unchanged frame made ${String(rendered.writes)} writes`);
+            check(composed.writes === 0, `composing an unchanged frame made ${String(composed.writes)} writes`);
+        }),
+        forEachProfile('leaves the scene unchanged', (p, profile) => {
+            const before = p.workspace.getState();
+            const rendered = p.rendererSession.render(plan(p.workspace, p.state, p.renderer, p.compositor, profile));
+            p.compositorSession.compose(rendered);
+            check(p.workspace.getState() === before, 'rendering changed the scene');
+        }),
+        {
+            name: 'releases sessions more than once safely and refuses to render after release',
+            async run() {
+                const profile = PROFILES[0] ?? fail();
+                await withPrepared(profile, async (p) => {
+                    await release(p);
+                    await release(p);
+                    let refused = false;
+                    try {
+                        p.rendererSession.render(plan(p.workspace, p.state, p.renderer, p.compositor, profile));
+                    }
+                    catch {
+                        refused = true;
+                    }
+                    check(refused, 'a released renderer session still rendered');
+                });
+                return 'passed';
+            },
+        },
+    ];
+}
+async function release(p) {
+    await p.compositorSession.release();
+    await p.rendererSession.release();
+}
+function fail() {
+    throw new Error('the conformance suite has no projection profiles');
+}
+//# sourceMappingURL=backend-suite.js.map
