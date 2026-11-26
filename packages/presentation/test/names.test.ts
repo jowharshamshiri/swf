@@ -245,6 +245,7 @@ describe('the names of a frame’s windows', () => {
         { node: 'far', bounds: [300, 90, 20, 10], representation: 'label' },
       ]),
       measure,
+      new Map(),
     );
     const near = names.find((n) => n.owner === 'near');
     // "Window near": 77 by 15.
@@ -275,17 +276,46 @@ describe('the names of a frame’s windows', () => {
       representation: 'full' as const,
     }));
     // Planned back to front: d is the nearest.
-    expect(windowNames(frameOf(fragments), measure).names.map((n) => n.owner)).toEqual([
+    expect(windowNames(frameOf(fragments), measure, new Map()).names.map((n) => n.owner)).toEqual([
       'd',
       'c',
       'b',
       'a',
     ]);
-    expect(windowNames(frameOf(fragments, ['b'], 'a'), measure).names.map((n) => n.owner)).toEqual([
-      'b',
-      'a',
-      'd',
-      'c',
+    expect(
+      windowNames(frameOf(fragments, ['b'], 'a'), measure, new Map()).names.map((n) => n.owner),
+    ).toEqual(['b', 'a', 'd', 'c']);
+  });
+
+  it('names a window by its frame as drawn, where that is larger than its fragments, and keeps other names clear of all of it', () => {
+    // The frame is drawn round the window, its stroke and handles outside its surface's fragment.
+    const frame = frameOf([
+      { node: 'near', bounds: [100, 80, 120, 60], representation: 'full' },
+      { node: 'far', bounds: [300, 90, 20, 10], representation: 'label' },
     ]);
+    const drawn = new Map([['near', [92, 70, 136, 80] as ScreenRect]]);
+    const { names, obstacles } = windowNames(frame, measure, drawn);
+    const near = names.find((n) => n.owner === 'near');
+    // Above the drawn frame, then above its right, then inside its top corners.
+    expect(near?.places.slice(0, 3)).toEqual([
+      [92, 70 - 15 - 3],
+      [92 + 136 - 77, 52],
+      [96, 74],
+    ]);
+    expect(obstacles).toContainEqual({ owner: 'near', box: [92, 70, 136, 80] });
+    // A name of another window offered a place over the frame's stroke, outside the fragment, is
+    // not written there.
+    const placed = placeNames(VIEW, obstacles, [
+      {
+        owner: 'other',
+        text: 'Other',
+        size: [40, 15],
+        places: [
+          [60, 72],
+          [20, 20],
+        ],
+      },
+    ]);
+    expect(placed).toEqual([[20, 20]]);
   });
 });

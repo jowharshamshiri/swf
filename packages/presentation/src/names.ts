@@ -204,12 +204,16 @@ export interface WindowNames {
 
 /**
  * The names a frame's windows are written by, with the places offered for each and what they keep
- * clear of; `measure` gives a text's width and height as the renderer writes it. A window is named
- * by its own label, else by its first surface's; a window with neither is not named.
+ * clear of; `measure` gives a text's width and height as the renderer writes it, and `frames` the
+ * box each window's frame is drawn in, stroke and handles included, for the windows drawn with one.
+ * A window with a drawn frame is named by that frame and keeps other names clear of all of it; one
+ * without, by its fragments. A window is named by its own label, else by its first surface's; a
+ * window with neither is not named.
  */
 export function windowNames(
   frame: RenderFrame,
   measure: (text: string) => readonly [number, number],
+  frames: ReadonlyMap<Id, ScreenRect>,
 ): WindowNames {
   const { scene } = frame;
   const byNode = new Map<
@@ -245,8 +249,13 @@ export function windowNames(
   const names: WindowName[] = [];
   const marks = new Map<Id, readonly ScreenPoint[]>();
   for (const [nodeId, entry] of byNode) {
+    const drawn = entry.framed.length > 0 ? frames.get(nodeId) : undefined;
+    const framed = drawn === undefined ? entry.framed : [drawn];
     for (const box of entry.framed) {
       obstacles.push({ owner: nodeId, box });
+    }
+    if (drawn !== undefined) {
+      obstacles.push({ owner: nodeId, box: drawn });
     }
     // A window drawn with a frame anywhere is named by its frame; else by its mark.
     const marked = entry.framed.length === 0 ? entry.marks : [];
@@ -265,17 +274,17 @@ export function windowNames(
     const size = measure(entry.label);
     const [nw, nh] = size;
     const places: ScreenPoint[] =
-      entry.framed.length > 0
+      framed.length > 0
         ? [
-            ...entry.framed.flatMap(([x, y, w]): ScreenPoint[] => [
+            ...framed.flatMap(([x, y, w]): ScreenPoint[] => [
               [x, y - nh - GAP],
               [x + w - nw, y - nh - GAP],
             ]),
-            ...entry.framed.flatMap(([x, y, w]): ScreenPoint[] => [
+            ...framed.flatMap(([x, y, w]): ScreenPoint[] => [
               [x + GAP + 1, y + GAP + 1],
               [x + w - nw - GAP - 1, y + GAP + 1],
             ]),
-            ...entry.framed.flatMap(([x, y, w, h]): ScreenPoint[] => [
+            ...framed.flatMap(([x, y, w, h]): ScreenPoint[] => [
               [x + w / 2 - nw / 2, y + h / 2 - nh / 2],
               [x, y + h + GAP],
               [x + w - nw, y + h + GAP],

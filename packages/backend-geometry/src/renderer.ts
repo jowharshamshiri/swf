@@ -37,9 +37,11 @@ import type { Projection, ProjectionModule } from '@swf/projections';
 import { projectionFor } from '@swf/projections';
 import type { Drawable, Mesh } from './drawing.js';
 import { drawableIssue, drawMesh, homographyMesh, outline } from './drawing.js';
+import type { WindowFrame } from './frames.js';
+import { FRAME_STROKE, windowFrames } from './frames.js';
 import type { GeometryLayer } from './layer.js';
 import { GEOMETRY_LAYER } from './layer.js';
-import { planeMesh, planeOutline } from './sampling.js';
+import { planeMesh } from './sampling.js';
 
 /** The geometry renderer's registered ID, as {@link GeometryRenderer} declares it. */
 export const GEOMETRY_RENDERER_ID = 'swf.geometry-renderer/1';
@@ -78,8 +80,11 @@ export const DEFAULT_GEOMETRY_INKS: GeometryInks = Object.freeze({
 
 /** How a window's name is written: its size, the height of its line, and its plate's margin. */
 const NAME = Object.freeze({ size: 12, line: 15, margin: 3 });
-/** How far a name and its plate stand off a mark at the view's edge, in CSS pixels. */
-const INDICATOR = Object.freeze({ reach: 10, inset: 14 });
+/**
+ * A mark at the view's edge, in CSS pixels: how far round it other names keep clear, how far its
+ * own name stands off it, and how wide the ring of the ground ink round it is.
+ */
+const INDICATOR = Object.freeze({ reach: 10, inset: 14, ring: 4 });
 
 /** What a stand-in draws on its own ground: legible whatever the view is drawn over. */
 const STAND_IN = Object.freeze({
@@ -277,6 +282,9 @@ export class GeometryRendererSession implements RendererSession {
         lastOfNode.set(nodeId, p.fragment.id);
       }
     }
+    // Window frames are drawn with projection modules only.
+    const frames =
+      projection === null ? new Map<Id, WindowFrame>() : windowFrames(frame, projection);
     for (const planned of frame.planned) {
       if (planned.negotiation.layer === 'content-native') {
         if (!elsewhere.has(planned.fragment.id)) {
@@ -291,18 +299,14 @@ export class GeometryRendererSession implements RendererSession {
       } else {
         layers.push(this.#fragmentLayer(frame, planned, projection));
       }
-      if (projection !== null) {
-        for (const [nodeId, last] of lastOfNode) {
-          if (last === planned.fragment.id) {
-            const chrome = this.#chrome(frame, nodeId, planned.fragment.id, projection);
-            if (chrome !== null) {
-              layers.push(chrome);
-            }
-          }
+      for (const [nodeId, last] of lastOfNode) {
+        const drawn = frames.get(nodeId);
+        if (last === planned.fragment.id && drawn !== undefined) {
+          layers.push(this.#chrome(nodeId, drawn, planned.fragment.id));
         }
       }
     }
-    layers.push(...this.#names(frame, projection));
+    layers.push(...this.#names(frame, projection, frames));
     return Object.freeze({
       viewportId: frame.viewportId,
       sceneRevision: frame.sceneRevision,
@@ -538,44 +542,8 @@ export class GeometryRendererSession implements RendererSession {
   }
 
   /** A window's frame, drawn along its projected frame, stacked after `after`. */
-  #chrome(
-    frame: RenderFrame,
-    nodeId: Id,
-    after: string,
-    projection: Projection,
-  ): CompositionLayer | null {
-    const scene = frame.scene;
-    const node = scene.nodes.get(nodeId);
-    const geometry = nodeFrameGeometry(scene, nodeId);
-    const own = frame.planned.filter(
-      (p) => scene.surfaces.get(p.fragment.surfaceId)?.ownerNodeId === nodeId,
-    );
-    const owner = own.find((p) => p.fragment.nativeOwner);
-    // A window whose every surface is represented by its label alone has no chrome.
-    if (
-      node === undefined ||
-      geometry === undefined ||
-      owner === undefined ||
-      own.every((p) => p.representation === 'label')
-    ) {
-      return null;
-    }
-    const [w, h] = node.bounds;
-    const points = planeOutline(
-      projection,
-      frame.view,
-      geometry.world,
-      { x0: -w / 2, x1: w / 2, y0: -h / 2, y1: h / 2 },
-      12,
-      centreOf(owner.fragment.bounds),
-    );
-    if (points.length < 2) {
-      return null;
-    }
-    const selected = scene.selection.includes(nodeId);
-    const focused = scene.focusedId === nodeId;
-    const handles = selected && node.flags.resizable && !node.flags.locked;
-    const corners = [0, 12, 24, 36].flatMap((i) => (points[i] === undefined ? [] : [points[i]]));
+  #chrome(nodeId: Id, drawn: WindowFrame, after: string): CompositionLayer {
+    const { outline: points, corners, selected, focused, handles } = drawn;
     const inks = this.#inks;
     const signature = JSON.stringify([points, selected, focused, handles, after, inks]);
     return Object.freeze({
@@ -587,12 +555,13 @@ export class GeometryRendererSession implements RendererSession {
         layer(after, (ctx) => {
           outline(ctx, points);
           ctx.strokeStyle = focused ? inks.focused : selected ? inks.selected : inks.frame;
-          ctx.lineWidth = selected || focused ? 3 : 1.5;
+          ctx.lineWidth = selected || focused ? FRAME_STROKE.emphasised : FRAME_STROKE.plain;
           ctx.stroke();
           if (handles) {
+            const side = FRAME_STROKE.handle;
             ctx.fillStyle = inks.selected;
             for (const [x, y] of corners) {
-              ctx.fillRect(x - 4, y - 4, 8, 8);
+              ctx.fillRect(x - side / 2, y - side / 2, side, side);
             }
           }
         }),
@@ -611,7 +580,11 @@ export class GeometryRendererSession implements RendererSession {
    * for every name of its marks, its far end is kept for a count of those it has no room for
    * ("+3"), and the names are placed round it.
    */
-  #names(frame: RenderFrame, projection: Projection | null): CompositionLayer[] {
+  #names(
+    frame: RenderFrame,
+    projection: Projection | null,
+    frames: ReadonlyMap<Id, WindowFrame>,
+  ): CompositionLayer[] {
     const { view } = frame;
     const measure = this.#measure();
     const family = this.#options.typeface?.() ?? 'sans-serif';
@@ -623,7 +596,11 @@ export class GeometryRendererSession implements RendererSession {
       Math.ceil(measure(label, font)) + 2 * NAME.margin,
       NAME.line + 2 * NAME.margin,
     ];
-    const inView = windowNames(frame, size);
+    const inView = windowNames(
+      frame,
+      size,
+      new Map([...frames].map(([nodeId, drawn]) => [nodeId, drawn.box])),
+    );
     const marks = projection === null ? [] : this.#edgeMarks(frame, projection);
     const obstacles: NameObstacle[] = [
       ...inView.obstacles,
@@ -751,6 +728,11 @@ export class GeometryRendererSession implements RendererSession {
                 ctx.lineTo(x - dy * 6, y + dx * 6);
                 ctx.lineTo(x + dy * 6, y - dx * 6);
                 ctx.closePath();
+                // Ringed in the ground ink: a mark at an edge a window reaches reads over it.
+                ctx.lineJoin = 'round';
+                ctx.lineWidth = INDICATOR.ring;
+                ctx.strokeStyle = inks.ground;
+                ctx.stroke();
                 ctx.fillStyle = inks.frame;
                 ctx.fill();
               }

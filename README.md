@@ -552,7 +552,7 @@ written flat in a layer of names on top (`data-swf-layer="names"`, each name `da
 its window's `data-swf-node`), on a plate of `ground` in `text` (the selected and the focused
 window's in their own inks, a window's shown by its label alone in the quieter `frame`), where it
 can be read: wholly inside the view, over no other window's frame or mark and over no other name.
-A window's name goes just above its frame (at its left, else its right), else just inside one of
+A window's name goes just above its frame as drawn (at its left, else its right), else just inside one of
 its top corners, else in its middle, else just below it; a window shown by its label alone is a
 mark (`data-swf-mark`) in the middle of where it is, named beside it, else above or below it; the
 selected window's name is placed first, the focused one's next, then nearer windows' before
@@ -594,10 +594,13 @@ size), warped by a mesh that follows the view's projection point by point and cl
 fragment, so a surface split by the panorama seam is drawn on both sides; proxies and placeholders,
 each on a ground of its own, saying why they stand in; window frames along each window's projected
 frame; every window's name; and markers at the edge of a narrow view pointing to windows outside
-it, each with its window's name. Names are placed as the DOM renderer places them (`placeNames`):
-wholly inside the view, over no other window's frame or mark and over no other name; a marker's name
-goes inward of it, else as near it along the edge as there is room, and the markers at an edge whose
-names find no room there are counted at its end instead ("+3"). Frames, the selection, the focus,
+it, each ringed in the ground ink so it reads over a window reaching that edge, and each with its
+window's name. Names are placed as the DOM renderer places them (`placeNames`): wholly inside the
+view, over no other window's frame (as drawn, curved, its stroke and handles included) or mark and
+over no other name; a marker's name goes inward of it, else as near it along the edge as there is
+room, and the markers at an edge whose names find no room there are counted at its end instead
+("+3"). `windowFrames` gives each window's frame as the renderer draws it, with the box it is drawn
+in, for a host drawing over the view to keep clear of. Frames, the selection, the focus,
 names and markers are drawn in `inks`, a function the renderer reads every frame so a host's change
 of appearance is drawn at the next one; a canvas takes no custom property, so the host gives
 resolved colours, and names are written in `typeface`, read the same way. Names are measured by an

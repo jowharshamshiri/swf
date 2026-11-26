@@ -78,6 +78,34 @@ function writtenIn(rendered: RenderedFrame): Written[] {
   return written;
 }
 
+/** The box a layer paints, from its pixels drawn alone on a clear canvas; null if it paints none. */
+function paintedBox(content: unknown): readonly [number, number, number, number] | null {
+  if (!isGeometryLayer(content)) {
+    return null;
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  if (ctx === null) {
+    throw new Error('no 2D context');
+  }
+  content.draw(ctx);
+  const { data } = ctx.getImageData(0, 0, W, H);
+  let [left, top, right, bottom] = [W, H, -1, -1];
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      if ((data[(y * W + x) * 4 + 3] ?? 0) > 0) {
+        left = Math.min(left, x);
+        top = Math.min(top, y);
+        right = Math.max(right, x);
+        bottom = Math.max(bottom, y);
+      }
+    }
+  }
+  return right < 0 ? null : [left, top, right + 1 - left, bottom + 1 - top];
+}
+
 /** Each pair of texts whose letters overlap, and each text not wholly inside the view. */
 function collisions(written: readonly Written[]): string[] {
   const found: string[] = [];
@@ -103,7 +131,8 @@ function collisions(written: readonly Written[]): string[] {
 async function fontSettings<T>(run: () => Promise<T>): Promise<{ settings: number; result: T }> {
   const proto = OffscreenCanvasRenderingContext2D.prototype;
   const own = Object.getOwnPropertyDescriptor(proto, 'font');
-  const set = own?.set;
+  const set = (own === undefined ? undefined : Reflect.get(own, 'set')) as
+    ((this: unknown, value: string) => void) | undefined;
   if (own === undefined || set === undefined) {
     throw new Error('this browser’s offscreen 2D context has no font to set');
   }
@@ -202,5 +231,56 @@ describe('names over a drawn view', () => {
     const { settings, result } = await fontSettings(() => rendered(many, 90));
     expect(writtenIn(result).length).toBeGreaterThan(10);
     expect(settings).toBe(1);
+  });
+
+  it('keeps every name clear of every other window’s frame as drawn, curved round a narrow view', async () => {
+    // Near windows in a narrow view, each surface smaller than its window: each frame is drawn
+    // round its surface's fragment, curved.
+    const placed: Placed[] = [];
+    for (let i = 0; i < 4; i++) {
+      for (let j = 0; j < 3; j++) {
+        placed.push({
+          id: `w-${String(i)}-${String(j)}`,
+          kind: 'drawn',
+          heading: -0.45 + i * 0.3,
+          distance: 2.2 + ((i + j) % 3) * 0.6,
+          y: -0.9 + j * 0.9,
+          size: [1.6, 0.7],
+          inset: 0.3,
+          label: `Window ${String(i)}${String(j)}`,
+        });
+      }
+    }
+    const frame = await rendered(placed, 70);
+    const written = writtenIn(frame);
+    const owners = new Map(placed.map((p) => [p.label, p.id]));
+    const frames = frame.layers.flatMap((l) => {
+      const box = l.id.startsWith('chrome:') ? paintedBox(l.content) : null;
+      return box === null ? [] : [{ id: l.id.slice('chrome:'.length), box }];
+    });
+    expect(frames.length).toBeGreaterThan(6);
+    expect(written.length).toBeGreaterThan(4);
+    const over: string[] = [];
+    for (const {
+      text,
+      box: [ax, ay, aw, ah],
+    } of written) {
+      for (const {
+        id,
+        box: [bx, by, bw, bh],
+      } of frames) {
+        if (
+          owners.get(text) !== id &&
+          ax < bx + bw &&
+          bx < ax + aw &&
+          ay < by + bh &&
+          by < ay + ah
+        ) {
+          over.push(`"${text}" over the frame of ${id}`);
+        }
+      }
+    }
+    expect(over).toEqual([]);
+    expect(collisions(written)).toEqual([]);
   });
 });

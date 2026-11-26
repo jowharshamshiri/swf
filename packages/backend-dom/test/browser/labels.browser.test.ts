@@ -70,7 +70,8 @@ async function fontSettings(run: () => Promise<unknown>): Promise<{
   ] as const;
   const owns = protos.map(([kind, proto]) => {
     const own = Object.getOwnPropertyDescriptor(proto, 'font');
-    const set = own?.set;
+    const set = (own === undefined ? undefined : Reflect.get(own, 'set')) as
+      ((this: unknown, value: string) => void) | undefined;
     if (own === undefined || set === undefined) {
       throw new Error(`this browser’s ${kind} 2D context has no font to set`);
     }

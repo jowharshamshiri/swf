@@ -72,13 +72,15 @@ export interface Placed {
   readonly distance: number;
   readonly y?: number;
   readonly size?: readonly [number, number];
+  /** How much smaller its surface is than the window, each way, in world units. Default 0. */
+  readonly inset?: number;
   readonly label?: string;
 }
 
 /**
  * A workspace with the equirectangular projection, a camera at the origin and a viewport `v`
  * (800×400, `horizontal`×120°), holding one window per placement with one surface `<id>-s` the
- * size of its window.
+ * size of its window less its inset.
  */
 export function scene(
   placed: readonly Placed[],
@@ -130,7 +132,7 @@ export function scene(
           ownerNodeId: p.id,
           bindingKey: p.kind === 'unbound' ? null : `key-${p.id}`,
           adapterTypeId: 'test.view/1',
-          bounds: [w, h, 0.01],
+          bounds: [w - (p.inset ?? 0), h - (p.inset ?? 0), 0.01],
         },
       },
     );

@@ -237,7 +237,10 @@ describe('geometry renderer', () => {
       'fill rgb(5, 5, 5)',
       'fillText:C rgb(4, 4, 4)',
     ]);
+    // Each mark at the edge ringed in the ground ink, so it reads over a window there too, then
+    // its window's name on its ground.
     expect(layer('overlay:indicators')).toEqual([
+      'stroke rgb(5, 5, 5)',
       'fill rgb(1, 1, 1)',
       'fill rgb(5, 5, 5)',
       'fillText:Away rgb(4, 4, 4)',
@@ -249,6 +252,10 @@ describe('geometry renderer', () => {
     expect(layer('overlay:names').slice(-2)).toEqual([
       'fill rgb(7, 7, 7)',
       'fillText:C rgb(8, 8, 8)',
+    ]);
+    expect(layer('overlay:indicators').slice(0, 2)).toEqual([
+      'stroke rgb(7, 7, 7)',
+      'fill rgb(9, 9, 9)',
     ]);
     expect(DEFAULT_GEOMETRY_INKS).toEqual({
       frame: 'rgb(118, 118, 118)',

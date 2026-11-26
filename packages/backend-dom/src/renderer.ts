@@ -406,7 +406,7 @@ export class DomRendererSession implements RendererSession {
       }
     });
     if (this.#chrome !== null) {
-      layers.push(this.#namesLayer(frame, usedElements));
+      layers.push(this.#namesLayer(frame, chrome, usedElements));
     }
     // Slots of surfaces not live here this frame stay in place, hidden, so their content is not
     // moved or reloaded; everything else unused goes.
@@ -627,7 +627,11 @@ export class DomRendererSession implements RendererSession {
    * ink, in the selected or the focused window's ink for theirs. A name with no such place is not
    * written.
    */
-  #namesLayer(frame: RenderFrame, usedElements: Set<string>): CompositionLayer {
+  #namesLayer(
+    frame: RenderFrame,
+    frames: ReadonlyMap<Id, ProjectedFragment>,
+    usedElements: Set<string>,
+  ): CompositionLayer {
     const chrome = this.#chrome;
     if (chrome === null) {
       throw new Error('names were written without chrome');
@@ -642,10 +646,12 @@ export class DomRendererSession implements RendererSession {
     });
     const font = `${String(NAME.size)}px ${this.#fontFamily()}`;
     const measure = this.#measurer();
-    const { obstacles, names } = windowNames(frame, (text) => [
-      Math.ceil(measure(text, font)) + 2 * NAME.margin,
-      NAME.line + 2 * NAME.margin,
-    ]);
+    // A frame's border is drawn inside its piece's bounds.
+    const { obstacles, names } = windowNames(
+      frame,
+      (text) => [Math.ceil(measure(text, font)) + 2 * NAME.margin, NAME.line + 2 * NAME.margin],
+      new Map([...frames].map(([nodeId, piece]) => [nodeId, piece.bounds])),
+    );
     const placed = placeNames(frame.view, obstacles, names);
     names.forEach((name, i) => {
       const at = placed[i];

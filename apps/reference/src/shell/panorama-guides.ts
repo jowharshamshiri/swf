@@ -1,4 +1,5 @@
 import { resolvePalette } from '@wsb/uikit/primitives';
+import { windowFrames } from '@swf/backend-geometry';
 import type { Vec3 } from '@swf/math';
 import type { NameObstacle, NameRequest, ScreenPoint } from '@swf/presentation';
 import { placeNames, viewGeometryOf, windowNames } from '@swf/presentation';
@@ -444,13 +445,26 @@ export class PanoramaGuides {
     }
     // The windows are drawn over the guides: a word keeps clear of every window's frame and mark,
     // and of every place the window's name may be written, as the panorama last presented them.
+    // Either backend draws a frame within the box the geometry backend draws it in: through its
+    // corners, which the geometry backend's outline passes through.
     const windows: NameObstacle[] = [];
     const presented = this.#options.app.viewport.lastFrame();
     if (presented !== null) {
-      const names = windowNames(presented.frame, (text) => [
-        Math.ceil(g.measureText(text).width) + 2 * NAME_PLATE.margin,
-        NAME_PLATE.line + 2 * NAME_PLATE.margin,
-      ]);
+      const { app } = this.#options;
+      const shown = presented.frame.view;
+      const module = app.projections.get(shown.projectionId);
+      if (module === undefined) {
+        throw new Error(`projection "${shown.projectionId}" is not registered`);
+      }
+      const frames = windowFrames(presented.frame, projectionFor(module, shown));
+      const names = windowNames(
+        presented.frame,
+        (text) => [
+          Math.ceil(g.measureText(text).width) + 2 * NAME_PLATE.margin,
+          NAME_PLATE.line + 2 * NAME_PLATE.margin,
+        ],
+        new Map([...frames].map(([nodeId, drawn]) => [nodeId, drawn.box])),
+      );
       for (const { box } of names.obstacles) {
         windows.push({ owner: WINDOWS, box });
       }
