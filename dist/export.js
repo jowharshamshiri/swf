@@ -1,0 +1,92 @@
+import { canonicalJson, jsonValue } from '@swf/core';
+import { disclosureOf } from './trace.js';
+/**
+ * Diagnostics as a JSON document to save or share (AN-011, PRIV-003, AN-009): by default
+ * identifiers, performance numbers and error codes only. Labels, binding keys and the host's tags
+ * and metadata are added only when disclosed, each in its own section (`labels`, `bindings`,
+ * `hostData`) keyed by ID, and error messages beside their codes, so what was shared is plain to
+ * see; the `disclosed` field says what was chosen. Timings disclosed add the trace's timestamps
+ * and durations; the report's own measures are always included. It never walks a surface's
+ * content: only the scene's own records and the measures given. It sends nothing anywhere.
+ *
+ * @returns Canonical JSON text, keys sorted and indented by two spaces, of the format
+ *   `swf.diagnostics/1`.
+ * @throws {@link @swf/core!SwfFailure} `INVALID_INPUT` for an invalid disclosure (naming
+ *   `disclosure.<field>`), measures that are not JSON data (naming the path under `measures`), or
+ *   an `exportedAt` that is `NaN` or infinite (naming `export.exportedAt`).
+ */
+export function exportDiagnostics(input) {
+    const open = disclosureOf(input.disclosure ?? {});
+    const { report, scene } = input;
+    const nodes = [...scene.nodes.values()];
+    const surfaces = [...scene.surfaces.values()];
+    const body = {
+        export: 'swf.diagnostics/1',
+        workspaceId: scene.workspaceId,
+        revision: scene.revision,
+        exportedAt: input.exportedAt,
+        disclosed: { ...open },
+        backends: report.backends.map((b) => ({
+            viewportId: b.viewportId,
+            state: b.state,
+            renderer: b.backend?.renderer ?? null,
+            compositor: b.backend?.compositor ?? null,
+            degradedBy: b.degradedBy === null ? null : errorOf(b.degradedBy, open),
+        })),
+        fallbacks: report.fallbacks.map((f) => ({
+            viewportId: f.viewportId,
+            count: f.count,
+            surfaceIds: [...f.surfaceIds],
+            chosen: f.example.chosen,
+            preferred: f.example.preferred,
+            requirements: [...new Set(f.example.gaps.map((g) => g.requirement))],
+        })),
+        frames: report.frames.map((f) => ({ ...f, lastDirty: [...f.lastDirty] })),
+        attachments: report.attachments.map((a) => ({
+            ...a,
+            bindMs: a.bindMs === null ? null : { ...a.bindMs },
+            fallbacks: { ...a.fallbacks },
+        })),
+        density: {
+            nodes: report.density.nodes,
+            surfaces: report.density.surfaces,
+            viewports: report.density.viewports.map((v) => ({ ...v })),
+        },
+        operations: report.operations.map((o) => ({ ...o })),
+        resources: {
+            ...report.resources,
+            presenter: { ...report.resources.presenter },
+        },
+        errors: report.errors.map((e) => ({ at: e.at, source: e.source, ...errorOf(e.error, open) })),
+        listenerFailures: report.listenerFailures,
+    };
+    if (open.labels) {
+        body['labels'] = {
+            nodes: Object.fromEntries(nodes.map((n) => [n.id, n.label])),
+            surfaces: Object.fromEntries(surfaces.map((s) => [s.id, s.label])),
+        };
+    }
+    if (open.bindingKeys) {
+        body['bindings'] = Object.fromEntries(surfaces.map((s) => [s.id, { bindingKey: s.bindingKey, adapterTypeId: s.adapterTypeId }]));
+    }
+    if (open.hostData) {
+        body['hostData'] = Object.fromEntries(nodes.map((n) => [n.id, { tags: [...n.tags], metadata: n.metadata }]));
+    }
+    if (input.trace !== undefined) {
+        body['trace'] = JSON.parse(input.trace.serialize(open));
+    }
+    if (input.measures !== undefined) {
+        body['measures'] = jsonValue(input.measures, 'measures');
+    }
+    return JSON.stringify(canonicalJson(jsonValue(body, 'export')), null, 2);
+}
+/** An error as an export holds it: its code and where, and its message only when disclosed. */
+function errorOf(error, open) {
+    return {
+        code: error.code,
+        entityId: error.entityId ?? null,
+        path: error.path ?? null,
+        ...(open.messages ? { message: error.message } : {}),
+    };
+}
+//# sourceMappingURL=export.js.map
