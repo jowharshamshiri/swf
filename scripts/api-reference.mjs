@@ -87,7 +87,9 @@ async function anyInDeclarations() {
       try {
         entries = await readdir(folder, { recursive: true });
       } catch (error) {
-        if (error.code === 'ENOTDIR') continue;
+        // A file the package ships (its changelog), or one the release adds to it (its licence and
+        // notice): no declarations to read. Only the built output must be there.
+        if (error.code === 'ENOTDIR' || (error.code === 'ENOENT' && shipped !== 'dist')) continue;
         return [
           `${workspace} has no ${shipped}/ (${String(error.code)}): run npm run build:packages first`,
         ];
