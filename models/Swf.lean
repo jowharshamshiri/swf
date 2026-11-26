@@ -22,3 +22,4 @@ import Swf.AppScenarios
 import Swf.AppChallenge
 import Swf.AppWheel
 import Swf.AppOverview
+import Swf.AppFocus

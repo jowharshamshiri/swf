@@ -18,10 +18,15 @@ export interface AppConfig {
   readonly restore: boolean;
 }
 
+/**
+ * The studio on the geometry backend: its notes are placed live in the page and its tiles are
+ * drawn, so every window, focused or not, shows what it holds. The DOM backend, which places live
+ * elements and never draws, shows tiles by their stand-ins; it is the geometry backend's fallback.
+ */
 export const DEFAULT_CONFIG: AppConfig = Object.freeze({
   preset: 'studio',
   seed: PRESETS.studio.defaultSeed,
-  backend: 'dom',
+  backend: 'geometry',
   restore: true,
 });
 

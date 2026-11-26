@@ -113,6 +113,13 @@ describe('stand-in reasons (FR-195)', () => {
     expect(standInReason(planned({ ...bound, presentedElsewhere: true }, 'proxy'))).toBe(
       'elsewhere',
     );
+    // Shown elsewhere, but represented here by choice: the representation is the reason.
+    expect(
+      standInReason(planned({ ...bound, presentedElsewhere: true }, 'proxy', 'compact')),
+    ).toBeNull();
+    expect(
+      standInReason(planned({ ...bound, presentedElsewhere: true }, 'proxy', 'label')),
+    ).toBeNull();
     expect(STAND_IN_REASONS).toHaveLength(6);
   });
 });

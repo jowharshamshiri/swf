@@ -463,6 +463,63 @@ export type FeaturesUpdate =
 /** The descriptor of Swf.AppFeatures.FeaturesUpdate: how its values cross the boundary. */
 export function featuresUpdateType(): L.Type<FeaturesUpdate>;
 
+/**
+ * The transition: what the committed view was last framed for, where the transition stands, and
+ * how long one lasts.
+ */
+export interface Transition {
+  /** Lean's Swf.AppFocus.Transition.framing. */
+  readonly framing: Framing;
+  /** Lean's Swf.AppFocus.Transition.phase. */
+  readonly phase: Phase;
+  /** Lean's Swf.AppFocus.Transition.duration. */
+  readonly duration: bigint;
+}
+/** The descriptor of Swf.AppFocus.Transition: how its values cross the boundary. */
+export function transitionType(): L.Type<Transition>;
+
+/** What happens to the view. */
+export type TransitionEvent =
+  | {
+      /**
+       * A commit, with what the view frames after it, whether it changed the view (a camera or a
+       * projection), whether it is the application fitting the view rather than the operator changing
+       * it, and whether motion is allowed.
+       */
+      readonly kind: "commit";
+      /** The field `framing` of Lean's Swf.AppFocus.TransitionEvent.commit. */
+      readonly framing: Framing;
+      /** The field `viewChanged` of Lean's Swf.AppFocus.TransitionEvent.commit. */
+      readonly viewChanged: boolean;
+      /** The field `fitted` of Lean's Swf.AppFocus.TransitionEvent.commit. */
+      readonly fitted: boolean;
+      /** The field `motion` of Lean's Swf.AppFocus.TransitionEvent.commit. */
+      readonly motion: boolean;
+    }
+  | {
+      /** A frame is about to be shown. */
+      readonly kind: "frame";
+      /** The field `time` of Lean's Swf.AppFocus.TransitionEvent.frame. */
+      readonly time: bigint;
+    }
+  | {
+      /** The operator took the view in hand. */
+      readonly kind: "interrupt";
+    }
+;
+/** The descriptor of Swf.AppFocus.TransitionEvent: how its values cross the boundary. */
+export function transitionEventType(): L.Type<TransitionEvent>;
+
+/** The transition after an event, and what the application does. */
+export interface TransitionAnswer {
+  /** Lean's Swf.AppFocus.TransitionAnswer.transition. */
+  readonly transition: Transition;
+  /** Lean's Swf.AppFocus.TransitionAnswer.action. */
+  readonly action: TransitionAction;
+}
+/** The descriptor of Swf.AppFocus.TransitionAnswer: how its values cross the boundary. */
+export function transitionAnswerType(): L.Type<TransitionAnswer>;
+
 /** What the orbit policy weighs. */
 export interface OrbitState {
   /** The orbit policy is on. */
@@ -2349,6 +2406,67 @@ export type FeatureFault =
 /** The descriptor of Swf.AppFeatures.FeatureFault: how its values cross the boundary. */
 export function featureFaultType(): L.Type<FeatureFault>;
 
+/** What a view frames: its mode, and the window it frames when it frames one (a focus). */
+export interface Framing {
+  /** Lean's Swf.AppFocus.Framing.mode. */
+  readonly mode: string;
+  /** Lean's Swf.AppFocus.Framing.framed. */
+  readonly framed: L.Option<string>;
+}
+/** The descriptor of Swf.AppFocus.Framing: how its values cross the boundary. */
+export function framingType(): L.Type<Framing>;
+
+/**
+ * Where a transition stands: none under way, one due to be shown from the next frame, or one
+ * shown since a time.
+ */
+export type Phase =
+  | {
+      /** Lean's Swf.AppFocus.Phase.idle. */
+      readonly kind: "idle";
+    }
+  | {
+      /** Lean's Swf.AppFocus.Phase.due. */
+      readonly kind: "due";
+    }
+  | {
+      /** Lean's Swf.AppFocus.Phase.running. */
+      readonly kind: "running";
+      /** The field `began` of Lean's Swf.AppFocus.Phase.running. */
+      readonly began: bigint;
+    }
+;
+/** The descriptor of Swf.AppFocus.Phase: how its values cross the boundary. */
+export function phaseType(): L.Type<Phase>;
+
+/** What the application does. */
+export type TransitionAction =
+  | {
+      /** Nothing. */
+      readonly kind: "none";
+    }
+  | {
+      /** Start a transition from what is shown now to the committed view. */
+      readonly kind: "start";
+    }
+  | {
+      /** End the transition under way: show the committed view at once. */
+      readonly kind: "jump";
+    }
+  | {
+      /** Show the transition this many milliseconds along. */
+      readonly kind: "progress";
+      /** The field `elapsed` of Lean's Swf.AppFocus.TransitionAction.progress. */
+      readonly elapsed: bigint;
+    }
+  | {
+      /** The transition has run its course: show the committed view. */
+      readonly kind: "finish";
+    }
+;
+/** The descriptor of Swf.AppFocus.TransitionAction: how its values cross the boundary. */
+export function transitionActionType(): L.Type<TransitionAction>;
+
 /** What a background drag turns in a viewport. */
 export type OrbitNavigation =
   | {
@@ -3110,6 +3228,16 @@ export class SwfModels {
    * Lean's Swf.AppFeatures.featuresUpdate : Swf.AppFeatures.FeatureSettings → Swf.Json → Swf.AppFeatures.FeaturesUpdate
    */
   featuresUpdate(current: FeatureSettings, patch: Json): FeaturesUpdate;
+  /**
+   * The transition after an event. A commit that changes the view moves it to what the view frames
+   * then: by a transition when that differs from what it framed and motion is allowed; on with the one
+   * under way when the application only fitted the view; at once otherwise, ending any under way. A
+   * commit that leaves the view as it was keeps what it framed, unless it changed the mode, so the
+   * frame a refocus commits next still moves. A due transition is shown from the next frame on.
+   *
+   * Lean's Swf.AppFocus.transitionStep : Swf.AppFocus.Transition → Swf.AppFocus.TransitionEvent → Swf.AppFocus.TransitionAnswer
+   */
+  transitionStep(t: Transition, a: TransitionEvent): TransitionAnswer;
   /**
    * Whether a key binding of `command` stays in the keymap: while the policy is off, none that
    * turns the orbit root does.

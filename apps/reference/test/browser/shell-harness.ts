@@ -42,8 +42,15 @@ export async function endVisits(): Promise<void> {
 
 afterEach(endVisits);
 
-/** Mounts the shell as the page does, with the developer panel and a store of the test's own. */
-export async function start(search: string, appOptions: ShellAppOptions): Promise<Mounted> {
+/**
+ * Mounts the shell as the page does, with the developer panel and a store of the test's own, in a
+ * page of a size (by default 1280 × 760).
+ */
+export async function start(
+  search: string,
+  appOptions: ShellAppOptions,
+  size: { readonly width: number; readonly height: number } = { width: 1280, height: 760 },
+): Promise<Mounted> {
   const html = document.documentElement;
   html.classList.add(ROOT_CLASS);
   setAppearance(html, 'light');
@@ -51,8 +58,8 @@ export async function start(search: string, appOptions: ShellAppOptions): Promis
   const root = document.createElement('div');
   root.style.setProperty('position', 'absolute');
   root.style.setProperty('inset', '0 auto auto 0');
-  root.style.setProperty('width', '1280px');
-  root.style.setProperty('height', '760px');
+  root.style.setProperty('width', `${String(size.width)}px`);
+  root.style.setProperty('height', `${String(size.height)}px`);
   document.body.append(root);
   const model = new ShellModel(createMessages(), parseConfig(search), appOptions);
   const shell = mount(Shell, { target: root, props: { model, developer: DeveloperView } });

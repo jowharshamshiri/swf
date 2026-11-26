@@ -427,7 +427,8 @@ export interface PresentedViewport {
   lastFrame(): ViewportFrame | null;
   /**
    * Hides its surfaces here (releasing their attachments where the endpoint allows) and releases
-   * its backend. Returns the surfaces whose endpoint did not allow release; their content leaves
+   * its backend. A viewport whose record is deleted shows its last frame and presents nothing more
+   * until the record comes back; dispose it with the record. Returns the surfaces whose endpoint did not allow release; their content leaves
    * with the backend's resources. Safe to call twice: both calls get the same promise. It never
    * stops a surface's producer, and afterwards the presenter no longer lists the viewport and its
    * ID can be opened again, even when the host's `showDegraded` cleanup throws (which rejects it).
@@ -1056,10 +1057,16 @@ class ViewportImpl implements PresentedViewport {
 
   /**
    * The dirt that makes a frame due, or null when there is none. The presented scene is compared
-   * by what this viewport reads of it, so another viewport's camera, say, leaves this one be.
+   * by what this viewport reads of it, so another viewport's camera, say, leaves this one be. A
+   * viewport whose record the presented scene no longer has is never due: there is no view to
+   * present until the record comes back, and its host disposes it.
    */
   due(): DirtyFlag[] | null {
     if (!models.viewportPresents(leanState(this.#state))) {
+      return null;
+    }
+    const scene = this.#presenter.options.workspace.getPresented();
+    if (!scene.viewports.has(this.viewportId)) {
       return null;
     }
     const flags = new Set(this.#flags);
@@ -1067,7 +1074,6 @@ class ViewportImpl implements PresentedViewport {
     if (seen === null) {
       flags.add('scene');
     } else {
-      const scene = this.#presenter.options.workspace.getPresented();
       if (scene !== seen.scene) {
         if (!sameContent(scene, seen.scene)) {
           flags.add('scene');

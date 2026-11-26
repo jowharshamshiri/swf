@@ -1294,6 +1294,318 @@
       }
     },
     {
+      "name": "Swf.AppFocus.duration_kept",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppFocus.transitionStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (t : Swf.AppFocus.Transition) (e : Swf.AppFocus.TransitionEvent),\n  (Swf.AppFocus.transitionStep t e).transition.duration = t.duration",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "5dee2a786ea15d385c052fc9ef0333e1fba9a419b34be60e2df962e0693cec46",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppFocus.lean",
+        "start": {
+          "line": 216,
+          "column": 1
+        },
+        "end": {
+          "line": 220,
+          "column": 74
+        }
+      }
+    },
+    {
+      "name": "Swf.AppFocus.finishes_by_duration",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppFocus.transitionStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (t : Swf.AppFocus.Transition) (began time : Nat),\n  t.phase = Swf.AppFocus.Phase.running began →\n    began + t.duration ≤ time →\n      Swf.AppFocus.transitionStep t (Swf.AppFocus.TransitionEvent.frame time) =\n        { transition := { framing := t.framing, phase := Swf.AppFocus.Phase.idle, duration := t.duration },\n          action := Swf.AppFocus.TransitionAction.finish }",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "7d6af7bb266dd2c12ff0aae4b3801f7fa35070eaf60432494e723d1f993792a6",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppFocus.lean",
+        "start": {
+          "line": 184,
+          "column": 1
+        },
+        "end": {
+          "line": 190,
+          "column": 34
+        }
+      }
+    },
+    {
+      "name": "Swf.AppFocus.fitting_keeps_going",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppFocus.transitionStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (t : Swf.AppFocus.Transition) (m : Bool),\n  t.phase.underWay = true →\n    Swf.AppFocus.transitionStep t (Swf.AppFocus.TransitionEvent.commit t.framing true true m) =\n      { transition := t, action := Swf.AppFocus.TransitionAction.none }",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "a8613ca6d214dff2e63a4cea02fb05038a9ee911a44db35dc98786624cb8b622",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppFocus.lean",
+        "start": {
+          "line": 171,
+          "column": 1
+        },
+        "end": {
+          "line": 175,
+          "column": 28
+        }
+      }
+    },
+    {
+      "name": "Swf.AppFocus.interrupt_ends",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppFocus.transitionStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (t : Swf.AppFocus.Transition),\n  (Swf.AppFocus.transitionStep t Swf.AppFocus.TransitionEvent.interrupt).transition.phase = Swf.AppFocus.Phase.idle",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "422708da79e26887a643fd0819c2490448a984341c71c5d24bc28bd1bc427e77",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppFocus.lean",
+        "start": {
+          "line": 206,
+          "column": 1
+        },
+        "end": {
+          "line": 214,
+          "column": 53
+        }
+      }
+    },
+    {
+      "name": "Swf.AppFocus.no_motion_no_start",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppFocus.transitionStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (t : Swf.AppFocus.Transition) (framing : Swf.AppFocus.Framing) (v f : Bool),\n  (Swf.AppFocus.transitionStep t (Swf.AppFocus.TransitionEvent.commit framing v f false)).action ≠\n    Swf.AppFocus.TransitionAction.start",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "c08f730bb071c17b891bcb926cab960afddb97b31e88d239de685bb8f378f2d1",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppFocus.lean",
+        "start": {
+          "line": 140,
+          "column": 1
+        },
+        "end": {
+          "line": 151,
+          "column": 19
+        }
+      }
+    },
+    {
+      "name": "Swf.AppFocus.operator_change_ends",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppFocus.transitionStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (t : Swf.AppFocus.Transition) (m : Bool),\n  (Swf.AppFocus.transitionStep t (Swf.AppFocus.TransitionEvent.commit t.framing true false m)).transition.phase =\n    Swf.AppFocus.Phase.idle",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "ba63d15e9d186d8851a1d0ac78663990f12c631edad4881d5a9da41f019ec60f",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppFocus.lean",
+        "start": {
+          "line": 164,
+          "column": 1
+        },
+        "end": {
+          "line": 169,
+          "column": 24
+        }
+      }
+    },
+    {
+      "name": "Swf.AppFocus.progress_within",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppFocus.transitionStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (t : Swf.AppFocus.Transition) (time elapsed : Nat),\n  (Swf.AppFocus.transitionStep t (Swf.AppFocus.TransitionEvent.frame time)).action =\n      Swf.AppFocus.TransitionAction.progress elapsed →\n    elapsed < t.duration",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "b6ce3db6a7658588a3e8a66b8e1643cebf379035f45ad9221fcaa32b6b0bbc9f",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppFocus.lean",
+        "start": {
+          "line": 192,
+          "column": 1
+        },
+        "end": {
+          "line": 204,
+          "column": 21
+        }
+      }
+    },
+    {
+      "name": "Swf.AppFocus.shown_from_first_frame",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppFocus.transitionStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (t : Swf.AppFocus.Transition) (time : Nat),\n  t.phase = Swf.AppFocus.Phase.due →\n    0 < t.duration →\n      Swf.AppFocus.transitionStep t (Swf.AppFocus.TransitionEvent.frame time) =\n        { transition := { framing := t.framing, phase := Swf.AppFocus.Phase.running time, duration := t.duration },\n          action := Swf.AppFocus.TransitionAction.progress 0 }",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "c1a53179822b12d4f21d06ea534a0b9cb047d0c0b43ecff7397e5966ca1f4038",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppFocus.lean",
+        "start": {
+          "line": 177,
+          "column": 1
+        },
+        "end": {
+          "line": 182,
+          "column": 32
+        }
+      }
+    },
+    {
+      "name": "Swf.AppFocus.starts_only_on_reframing",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppFocus.transitionStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (t : Swf.AppFocus.Transition) (e : Swf.AppFocus.TransitionEvent),\n  (Swf.AppFocus.transitionStep t e).action = Swf.AppFocus.TransitionAction.start →\n    ∃ framing fitted,\n      e = Swf.AppFocus.TransitionEvent.commit framing true fitted true ∧\n        framing ≠ t.framing ∧ (Swf.AppFocus.transitionStep t e).transition.phase = Swf.AppFocus.Phase.due",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "4cb5f6a4ba607d48ad3221cb8b41fe22c20f9d84a598c5ab2bfaabcf09c97375",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppFocus.lean",
+        "start": {
+          "line": 107,
+          "column": 1
+        },
+        "end": {
+          "line": 138,
+          "column": 29
+        }
+      }
+    },
+    {
+      "name": "Swf.AppFocus.view_change_reframes",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppFocus.transitionStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (t : Swf.AppFocus.Transition) (framing : Swf.AppFocus.Framing) (f m : Bool),\n  (Swf.AppFocus.transitionStep t (Swf.AppFocus.TransitionEvent.commit framing true f m)).transition.framing = framing",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "5cc3afcb0b9b66156a8bca7182cc080825898b2e76d4265c4fa87cc51ff370a1",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppFocus.lean",
+        "start": {
+          "line": 153,
+          "column": 1
+        },
+        "end": {
+          "line": 162,
+          "column": 10
+        }
+      }
+    },
+    {
       "name": "Swf.AppOrbit.designate_refuses_non_group",
       "relation": "lungo.law",
       "subjects": [
@@ -6676,6 +6988,52 @@
         "end": {
           "line": 227,
           "column": 45
+        }
+      }
+    },
+    {
+      "name": "Swf.AppFocus.transitionStep",
+      "module": "Swf.AppFocus",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_nat_dec_le",
+          "lean_nat_dec_lt",
+          "lean_nat_sub",
+          "lean_string_dec_eq"
+        ]
+      },
+      "claims": [
+        "Swf.AppFocus.duration_kept",
+        "Swf.AppFocus.finishes_by_duration",
+        "Swf.AppFocus.fitting_keeps_going",
+        "Swf.AppFocus.interrupt_ends",
+        "Swf.AppFocus.no_motion_no_start",
+        "Swf.AppFocus.operator_change_ends",
+        "Swf.AppFocus.progress_within",
+        "Swf.AppFocus.shown_from_first_frame",
+        "Swf.AppFocus.starts_only_on_reframing",
+        "Swf.AppFocus.view_change_reframes"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppFocus.lean",
+        "start": {
+          "line": 77,
+          "column": 1
+        },
+        "end": {
+          "line": 103,
+          "column": 80
         }
       }
     },

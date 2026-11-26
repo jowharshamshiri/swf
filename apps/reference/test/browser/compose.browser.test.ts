@@ -11,7 +11,8 @@ import { endVisits, layout, same, start } from './shell-harness.js';
 describe('multi-surface composition in the shell (FR-126, AC-016, §33.2 scenario 4)', () => {
   it('detaches a surface into its own window, reattaches it, saves, reloads and finds every transform', async () => {
     const store = createMemoryStore();
-    const { model, driver, settle, root } = await start('?preset=composed', {
+    // It reads the DOM backend's own elements: the DOM backend, by name.
+    const { model, driver, settle, root } = await start('?preset=composed&backend=dom', {
       store,
       autosaveDelayMs: 0,
     });
@@ -255,7 +256,8 @@ describe('the developer panel (FR-194, ADM-001–004, §33.2 scenario 7)', () =>
       ?.getAttribute('data-swf-stand-in') ?? null;
 
   it('simulates a missing, a slow and a throwing adapter and a non-shareable surface, each said honestly, the rest usable', async () => {
-    const { model, driver, settle, root } = await start('?preset=sparse', {
+    // It reads the DOM backend's own elements: the DOM backend, by name.
+    const { model, driver, settle, root } = await start('?preset=sparse&backend=dom', {
       store: createMemoryStore(),
     });
     driver.act('worktree.view#developer', 'press');

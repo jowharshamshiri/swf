@@ -25,7 +25,7 @@ declare module 'vitest/browser' {
       modifiers?: readonly string[],
     ) => Promise<void>;
     mouse: (
-      action: 'move' | 'down' | 'up',
+      action: 'move' | 'down' | 'up' | 'double',
       x: number,
       y: number,
       modifiers?: readonly string[],
@@ -60,12 +60,13 @@ async function visit(): Promise<Mounted & { readonly app: ReferenceApp }> {
 }
 
 /** Where a point of a window, in its own frame, is on the page. */
-function onPage(m: Mounted, app: ReferenceApp, id: string, local: Vec3): [number, number] {
+function onPage(app: ReferenceApp, id: string, local: Vec3): [number, number] {
   const state = app.workspace.getState();
   const world = worldMatrix(state.nodes, id);
-  const box = m.root.querySelector('[data-swf-viewport]')?.getBoundingClientRect();
-  if (world === undefined || box === undefined) {
-    throw new Error(`${id} is not shown`);
+  // The element the viewport fills, whichever backend presents it.
+  const box = app.root.getBoundingClientRect();
+  if (world === undefined) {
+    throw new Error(`${id} is not in the scene`);
   }
   const view = viewGeometryOf(state, VIEWPORT_ID);
   const image = equirectangular
@@ -78,9 +79,9 @@ function onPage(m: Mounted, app: ReferenceApp, id: string, local: Vec3): [number
 }
 
 /** A point on a window's frame, in its title band below the edge a resize takes. */
-function onFrame(m: Mounted, app: ReferenceApp, id: string): [number, number] {
+function onFrame(app: ReferenceApp, id: string): [number, number] {
   const height = app.workspace.getState().nodes.get(id)?.bounds[1] ?? 0;
-  return onPage(m, app, id, [0, height / 2 - 0.15, 0]);
+  return onPage(app, id, [0, height / 2 - 0.15, 0]);
 }
 
 /** A window's pose in a scene, seen from the camera. */
@@ -145,7 +146,7 @@ describe('a window handled directly in the panorama', () => {
     const { app } = m;
     const before = app.workspace.getState();
     const history = app.workspace.history().length;
-    const seen = await dragFrom(m, onFrame(m, app, 'window-01'), [12, 0], 6, [], () => ({
+    const seen = await dragFrom(m, onFrame(app, 'window-01'), [12, 0], 6, [], () => ({
       bar: bar(m),
       shown: app.poseOf('window-01')?.heading ?? NaN,
       slider: slider(m, 'heading'),
@@ -182,7 +183,7 @@ describe('a window handled directly in the panorama', () => {
     const history = app.workspace.history().length;
     const reach = () => app.poseOf('window-01')?.reach ?? NaN;
     const start = reach();
-    const away = await dragFrom(m, onFrame(m, app, 'window-01'), [0, -10], 6, ['Shift'], () => ({
+    const away = await dragFrom(m, onFrame(app, 'window-01'), [0, -10], 6, ['Shift'], () => ({
       reach: reach(),
       slider: slider(m, 'reach'),
       bar: bar(m),
@@ -200,7 +201,7 @@ describe('a window handled directly in the panorama', () => {
     // Its heading kept: the pointer went straight up.
     expect(farther.heading).toBeCloseTo(poseIn(before, 'window-01').heading, 1);
     // And back: down brings it nearer.
-    await dragFrom(m, onFrame(m, app, 'window-01'), [0, 10], 6, ['Shift'], reach);
+    await dragFrom(m, onFrame(app, 'window-01'), [0, 10], 6, ['Shift'], reach);
     expect(poseIn(app.workspace.getState(), 'window-01').reach).toBeLessThan(farther.reach);
     expect(app.workspace.history()).toHaveLength(history + 2);
     expect(await m.model.run('reference.history.undo', {})).toBe(true);
@@ -215,7 +216,7 @@ describe('a window handled directly in the panorama', () => {
     const { app } = m;
     const before = app.workspace.getState();
     const history = app.workspace.history().length;
-    const [x, y] = onFrame(m, app, 'window-01');
+    const [x, y] = onFrame(app, 'window-01');
     const reach = () => app.poseOf('window-01')?.reach ?? NaN;
     const start = reach();
     const seen: { reach: number; committed: number; bar: string }[] = [];
@@ -261,7 +262,7 @@ describe('a window handled directly in the panorama', () => {
     const before = app.workspace.getState();
     const history = app.workspace.history().length;
     const turned = () => app.poseOf('window-01')?.turned ?? NaN;
-    const seen = await dragFrom(m, onFrame(m, app, 'window-01'), [10, 0], 6, ['Control'], () => ({
+    const seen = await dragFrom(m, onFrame(app, 'window-01'), [10, 0], 6, ['Control'], () => ({
       turned: turned(),
       slider: slider(m, 'turned'),
       bar: bar(m),
@@ -295,7 +296,7 @@ describe('a window handled directly in the panorama', () => {
     const history = app.workspace.history().length;
     const width = before?.bounds[0] ?? 0;
     // On its right edge, within the band that resizes.
-    const edge = onPage(m, app, 'window-01', [width / 2 - 0.01, 0, 0]);
+    const edge = onPage(app, 'window-01', [width / 2 - 0.01, 0, 0]);
     const seen = await dragFrom(m, edge, [8, 0], 5, [], () => ({
       width: app.workspace.getPresented().nodes.get('window-01')?.bounds[0] ?? NaN,
       bar: bar(m),
@@ -318,7 +319,7 @@ describe('a window handled directly in the panorama', () => {
     expect(await m.model.run('reference.view.heading', { degrees: 25 })).toBe(true);
     await settle();
     const tap = async (id: string, modifiers: readonly string[] = []) => {
-      const [x, y] = onFrame(m, app, id);
+      const [x, y] = onFrame(app, id);
       await commands.mouse('move', x, y);
       await commands.mouse('down', x, y, modifiers);
       await commands.mouse('up', x, y, modifiers);
@@ -377,7 +378,7 @@ describe('a window handled directly in the panorama', () => {
     // a list does: Delete then removes both.
     expect(await m.model.run('reference.view.heading', { degrees: 25 })).toBe(true);
     await settle();
-    const [x, y] = onFrame(m, app, 'window-01');
+    const [x, y] = onFrame(app, 'window-01');
     await commands.mouse('move', x, y);
     await commands.mouse('down', x, y, ['Control']);
     await commands.mouse('up', x, y, ['Control']);
@@ -399,6 +400,77 @@ describe('a window handled directly in the panorama', () => {
     expect(app.workspace.getState().nodes.has('window-01')).toBe(true);
     expect(app.workspace.getState().nodes.has('window-02')).toBe(true);
   });
+
+  for (const backend of ['geometry', 'dom']) {
+    it(`leaves the keyboard with a window’s live content pressed in the panorama, on the ${backend} backend`, async () => {
+      const m = await start(`?preset=sparse&backend=${backend}`, { store: createMemoryStore() });
+      const app = m.model.app;
+      if (app === null) {
+        throw new Error('no application');
+      }
+      expect(app.status().backend).toBe(backend);
+      const view = app.root.getBoundingClientRect();
+      // A note's text, in sight.
+      const text = [
+        ...m.root.querySelectorAll<HTMLElement>('[data-reference-content] [contenteditable]'),
+      ].find((element) => {
+        const box = element.getBoundingClientRect();
+        const [x, y] = [box.left + box.width / 2, box.top + box.height / 2];
+        return box.width > 0 && x > view.left && x < view.right && y > view.top && y < view.bottom;
+      });
+      if (text === undefined) {
+        throw new Error('no note in sight');
+      }
+      let taken = 0;
+      const take = () => {
+        taken += 1;
+      };
+      app.root.addEventListener('focus', take);
+      const box = text.getBoundingClientRect();
+      const [x, y] = [Math.round(box.left + box.width / 2), Math.round(box.top + box.height / 2)];
+      await commands.mouse('move', x, y);
+      await commands.mouse('down', x, y);
+      await commands.mouse('up', x, y);
+      await m.settle();
+      app.root.removeEventListener('focus', take);
+      expect(taken).toBe(0);
+      expect(document.activeElement).toBe(text);
+      // What is typed there is the note's, not the panorama's keys.
+      const windows = app.workspace.getState().nodes.size;
+      const before = text.textContent;
+      await userEvent.keyboard('nd');
+      await m.settle();
+      expect(text.textContent).not.toBe(before);
+      expect(app.workspace.getState().nodes.size).toBe(windows);
+    });
+
+    it(`leaves the application’s keys to whatever has the keyboard in a window’s live content, on the ${backend} backend`, async () => {
+      const m = await start(`?preset=sparse&backend=${backend}`, { store: createMemoryStore() });
+      const app = m.model.app;
+      if (app === null) {
+        throw new Error('no application');
+      }
+      expect(app.status().backend).toBe(backend);
+      expect(await m.model.run('reference.window.sendBehind', { id: 'window-01' })).toBe(true);
+      await m.settle();
+      const history = app.workspace.history().length;
+      // Host content may hold any control: a button in a note, with the keyboard.
+      const note = m.root.querySelector<HTMLElement>('[data-reference-content]');
+      if (note === null) {
+        throw new Error('no live content');
+      }
+      const control = document.createElement('button');
+      control.textContent = 'Host control';
+      note.append(control);
+      control.focus();
+      expect(document.activeElement).toBe(control);
+      await userEvent.keyboard('{Control>}z{/Control}');
+      await m.settle();
+      expect(app.workspace.history()).toHaveLength(history);
+      expect(app.workspace.canUndo()).toBe(true);
+      control.remove();
+    });
+  }
 });
 
 describe('the inspector’s sliders', () => {

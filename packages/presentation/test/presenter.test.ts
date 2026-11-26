@@ -1320,6 +1320,33 @@ describe('presenter contract', () => {
     );
   });
 
+  it('presents nothing for a viewport whose record is deleted, and the others go on, until its host disposes it', async () => {
+    const h = await harness();
+    await h.open();
+    const w = await h.open({ viewportId: 'w' });
+    await h.frames.flush();
+    const shownInW = frames(h.events, 'w').length;
+    // The host removes the record before disposing the viewport, as a mode leaving its own view
+    // does: frames go on for the viewport that is still there, and none fails.
+    expect(
+      h.ws.transaction([
+        { type: 'viewport.delete', id: 'w' },
+        { type: 'camera.delete', id: 'cam2' },
+        move('a', 1),
+      ]).status,
+    ).toBe('committed');
+    await h.frames.flush();
+    await drain();
+    expect(frames(h.events, 'w')).toHaveLength(shownInW);
+    expect(frames(h.events).at(-1)?.metrics.sceneRevision).toBe(h.ws.getState().revision);
+    expect(h.presenter.getDiagnostics()).toEqual([]);
+    await w.dispose();
+    expect(h.presenter.viewport('w')).toBeUndefined();
+    h.ws.dispatch(move('a', 0));
+    await h.frames.flush();
+    expect(frames(h.events).at(-1)?.metrics.sceneRevision).toBe(h.ws.getState().revision);
+  });
+
   it('releases everything it holds when disposed', async () => {
     const h = await harness();
     const v = await h.open();

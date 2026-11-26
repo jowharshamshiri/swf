@@ -79,13 +79,14 @@
       return;
     }
     const target = event.target;
-    // A field that takes typing keeps its own keys (its own undo among them), as a window's own
-    // content does; a checkbox, a choice or a button takes none of these.
+    // A field that takes typing keeps its own keys (its own undo among them), as whatever has the
+    // keyboard in a window's live content does (in the slot the host's content is attached to,
+    // whichever backend presents it); a checkbox, a choice or a button elsewhere takes none.
     const typing =
       target instanceof HTMLElement &&
       (target.isContentEditable ||
         (target instanceof HTMLInputElement && !NOT_TYPED.includes(target.type)) ||
-        target.closest('textarea, select, [data-swf-viewport] [data-swf-surface]') !== null);
+        target.closest('textarea, select, [data-swf-slot]') !== null);
     if (event.defaultPrevented || paletteOpen || typing || model.app === null) {
       return;
     }
@@ -441,8 +442,20 @@
       title={t('panorama.keys')}
       icon="hint"
     />
+  {:else if model.status?.mode === FOCUS_ID}
+    <StatusItem
+      handle={handleOf`application.panel.focus`}
+      label={t('focus.hint.short')}
+      title={t('focus.hint')}
+      icon="hint"
+    />
   {:else}
-    <StatusItem handle={handleOf`application.panel.takeover`} label={t('view.takeover')} icon="hint" />
+    <StatusItem
+      handle={handleOf`application.panel.takeover`}
+      label={t('view.takeover.short')}
+      title={t('view.takeover')}
+      icon="hint"
+    />
   {/if}
   <IconButton
     handle={handleOf`application.panel.toggle`}

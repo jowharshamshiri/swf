@@ -151,12 +151,14 @@ export function standInReason(planned: PlannedFragment): StandInReason | null {
     case 'failed':
       return condition.error.retryable ? 'unavailable' : 'failed';
     case 'bound':
+      // A surface represented by choice (compact, a label) stands in for the representation.
+      if (planned.representation !== 'full') {
+        return null;
+      }
       if (condition.presentedElsewhere) {
         return 'elsewhere';
       }
-      return negotiation.mode === 'placeholder' && planned.representation === 'full'
-        ? 'unsupported'
-        : null;
+      return negotiation.mode === 'placeholder' ? 'unsupported' : null;
   }
 }
 

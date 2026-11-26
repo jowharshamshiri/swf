@@ -30,8 +30,8 @@
   "@swf/presentation": {
     "budget": 13824,
     "recorded": {
-      "minified": 43217,
-      "gzip": 13368
+      "minified": 43262,
+      "gzip": 13375
     }
   },
   "@swf/projections": {

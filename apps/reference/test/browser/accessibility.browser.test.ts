@@ -370,7 +370,8 @@ describe('the reference controls (QA-009, UX-013, NFR-024)', () => {
     'draws window frames, the selection and the focused window in the kit’s inks, standing out from the view in both appearances (WCAG 1.4.11)',
     async () => {
       for (const appearance of ['light', 'dark'] as const) {
-        const { app, settle } = await start('?preset=sparse', { appearance });
+        // It reads the DOM backend's own elements: the DOM backend, by name.
+        const { app, settle } = await start('?preset=sparse&backend=dom', { appearance });
         await emulate({ colorScheme: appearance });
         const ground = groundOf(app.root);
         const frameOf = (id: string) =>

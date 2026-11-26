@@ -436,9 +436,14 @@ export function createAppCommands(app: () => ReferenceApp): AppCommands {
       if (!(['left', 'right'] as readonly string[]).includes(direction)) {
         return rejected('direction', 'a direction must be left or right');
       }
-      const next = app().focusNeighbours()?.[direction][0];
+      // Round the circle: past the last window that way, the farthest the other way is next.
+      const around = app().focusNeighbours();
+      const next =
+        around === null
+          ? undefined
+          : (around[direction][0] ?? around[direction === 'left' ? 'right' : 'left'].at(-1));
       if (next === undefined) {
-        return rejected('direction', `no window lies to the ${direction}`);
+        return rejected('direction', 'no other window to focus');
       }
       return viewChange(() => app().modes.switchTo(FOCUS_ID, { target: next.id }));
     },

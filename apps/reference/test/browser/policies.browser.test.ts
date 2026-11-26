@@ -15,7 +15,7 @@ import { planPreset, WORKSPACE_GROUP_ID } from '../../src/presets.js';
 declare module 'vitest/browser' {
   interface BrowserCommands {
     mouse: (
-      action: 'move' | 'down' | 'up',
+      action: 'move' | 'down' | 'up' | 'double',
       x: number,
       y: number,
       modifiers?: readonly string[],

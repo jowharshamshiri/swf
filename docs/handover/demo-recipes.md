@@ -80,8 +80,10 @@ in the command list (Ctrl+Shift+P or F1).
 
 1. Use the view-mode switcher: Panorama, Focus, Map, Overview.
 2. In Map, drag a window on the ground: the panorama below the map shows it move as you drag.
-3. Select a window and choose Focus: it is framed readably, with its neighbours in a row below;
-   Escape returns to the mode, camera and projection it was entered from.
+3. Select a window and choose Focus (or double-press its frame): the view moves to frame it
+   readably, and the strip below shows every window, in the order they lie round you, by name
+   and picture. Press one in the strip, or use Next window, or the arrows from the strip, to focus
+   another; Escape moves back to the mode, camera and projection focus was entered from, exactly.
 4. In Overview, every window is a card where it stands round the camera: straight ahead in the
    middle, behind at both edges, higher windows above. Press a card to select it, double-press it
    to focus it; type in the search beside it to fade the cards it leaves out. No mode moves a

@@ -57,7 +57,11 @@ export interface SelectedWindow extends Pose {
   readonly id: string;
   readonly label: string | null;
   readonly content: 'note' | 'tile' | null;
-  readonly presentation: 'live' | 'proxy';
+  /**
+   * How the panorama shows its content as of its last frame: live, drawn by the backend, or by a
+   * stand-in.
+   */
+  readonly presentation: 'live' | 'drawn' | 'proxy';
   /** How the view represents it (by semantic depth), or null while it is not shown. */
   readonly representation: Representation | null;
   /** In front of the camera's heading, or behind it. */
@@ -864,7 +868,17 @@ export class ShellModel {
       id: node.id,
       label: node.label,
       content: tag ?? null,
-      presentation: surfaceId === undefined ? 'proxy' : app.viewport.presentation(surfaceId),
+      presentation:
+        surfaceId === undefined
+          ? 'proxy'
+          : app.viewport.presentation(surfaceId) === 'live'
+            ? 'live'
+            : (app.viewport.lastFrame()?.frame.planned ?? []).some(
+                  (p) =>
+                    p.fragment.surfaceId === surfaceId && p.negotiation.layer === 'content-raster',
+                )
+              ? 'drawn'
+              : 'proxy',
       representation: app.policies.representationOf(node.id),
       side:
         Math.cos(

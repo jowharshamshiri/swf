@@ -3,13 +3,18 @@ import { ConfigError, DEFAULT_CONFIG, parseConfig } from '../src/config.js';
 import { createMessages, ENGLISH } from '../src/messages.js';
 
 describe('configuration from the address (ENV-005)', () => {
-  it('defaults to the studio scene from its own seed, on the DOM backend, restoring what was saved', () => {
+  it('defaults to the studio scene from its own seed, on the geometry backend, restoring what was saved', () => {
     expect(parseConfig('')).toEqual(DEFAULT_CONFIG);
-    expect(DEFAULT_CONFIG).toEqual({ preset: 'studio', seed: 1, backend: 'dom', restore: true });
+    expect(DEFAULT_CONFIG).toEqual({
+      preset: 'studio',
+      seed: 1,
+      backend: 'geometry',
+      restore: true,
+    });
   });
 
   it('loads the scene an address names, and restores the saved workspace otherwise (UX-016)', () => {
-    expect(parseConfig('?backend=geometry').restore).toBe(true);
+    expect(parseConfig('?backend=dom').restore).toBe(true);
     expect(parseConfig('?preset=seam').restore).toBe(false);
     expect(parseConfig('?seed=3').restore).toBe(false);
   });
@@ -24,7 +29,7 @@ describe('configuration from the address (ENV-005)', () => {
     expect(parseConfig('?preset=dense')).toEqual({
       preset: 'dense',
       seed: 1,
-      backend: 'dom',
+      backend: 'geometry',
       restore: false,
     });
     expect(parseConfig('?seed=4294967295').seed).toBe(4294967295);

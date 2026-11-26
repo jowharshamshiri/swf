@@ -114,7 +114,8 @@ describe('focus and context in the shell (FR-120, UX-003)', () => {
     await settle();
     expect(app.status().mode).toBe('focus');
     expect(root.textContent).toContain('Focus: ');
-    // The focused window fills most of the view, centred.
+    // Once the view has moved there, the focused window fills most of it, centred.
+    await expect.poll(() => app.transitions.running(), { timeout: 5000 }).toBe(false);
     const f = await frame(app);
     const fragment = f.frame.planned.find((p) => p.fragment.surfaceId === 'window-03-surface');
     const size = app.workspace.getState().viewports.get('main')?.size;
@@ -598,7 +599,8 @@ describe('search (§19, FR-190–FR-193)', () => {
 
 describe('switching every mode over one scene (FR-129, AC-007, §33.2 scenario 3)', () => {
   it('focus, map, overview, another window, panorama: IDs, attachments and transforms unchanged', async () => {
-    const { app, driver, root, settle } = await start('?preset=seam');
+    // It reads the DOM backend's own elements: the DOM backend, by name.
+    const { app, driver, root, settle } = await start('?preset=seam&backend=dom');
     await frame(app);
     const before = layout(app);
     const handles = new Map(

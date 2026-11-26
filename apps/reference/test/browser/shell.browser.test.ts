@@ -25,7 +25,7 @@ import Shell from '../../src/shell/Shell.svelte';
 declare module 'vitest/browser' {
   interface BrowserCommands {
     mouse: (
-      action: 'move' | 'down' | 'up',
+      action: 'move' | 'down' | 'up' | 'double',
       x: number,
       y: number,
       modifiers?: readonly string[],
@@ -135,7 +135,7 @@ describe('the shell (UX-001, UX-015)', () => {
       'scene.preset',
       'scene.seed',
       'command.scene.reset',
-      'view.takeover',
+      'view.takeover.short',
     ] as const) {
       expect(text).toContain(ENGLISH[id]);
     }
@@ -228,7 +228,8 @@ describe('command and search (UX-001)', () => {
 
 describe('the panorama in the centre (UX-002)', () => {
   it('switches the backend from the editor actions', async () => {
-    const { model, driver, settle } = await start('?preset=seam');
+    // It reads the DOM backend's own elements: the DOM backend, by name.
+    const { model, driver, settle } = await start('?preset=seam&backend=dom');
     expect(model.status?.backend).toBe('dom');
     driver.act('editor.actions.backend#geometry', 'press');
     await expect.poll(() => model.status?.backend, { timeout: 5000 }).toBe('geometry');
@@ -236,7 +237,8 @@ describe('the panorama in the centre (UX-002)', () => {
   });
 
   it('is the whole centre: the view the kit hosts, with no tab, strip or group around it', async () => {
-    const { driver, root } = await start('?preset=seam');
+    // It reads the DOM backend's own elements: the DOM backend, by name.
+    const { driver, root } = await start('?preset=seam&backend=dom');
     const centre = root.querySelector('[data-wsb="editor.view"]');
     expect(centre?.getAttribute('aria-label')).toBe(ENGLISH['view.label']);
     expect(centre?.querySelector(PANORAMA)).not.toBeNull();
@@ -387,7 +389,8 @@ describe('the optional policies (FR-130, UX-006, UX-007, UX-010, §33.2 scenario
   });
 
   it('shows a move’s preview, the snap in force and how to cancel it, then how it ended, with undo', async () => {
-    const { model, driver, root, settle } = await start('?preset=seam');
+    // It reads the DOM backend's own elements: the DOM backend, by name.
+    const { model, driver, root, settle } = await start('?preset=seam&backend=dom');
     const app = model.app;
     if (app === null) {
       throw new Error('no application');

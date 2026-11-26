@@ -63,6 +63,8 @@ export interface TileHandle {
 
 /** Tiles are drawn at this many pixels per world unit. */
 const TILE_PIXELS = 240;
+/** Note previews are drawn at this many pixels per world unit: enough for a strip's card. */
+const NOTE_PREVIEW_PIXELS = 120;
 
 /**
  * A described window's tile: its category over its name, its headline figure large, and a row of
@@ -96,14 +98,54 @@ function drawDetail(
   }
 }
 
+/**
+ * Where the host keeps what the operator writes in its notes, by binding key: the host's content,
+ * kept by the host as a real one keeps its documents, never in the layout. A note bound again, in
+ * this session or a later one, shows what was written in it last.
+ */
+export interface NoteTexts {
+  /** What was written in the note bound by a key, or null when nothing was. */
+  get(key: string): string | null;
+  set(key: string, text: string): void;
+}
+
+/** Note texts kept in a web storage area, each under a prefix and its binding key. */
+export function webNoteTexts(storage: Storage, prefix = 'swf-reference.note.'): NoteTexts {
+  return Object.freeze({
+    get: (key: string) => storage.getItem(`${prefix}${key}`),
+    set: (key: string, text: string) => {
+      storage.setItem(`${prefix}${key}`, text);
+    },
+  });
+}
+
+/**
+ * A small picture of what a binding key's content holds, as the host draws it for a compact view
+ * (the focus strip): a tile's own drawing, the same canvas the geometry backend draws; a note
+ * drawn small in its colours, with its category, name, figure and what is written in it, drawn
+ * again whenever that is written in. `revision` changes with its pixels.
+ */
+export interface ContentPreview {
+  readonly source: HTMLCanvasElement;
+  readonly width: number;
+  readonly height: number;
+  readonly revision: number;
+}
+
 export interface DemoContent {
   readonly notes: SurfaceAdapter<NoteHandle>;
   readonly tiles: SurfaceAdapter<TileHandle>;
+  /** The picture of the content a key binds, once it is bound; null before, or for none. */
+  preview(key: string): ContentPreview | null;
   /** The window a binding key names, or null when it names none the host has. */
   find(key: string): PlannedWindow | null;
 }
 
-export function createDemoContent(document: Document, messages: Messages): DemoContent {
+export function createDemoContent(
+  document: Document,
+  messages: Messages,
+  texts: NoteTexts,
+): DemoContent {
   // Plans asked for by keys, by preset and seed: this host's own, never shared.
   const plans = new Map<string, readonly PlannedWindow[]>();
   const plan = (preset: PresetId, seed: number): readonly PlannedWindow[] => {
@@ -118,6 +160,49 @@ export function createDemoContent(document: Document, messages: Messages): DemoC
   const find = (key: string) => plannedByKey(key, plan);
   const notes = new Map<string, NoteHandle>();
   const tiles = new Map<string, TileHandle>();
+  /** Each note's picture, drawn again as it is written in. */
+  const notePictures = new Map<string, { picture: ContentPreview; stale: boolean }>();
+
+  /** A note drawn small: its ground and ink, category, name, figure and what is written in it. */
+  const drawNote = (window: PlannedWindow, text: string, revision: number): ContentPreview => {
+    const width = Math.max(1, Math.round(window.width * NOTE_PREVIEW_PIXELS));
+    const height = Math.max(1, Math.round(window.height * NOTE_PREVIEW_PIXELS));
+    const source = document.createElement('canvas');
+    source.width = width;
+    source.height = height;
+    const ctx = source.getContext('2d');
+    if (ctx === null) {
+      throw new Error('the page has no 2D drawing for a note preview');
+    }
+    const hue = String(window.hue);
+    ctx.fillStyle = `hsl(${hue} 45% 92%)`;
+    ctx.fillRect(0, 0, width, height);
+    ctx.fillStyle = `hsl(${hue} 40% 18%)`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    const left = width * 0.07;
+    const room = width * 0.86;
+    const font = (size: number, weight: string) =>
+      `${weight} ${String(Math.max(1, Math.round(size)))}px system-ui, sans-serif`;
+    let y = height * 0.08;
+    const detail = window.detail;
+    if (detail !== undefined) {
+      ctx.font = font(height * 0.09, '600');
+      ctx.fillText(detail.category.toUpperCase(), left, y, room);
+      y += height * 0.13;
+    }
+    ctx.font = font(height * 0.14, '700');
+    ctx.fillText(window.label, left, y, room);
+    y += height * 0.19;
+    if (detail !== undefined) {
+      ctx.font = font(height * 0.2, '700');
+      ctx.fillText(detail.metric, left, y, room);
+      y += height * 0.26;
+    }
+    ctx.font = font(height * 0.1, '400');
+    ctx.fillText(text, left, y, room);
+    return { source, width, height, revision };
+  };
 
   const makeNote = (window: PlannedWindow): NoteHandle => {
     const element = document.createElement('article');
@@ -160,7 +245,16 @@ export function createDemoContent(document: Document, messages: Messages): DemoC
     body.style.setProperty('margin', '0');
     body.contentEditable = 'plaintext-only';
     body.spellcheck = false;
-    body.textContent = detail?.description ?? messages.format('content.note.body');
+    body.textContent =
+      texts.get(window.bindingKey) ?? detail?.description ?? messages.format('content.note.body');
+    // What the operator writes is kept as they write it.
+    body.addEventListener('input', () => {
+      texts.set(window.bindingKey, body.textContent);
+      const drawn = notePictures.get(window.bindingKey);
+      if (drawn !== undefined) {
+        drawn.stale = true;
+      }
+    });
     element.append(body);
     return { key: window.bindingKey, element };
   };
@@ -265,9 +359,30 @@ export function createDemoContent(document: Document, messages: Messages): DemoC
     detach: () => undefined,
   });
 
+  const preview = (key: string): ContentPreview | null => {
+    const tile = tiles.get(key);
+    if (tile !== undefined) {
+      return tile;
+    }
+    const note = notes.get(key);
+    const window = note === undefined ? null : find(key);
+    if (note === undefined || window === null) {
+      return null;
+    }
+    const drawn = notePictures.get(key);
+    if (drawn !== undefined && !drawn.stale) {
+      return drawn.picture;
+    }
+    const text = note.element.querySelector('[contenteditable]')?.textContent ?? '';
+    const picture = drawNote(window, text, (drawn?.picture.revision ?? 0) + 1);
+    notePictures.set(key, { picture, stale: false });
+    return picture;
+  };
+
   return Object.freeze({
     notes: noteAdapter,
     tiles: tileAdapter,
+    preview,
     find,
   });
 }

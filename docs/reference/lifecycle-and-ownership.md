@@ -67,7 +67,9 @@ disposing a whole host leave no listener, observer, frame request or timer behin
 - **Gesture:** pressed → in the arena → started → committed once, or cancelled with a reason and
   everything it previewed restored ([Interaction](../../README.md#interaction)).
 - **Presented viewport:** opening → open → gone; it is listed once open, its ID is refused while it
-  is opening or open, and a viewport that fails to start is disposed, freeing its ID
+  is opening or open, and a viewport that fails to start is disposed, freeing its ID. While its
+  record is deleted from the scene it keeps its last frame and presents nothing more, the other
+  viewports going on; the host disposes it with the record
   ([Presenting in the browser](../../README.md#presenting-in-the-browser)).
 - **Backend handoff:** `active` → `preparing` → `validating` → `swapping` → `active`; any failure
   releases what the candidate made, puts back what moved, was released or was hidden, and returns

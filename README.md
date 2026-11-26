@@ -461,7 +461,10 @@ code that cannot wait.
 A viewport is listed (`presenter.viewport(id)`, `presenter.viewports()`) once it started, on a
 backend or degraded; its ID cannot be opened again while it is open or still opening. When it
 cannot start, because the host's `showDegraded` throws, say, it is disposed and the `open` rejects
-with that failure: nothing of it stays registered, and the same ID can be opened again.
+with that failure: nothing of it stays registered, and the same ID can be opened again. A viewport
+whose record the scene no longer has (a `viewport.delete` committed before the host disposed it)
+keeps its last frame and presents nothing more, while the other viewports go on; dispose it with
+the record.
 
 Unchanged objects cause no writes: the DOM renderer and compositor write an element's properties
 only when they change, the geometry renderer redraws a layer only when what it shows changed
@@ -895,7 +898,10 @@ default scene when there is none or it cannot be restored, which is said over th
   pole above it), `composed` (a board of three supplied surfaces side by side in one window, and a
   window of its own to either side) or `empty`.
 - `seed`: an integer from 0 to 4294967295; each preset has its own default.
-- `backend`: `dom` (the default) or `geometry`; each is the other's fallback.
+- `backend`: `geometry` (the default) or `dom`; each is the other's fallback. The default is the
+  geometry backend (`LayeredRenderer`): notes are placed live in the page and tiles are drawn, so
+  every window, a focused one included, shows what it holds. The DOM backend places live elements
+  and never draws (ADR 0003), so it shows tiles by their labelled stand-ins.
 
 The studio is the workspace a first visit opens on. A board of three surfaces (Plan, Timeline and
 Sources) stands straight ahead; round it stand twelve more windows (Writing Desk, Build Status,
@@ -911,9 +917,11 @@ An unknown or invalid setting is said in the page, naming it, and nothing starts
 same seed on every run, browser and release; the plans of the default seeds are a committed
 fixture (`apps/reference/test/fixtures/preset-plans.json`), so a change to them is deliberate.
 Loading a preset, resetting it and reseeding it each replace every window in one undoable step and
-turn the camera straight ahead. Notes are native page elements, live and editable; tiles are drawn
-on canvases, warped into the panorama by the geometry backend and shown as labelled proxies by the
-DOM one.
+turn the camera straight ahead. Notes are native page elements, live and editable; what the
+operator writes in one is the host's, kept in this browser by the note's binding key (never in the
+layout), so the note shows it whenever that key is bound again, in a later visit too. Tiles are
+drawn on canvases, warped into the panorama by the geometry backend and shown as labelled proxies
+by the DOM one.
 
 Every string the application shows is a message with a stable ID, in English unless a translation
 pack is given, and each action is a command with a stable ID (`reference.preset.load`,
@@ -984,8 +992,8 @@ gesture, saving and restoring.
   inspector for its other controls.
 - The kit draws every control at 24 CSS pixels at least, with its focus ring, its contrast in
   both appearances, and no motion when the reader asks for reduced motion; the application moves
-  nothing of its own (the camera jumps). Windows' content is the host's and outside the
-  framework's accessibility guarantee.
+  the view into and out of a focus only when motion is allowed (the camera jumps otherwise).
+  Windows' content is the host's and outside the framework's accessibility guarantee.
 
 ### View modes
 
@@ -1004,11 +1012,29 @@ content is attached or detached by a switch.
 - **Focus**: the selected (or focused) window shown readably, centred and filling three-quarters
   of the view at most two and a half times its content's own size, by turning the camera to face
   it and narrowing the projection to frame it (the same angle per pixel across and down, so
-  nothing is stretched). A bar above names it; a row below holds the nearest windows to its left
-  and right, with how far round each lies, and pressing one focuses it. Focus follows the
-  workspace's focus, so focusing a window from any list, tile or the map frames that one; a resize
-  fits the frame again. Escape or the bar's close button leaves focus for the mode, projection and
-  camera it was entered from, and leaving it for any other mode puts the camera back too.
+  nothing is stretched). Its content stays live: a note is the same element, edited in place. A
+  bar above names it, steps to the next window to the right (round the circle, past the last) and
+  closes the focus. Under it, with a movable edge between them, the focus strip holds a card for
+  every window: the focused one in the middle, the others left and right of it in the order they
+  lie round the camera, behind it at the ends, each as far from the middle as it lies round where
+  room allows and never over another. A card is the window's name, in the kit's stage units, over
+  the host's own picture of what it holds: a tile's drawing (the very drawable the panorama draws)
+  or a note drawn small in its colours with what is written in it, drawn again as it changes. The
+  cards lie in one row while they fit at a width their names can be read at, in two staggered rows
+  when not; when even two rows cannot hold them, the nearest each way are kept and the rest named
+  above the strip. Pressing a card focuses its window; from the strip's keyboard stop, the arrows
+  step to the next window either way; above it the nearest two each way are named with how far
+  round each lies, each a press away.
+  A double press on a window's frame or stand-in in the panorama focuses it (a double press on live
+  content stays the content's). Focus follows the workspace's focus, so focusing a window from any
+  list, tile or the map frames that one; a resize fits the frame again. Escape or the bar's close
+  button leaves focus for the mode, projection and camera it was entered from, exactly, and
+  leaving it for any other mode puts the camera back too. Entering a focus, moving it to another
+  window and leaving it are committed at once and shown moving there over about a quarter of a
+  second, from the first frame that shows the new view, as a preview of the view's own records;
+  the operator turning the camera or taking a window in hand ends the move at once, and with
+  reduced motion asked for the view goes there at once. On the DOM backend, which cannot draw, a
+  focused tile is shown by its stand-in.
 - **Map**: the scene from above, with straight ahead of the default camera up the page: the
   camera and its heading, the ground in front of it and behind it shaded apart, the wedge the
   panorama shows while its field of view is less than the circle, rings a world unit apart (five
@@ -1287,6 +1313,7 @@ attachments); the model decides each state it passes through and each request it
 | `Swf.AppScenarios`   | How a guided scenario advances: from its first step, one step at a time and in order, each only once its condition holds while it is due, never undone                                                |
 | `Swf.AppChallenge`   | The timed window-finding task: which window a run names (never the selected one, behind the camera when any is), what it counts, when it ends and the records it keeps                                |
 | `Swf.AppOverview`    | Where each window's card stands on the overview's board (across at its heading, never overlapping, the higher above, at the largest size that holds them all), and which names the map writes         |
+| `Swf.AppFocus`       | When the view moves into a focus, between focused windows and out of it: when a move starts, goes on through a fit, finishes or ends at once                                                          |
 
 `lungo.toml` names the exports and requires a proved claim of every one (`require-claims`); a claim
 proved with `sorry` fails the build. Read what was proved of an export with

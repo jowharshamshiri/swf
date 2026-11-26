@@ -82,7 +82,8 @@ async function frameBox(ctx) {
 
 /**
  * Moves, presses and releases the real mouse at a point of the test frame, so the browser
- * produces genuine (trusted) pointer events.
+ * produces genuine (trusted) pointer events; `double` presses and releases twice, as one double
+ * press (the browser counts the clicks, and fires `dblclick`).
  */
 export async function mouse(ctx, action, x, y, modifiers = []) {
   const box = await frameBox(ctx);
@@ -94,6 +95,8 @@ export async function mouse(ctx, action, x, y, modifiers = []) {
     await ctx.page.mouse.down();
   } else if (action === 'up') {
     await ctx.page.mouse.up();
+  } else if (action === 'double') {
+    await ctx.page.mouse.dblclick(box.x + x, box.y + y);
   }
   for (const key of modifiers) {
     await ctx.page.keyboard.up(key);

@@ -1,14 +1,12 @@
 <script lang="ts">
   // THE PANORAMA: the workspace presented in the surface the kit hands out. An empty workspace
-  // says so above it, with the way to fill it. In focus, a bar above names the focused window and
-  // closes the focus, and a row below holds the windows around it, those to its left on the left
-  // and those to its right on the right, nearest the focus in the middle: each pressed focuses it.
+  // says so above it, with the way to fill it. In focus, a bar above names the focused window,
+  // steps to the next window and closes the focus; the windows round it are in the strip below.
   import { Button, EmptyState, IconButton, Notice, ScaledView, Stack, Text, Toolbar } from '@wsb/uikit/components';
-  import { handleOf, keyed } from '@wsb/uikit/handles';
+  import { handleOf } from '@wsb/uikit/handles';
   import { onMount } from 'svelte';
   import { DEFAULT_CONFIG } from '../config.js';
   import { FOCUS_ID } from '../focus.js';
-  import type { Neighbour } from '../focus.js';
   import type { SnapConstraint } from '../magnetic.js';
   import type { MessageId } from '../messages.js';
   import type { ShellModel } from './model.svelte.js';
@@ -22,9 +20,6 @@
   let { model }: Props = $props();
   const t = (id: MessageId, params?: Readonly<Record<string, string | number>>) =>
     model.messages.format(id, params);
-
-  /** Windows shown each side of the focus; the rest are a step away. */
-  const NEAREST = 3;
 
   let surface: HTMLElement | undefined = $state();
 
@@ -48,7 +43,22 @@
     };
     element.addEventListener('focusin', follow);
     element.addEventListener('focusout', follow);
+    // A double press on a window's frame or stand-in shows it in focus (its live content keeps
+    // its own presses: a double press there selects a word, as anywhere else).
+    const focusAt = (event: MouseEvent) => {
+      const app = model.app;
+      if (app === null || model.policies?.features.enabled.focus !== true) {
+        return;
+      }
+      const box = element.getBoundingClientRect();
+      const id = app.windowAt(event.clientX - box.left, event.clientY - box.top);
+      if (id !== null) {
+        void model.run('reference.focus.enter', { id });
+      }
+    };
+    element.addEventListener('dblclick', focusAt);
     return () => {
+      element.removeEventListener('dblclick', focusAt);
       gone = true;
       guides?.dispose();
       guides = null;
@@ -72,14 +82,9 @@
     }
     return {
       label: state.nodes.get(id)?.label ?? id,
-      left: context.left.slice(0, NEAREST).reverse(),
-      right: context.right.slice(0, NEAREST),
-      moreLeft: Math.max(0, context.left.length - NEAREST),
-      moreRight: Math.max(0, context.right.length - NEAREST),
+      alone: context.left.length === 0 && context.right.length === 0,
     };
   });
-
-  const degrees = (neighbour: Neighbour) => Math.round(Math.abs(neighbour.bearing));
 
   /**
    * Gestures that change the scene: each shows its preview, where the window would be as it goes,
@@ -343,6 +348,17 @@
     <Toolbar ariaLabel={t('focus.label')}>
       <Text>{t('focus.title', { label: focus.label })}</Text>
       {#snippet end()}
+        {#if !focus.alone}
+          <Button
+            handle={handleOf`page.focus.next`}
+            label={t('focus.next')}
+            icon="chevron-right"
+            size="small"
+            onpress={() => {
+              void model.run('reference.focus.step', { direction: 'right' });
+            }}
+          />
+        {/if}
         <IconButton
           handle={handleOf`page.focus.close`}
           icon="pane-unzoom"
@@ -353,58 +369,6 @@
           }}
         />
       {/snippet}
-    </Toolbar>
-  {/if}
-{/snippet}
-
-{#snippet foot()}
-  {#if focus !== null}
-    <Toolbar ariaLabel={t('focus.context')}>
-      {#if focus.left.length === 0 && focus.right.length === 0}
-        <Text quiet>{t('focus.alone')}</Text>
-      {/if}
-      {#if focus.moreLeft > 0}
-        <Button
-          handle={handleOf`page.focus.step.left`}
-          label={t('focus.more.left', { count: focus.moreLeft })}
-          size="small"
-          variant="ghost"
-          onpress={() => {
-            void model.run('reference.focus.step', { direction: 'left' });
-          }}
-        />
-      {/if}
-      {#each focus.left as neighbour (neighbour.id)}
-        <Button
-          handle={keyed('page.focus.context', neighbour.id)}
-          label={t('focus.left', { label: neighbour.label, degrees: degrees(neighbour) })}
-          size="small"
-          onpress={() => {
-            void model.run('reference.focus.enter', { id: neighbour.id });
-          }}
-        />
-      {/each}
-      {#each focus.right as neighbour (neighbour.id)}
-        <Button
-          handle={keyed('page.focus.context', neighbour.id)}
-          label={t('focus.right', { label: neighbour.label, degrees: degrees(neighbour) })}
-          size="small"
-          onpress={() => {
-            void model.run('reference.focus.enter', { id: neighbour.id });
-          }}
-        />
-      {/each}
-      {#if focus.moreRight > 0}
-        <Button
-          handle={handleOf`page.focus.step.right`}
-          label={t('focus.more.right', { count: focus.moreRight })}
-          size="small"
-          variant="ghost"
-          onpress={() => {
-            void model.run('reference.focus.step', { direction: 'right' });
-          }}
-        />
-      {/if}
     </Toolbar>
   {/if}
 {/snippet}
@@ -444,6 +408,6 @@
     </EmptyState>
   {/if}
   <Stack grow>
-    <ScaledView ariaLabel={t('view.label')} handle={handleOf`page.panorama`} {head} {foot} bind:surface />
+    <ScaledView ariaLabel={t('view.label')} handle={handleOf`page.panorama`} {head} bind:surface />
   </Stack>
 </Stack>

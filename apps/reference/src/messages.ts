@@ -83,6 +83,15 @@ export const ENGLISH = Object.freeze({
   'focus.more.left': '{count} more to the left',
   'focus.more.right': '{count} more to the right',
   'focus.alone': 'No other windows',
+  'focus.next': 'Next window',
+  'focus.strip.label': 'Every window round you',
+  'focus.strip.role': 'window strip',
+  'focus.strip.hint': 'Every other window, where it lies round you: press one to focus it',
+  'focus.strip.keys': 'Left and right arrows focus the next window that way.',
+  'focus.hint':
+    'Press a window in the strip below to focus it; with the strip’s keyboard stop, ← and → focus the next window that way; Next window steps right; Escape closes the focus.',
+  'focus.hint.short': 'Press a window below to focus it',
+  'focus.strip.hidden': 'Not in the strip: {labels}',
   'radar.title': 'Radar',
   'radar.label': 'The workspace around the camera, from above',
   'radar.help':
@@ -211,12 +220,12 @@ export const ENGLISH = Object.freeze({
   'panel.unfold': 'Open the panel',
   'windows.title': 'Windows',
   'view.takeover': 'Hold Alt to move a window by its content',
+  'view.takeover.short': 'Alt: move a window by its content',
   'panorama.role': 'spatial workspace',
   'panorama.label': 'Panorama',
   'panorama.keys':
     'Drag a window by its frame to move it round you, its edges to resize it; Shift and drag, or Shift and the wheel, bring it nearer or farther; Ctrl (⌘) and drag turn it; Ctrl (⌘) and click add it to the selection. Arrows move the selected window, Page Up and Page Down bring it nearer or farther, [ and ] turn it, + and − resize it; N and P select the next and previous window, Enter focuses it, Space picks it up, Delete removes it; Alt with arrows, or A and D, turn the camera; 1 to 4 show the views in the switcher’s order, F shows the selected window in focus, M shows the map, Escape goes back; Tab leaves the view. The Windows view lists every window.',
-  'panorama.keys.short':
-    'Shift+drag or Shift+wheel: nearer, farther · Ctrl+drag: turn · Ctrl+click: select more · Arrows move · Page Up/Down: nearer, farther · [ ]: turn · + −: size · N, P: next, previous · Space: pick up · Enter: focus · Delete: remove · A, D: turn the camera · 1–4: views · F: focus view · M: map · Tab: leave',
+  'panorama.keys.short': 'Arrows move · A D turn · F focus',
   'panorama.held.keys':
     'Arrows, Page Up/Down, [ ] and + − change it · Enter or Space puts it down · Escape cancels',
   'where.text': '{heading}° {side}, {elevation}° {updown}, {distance} units away',
@@ -305,6 +314,7 @@ export const ENGLISH = Object.freeze({
   'content.tile': 'Drawn tile',
   'presentation.live': 'Its own content',
   'presentation.proxy': 'A proxy',
+  'presentation.drawn': 'Its drawn content',
   'status.title': 'Status',
   'status.label': 'Presentation measures',
   'status.backend': 'Backend',

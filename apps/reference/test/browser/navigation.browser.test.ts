@@ -20,7 +20,7 @@ import { layout, start } from './shell-harness.js';
 declare module 'vitest/browser' {
   interface BrowserCommands {
     mouse: (
-      action: 'move' | 'down' | 'up',
+      action: 'move' | 'down' | 'up' | 'double',
       x: number,
       y: number,
       modifiers?: readonly string[],
@@ -222,7 +222,8 @@ describe('the radar beside the panorama', () => {
   });
 
   it('moves a window dragged on it round the camera, behind it too, and the panorama follows as it goes', async () => {
-    const { model, root, settle } = await visit();
+    // It reads the DOM backend's own elements: the DOM backend, by name.
+    const { model, root, settle } = await visit('?preset=sparse&backend=dom');
     const a = app(model);
     a.policies.configure({ enabled: { snap: false } });
     await settle();
@@ -271,7 +272,8 @@ describe('the radar beside the panorama', () => {
 
 describe('the view’s controls', () => {
   it('sets the field of view, which the panorama re-projects at once and every panoramic view keeps', async () => {
-    const { model, root, driver, settle } = await visit();
+    // It reads the DOM backend's own elements: the DOM backend, by name.
+    const { model, root, driver, settle } = await visit('?preset=sparse&backend=dom');
     const width = () => chromeOf(root, 'window-01')?.getBoundingClientRect().width ?? 0;
     const wide = width();
     driver.act('page.view.fov', 'key', 'Home');
@@ -409,7 +411,8 @@ describe('the seam', () => {
 
 describe('how windows look', () => {
   it('marks the selected and the focused window apart, and shades what lies behind the camera', async () => {
-    const { model, root, settle } = await visit('?preset=seam');
+    // It reads the DOM backend's own elements: the DOM backend, by name.
+    const { model, root, settle } = await visit('?preset=seam&backend=dom');
     const a = app(model);
     await model.run('reference.window.inspect', { id: 'window-07' });
     a.workspace.dispatch({ type: 'focus.set', id: 'window-04' }, { source: 'user' });

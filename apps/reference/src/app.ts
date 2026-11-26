@@ -73,13 +73,15 @@ import {
 } from './composition.js';
 import type { AppConfig, BackendId } from './config.js';
 import { BACKEND_IDS } from './config.js';
-import type { DemoContent } from './content.js';
-import { createDemoContent } from './content.js';
+import type { DemoContent, NoteTexts } from './content.js';
+import { createDemoContent, webNoteTexts } from './content.js';
 import type { Messages } from './messages.js';
 import { createMessages } from './messages.js';
 import type { FocusContext } from './focus.js';
 import { createFocusMode, FOCUS_ID, focusContext } from './focus.js';
 import { MANIPULATION_POLICIES } from './manipulation.js';
+import type { ViewTransitions } from './transition.js';
+import { createViewTransitions } from './transition.js';
 import type { AroundSide } from './map.js';
 import { aroundCamera, arrangedAround, inView, placedAt } from './map.js';
 import type { Modes } from './modes.js';
@@ -408,6 +410,14 @@ export interface ReferenceApp {
   turnCamera(degrees: number): TxResult;
   /** The windows around the focused one while focus is shown; null otherwise. */
   focusNeighbours(): FocusContext | null;
+  /**
+   * The window a press at a point of the panorama, in CSS pixels from its top-left, chooses: the
+   * window whose frame or stand-in is there. A window's own live content takes its presses itself,
+   * so a point on it chooses none; nor does the background.
+   */
+  windowAt(x: number, y: number): string | null;
+  /** The view's transitions into a focus, between focused windows and out of it. */
+  readonly transitions: ViewTransitions;
   /** How a window stands as the panorama shows it now (a held window where it is held). */
   poseOf(id: string): Pose | null;
   /**
@@ -451,6 +461,8 @@ export interface ReferenceAppOptions {
   readonly window?: Window;
   /** Where workspaces are stored. Default: the window's local storage. */
   readonly store?: SnapshotStore;
+  /** Where what the operator writes in the notes is kept. Default: the window's local storage. */
+  readonly noteTexts?: NoteTexts;
   /** How long after a change the workspace is saved, in milliseconds. Default 800. */
   readonly autosaveDelayMs?: number;
   /** Offers a file to save. Default: the browser downloads it. */
@@ -532,7 +544,11 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
     throw new Error(`the viewport could not be created: ${JSON.stringify(created)}`);
   }
 
-  const content = createDemoContent(document, messages);
+  const content = createDemoContent(
+    document,
+    messages,
+    options.noteTexts ?? webNoteTexts(view.localStorage),
+  );
   const runtime = createSurfaceRuntime(workspace);
   runtime.registerAdapter(content.notes);
   runtime.registerAdapter(content.tiles);
@@ -633,6 +649,19 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
     homeModeId: PANORAMA.id,
   });
   modes.register(OVERVIEW);
+  // Into a focus, from one focused window to another, and out of it, the view moves there.
+  const reducedMotion = view.matchMedia('(prefers-reduced-motion: reduce)');
+  const transitions = createViewTransitions({
+    workspace,
+    viewportIds: [VIEWPORT_ID],
+    framing: (state) => {
+      const mode = state.viewports.get(VIEWPORT_ID)?.mode ?? PANORAMA.id;
+      return { mode, framed: mode === FOCUS_ID ? state.focusedId : null };
+    },
+    frames,
+    now: timer,
+    motion: () => !reducedMotion.matches,
+  });
   const inputs = new Set<(input: ObservedInput) => void>();
   /** The device's adapter, with every dispatch it makes told to those observing input. */
   const observed = (device: InputAdapter): InputAdapter => ({
@@ -1227,6 +1256,18 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
         { source: 'user' },
       );
     },
+    transitions,
+    windowAt(x, y) {
+      if (mount.viewport.state !== 'active') {
+        return null;
+      }
+      const picked = router.pick(VIEWPORT_ID, x, y);
+      if (picked.kind !== 'hit' || (picked.region === 'content' && !picked.target.proxy)) {
+        return null;
+      }
+      const node = workspace.getState().nodes.get(picked.target.nodeId);
+      return node?.kind === 'window' ? node.id : null;
+    },
     focusNeighbours() {
       const state = workspace.getState();
       const camera = state.cameras.get(CAMERA_ID);
@@ -1372,6 +1413,7 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
       workspaces.dispose();
       inputs.clear();
       search.dispose();
+      transitions.dispose();
       await mount.release();
       unwatch();
       unwatchPresenter();
