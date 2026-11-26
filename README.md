@@ -1397,10 +1397,11 @@ library's declarations checked; the third fails on an undocumented public declar
 release` builds a versioned release from a commit ([Release the packages](docs/how-to/release.md)).
 
 A budget is raised only deliberately, by hand, to the package's measured gzip size rounded up to the
-next 256 bytes, so it leaves no room for growth nobody looked at. `@swf/models` is at 53504 bytes:
-it is the compiled program of every proved decision model the framework and the reference
-application run, so it grows with each model, the focus transition the latest (53398 bytes
-measured).
+next 256 bytes, so it leaves no room for growth nobody looked at; the measured sizes are recorded
+with `npm run size -- --record` in the same commit, whose message gives the old and the new budget.
+`@swf/models` is at 55296 bytes: it is the compiled program of every proved decision model the
+framework and the reference application run, so it grows with each model, the experiments the
+latest (55111 bytes measured).
 
 Tests run against each package's TypeScript source, so they need no build first.
 
