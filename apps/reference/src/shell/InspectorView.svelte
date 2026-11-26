@@ -134,6 +134,19 @@
   let groupName = $state('');
   const NEW_GROUP = '\u0000new';
 
+  /**
+   * A choice the scene no longer offers (its surface moved away, its window merged, its group now
+   * the window's own parent, or the scene put back by undo) is no choice: each control shows, and
+   * acts on, only what is still offered.
+   */
+  const offered = (value: string, values: readonly string[]) => (values.includes(value) ? value : '');
+  const chosen = $derived({
+    moving: offered(moving, scene?.surfaces.map((surface) => surface.id) ?? []),
+    movingTo: offered(movingTo, scene?.windows.map((window) => window.value) ?? []),
+    mergeInto: offered(mergeInto, scene?.windows.map((window) => window.value) ?? []),
+    group: group === NEW_GROUP ? NEW_GROUP : offered(group, scene?.groups.map((g) => g.value) ?? []),
+  });
+
   // A different window selected starts the choices afresh.
   $effect(() => {
     void selected?.id;
@@ -365,7 +378,7 @@
                           { value: '', label: t('inspector.surface.move.surface') },
                           ...scene.surfaces.map((s) => ({ value: s.id, label: s.label })),
                         ]}
-                        value={moving}
+                        value={chosen.moving}
                         onchange={(value) => {
                           moving = value;
                         }}
@@ -375,14 +388,14 @@
                       handle={handleOf`page.inspector.move.window`}
                       id="reference-move-window"
                       options={[{ value: '', label: t('inspector.surface.move.choose') }, ...scene.windows]}
-                      value={movingTo}
+                      value={chosen.movingTo}
                       onchange={(value) => {
                         movingTo = value;
                       }}
                     />
                   </Stack>
                 {/snippet}
-                {@const surfaceId = scene.surfaces.length > 1 ? moving : (scene.surfaces[0]?.id ?? '')}
+                {@const surfaceId = scene.surfaces.length > 1 ? chosen.moving : (scene.surfaces[0]?.id ?? '')}
                 <Field label={t('inspector.surface.move')} for="reference-move-window" control={moveControl} />
                 <Stack direction="row">
                   <Button
@@ -390,9 +403,9 @@
                     label={t('inspector.surface.move')}
                     icon="tab-move"
                     size="small"
-                    disabled={surfaceId === '' || movingTo === ''}
+                    disabled={surfaceId === '' || chosen.movingTo === ''}
                     onpress={() => {
-                      void model.run('reference.surface.move', { surfaceId, windowId: movingTo });
+                      void model.run('reference.surface.move', { surfaceId, windowId: chosen.movingTo });
                     }}
                   />
                 </Stack>
@@ -401,7 +414,7 @@
                     handle={handleOf`page.inspector.merge.window`}
                     id="reference-merge-window"
                     options={[{ value: '', label: t('inspector.surface.move.choose') }, ...scene.windows]}
-                    value={mergeInto}
+                    value={chosen.mergeInto}
                     onchange={(value) => {
                       mergeInto = value;
                     }}
@@ -413,9 +426,9 @@
                     handle={handleOf`page.inspector.merge`}
                     label={t('inspector.window.merge')}
                     size="small"
-                    disabled={mergeInto === ''}
+                    disabled={chosen.mergeInto === ''}
                     onpress={() => {
-                      void model.run('reference.window.merge', { id: selected.id, targetId: mergeInto });
+                      void model.run('reference.window.merge', { id: selected.id, targetId: chosen.mergeInto });
                     }}
                   />
                 </Stack>
@@ -429,14 +442,14 @@
                     ...scene.groups,
                     { value: NEW_GROUP, label: t('inspector.window.group.new') },
                   ]}
-                  value={group}
+                  value={chosen.group}
                   onchange={(value) => {
                     group = value;
                   }}
                 />
               {/snippet}
               <Field label={t('inspector.window.group')} for="reference-group" control={groupControl} />
-              {#if group === NEW_GROUP}
+              {#if chosen.group === NEW_GROUP}
                 {#snippet nameControl()}
                   <Input
                     handle={handleOf`page.inspector.group.name`}
@@ -454,11 +467,11 @@
                   handle={handleOf`page.inspector.group`}
                   label={t('inspector.window.group.move')}
                   size="small"
-                  disabled={group === '' || (group === NEW_GROUP && groupName.trim() === '')}
+                  disabled={chosen.group === '' || (chosen.group === NEW_GROUP && groupName.trim() === '')}
                   onpress={() => {
                     void model.run('reference.window.regroup', {
                       id: selected.id,
-                      groupId: group === NEW_GROUP ? null : group,
+                      groupId: chosen.group === NEW_GROUP ? null : chosen.group,
                       label: groupName,
                     });
                   }}

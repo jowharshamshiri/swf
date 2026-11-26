@@ -93,6 +93,68 @@ describe('multi-surface composition in the shell (FR-126, AC-016, §33.2 scenari
   });
 });
 
+describe('the inspector’s composition choices after they act', () => {
+  it('keeps working once a window moved into a group, a surface moved and a window merged: no choice is left naming what is gone', async () => {
+    const errors: string[] = [];
+    const heard = (event: ErrorEvent) => errors.push(event.message);
+    window.addEventListener('error', heard);
+    try {
+      const { model, driver, settle } = await start('?preset=composed', {
+        store: createMemoryStore(),
+      });
+      await model.inspect('window-04');
+      await settle();
+      // Into a new group: the window's parent is now that group, which the choices leave out.
+      driver.act('page.inspector.group.target', 'choose', '\u0000new');
+      await settle();
+      driver.act('page.inspector.group.name', 'type', 'Left');
+      await settle();
+      driver.act('page.inspector.group', 'press');
+      await settle();
+      const groupId = model.app?.workspace.getState().nodes.get('window-04')?.parentId ?? '';
+      expect(model.app?.workspace.getState().nodes.get(groupId)?.label).toBe('Left');
+      // The inspector still follows the scene: a step of the angle moves it and is shown.
+      const heading = model.selected?.heading ?? NaN;
+      driver.act('page.inspector.pose#heading', 'key', 'ArrowRight');
+      await settle();
+      expect(model.selected?.heading).toBeGreaterThan(heading);
+      expect(driver.read('page.inspector.group.target')).toMatchObject({ present: true });
+      // Into a group that exists: it becomes the window's parent, which the choices leave out.
+      await model.inspect('window-05');
+      await settle();
+      driver.act('page.inspector.group.target', 'choose', groupId);
+      await settle();
+      driver.act('page.inspector.group', 'press');
+      await settle();
+      expect(model.app?.workspace.getState().nodes.get('window-05')?.parentId).toBe(groupId);
+      expect(errors).toEqual([]);
+      const turned = model.selected?.turned ?? NaN;
+      driver.act('page.inspector.pose#turned', 'key', 'ArrowRight');
+      await settle();
+      expect(model.selected?.turned).toBeGreaterThan(turned);
+      // A surface moved out of the board, and a window merged away: their choices go too.
+      await model.inspect('board');
+      await settle();
+      driver.act('page.inspector.move.surface', 'choose', 'window-02-surface');
+      driver.act('page.inspector.move.window', 'choose', 'window-05');
+      await settle();
+      driver.act('page.inspector.move', 'press');
+      await settle();
+      expect(model.app?.workspace.getState().surfaces.get('window-02-surface')?.ownerNodeId).toBe(
+        'window-05',
+      );
+      driver.act('page.inspector.merge.window', 'choose', 'window-05');
+      await settle();
+      driver.act('page.inspector.merge', 'press');
+      await settle();
+      expect(model.app?.workspace.getState().nodes.has('board')).toBe(false);
+      expect(errors).toEqual([]);
+    } finally {
+      window.removeEventListener('error', heard);
+    }
+  });
+});
+
 describe('removing a window (UX-011)', () => {
   it('says it removes from the workspace, never deletes or stops content, and undo brings it back', async () => {
     const { model, driver, settle, root } = await start('?preset=sparse', {
