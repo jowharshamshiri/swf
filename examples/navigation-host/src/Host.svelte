@@ -4,7 +4,7 @@
   // own content as the whole centre, presented by the framework with the navigation controls; and
   // how it is presented in the panel below. Every navigation control is the package's, mounted
   // here or not as the Components view says; the view controls can be the host's own.
-  import { Announcer, announce, Checkbox, IconButton, Notice, Section, Segmented, Stack, StatusItem, Tabs, Text } from '@wsb/uikit/components';
+  import { Announcer, announce, Checkbox, IconButton, Notice, Panel, Section, Segmented, Stack, StatusItem, Tabs, Text } from '@wsb/uikit/components';
   import { handleOf } from '@wsb/uikit/handles';
   import { Application } from '@wsb/uikit/surfaces/application';
   import { untrack } from 'svelte';
@@ -77,9 +77,10 @@
 
 {#snippet leftContent(view: string)}
   {#if view === 'components'}
-    <Section title={t('host.components')} handle={handleOf`workshop.components`}>
-      <Stack gap="small" inset>
-        <Text quiet>{t('host.components.detail')}</Text>
+    <Panel title={t('host.components')} titled={false} handle={handleOf`workshop.components`}>
+      <Stack inset>
+        <Section title={t('host.components')} detail={t('host.components.detail')} handle={handleOf`workshop.components.list`}>
+          <Stack gap="small">
         {#each toggles as toggle (toggle.key)}
           <Checkbox
             handle={handleOf`workshop.components.${toggle.key}`}
@@ -110,8 +111,10 @@
             host.components = { ...host.components, controls: checked ? 'own' : 'package' };
           }}
         />
+          </Stack>
+        </Section>
       </Stack>
-    </Section>
+    </Panel>
   {:else if view === 'experiments'}
     {#if on.experiments}
       <ExperimentPanel {model} />
