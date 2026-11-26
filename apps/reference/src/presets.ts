@@ -484,7 +484,7 @@ function planNamed(
   seed: number,
 ): PlannedWindow[] {
   return windows.map((spec, i): PlannedWindow => {
-    const part = board !== null && board.parts.includes(spec.key);
+    const part = board?.parts.includes(spec.key) === true;
     const jitter = part ? 0 : stepped(random, -3, 3, 10);
     const lift = part ? 0 : stepped(random, -2, 2, 10);
     const number = String(i + 1).padStart(2, '0');
@@ -500,7 +500,7 @@ function planNamed(
       height: spec.height,
       hue: spec.hue,
       detail: spec.detail,
-      ...(part && board !== null ? { composedInto: board.window } : {}),
+      ...(board !== null && part ? { composedInto: board.window } : {}),
     };
   });
 }

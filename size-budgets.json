@@ -7,17 +7,17 @@
     }
   },
   "@swf/models": {
-    "budget": 56576,
+    "budget": 58624,
     "recorded": {
-      "minified": 338958,
-      "gzip": 56428
+      "minified": 351200,
+      "gzip": 58501
     }
   },
   "@swf/core": {
     "budget": 24576,
     "recorded": {
-      "minified": 82909,
-      "gzip": 23091
+      "minified": 83217,
+      "gzip": 23186
     }
   },
   "@swf/surfaces": {
@@ -77,10 +77,10 @@
     }
   },
   "@swf/persistence": {
-    "budget": 12032,
+    "budget": 13312,
     "recorded": {
-      "minified": 38754,
-      "gzip": 11459
+      "minified": 44656,
+      "gzip": 13255
     }
   },
   "@swf/navigation": {

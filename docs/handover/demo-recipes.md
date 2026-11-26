@@ -129,13 +129,16 @@ in the command list (Ctrl+Shift+P or F1).
 2. Detach a surface into a window of its own, move one into another window, merge two windows,
    regroup a window; each is one undoable step.
 
-## Saved workspaces
+## Spaces
 
-1. Rearrange windows, then save the workspace under a name (or let autosave do it).
-2. Reload the page with no preset in the address: the last saved workspace comes back, notes
-   re-bound in place.
-3. Export it, change the scene, and import the export: the preview shows what it holds before
-   Replace. Import a damaged file: the refusal names the line and column.
+1. The tabs across the top of the centre are the spaces: Research, Planning and Studio. Press
+   Research: its own windows come in one press. Move a window, turn the view, then press Studio:
+   the studio is as it was left, and so is Research when you press it again.
+2. Write in a note, switch away and back: the note is the same, with what you wrote.
+3. The + at the end of the tabs saves what is on screen as a space of your own, a tab from then
+   on. Reload the page with no preset in the address: the space shown last comes back as it was.
+4. Export the space shown, change the scene, and import the export: the preview shows what it
+   holds before Replace. Import a damaged file: the refusal names the line and column.
 
 ## Failures shown truthfully
 

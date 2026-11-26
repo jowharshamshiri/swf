@@ -85,10 +85,15 @@ describe('the reference application’s workspaces', () => {
 describe('named spaces', () => {
   const idle = models.spacesInitial();
   const shown: SpacesMachine = { ...idle, active: 'Studio' };
-  const request = (target: string, saver: SpacesSaverState['kind'], on = true): SpacesEvent => ({
+  const request = (
+    target: string,
+    saver: SpacesSaverState['kind'],
+    on = true,
+    known = true,
+  ): SpacesEvent => ({
     kind: 'request',
     target,
-    known: true,
+    known,
     on,
     saver: { kind: saver },
   });
@@ -123,9 +128,9 @@ describe('named spaces', () => {
     expect(models.spacesStep(shown, request('Research', 'clean', false)).refusal).toEqual({
       kind: 'off',
     });
-    expect(
-      models.spacesStep(shown, { ...request('Nowhere', 'clean'), known: false }).refusal,
-    ).toEqual({ kind: 'unknown' });
+    expect(models.spacesStep(shown, request('Nowhere', 'clean', true, false)).refusal).toEqual({
+      kind: 'unknown',
+    });
     const disposed = models.spacesStep(shown, { kind: 'dispose' }).next;
     expect(models.spacesStep(disposed, request('Research', 'clean')).refusal).toEqual({
       kind: 'disposed',

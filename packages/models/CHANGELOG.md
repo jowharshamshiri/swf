@@ -10,7 +10,7 @@ The first release. The framework's and the reference application's state machine
 
 The models refuse input they cannot decide on. `wrapPointerStep` answers `invalidX` for a pointer
 place that is not finite. `workspacesStep` refuses every event once the workspaces are disposed,
-saving now and adopting a restored visit among them, and takes a second disposal as done.
+saving now among them, and takes a second disposal as done.
 `bestBid` answers a `BidOutcome` (`winner`, `noBid`, or `invalidPriority` naming the first bid
 whose priority is not finite), and `pickOrder` a `PickOutcome` (`ordered`, `invalidTolerance`, or
 `invalidHit` naming the hit and the field that is not finite). `compositionPlan` refuses to move
@@ -41,3 +41,11 @@ viewport opens in, `degraded`, with no backend yet.
 `wheelRoute` says where a wheel goes: to the press held in its viewport whenever one is, pending
 or running, whatever is under it and whatever modifier is held, so nothing else changes the scene
 in the middle of a gesture; with no press held, by what is under it and the depth modifier.
+
+`commit` takes a restore that starts the history afresh (`fresh`), emptying both stacks and
+recording nothing, and says so (`clearUndo`). `Swf.Spaces` decides named spaces: `spacesNameIssue`,
+`spacesInitial` and `spacesStep`, which opens another space only once the space shown is saved or
+its changes are given up. `workspacesMigration` decides which entries the reference application
+stored before spaces become which spaces; the visit and named-save decisions it replaces
+(`workspacesNameIssue`, `workspacesNewest`, `workspacesStale`, `workspacesSavedAt` and the
+`restored` event of `workspacesStep`) are gone.

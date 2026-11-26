@@ -57,11 +57,17 @@ export function spaceNameIssue(name: unknown): string | null {
 
 /** One of the spaces, as {@link Spaces.list} gives it. Frozen. */
 export interface SpaceEntry {
+  /** Its name, as the person or the host gave it. */
   readonly name: string;
   /** The host seeds it: it is always one of the spaces, and removing it resets it. */
   readonly seeded: boolean;
   /** What the store holds of it, or null when it was never stored (a seeded space). */
-  readonly stored: { readonly savedAt: number; readonly bytes: number } | null;
+  readonly stored: {
+    /** When it was last saved, in milliseconds since the epoch. */
+    readonly savedAt: number;
+    /** How many bytes the store holds of it. */
+    readonly bytes: number;
+  } | null;
 }
 
 /** Where a change of space stands. */
@@ -71,6 +77,7 @@ export type SpacesPhase = 'idle' | 'saving' | 'asking' | 'opening' | 'forking' |
 export interface SpacesState {
   /** The space shown, or null before the first is opened. */
   readonly active: string | null;
+  /** Where a change of space stands: `idle` when none is under way. */
   readonly phase: SpacesPhase;
   /** The space a switch, save as or reset under way is about, or null while idle. */
   readonly target: string | null;
@@ -85,6 +92,7 @@ export type SwitchOutcome =
   | {
       /** The space is shown. */
       readonly status: 'switched';
+      /** The space now shown. */
       readonly name: string;
       /** The restore of its stored snapshot, or null when the host seeded it afresh. */
       readonly restore: RestoreOutcome | null;
@@ -99,7 +107,9 @@ export type SwitchOutcome =
        * {@link Spaces.answer}: to switch anyway, giving up its unsaved changes, or to stay.
        */
       readonly status: 'asking';
+      /** The space asked for. */
       readonly name: string;
+      /** Why the space shown could not be saved. */
       readonly error: SwfError;
     }
   | {
@@ -109,13 +119,16 @@ export type SwitchOutcome =
   | {
       /** The space could not be opened: the space shown is as it was, and stays shown. */
       readonly status: 'failed';
+      /** The space that could not be opened. */
       readonly name: string;
+      /** Why it could not be opened. */
       readonly error: SwfError;
     };
 
 /** What {@link Spaces.remove} did. */
 export type RemoveOutcome = 'deleted' | 'reset' | 'unchanged';
 
+/** What {@link createSpaces} needs from its host. */
 export interface SpacesOptions {
   /**
    * The workspace's persistence: it captures and restores each space. The spaces follow its

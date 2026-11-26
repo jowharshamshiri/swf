@@ -63,7 +63,8 @@ holds small hosts, each run by the tests.
 - `@swf/persistence`: versioned, canonical workspace snapshots with a published JSON Schema and
   a validator that matches it, policy parameters and opaque extension state with size limits,
   two-phase restore with format migrations, a replaceable storage interface with in-memory, Web
-  Storage and IndexedDB stores, and the save state machine.
+  Storage and IndexedDB stores, the save state machine, and named spaces: several workspaces in
+  one store, switched in one call.
 - `@swf/navigation`: the whole navigation experience for a host's own content. `createNavigation`
   presents the host's surfaces in one viewport in the host's element, through both backends, with
   the view modes (the panorama, focus with its strip, the map and the overview) and the view moving
@@ -818,7 +819,10 @@ workspace exactly as it was, with `SNAPSHOT_INVALID` naming the failing path. Re
 current ones are kept as they are, so restoring the same snapshot again changes nothing: a restore
 replaces, never adds. The revision never goes back (it becomes the snapshot's when that is later),
 and the restore is one undoable step, with the history before it still coherent: undo puts the
-previous nodes and surfaces back, while cameras and viewports, being view state, stay.
+previous nodes and surfaces back, while cameras and viewports, being view state, stay. A snapshot
+of another document opened in the workspace's place is restored with `{ history: 'fresh' }`
+instead: the history starts afresh with it, leaving nothing to undo or redo, so no undo ever
+brings the replaced scene back into it.
 
 A snapshot document adds the format (`swf.workspace/1`), the engine that wrote it, when it was
 taken, the policies' parameters and the extensions' state. Its JSON Schema is published with the
@@ -888,6 +892,53 @@ saved key and revision makes it `clean`, and only when nothing changed meanwhile
 `dirty` again. A save the store does not acknowledge makes it `failed`, still unsaved, with the
 store holding what it held before. A retry captures afresh, so it never stores an older revision,
 and a store that holds a newer one, saved elsewhere, refuses it with `CONFLICT`.
+
+### Named spaces
+
+Several workspaces can share one workspace object and one store, one shown at a time: named
+spaces, each its own layout, camera, selection, policies' parameters and host state.
+
+```ts
+import { createSpaces } from '@swf/persistence';
+
+const spaces = createSpaces({
+  persistence,
+  store,
+  // Spaces the host always offers, made by `seed` until they are stored.
+  seeds: ['Research', 'Planning', 'Studio'],
+  seed: async (name) => {
+    loadTemplate(name); // the host's own scene for the space, in the workspace
+  },
+  saving: () => settings.persistence, // the spaces change only while saving is on
+});
+
+await spaces.switchTo('Studio'); // the first space shown
+await spaces.save(); // the space shown, under its own key (call it as the host's autosave fires)
+const outcome = await spaces.switchTo('Research'); // saves Studio first, then shows Research
+if (outcome.status === 'asking') {
+  // Studio could not be saved: switch without saving, or stay.
+  await spaces.answer(window.confirm(`${outcome.error.message}. Switch without saving?`));
+}
+```
+
+Each space is stored under `space/<name>`, and `list()` gives the seeded spaces in their order,
+then the others by name. A switch to another space first saves the one shown when it has unsaved
+changes, as an editor with auto save on saves before it closes a workspace; only when that save
+fails is nothing switched, and the outcome is `asking` until `answer(discard)` switches without
+saving or stays. The other space is then restored from the store, or seeded when the store holds
+nothing of it, with the workspace's history started afresh, so nothing done in one space is ever
+undone into another. A snapshot that cannot be restored fails the switch (`failed`), and the space
+shown stays as it was. Every switch, save, save as and removal runs in the order asked, one at a
+time: a save asked for during a switch saves the space shown once the switch has ended.
+`saveAs(name)` stores what is shown as a space of that name (replacing one the host does not seed,
+only once the new one is stored) and shows it, the space shown before keeping what it last saved;
+`remove(name)` deletes a space, or puts a seeded one back as it was seeded (the space shown in
+place, with nothing to undo); `clear()` deletes every stored space. Names follow the same rules as
+everywhere: something besides spaces, no space at either end, at most 80 characters
+(`spaceNameIssue`). What a switch, save as, removal or clear does at each step is decided by the
+Lean model `Swf.Spaces`, where it is proved that another space opens only once the one shown is
+saved or its changes are given up, that the space shown changes only when another was opened, and
+that nothing is taken while another change of space is under way.
 
 ## The reference application
 
@@ -998,8 +1049,8 @@ pack is given, and each action is a command with a stable ID (`reference.preset.
 `swf.experiment.run`, `swf.window.remove`, `swf.surface.detach`,
 `swf.surface.move`, `swf.window.merge`, `swf.window.regroup`,
 `reference.window.add`,
-`reference.workspace.save`, `reference.workspace.open`, `reference.workspace.delete`,
-`reference.workspace.deleteAll`, `reference.workspace.export`, `reference.workspace.import`,
+`reference.space.switch`, `reference.space.answer`, `reference.space.saveAs`,
+`reference.space.remove`, `reference.workspace.deleteAll`, `reference.workspace.export`, `reference.workspace.import`,
 `reference.workspace.saveNow`, `reference.scenario.start`, `reference.scenario.stop`,
 `reference.challenge.start`, `reference.challenge.cancel`, `reference.challenge.clear`). Undo and
 redo are also across the top of the centre.
@@ -1258,20 +1309,36 @@ same content.
 
 ### Workspaces
 
-While saving is on, the workspace is saved in this browser as it changes, and the next visit that
-names no scene restores it; the panel says whether everything is saved. Each visit saves under a
-key of its own, so a visit that loads a scene of its own never saves over another, and older visits
-are removed only once the new one is stored. The Workspaces view on the left saves what is on
-screen under a name (a name saved again is replaced only once the new one is stored), opens a named
-workspace, exports the workspace to a `.json` file and imports one. Opening or importing first
-says what the snapshot holds (its windows, groups, surfaces and viewports, when it was made, its
-format and the host state it carries) and replaces the workspace only when that is confirmed, as
-one undoable step; a file that is not a workspace snapshot is refused, saying the line or path at
-fault, and nothing changes. Reset to demo loads the studio, leaving saved workspaces as they
-are. Delete all saved removes every layout the application saved in this browser, and says that it
+The application keeps several named spaces in this browser, each its own layout, camera and
+scene: Research, Planning and Studio are seeded, each from a scene of named windows of its own
+(the `research`, `planning` and `studio` presets), and the person saves more. They are tabs across
+the top of the centre, the space shown selected, and one press of a tab shows that space (the
+command list offers each too, and so does the Workspaces view). While saving is on, the space shown
+is saved as it changes under a key of its own, and the next visit shows the space shown last as it
+was left; the panel says whether everything is saved. A switch saves the space shown first and
+shows the other with nothing to undo into it; only when that save fails does a question say why and
+ask whether to switch without saving or stay (Escape stays). A first visit shows the Studio, the
+demo; an address that names a scene loads it into the space shown, as one undoable step. A space
+remembered from the last visit that can no longer be opened is reported, and the Studio is shown
+instead. The tabs and switching go with persistence: while saving is off, the space shown stays.
+
+The Workspaces view on the left lists the spaces, each saved when and how large, or as seeded,
+the one shown marked; it saves what is on screen as a space of the person's (the tabs' own button
+opens it on the name; a space of that name is replaced only once the new one is stored, a seeded
+space's name is refused), deletes a space of the person's that is not shown, and resets a seeded
+space to its seed once that is confirmed. It exports the space shown to a `.json` file and imports
+one into it: importing first says what the snapshot holds (its windows, groups, surfaces and
+viewports, when it was made, its format and the host state it carries) and replaces what is shown
+only when that is confirmed, as one undoable step; a file that is not a workspace snapshot is
+refused, saying the line or path at fault, and nothing changes. Reset to demo loads the studio into
+the space shown, leaving the other spaces as they are. Delete all saved removes every layout the
+application saved in this browser, seeded spaces going back as they were seeded, and says that it
 touches neither what windows show nor anything the host keeps elsewhere. Only layout is stored: the
 scene, the policies' parameters and the scene's source (the host's own state, under
-`host.reference.scene`), never content.
+`host.reference.scene`), never content. What earlier versions stored (the workspace of each visit
+and the named saves) is made into spaces once, as the Lean model `Swf.AppWorkspaces` decides
+(`workspacesMigration`): the newest visit becomes the Studio, each name's newest save the space of
+that name, never over a space already stored; then those entries are deleted.
 
 ### Scenarios
 
@@ -1294,10 +1361,10 @@ leaves it.
 - **Switch focus between windows**: focus a window, focus one of its neighbours, leave focus.
 - **Compose surfaces**: detach Sources from the Project Board, move it into the Writing Desk, and put
   it back on the board.
-- **Save and restore a layout**: save the studio as “Studio layout”, change it, and open the saved
-  layout again, every window going back where it was saved.
+- **Save and restore a layout**: save the studio as the space “Studio layout”, change it, switch to
+  the Studio space and back, and find every window where it was left.
 
-A step that waits for a change (a neighbour focused, the layout changed, the saved layout opened)
+A step that waits for a change (a neighbour focused, the layout changed, a space switched to)
 counts only a change made after it became due. A step whose window has been removed cannot be done
 or shown, and says so: undo, or start the scenario again.
 
@@ -1381,6 +1448,7 @@ attachments); the model decides each state it passes through and each request it
 | `Swf.Gesture`        | Where each pointer sample, press and key goes; each gesture phase from press to commit or cancel (§13.3); the keyboard hold's admission; a held press taking the wheel; how far a wheel turned                 |
 | `Swf.Arbitration`    | Which gesture wins a press, and which hit under a pointer is the target, in what order and whether ambiguously                                                                                                 |
 | `Swf.Save`           | The snapshot save states (§13.4), which acknowledgements count, and that the saved revision never goes back                                                                                                    |
+| `Swf.Spaces`         | Named spaces: valid names; what a switch, save as, removal or clear does at each step, another space opening only once the one shown is saved or its changes are given up                                      |
 | `Swf.Migration`      | The steps that bring a snapshot of an older format to the current one, without cycles                                                                                                                          |
 | `Swf.Fallback`       | Each fragment's presentation mode, its fallback report, fidelities and layer, which fragment holds the live handle, and which fallback orders are policies; a whole frame in one call                          |
 | `Swf.Handoff`        | Each backend handoff stage (§13.5), what becomes of every attached surface, what a failed handoff puts back for each, and whether it switched, kept the previous backend or degraded the viewport              |
@@ -1396,7 +1464,7 @@ attachments); the model decides each state it passes through and each request it
 | `Swf.AppDepth`       | The semantic-depth band of every window of a frame at once, farther never showing more                                                                                                                         |
 | `Swf.AppComposition` | Composition plans (detaching, moving and merging surfaces, breaking a window into parts and recombining them, regrouping and grouping windows) and the IDs of new windows                                      |
 | `Swf.AppWheel`       | A burst of the wheel over a window as one gesture: what it shows, when it is committed once, and when cancelled                                                                                                |
-| `Swf.AppWorkspaces`  | Named workspaces: valid names, autosave, saving now, restoring the newest visit, the stale visits, save times and which files import                                                                           |
+| `Swf.AppWorkspaces`  | The reference application's saving: autosave, saving now, which files import, and which entries stored before spaces become which spaces                                                                       |
 | `Swf.AppScenarios`   | How a guided scenario advances: from its first step, one step at a time and in order, each only once its condition holds while it is due, never undone                                                         |
 | `Swf.AppChallenge`   | The timed window-finding task: which window a run names (never the selected one, behind the camera when any is), what it counts, when it ends and the records it keeps                                         |
 | `Swf.AppOverview`    | Where each window's card stands on the overview's board (across at its heading, never overlapping, the higher above, at the largest size that holds them all)                                                  |
@@ -1470,9 +1538,11 @@ release` builds a versioned release from a commit ([Release the packages](docs/h
 A budget is raised only deliberately, by hand, to the package's measured gzip size rounded up to the
 next 256 bytes, so it leaves no room for growth nobody looked at; the measured sizes are recorded
 with `npm run size -- --record` in the same commit, whose message gives the old and the new budget.
-`@swf/models` is at 56576 bytes: it is the compiled program of every proved decision model the
-framework and the reference application run, so it grows with each model (56428 bytes
-measured, the names model included).
+`@swf/models` is at 58624 bytes: it is the compiled program of every proved decision model the
+framework and the reference application run, so it grows with each model (58501 bytes
+measured, the named spaces model and the restore that starts the history afresh included).
+`@swf/persistence` is at 13312 bytes (13255 measured): snapshots, stores and the saver, with named
+spaces (`createSpaces`).
 `@swf/navigation-ui` starts at 40704 bytes, 10% over its measured size (36801) rounded up to
 the next 256: the navigation controls compiled as a host's build compiles them, with Svelte, the kit
 and the framework's packages left out; it is measured only where the kit is.
