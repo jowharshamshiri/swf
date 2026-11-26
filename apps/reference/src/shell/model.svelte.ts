@@ -11,6 +11,7 @@ import type { MessageId, Messages } from '../messages.js';
 import { cameraHeading, orbitHeading } from '../orbit.js';
 import type { Pose } from '../pose.js';
 import type { PolicyStatus } from '../policies.js';
+import type { ViewMode } from '../modes.js';
 import { experimentOf } from '../experiments.js';
 import type { NamedWorkspace, SnapshotPreview, WorkspacesStatus } from '../workspaces.js';
 import { WorkspaceRefusal } from '../workspaces.js';
@@ -199,6 +200,11 @@ export class ShellModel {
   /** The optional policies: which are on, their settings, the gesture running and the last one. */
   policies = $state<PolicyStatus | null>(null);
   /**
+   * The view modes offered, in the switcher's order: read again whenever the policies change,
+   * since the focus and map modules register theirs while they are on.
+   */
+  modes = $state.raw<readonly ViewMode[]>([]);
+  /**
    * The experiment the feature modules' switches are now, or null for a custom combination (and
    * before the application starts).
    */
@@ -321,6 +327,7 @@ export class ShellModel {
     this.#app = app;
     this.status = app.status();
     this.policies = app.policies.status();
+    this.modes = app.modes.list();
     this.#readSelection();
     this.#readHistory();
     this.workspaces = app.workspaces.status();
@@ -337,6 +344,8 @@ export class ShellModel {
       }),
       app.policies.subscribe(() => {
         this.policies = app.policies.status();
+        // The focus and map modules register their modes while they are on.
+        this.modes = app.modes.list();
       }),
       app.workspaces.subscribe(() => {
         this.workspaces = app.workspaces.status();

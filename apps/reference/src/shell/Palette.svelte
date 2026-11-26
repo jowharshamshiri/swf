@@ -58,7 +58,7 @@
         { preset },
       ),
     ),
-    ...(model.app?.modes.list() ?? []).map((mode) =>
+    ...model.modes.map((mode) =>
       command(
         `mode.${mode.id}`,
         t('command.mode.switch.named', { mode: t(mode.name) }),

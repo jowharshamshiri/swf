@@ -117,6 +117,11 @@ describe('the experiment panel', () => {
       if (plan.wholeCircle) {
         expect(fieldOfViewOf(app.modes.panorama()), id).toBe(FIELD_OF_VIEW.max);
       }
+      // The view switcher offers Focus and the Map exactly while their capabilities are on.
+      const switcher = m.driver.read('editor.actions.mode');
+      const offered = switcher.present ? switcher.text : '';
+      expect(offered.includes(ENGLISH['mode.focus']), id).toBe(plan.enabled.focus);
+      expect(offered.includes(ENGLISH['mode.map']), id).toBe(plan.enabled.map);
       // The panel names it, says how to try it, and marks it in the list.
       expect(heading(m), id).toContain(ENGLISH[EXPERIMENTS[id].name]);
       expect(heading(m), id).toContain(ENGLISH[EXPERIMENTS[id].trial].slice(0, 40));

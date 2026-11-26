@@ -855,7 +855,8 @@ centre, with the view mode, the backend, the command list and the panel across i
 view's own controls (field of view, camera heading, workspace turned) above it; how the panorama
 is presented is in the panel below it. In a narrow window one side at a time floats
 over the panorama, and a panorama narrower than 600 CSS pixels (a phone's) has the view mode as a
-list across its top, leaving what drags turn and the backend to the command list and Features, so
+list across its top, leaving what drags turn and the backend to the command list and the
+experiment panel, so
 the actions stay within it: at 320 pixels the scene, the overview, selection and the inspector are
 all there. Ctrl+Shift+P or F1 opens the command list, which runs every command and goes
 to any window by its name. The page installs the kit's automation driver as
@@ -881,12 +882,17 @@ git add wsb package-lock.json && git commit
 npm run dev                                # the development server, reloading in place on every edit
 npm run build -w @swf/reference            # apps/reference/dist/index.html: one self-contained page
 npm run build:staging -w @swf/reference    # the same, with the debug overlay
+npm run build:everyday -w @swf/reference   # the same, without the experiment panel
 ```
 
 The built page holds its script, styles and the kit's faces inline, so it runs from any static
 host or opened straight from the file, offline, with no server, account or network access.
 Staging builds and the development server add a Developer panel to the right side (see below).
-Production builds leave it out, with the diagnostics package and the failure simulation.
+Production builds leave it out, with the diagnostics package and the failure simulation. Every build
+but an everyday one carries the experiment panel (see Behaviour modules); an everyday build leaves
+it out, nothing of it in the page, with every capability on and the everyday controls (the view
+switcher, what drags turn, the view's sliders, the radar, the inspector, the command list) in
+place. Building in any other mode is refused, naming the mode.
 
 The address picks the scene: `?preset=seam&seed=7&backend=geometry`. An address that names no
 preset and no seed restores the workspace this browser saved last (see Workspaces), or loads the
@@ -938,7 +944,7 @@ pack is given, and each action is a command with a stable ID (`reference.preset.
 `reference.navigation.set`, `reference.orbit.designate`, `reference.orbit.turn`,
 `reference.orbit.turnTo`,
 `reference.history.undo`, `reference.history.redo`, `reference.gesture.cancel`,
-`reference.feature.combine`, `reference.window.remove`, `reference.surface.detach`,
+`reference.experiment.run`, `reference.window.remove`, `reference.surface.detach`,
 `reference.surface.move`, `reference.window.merge`, `reference.window.regroup`,
 `reference.window.add`,
 `reference.workspace.save`, `reference.workspace.open`, `reference.workspace.delete`,
@@ -976,7 +982,7 @@ gesture, saving and restoring.
   exact place, turn (0 faces the camera) and size, and locks it. Each is one undoable change; a
   locked window's controls are disabled, saying why. These are also what touch and pen use for
   every gesture: a drag, a resize handle, the wheel with Shift and a pinch each have their
-  control, a background drag has each window's Reveal and Features' turns, and a tap has the
+  control, a background drag has each window's Reveal and the experiment panel's turns, and a tap has the
   Windows list.
 - **The Windows view** stands in for the panorama for whoever cannot see it: every window, by
   name, with where it is (degrees right or left, up or down, and units away), selected, focused,
@@ -1100,14 +1106,30 @@ map.
 ### Behaviour modules
 
 Eight behaviour modules are modules of their own, each installed only through the framework's
-public contracts and each turned on or off on its own from the Features view on the left: focus and
-context, workspace orbit, the spatial map, the wrapped cursor, magnetic positioning, semantic depth,
-composition, and saving and opening workspaces. All are on by default, the combined preset; Turn
-every feature on brings them all back keeping their settings, and Reset also puts the settings back.
+public contracts: focus and context, workspace orbit (the workspace's rotation), semantic depth,
+the wrapped cursor (seamless 360° interaction), the spatial map, magnetic positioning,
+composition, and saving and opening workspaces (persistent workspaces). All are on by default.
 Turning one off removes its hooks and its controls (a mode leaves the switcher, after the view
 showing it goes back to where it came from; a view leaves the side; its commands are refused, saying
 it is off) and never changes the scene's data, its layout or what is saved, and none needs another.
-Each application holds its own modules: nothing is shared between two of them.
+Each application holds its own modules: nothing is shared between two of them. The radar beside the
+panorama is an everyday control and stays whatever is on.
+
+The **experiment panel** (Experiments, on the left; an everyday build leaves it out) tries the eight
+capabilities one at a time or together. Its head says which experiment the switches are now and how
+to try it, comparing the behaviour with the capability off; any other combination is said to be a
+custom one, naming what is on. Under it are the experiments: **Everything combined** and **01 Focus
+and context** to **08 Persistent workspaces**, each turning its capability on and every other off
+and setting the view up to show it (`reference.experiment.run`): focus on the selected window (the
+panorama while none is selected), drags turning the workspace (while a group is designated), the
+whole circle in view for the seamless 360° experiment, the map, and otherwise the panorama with
+drags turning the camera. An experiment changes no window and nothing undo puts back. Then the
+eight switches, which combine the capabilities in any way, and the settings of those that have
+any; Reset turns all eight on and puts the settings back. The panel holds only configuration: it
+runs the commands that turn the modules on and off and set the view, and none of a capability's
+behaviour is in it. Which modules an experiment turns on, how it sets the view up, and which
+experiment a combination is are the Lean model `Swf.AppExperiments`. The command list offers the
+experiments and the switches while the panel is there.
 
 - **Focus and context** and **the spatial map** are the Focus and Map view modes, offered while
   they are on.
@@ -1117,7 +1139,7 @@ Each application holds its own modules: nothing is shared between two of them.
   on the panorama's background turns is the viewport's navigation setting, chosen explicitly with
   the Camera | Workspace switch across the top of the centre (or the command list) and never
   switched by where the pointer is: the panel says which one is in force, and while drags turn the
-  workspace a line above the panorama says so. The Features view picks the group, turns it by 15°
+  workspace a line above the panorama says so. The experiment panel picks the group, turns it by 15°
   either way (as do Alt+Shift+Left and Right), and shows the camera's heading beside the
   workspace's turn to compare the two; the slider above the panorama turns it to any heading. Off, drags turn the camera and the keys that turn the group
   are taken out of the keymap; the group stays designated.
@@ -1139,7 +1161,7 @@ Each application holds its own modules: nothing is shared between two of them.
   turned) past one edge of the 360° panorama back in at the other, where the seam behind the camera
   is, so a drag across the seam keeps its window and the point of it that was grabbed. A drawn
   cursor shows where the drag acts, because a page cannot move the platform's pointer: that pointer
-  stops at the edge of the screen, as the Features view says. Pointers left to content, and every
+  stops at the edge of the screen, as the experiment panel says. Pointers left to content, and every
   pointer while the view shows less than the whole circle (in focus), are not wrapped.
 
 - **Composition** and **saving and opening workspaces** are described below.
@@ -1305,6 +1327,7 @@ attachments); the model decides each state it passes through and each request it
 | `Swf.AppOrbit`       | The reference application's workspace orbit: which group it turns, what a background drag navigates, and the commands of each change                                                                  |
 | `Swf.AppCursor`      | Which pointers the wrapped cursor carries across the panorama's seam, where it wraps them, and when its virtual cursor is drawn                                                                       |
 | `Swf.AppFeatures`    | Which feature toggles and settings a patch may set, refused field by field, and what changes                                                                                                          |
+| `Swf.AppExperiments` | The experiments: the modules each turns on (one alone, or all), the view it sets up from what the scene offers, and which experiment a combination of switches is, any other being custom             |
 | `Swf.AppSnap`        | The magnetic snap: which neighbour edge or line-up, spoke round the camera or ring a moved window snaps to, nearest first, within its thresholds                                                      |
 | `Swf.AppDepth`       | The semantic-depth band of every window of a frame at once, farther never showing more                                                                                                                |
 | `Swf.AppComposition` | Composition plans (detaching, moving and merging surfaces, breaking a window into parts and recombining them, regrouping and grouping windows) and the IDs of new windows                             |

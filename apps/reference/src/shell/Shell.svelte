@@ -254,7 +254,7 @@
     );
   });
   const modes = $derived(
-    (model.app?.modes.list() ?? []).map((mode) => ({
+    model.modes.map((mode) => ({
       value: mode.id,
       label: t(mode.name),
       disabled: mode.id === FOCUS_ID && !focusable,

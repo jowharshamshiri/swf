@@ -103,14 +103,18 @@ in the command list (Ctrl+Shift+P or F1).
 
 ## Independent policies
 
-1. Open Features. Turn each module on and off on its own: focus and context, workspace orbit,
-   semantic depth, the wrapped cursor, the map, magnetic placement, multi-surface composition and
-   persistence controls; then choose the combined preset, and reset.
+1. Open Experiments. Choose each numbered experiment, 01 to 08: it turns its capability on and
+   every other off, sets the view up to show it, and its card at the head of the panel says how to
+   try it and what to compare with it off. Turn the switches below on and off in any combination:
+   the head says it is a custom combination. Then choose Everything combined, and Reset.
 2. With magnetic placement on, drag a window near another: it snaps level with it, and the
    notice says to what; Cancel takes the snap back.
 3. With semantic depth on, move windows farther away: distant ones show as labels.
-4. With the wrapped cursor on, drag off one edge of the panorama: the drawn cursor carries on
+4. With seamless 360° on, drag off one edge of the panorama: the drawn cursor carries on
    from the other edge (the platform pointer itself cannot move, which the notice says).
+5. Build with `npm run build:everyday -w @swf/reference` and open `apps/reference/dist/index.html`:
+   there is no Experiments view, every capability is on, and the view's controls, the radar and the
+   command list are all there.
 
 ## Keyboard only
 

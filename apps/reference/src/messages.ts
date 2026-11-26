@@ -110,7 +110,7 @@ export const ENGLISH = Object.freeze({
   'view.fov.focus': 'Focus frames its window: close it to set the field of view.',
   'view.heading': 'Camera heading',
   'view.workspace': 'Workspace turned',
-  'view.workspace.off': 'Workspace orbit is off in Features.',
+  'view.workspace.off': 'Workspace rotation is off in Experiments.',
   'view.workspace.noroot': 'No group is designated for workspace orbit.',
   'radar.ring': '{value}',
   'radar.bearing': '{value}°',
@@ -525,8 +525,8 @@ export const ENGLISH = Object.freeze({
   'command.workspace.deleteAll': 'Delete every workspace saved in this browser',
   'command.workspace.export': 'Export the workspace to a file',
   'command.workspace.import': 'Import a workspace from a file',
-  'action.focus.off': 'Focus is turned off in Features',
-  'action.map.off': 'The map is turned off in Features',
+  'action.focus.off': 'Focus and context is turned off in Experiments',
+  'action.map.off': 'The spatial map is turned off in Experiments',
   'inspector.surfaces': 'Surfaces',
   'inspector.surfaces.detail':
     'What the host supplied for this window, side by side. Each is moved whole, never split.',
@@ -548,7 +548,7 @@ export const ENGLISH = Object.freeze({
   'inspector.window.group.new': 'A new group…',
   'inspector.window.group.name': 'New group’s name',
   'inspector.window.group.move': 'Move',
-  'inspector.composition.off': 'Composition is turned off in Features.',
+  'inspector.composition.off': 'Multi-surface composition is turned off in Experiments.',
   'inspector.together': 'Selected together',
   'inspector.together.detail':
     '{count} windows are selected: {names}. Ctrl+click a window in the panorama, or press Selected along with the others on its row in the Windows view, to add or take one out.',
@@ -562,7 +562,7 @@ export const ENGLISH = Object.freeze({
   'notice.dismiss': 'Dismiss',
   'workspaces.title': 'Workspaces',
   'workspaces.label': 'Workspaces saved in this browser',
-  'workspaces.off': 'Saving and opening workspaces is turned off in Features.',
+  'workspaces.off': 'Persistent workspaces are turned off in Experiments.',
   'workspaces.autosave':
     'The workspace is saved in this browser as it changes, and comes back on your next visit.',
   'save.clean': 'Saved',

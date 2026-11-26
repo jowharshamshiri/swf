@@ -24,6 +24,12 @@ step and ticking a step off only when its condition holds while it is due, in or
 behind the camera whenever one is, and `challengeStep` counts a run's actions, ends it only when
 that window is selected, and keeps its record.
 
+`experimentPlan` gives the reference application's experiments: the modules each turns on (the
+capability it isolates alone, or all eight), and the view it sets up from what the scene offers
+(focus only on a window there is, drags turning the workspace only while a group is designated,
+the whole circle for seamless 360°). `experimentOf` names the experiment a combination of the
+modules' switches is, or none for a custom combination.
+
 `handoffStep` begins a handoff only from `active` or `degraded`, refusing a `begin` while one is
 under way, and takes the new `failed` event, which returns a handoff under way to the previous
 backend: `active` when it still works, `degraded` otherwise. `viewportOpened` is the state a
