@@ -86,8 +86,8 @@
   "@swf/navigation": {
     "budget": 29440,
     "recorded": {
-      "minified": 80723,
-      "gzip": 26607
+      "minified": 80774,
+      "gzip": 26635
     }
   },
   "@swf/benchmark": {
@@ -95,6 +95,13 @@
     "recorded": {
       "minified": 16526,
       "gzip": 6447
+    }
+  },
+  "@swf/navigation-ui": {
+    "budget": 40704,
+    "recorded": {
+      "minified": 143727,
+      "gzip": 36775
     }
   }
 }

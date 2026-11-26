@@ -20,7 +20,7 @@ import {
   radarView,
   ringStep,
 } from '@swf/navigation';
-import { PART_OF_KEY } from '../src/app.js';
+import { PART_OF_KEY } from '../src/presets.js';
 import { centreOf, note, policyWorld, VIEWPORT, worldOf } from './policy-world.js';
 
 const DEGREES = 180 / Math.PI;

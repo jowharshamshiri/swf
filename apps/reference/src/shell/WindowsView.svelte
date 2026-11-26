@@ -23,7 +23,7 @@
   import type { SearchFilters, SearchResult, SortKey } from '@swf/navigation';
   import { ATTACHMENT_FILTERS, COVERAGE_FILTERS, LOCK_FILTERS, NO_FILTERS, PAGE_SIZE, SORT_KEYS, VISIBILITY_FILTERS } from '@swf/navigation';
   import type { ShellModel } from './model.svelte.js';
-  import WindowActions from './WindowActions.svelte';
+  import { WindowActions } from '@swf/navigation-ui';
 
   interface Props {
     model: ShellModel;

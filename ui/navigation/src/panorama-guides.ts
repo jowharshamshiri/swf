@@ -4,10 +4,10 @@ import type { Vec3 } from '@swf/math';
 import type { NameObstacle, NameRequest, ScreenPoint } from '@swf/presentation';
 import { placeNames, viewGeometryOf, windowNames } from '@swf/presentation';
 import { headingPitchOf, projectionFor } from '@swf/projections';
-import type { ReferenceApp } from '../app.js';
+import type { Navigation } from '@swf/navigation';
 import type { PartLink } from '@swf/navigation';
 import { VIEWPORT_ID, partLinks, traced } from '@swf/navigation';
-import type { Messages } from '../messages.js';
+import type { NavigationMessages } from './messages.js';
 
 /**
  * Guides drawn under the panorama's windows, so where things are around the camera is seen in the
@@ -45,7 +45,7 @@ const EDGE = 6;
 /** A window's name as the backends write it: the height of its line and its plate's margin. */
 const NAME_PLATE = Object.freeze({ line: 15, margin: 3 });
 /** The owner of what the windows draw, which the guides' words keep clear of. */
-const WINDOWS = 'reference.guides.windows';
+const WINDOWS = 'swf.guides.windows';
 
 /** One line of the grid: its heading or height in degrees, and the runs it is drawn in. */
 export interface GridLine {
@@ -67,11 +67,11 @@ type Measured = Omit<GuideLayout, 'words'> & { readonly width: number; readonly 
 type Inks = { readonly [K in keyof typeof INKS]: string };
 
 /** The layer name the guides' holder carries. */
-export const GUIDES_LAYER = 'reference-guides';
+export const GUIDES_LAYER = 'swf-guides';
 
 export interface PanoramaGuidesOptions {
-  readonly app: ReferenceApp;
-  readonly messages: Messages;
+  readonly app: Navigation;
+  readonly messages: NavigationMessages;
   /** The element the panorama is presented in. */
   readonly container: HTMLElement;
 }

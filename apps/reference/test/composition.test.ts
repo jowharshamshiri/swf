@@ -21,7 +21,7 @@ import {
   regroupWindow,
   splitWindow,
 } from '@swf/navigation';
-import { PART_OF_KEY } from '../src/app.js';
+import { PART_OF_KEY } from '../src/presets.js';
 
 /** A workspace holding the composed preset: Board (three surfaces), window-04 and window-05. */
 function composed(): Workspace {

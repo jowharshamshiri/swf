@@ -523,6 +523,11 @@ const RADIANS = Math.PI / 180;
  */
 export const COLOUR_KEY = 'host.reference.colour';
 export const CATEGORY_KEY = 'host.reference.category';
+/**
+ * The metadata key a window made from another window's surface keeps that window's ID under: the
+ * window it is a part of.
+ */
+export const PART_OF_KEY = 'host.reference.partOf';
 export const SEARCHABLE_METADATA: readonly string[] = Object.freeze([COLOUR_KEY, CATEGORY_KEY]);
 
 /** A window's category ({@link CATEGORY_KEY}), or null for one without. */

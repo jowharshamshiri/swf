@@ -46,7 +46,7 @@ async function begin(id: ScenarioId): Promise<Mounted> {
   m.driver.act(keyed('page.scenarios.start', id), 'press');
   await due(m, 1);
   // It starts from the studio, in the panorama.
-  expect(m.model.status?.scene.preset).toBe('studio');
+  expect(m.model.scene?.preset).toBe('studio');
   expect(m.model.status?.mode).toBe('panorama');
   return m;
 }
@@ -201,7 +201,7 @@ describe('the timed window-finding task, driven from the Scenarios view', () => 
   it('names a window behind the camera, counts presses until it is selected, and records each way', async () => {
     const m = await start('', { store: createMemoryStore(), autosaveDelayMs: 0 });
     const app = appOf(m.model);
-    expect(m.model.status?.scene.preset).toBe('studio');
+    expect(m.model.scene?.preset).toBe('studio');
     m.driver.act('workshop.view#scenarios', 'press');
     await m.settle();
 

@@ -7,11 +7,11 @@
   // as Ctrl+click does in the panorama.
   import { IconButton } from '@wsb/uikit/components';
   import { keyed } from '@wsb/uikit/handles';
-  import type { MessageId } from '../messages.js';
-  import type { ShellModel } from './model.svelte.js';
+  import type { NavigationMessageId } from './messages.js';
+  import type { NavigationModel } from './model.svelte.js';
 
   interface Props {
-    model: ShellModel;
+    model: NavigationModel;
     id: string;
     /** The handle the actions are named under: `<handle>.focus#<id>`, and so on. */
     handle: string;
@@ -24,7 +24,7 @@
 
   let { model, id, handle, disabled = false, inspect = true, toggle = false }: Props = $props();
   const chosen = $derived(model.selection.includes(id));
-  const t = (message: MessageId) => model.messages.format(message);
+  const t = (message: NavigationMessageId) => model.messages.format(message);
   const focusOn = $derived(model.policies?.features.enabled.focus ?? false);
   const mapOn = $derived(model.policies?.features.enabled.map ?? false);
 </script>

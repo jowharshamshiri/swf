@@ -28,6 +28,19 @@ const packageSources = import.meta.glob<string>('../../../packages/*/src/**/*.ts
   import: 'default',
   eager: true,
 });
+const uiSources = import.meta.glob<string>(
+  ['../../../ui/navigation/src/**/*.ts', '../../../ui/navigation/src/**/*.svelte'],
+  {
+    query: '?raw',
+    import: 'default',
+    eager: true,
+  },
+);
+const uiManifest = import.meta.glob<string>('../../../ui/navigation/package.json', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+});
 const kitManifest = import.meta.glob<string>('../../../wsb/wsb/daemon/uikit/package.json', {
   query: '?raw',
   import: 'default',
@@ -112,9 +125,9 @@ describe('the application uses only the public API (FR-185, ARCH-020)', () => {
     expect(Object.keys(dependencies)).not.toContain('@swf/conformance');
   });
 
-  it('depends on framework packages whose one code entry point is their index', () => {
+  it('depends on framework packages, and the navigation controls, whose one code entry point is their index', () => {
     const byName = new Map(
-      Object.values(packages).map((text) => {
+      [...Object.values(packages), ...Object.values(uiManifest)].map((text) => {
         const json = JSON.parse(text) as { name: string; exports: Record<string, unknown> };
         return [json.name, json] as const;
       }),
@@ -170,5 +183,47 @@ describe('the application uses only the public API (FR-185, ARCH-020)', () => {
     const config = only(viteConfig, "the application's Vite configuration");
     expect(config).toContain('`../../packages/${pkg}/src/index.ts`');
     expect(config).not.toMatch(/packages\/[a-z-]+\/src\/(?!index\.ts)/);
+  });
+});
+
+describe('the navigation controls use only the public API', () => {
+  const manifest = JSON.parse(only(uiManifest, "the navigation controls' package.json")) as {
+    dependencies: Record<string, string>;
+    peerDependencies: Record<string, string>;
+  };
+
+  it('has sources to check, Svelte components among them', () => {
+    expect(Object.keys(uiSources).length).toBeGreaterThan(10);
+    expect(Object.keys(uiSources).some((path) => path.endsWith('.svelte'))).toBe(true);
+  });
+
+  it('imports framework packages and the kit by their public entry points, its own files, and only what it declares', () => {
+    const framework = new Set(
+      Object.keys(manifest.dependencies).filter((name) => name.startsWith('@swf/')),
+    );
+    const kit = new Set(kitExports());
+    const violations: string[] = [];
+    for (const [path, source] of Object.entries(uiSources)) {
+      for (const specifier of specifiers(source)) {
+        const fine =
+          /^\.\/(?:[a-z-]+(?:\.svelte)?\.js|[A-Z][A-Za-z]+\.svelte)$/.test(specifier) ||
+          framework.has(specifier) ||
+          kit.has(specifier) ||
+          specifier === 'svelte';
+        if (!fine) {
+          violations.push(`${path}: ${specifier}`);
+        }
+      }
+    }
+    expect(violations).toEqual([]);
+  });
+
+  it('depends on the framework by its packages, the kit by its pinned checkout, and Svelte as its host’s', () => {
+    expect(manifest.dependencies['@wsb/uikit']).toBe('file:../../wsb/wsb/daemon/uikit');
+    expect(Object.keys(manifest.peerDependencies)).toEqual(['svelte']);
+    const outside = Object.keys(manifest.dependencies).filter(
+      (name) => !name.startsWith('@swf/') && name !== '@wsb/uikit',
+    );
+    expect(outside).toEqual([]);
   });
 });

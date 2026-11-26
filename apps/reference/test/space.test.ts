@@ -3,7 +3,7 @@ import { quatFromAxisAngle } from '@swf/math';
 import type { RenderFrame, Representation } from '@swf/presentation';
 import { describe, expect, it } from 'vitest';
 import { CAMERA_ID } from '@swf/navigation';
-import { PART_OF_KEY } from '../src/app.js';
+import { PART_OF_KEY } from '../src/presets.js';
 import { spaceStatus } from '@swf/navigation';
 import { policyWorld, VIEWPORT } from './policy-world.js';
 

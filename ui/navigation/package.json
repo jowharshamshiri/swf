@@ -1,0 +1,48 @@
+{
+  "name": "@swf/navigation-ui",
+  "version": "0.1.0",
+  "description": "The Spatial Workspace Framework's navigation controls for a host built on the wsb UI kit: the panorama, the radar, the view's controls, the inspector, the focus strip, the map, the overview and the experiment panel, each a Svelte component a host enables, styles or replaces on its own, working only through the framework's public API.",
+  "license": "Apache-2.0",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jowharshamshiri/swf.git",
+    "directory": "ui/navigation"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "svelte": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "svelte": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "files": [
+    "src",
+    "CHANGELOG.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "scripts": {
+    "typecheck": "svelte-check --tsconfig ./tsconfig.json --fail-on-warnings"
+  },
+  "dependencies": {
+    "@swf/core": "0.1.0",
+    "@swf/navigation": "0.1.0",
+    "@swf/presentation": "0.1.0",
+    "@swf/projections": "0.1.0",
+    "@swf/backend-geometry": "0.1.0",
+    "@swf/math": "0.1.0",
+    "@swf/models": "0.1.0",
+    "@swf/interaction": "0.1.0",
+    "@wsb/uikit": "file:../../wsb/wsb/daemon/uikit"
+  },
+  "peerDependencies": {
+    "svelte": "5.57.3"
+  },
+  "devDependencies": {
+    "svelte-check": "4.7.8"
+  }
+}

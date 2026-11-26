@@ -1,21 +1,13 @@
-import type { PolicyStatus, Pose, SpaceStatus, ViewMode } from '@swf/navigation';
-import {
-  VIEWPORT_ID,
-  cameraHeading,
-  experimentOf,
-  orbitHeading,
-  spaceStatus,
-} from '@swf/navigation';
-import type { CommandOutcome } from '@swf/interaction';
-import { KEYBOARD_HOLD_ID } from '@swf/interaction';
-import type { FrameMetrics, Representation } from '@swf/presentation';
-import type { AppStatus, ReferenceApp, ReferenceAppOptions } from '../app.js';
+import type { HostContent, Refusal } from '@swf/navigation-ui';
+import { NavigationModel } from '@swf/navigation-ui';
+import type { ReferenceApp, ReferenceAppOptions, SceneSource } from '../app.js';
 import { createReferenceApp } from '../app.js';
-import type { AppCommandId, AppCommandSpecs } from '../commands.js';
+import type { AppCommandSpecs } from '../commands.js';
 import { APP_COMMAND_NAMES } from '../commands.js';
 import type { AppConfig } from '../config.js';
 import { ConfigError } from '../config.js';
-import type { MessageId, Messages } from '../messages.js';
+import type { Messages } from '../messages.js';
+import { contentOf } from '../presets.js';
 import type { NamedWorkspace, SnapshotPreview, WorkspacesStatus } from '../workspaces.js';
 import { WorkspaceRefusal } from '../workspaces.js';
 import type { ScenarioStatus } from '../scenarios.js';
@@ -32,38 +24,6 @@ export type PendingReplace =
     }
   | { readonly kind: 'open'; readonly name: string; readonly preview: SnapshotPreview };
 
-/** A window removed from the workspace, said until dismissed or undone (UX-011). */
-export interface Removal {
-  readonly ids: readonly string[];
-  /** The window's name, or how many windows went. */
-  readonly label: string;
-  /** The transaction that removed it: undo is offered while it is the last undoable one. */
-  readonly transactionId: string;
-}
-
-/**
- * What a quick action did, said over the panorama until dismissed, until a gesture or another
- * action, or until undo would no longer take it back.
- */
-export interface Outcome {
-  readonly text: string;
-  /**
-   * The change it made, while undo would take back that change and nothing later: null for an
-   * action that changed nothing undoable (turning the view), or once a later change came first.
-   */
-  readonly transactionId: string | null;
-  /** Rises with each outcome, so the same words said twice are said again. */
-  readonly count: number;
-}
-
-/** The quick actions whose outcome is said, by the message that says it. */
-const OUTCOMES = Object.freeze({
-  'swf.window.bringFront': { message: 'outcome.bringFront', undoable: true },
-  'swf.window.sendBehind': { message: 'outcome.sendBehind', undoable: true },
-  'swf.window.arrange': { message: 'outcome.arrange', undoable: true },
-  'swf.window.reveal': { message: 'outcome.reveal', undoable: false },
-} as const);
-
 /** What the workspaces view says after an action. */
 export type WorkspaceNote =
   | { readonly kind: 'saved'; readonly name: string }
@@ -74,102 +34,24 @@ export type WorkspaceNote =
 /** What the shell passes the application besides its root, its configuration and its messages. */
 export type ShellAppOptions = Omit<ReferenceAppOptions, 'root' | 'config' | 'messages'>;
 
-/**
- * The thin binding between the application and the shell's view: the application's state as
- * reactive values the shell reads, and its commands as the one way the shell changes anything.
- * Nothing of the UI framework reaches the application or the framework's packages.
- */
-
-/** The selected window, as the inspector shows it: where it stands as the panorama shows it. */
-export interface SelectedWindow extends Pose {
-  readonly id: string;
-  readonly label: string | null;
-  readonly content: 'note' | 'tile' | null;
-  /**
-   * How the panorama shows its content as of its last frame: live, drawn by the backend, or by a
-   * stand-in.
-   */
-  readonly presentation: 'live' | 'drawn' | 'proxy';
-  /** How the view represents it (by semantic depth), or null while it is not shown. */
-  readonly representation: Representation | null;
-  /** In front of the camera's heading, or behind it. */
-  readonly side: 'front' | 'behind';
-}
-
-/** A command that was refused, as the shell says it. */
-export interface Refusal {
-  readonly command: AppCommandId;
-  readonly field: string;
-  readonly message: string;
-}
-
-/** A window, as the command list offers it. */
-export interface WindowEntry {
-  readonly id: string;
-  readonly label: string;
-}
-
-/** Something said to assistive technology alone; `count` rises with each, so a repeat is said. */
-export interface Announcement {
-  readonly text: string;
-  readonly count: number;
-}
-
-/** What each framework operation a key runs is called, when it does nothing. */
-const OPERATION_NAMES: Readonly<Record<string, MessageId>> = Object.freeze({
-  'node.move': 'operation.node.move',
-  'node.rotate': 'operation.node.rotate',
-  'node.resize': 'operation.node.resize',
-  'gesture.grab': 'operation.gesture.grab',
-  'gesture.drop': 'operation.gesture.drop',
-  'selection.next': 'operation.selection.next',
-  'selection.previous': 'operation.selection.previous',
-  'focus.selected': 'operation.focus.selected',
-  'history.undo': 'operation.history.undo',
-  'history.redo': 'operation.history.redo',
-  'camera.turn': 'operation.camera.turn',
-  'orbit.turn': 'operation.orbit.turn',
+/** Where the application's own commands' refusals are said: the view that runs each. */
+const PLACES: Readonly<Record<string, string>> = Object.freeze({
+  'reference.preset.load': 'scene',
+  'reference.scene.reset': 'scene',
+  'reference.scene.reseed': 'scene',
+  'reference.workspace.save': 'workspaces',
+  'reference.workspace.open': 'workspaces',
+  'reference.workspace.delete': 'workspaces',
+  'reference.workspace.deleteAll': 'workspaces',
+  'reference.workspace.export': 'workspaces',
+  'reference.workspace.import': 'workspaces',
 });
 
-/** The commands that move a window, and what is said once each is done. */
-const PLACING: Readonly<Partial<Record<AppCommandId, 'moved' | 'turned' | 'resized'>>> =
-  Object.freeze({
-    'swf.window.place': 'moved',
-    'swf.window.bringFront': 'moved',
-    'swf.window.sendBehind': 'moved',
-  });
-
-/** The commands the scene view runs: their refusals are said there, the rest over the centre. */
-const SCENE_COMMANDS: readonly AppCommandId[] = Object.freeze([
-  'reference.preset.load',
-  'reference.scene.reset',
-  'reference.scene.reseed',
-]);
-
-/** The commands the experiment panel runs: their refusals are said there, by their field. */
-const FEATURE_COMMANDS: readonly AppCommandId[] = Object.freeze([
-  'swf.experiment.run',
-  'swf.feature.set',
-  'swf.feature.reset',
-  'swf.snap.configure',
-  'swf.depth.configure',
-  'swf.navigation.set',
-  'swf.orbit.designate',
-  'swf.orbit.turn',
-]);
-
-/** The commands the workspaces view runs: their refusals are said there. */
-const WORKSPACE_COMMANDS: readonly AppCommandId[] = Object.freeze([
-  'reference.workspace.save',
-  'reference.workspace.open',
-  'reference.workspace.delete',
-  'reference.workspace.deleteAll',
-  'reference.workspace.export',
-  'reference.workspace.import',
-]);
-
-/** The commands the scenarios view runs: their refusals are said there. */
-const SCENARIO_COMMANDS: readonly AppCommandId[] = Object.freeze([
+/**
+ * The commands of the scenarios and the timed task: their refusals are said in their view, and
+ * over the panorama too, where what they show happens.
+ */
+const SCENARIO_COMMANDS: readonly string[] = Object.freeze([
   'reference.scenario.start',
   'reference.scenario.stop',
   'reference.challenge.start',
@@ -177,117 +59,43 @@ const SCENARIO_COMMANDS: readonly AppCommandId[] = Object.freeze([
   'reference.challenge.clear',
 ]);
 
-/** The commands the inspector runs: their refusals are said there. */
-const INSPECTOR_COMMANDS: readonly AppCommandId[] = Object.freeze([
-  'swf.window.pose',
-  'swf.window.lock',
-  'swf.gesture.grab',
-  'swf.gesture.drop',
-  'swf.window.remove',
-  'swf.surface.detach',
-  'swf.surface.move',
-  'swf.window.merge',
-  'swf.window.split',
-  'swf.window.recombine',
-  'swf.window.regroup',
-  'swf.window.group',
-  'swf.window.bringFront',
-  'swf.window.sendBehind',
-]);
+/**
+ * What the demo says of its content: a note or a tile, in the application's words, and the
+ * pictures it draws of each for the focus strip.
+ */
+function demoContent(messages: Messages, app: () => ReferenceApp | null): HostContent {
+  return {
+    describe: (surface) => {
+      const kind = contentOf(surface.adapterTypeId);
+      return kind === null ? null : messages.format(`content.${kind}`);
+    },
+    kind: (node) => {
+      const tag = node.tags.find((t) => t === 'note' || t === 'tile');
+      return tag === undefined ? null : messages.format(`content.${tag}`);
+    },
+    preview: (key) => app()?.content.preview(key) ?? null,
+  };
+}
 
-/** The commands the radar runs: their refusals are said there. */
-const RADAR_COMMANDS: readonly AppCommandId[] = Object.freeze(['swf.window.arrange']);
-
-/** The commands the view's controls run: their refusals are said there. */
-const VIEW_COMMANDS: readonly AppCommandId[] = Object.freeze([
-  'swf.view.fov',
-  'swf.view.heading',
-  'swf.orbit.turnTo',
-]);
-
-export class ShellModel {
-  /** What the application shows, once it has started. */
-  status = $state<AppStatus | null>(null);
-  selected = $state<SelectedWindow | null>(null);
-  /** Every window selected, the one inspected first. */
-  selection = $state<readonly string[]>([]);
-  frame = $state<FrameMetrics | null>(null);
-  fallbacks = $state(0);
-  /** The workspace as the panorama's last frame shows it, in the reader's terms. */
-  space = $state<SpaceStatus | null>(null);
-  /** What the last quick action did, while it is said. */
-  outcome = $state<Outcome | null>(null);
-  /** The last command refused, until the next one runs. */
-  refusal = $state<Refusal | null>(null);
+/**
+ * The shell's model: the navigation controls' model of the application's navigation, with what the
+ * application's own views show (its scene, its saving and named workspaces, the guided scenarios
+ * and the timed task) and its own commands run through the same `run`. Nothing of the UI framework
+ * reaches the application or the framework's packages.
+ */
+export class ShellModel extends NavigationModel<AppCommandSpecs> {
+  /** The seeded scene the workspace shows, once the application has started. */
+  scene = $state<SceneSource | null>(null);
   /** Why the application could not start: the address named something invalid, or it failed. */
   startProblem = $state<string | null>(null);
-  /** The scene's revision, read again on every commit: what views of the scene follow. */
-  revision = $state(0);
-  /** Rises whenever the search's query or results change. */
-  searchVersion = $state(0);
-  /** Rises each time a window is asked to be inspected: the shell opens the inspector. */
-  inspections = $state(0);
-  /** The optional policies: which are on, their settings, the gesture running and the last one. */
-  policies = $state<PolicyStatus | null>(null);
-  /**
-   * The view modes offered, in the switcher's order: read again whenever the policies change,
-   * since the focus and map modules register theirs while they are on.
-   */
-  modes = $state.raw<readonly ViewMode[]>([]);
-  /**
-   * The experiment the feature modules' switches are now, or null for a custom combination (and
-   * before the application starts).
-   */
-  experiment = $derived(
-    this.policies === null ? null : experimentOf(this.policies.features.enabled),
-  );
-  /**
-   * The groups workspace rotation can turn, the one designated, and the readings that compare the
-   * camera and the workspace: the camera's heading and the workspace's turn, in degrees (no turn
-   * while no group is designated), read again at each of the scene's revisions. Null before the
-   * application starts.
-   */
-  orbitScene = $derived.by(() => {
-    const revision = this.revision;
-    const app = this.app;
-    if (app === null) {
-      return null;
-    }
-    const state = app.workspace.getState();
-    const groups = [...state.nodes.values()]
-      .filter((node) => node.kind === 'group' && node.status === 'active')
-      .map((node) => ({ value: node.id, label: node.label ?? node.id }));
-    const turned = orbitHeading(state);
-    return {
-      /** The scene's revision they were read at. */
-      revision,
-      groups,
-      // Read with the groups, from the same scene, so the chosen one is always among them.
-      rootId: state.orbitRootId,
-      camera: (cameraHeading(state, VIEWPORT_ID) * 180) / Math.PI,
-      turned: turned === null ? null : (turned * 180) / Math.PI,
-    };
-  });
-  /** Whether there is something to undo and to redo. */
-  history = $state({ undo: false, redo: false });
-  /** The window the map was last asked to show, and how many times it has been asked. */
-  mapRequest = $state<{ readonly id: string; readonly count: number } | null>(null);
   /** How saving stands. */
   workspaces = $state<WorkspacesStatus | null>(null);
   /** The named workspaces, read again after every change to them. */
   named = $state<readonly NamedWorkspace[]>([]);
   /** A replacement waiting to be confirmed or cancelled. */
   pendingReplace = $state<PendingReplace | null>(null);
-  /** The last window removed, while it can be undone. */
-  removal = $state<Removal | null>(null);
   /** What the workspaces view says after its last action. */
   workspaceNote = $state<WorkspaceNote | null>(null);
-  /** The last thing said to assistive technology alone (UX-013). */
-  announcement = $state<Announcement | null>(null);
-  /** Why the last key pressed in the panorama did nothing, until a key next does something. */
-  keyRefusal = $state<string | null>(null);
-  /** Whether the panorama itself has the keyboard (not a window's content in it). */
-  panoramaFocused = $state(false);
   /** Rises each time a scenario is started: the shell shows its steps. */
   scenarioStarts = $state(0);
   /** The guided scenario under way, and how far it has come. */
@@ -297,10 +105,12 @@ export class ShellModel {
   /** The timed task: the run under way and the runs recorded. */
   challenge = $state<ChallengeStatus | null>(null);
 
-  readonly messages: Messages;
+  override readonly messages: Messages;
   readonly #config: AppConfig | ConfigError;
   readonly #appOptions: ShellAppOptions;
   #app = $state.raw<ReferenceApp | null>(null);
+  /** The application the content's pictures are drawn by, once it has started. */
+  readonly #started: { app: ReferenceApp | null };
   #stops: (() => void)[] = [];
   #disposed = false;
   /** The application starting, once it is asked to: a disposal waits for it, then disposes it. */
@@ -311,9 +121,13 @@ export class ShellModel {
     config: AppConfig | ConfigError,
     appOptions: ShellAppOptions = {},
   ) {
+    // The content's pictures are the application's, once it has started.
+    const started: { app: ReferenceApp | null } = { app: null };
+    super({ messages, content: demoContent(messages, () => started.app), places: PLACES });
     this.messages = messages;
     this.#config = config;
     this.#appOptions = appOptions;
+    this.#started = started;
     if (config instanceof ConfigError) {
       this.startProblem = messages.format('error.config', {
         field: config.field,
@@ -355,11 +169,9 @@ export class ShellModel {
       return;
     }
     this.#app = app;
-    this.status = app.status();
-    this.policies = app.policies.status();
-    this.modes = app.modes.list();
-    this.#readSelection();
-    this.#readHistory();
+    this.#started.app = app;
+    this.attach(app, app.commands, APP_COMMAND_NAMES);
+    this.scene = app.status().scene;
     this.workspaces = app.workspaces.status();
     this.scenario = app.scenarios.status();
     this.challenge = app.challenge.status();
@@ -372,291 +184,18 @@ export class ShellModel {
       app.challenge.subscribe(() => {
         this.challenge = app.challenge.status();
       }),
-      app.policies.subscribe(() => {
-        this.policies = app.policies.status();
-        // The focus and map modules register their modes while they are on.
-        this.modes = app.modes.list();
-      }),
       app.workspaces.subscribe(() => {
         this.workspaces = app.workspaces.status();
       }),
       app.subscribe((status) => {
-        this.status = status;
-      }),
-      app.workspace.subscribe((event) => {
-        if (event.type === 'transaction.committed') {
-          this.revision = app.workspace.getState().revision;
-          this.#readSelection();
-          this.#readHistory();
-          // Undo would no longer take the last quick action back: a later change came first.
-          if (
-            this.outcome !== null &&
-            this.outcome.transactionId !== null &&
-            app.workspace.history().at(-1)?.transactionId !== this.outcome.transactionId
-          ) {
-            this.outcome = { ...this.outcome, transactionId: null };
-          }
-          // Undo would no longer bring the removed window back: a later change came first.
-          if (
-            this.removal !== null &&
-            app.workspace.history().at(-1)?.transactionId !== this.removal.transactionId
-          ) {
-            this.removal = null;
-          }
-        }
-      }),
-      app.search.subscribe(() => {
-        this.searchVersion += 1;
-      }),
-      app.observeInput(({ intent, result }) => {
-        const operation = result.operation;
-        if (intent.kind === 'key' && operation !== null && 'status' in operation.outcome) {
-          this.#keyed(operation.name, operation.outcome);
-        }
-      }),
-      app.router.subscribe((event) => {
-        if (event.type === 'gesture.started') {
-          // A gesture is the reader's next action: the last quick action's outcome is no longer said.
-          this.outcome = null;
-        }
-        if (event.type === 'gesture.started' && event.policyId === KEYBOARD_HOLD_ID) {
-          this.#held = { gestureId: event.gestureId, nodeId: event.nodeId };
-          this.#say('announce.held', event.nodeId);
-        } else if (event.type === 'gesture.ended' && event.gestureId === this.#held?.gestureId) {
-          const nodeId = this.#held.nodeId;
-          this.#held = null;
-          if (event.finish.outcome === 'cancelled') {
-            this.announce(
-              this.messages.format('announce.cancelled', { label: this.#labelOf(nodeId) }),
-            );
-          } else {
-            this.#say('announce.dropped', nodeId);
-          }
-        }
-      }),
-      app.presenter.subscribe((event) => {
-        if (event.type === 'frame' && event.viewportId === VIEWPORT_ID) {
-          this.frame = event.metrics;
-          this.fallbacks = event.fallbacks.length;
-          const presented = app.viewport.lastFrame();
-          this.space =
-            presented === null ? null : spaceStatus(presented.frame, app.windows.partOfKey);
-          this.#readSelection();
-        }
+        this.scene = status.scene;
       }),
     );
   }
 
-  /** Runs one of the application's commands; a refusal is kept to be said. */
-  async run<K extends AppCommandId>(id: K, params: AppCommandSpecs[K]): Promise<boolean> {
-    const app = this.#app;
-    if (app === null) {
-      return false;
-    }
-    this.refusal = null;
-    const outcome = await app.commands.run(id, params);
-    if (outcome.status === 'rejected') {
-      this.refusal = { command: id, field: outcome.field, message: outcome.message };
-      return false;
-    }
-    this.#ran(id, params);
-    return true;
-  }
-
-  /** Stops saying the last quick action's outcome. */
-  dismissOutcome(): void {
-    this.outcome = null;
-  }
-
-  /** Gives the panorama the keyboard; false while there is none to give it to. */
-  focusPanorama(): boolean {
-    const root = this.#app?.root;
-    if (root === undefined) {
-      return false;
-    }
-    root.focus();
-    return true;
-  }
-
-  /** Says a text to assistive technology alone, politely, after what it is reading. */
-  announce(text: string): void {
-    this.announcement = { text, count: (this.announcement?.count ?? 0) + 1 };
-  }
-
-  /** The gesture holding a window from the keyboard, and the window, while one does. */
-  #held: { readonly gestureId: string; readonly nodeId: string | null } | null = null;
-
-  #labelOf(id: string | null): string {
-    const node = id === null ? undefined : this.#app?.workspace.getState().nodes.get(id);
-    return node?.label ?? id ?? '';
-  }
-
-  /** Where a window stands, in words. */
-  where(pose: Pose): string {
-    const t = this.messages;
-    const round = (value: number, digits = 0) => Number(Math.abs(value).toFixed(digits));
-    return t.format('where.text', {
-      heading: round(pose.heading),
-      side: t.format(pose.heading < 0 ? 'where.left' : 'where.right'),
-      elevation: round(pose.elevation),
-      updown: t.format(pose.elevation < 0 ? 'where.down' : 'where.up'),
-      distance: round(pose.distance, 2),
-    });
-  }
-
-  /** Says what a window is now, by a message that names its label and where it is. */
-  #say(
-    id:
-      | 'announce.selected'
-      | 'announce.added'
-      | 'announce.moved'
-      | 'announce.turned'
-      | 'announce.resized'
-      | 'announce.held'
-      | 'announce.preview'
-      | 'announce.dropped',
-    nodeId: string | null,
-  ): void {
-    const pose = nodeId === null ? null : (this.#app?.poseOf(nodeId) ?? null);
-    if (pose === null) {
-      return;
-    }
-    const round = (value: number, digits: number) => Number(value.toFixed(digits));
-    this.announce(
-      this.messages.format(id, {
-        label: this.#labelOf(nodeId),
-        where: this.where(pose),
-        degrees: round(pose.turned, 1),
-        width: round(pose.width, 2),
-        height: round(pose.height, 2),
-      }),
-    );
-  }
-
-  /** What a key pressed in the panorama did: said, or why it did nothing shown. */
-  #keyed(name: string, outcome: CommandOutcome): void {
-    switch (outcome.status) {
-      case 'rejected':
-      case 'unchanged':
-        this.keyRefusal = this.messages.format('keys.refused', {
-          operation: this.messages.format(OPERATION_NAMES[name] ?? 'operation.other'),
-          reason:
-            outcome.status === 'unchanged'
-              ? outcome.reason
-              : outcome.error.code === 'LOCKED'
-                ? this.messages.format('keys.locked', {
-                    label: this.#labelOf(outcome.error.entityId ?? this.selected?.id ?? null),
-                  })
-                : outcome.error.message,
-        });
-        return;
-      case 'cancelled':
-        this.keyRefusal = null;
-        return;
-      case 'previewed':
-        this.keyRefusal = null;
-        // Picking up is said when the hold starts; each change while held says where it would go.
-        if (name !== 'gesture.grab') {
-          this.#say('announce.preview', this.#held?.nodeId ?? null);
-        }
-        return;
-      case 'committed': {
-        this.keyRefusal = null;
-        const selected = this.#app?.workspace.getState().selection[0] ?? null;
-        switch (name) {
-          case 'node.move':
-            this.#say('announce.moved', selected);
-            return;
-          case 'node.rotate':
-            this.#say('announce.turned', selected);
-            return;
-          case 'node.resize':
-            this.#say('announce.resized', selected);
-            return;
-          case 'selection.next':
-          case 'selection.previous':
-            this.#say('announce.selected', selected);
-            return;
-          case 'history.undo':
-            this.announce(this.messages.format('announce.undone'));
-            return;
-          case 'history.redo':
-            this.announce(this.messages.format('announce.redone'));
-            return;
-          default:
-            return;
-        }
-      }
-    }
-  }
-
-  /** What a command the shell ran did, said where nothing on screen says it (UX-013). */
-  #ran<K extends AppCommandId>(id: K, params: AppCommandSpecs[K]): void {
-    const said = Object.hasOwn(OUTCOMES, id) ? OUTCOMES[id as keyof typeof OUTCOMES] : null;
-    if (said !== null) {
-      const label =
-        typeof params === 'object' && 'id' in params && typeof params.id === 'string'
-          ? this.#labelOf(params.id)
-          : '';
-      const text = this.messages.format(said.message, { label });
-      this.outcome = {
-        text,
-        transactionId: said.undoable
-          ? (this.#app?.workspace.history().at(-1)?.transactionId ?? null)
-          : null,
-        count: (this.outcome?.count ?? 0) + 1,
-      };
-      this.announce(text);
-      return;
-    }
-    const placing = PLACING[id];
-    const windowId =
-      typeof params === 'object' && 'id' in params && typeof params.id === 'string'
-        ? params.id
-        : null;
-    if (placing !== undefined) {
-      // A held window's change is said as the hold's preview.
-      this.#say(
-        this.#held !== null
-          ? 'announce.preview'
-          : placing === 'moved'
-            ? 'announce.moved'
-            : placing === 'turned'
-              ? 'announce.turned'
-              : 'announce.resized',
-        windowId,
-      );
-      return;
-    }
+  /** What the application's own commands did, said; navigation's are said by its model. */
+  protected override ran(id: string, params: unknown): void {
     switch (id) {
-      case 'swf.window.pose': {
-        // A pose shown while a control moves is said by the control; the change made, once.
-        const pose = params as AppCommandSpecs['swf.window.pose'];
-        if (pose.preview === true) {
-          return;
-        }
-        this.#say(
-          this.#held !== null
-            ? 'announce.preview'
-            : pose.heading !== undefined || pose.reach !== undefined || pose.y !== undefined
-              ? 'announce.moved'
-              : pose.turned !== undefined
-                ? 'announce.turned'
-                : 'announce.resized',
-          windowId,
-        );
-        return;
-      }
-      case 'swf.window.lock':
-        this.announce(
-          this.messages.format(
-            (params as AppCommandSpecs['swf.window.lock']).locked
-              ? 'announce.locked'
-              : 'announce.unlocked',
-            { label: this.#labelOf(windowId) },
-          ),
-        );
-        return;
       case 'reference.workspace.saveNow':
         this.announce(this.messages.format('announce.saved'));
         return;
@@ -664,37 +203,26 @@ export class ShellModel {
         this.scenarioStarts += 1;
         return;
       case 'reference.window.add':
-        this.#say('announce.added', this.#app?.workspace.getState().selection[0] ?? null);
-        return;
-      case 'swf.history.undo':
-        this.announce(this.messages.format('announce.undone'));
-        return;
-      case 'swf.history.redo':
-        this.announce(this.messages.format('announce.redone'));
+        this.say('announce.added', this.#app?.workspace.getState().selection[0] ?? null);
         return;
       default:
-        return;
+        super.ran(id, params);
     }
   }
 
   /** Whether a refusal is of a workspaces command, said in the workspaces view. */
   isWorkspaceRefusal(refusal: Refusal): boolean {
-    return WORKSPACE_COMMANDS.includes(refusal.command);
-  }
-
-  /** Whether a refusal is of a command the radar runs, said there. */
-  isRadarRefusal(refusal: Refusal): boolean {
-    return RADAR_COMMANDS.includes(refusal.command);
-  }
-
-  /** Whether a refusal is of a command the view's controls run, said there. */
-  isViewRefusal(refusal: Refusal): boolean {
-    return VIEW_COMMANDS.includes(refusal.command);
+    return this.placeOf(refusal) === 'workspaces';
   }
 
   /** Whether a refusal is of a scenario's or the timed task's command, said in their view. */
   isScenarioRefusal(refusal: Refusal): boolean {
     return SCENARIO_COMMANDS.includes(refusal.command);
+  }
+
+  /** Whether a refusal is of one of the scene's own commands, said where the scene is set. */
+  isSceneRefusal(refusal: Refusal): boolean {
+    return this.placeOf(refusal) === 'scene';
   }
 
   /**
@@ -734,45 +262,12 @@ export class ShellModel {
     }
   }
 
-  /** Whether a refusal is of a command the inspector runs, said there. */
-  isInspectorRefusal(refusal: Refusal): boolean {
-    return INSPECTOR_COMMANDS.includes(refusal.command);
-  }
-
   /** Reads the named workspaces again. */
   async refreshNamed(): Promise<void> {
     const app = this.#app;
     if (app !== null) {
       this.named = await app.workspaces.named();
     }
-  }
-
-  /**
-   * Removes windows from the workspace (UX-011): one undoable change, said with an undo until it
-   * is dismissed or something else changes.
-   */
-  async removeWindows(ids: readonly string[]): Promise<boolean> {
-    const only = ids.length === 1 ? ids[0] : undefined;
-    const label =
-      only === undefined
-        ? this.messages.format('removed.windows', { count: ids.length })
-        : (this.#app?.workspace.getState().nodes.get(only)?.label ?? only);
-    const done = await this.run('swf.window.remove', { ids });
-    if (done) {
-      const last = this.#app?.workspace.history().at(-1);
-      this.removal = last === undefined ? null : { ids, label, transactionId: last.transactionId };
-    }
-    return done;
-  }
-
-  /** Undoes the removal said, while it is still the last change. */
-  async undoRemoval(): Promise<boolean> {
-    this.removal = null;
-    return this.run('swf.history.undo', {});
-  }
-
-  dismissRemoval(): void {
-    this.removal = null;
   }
 
   /** Saves the workspace under a name, and lists the named ones again. */
@@ -871,142 +366,16 @@ export class ShellModel {
     };
   }
 
-  /** Whether a refusal is of one of the scene's own commands, said where the scene is set. */
-  isSceneRefusal(refusal: Refusal): boolean {
-    return SCENE_COMMANDS.includes(refusal.command);
-  }
-
-  /** Whether a refusal is of a feature's command, said in the experiment panel. */
-  isFeatureRefusal(refusal: Refusal): boolean {
-    return FEATURE_COMMANDS.includes(refusal.command);
-  }
-
-  /** The refusal, said in words. */
-  refusalText(refusal: Refusal): string {
-    return this.messages.format('error.command', {
-      command: this.messages.format(APP_COMMAND_NAMES[refusal.command]),
-      reason: refusal.message,
-    });
-  }
-
-  /** Selects a window, as pressing it in a list or on the map does: nothing else changes. */
-  async select(id: string): Promise<boolean> {
-    return this.run('swf.window.inspect', { id });
-  }
-
-  /** Selects a window and opens the inspector on it. */
-  async inspect(id: string): Promise<boolean> {
-    const done = await this.run('swf.window.inspect', { id });
-    if (done) {
-      this.inspections += 1;
-    }
-    return done;
-  }
-
-  /** Selects a window, shows the map, and centres the map on it. */
-  async showInMap(id: string): Promise<boolean> {
-    const done = await this.run('swf.window.map', { id });
-    if (done) {
-      this.mapRequest = { id, count: (this.mapRequest?.count ?? 0) + 1 };
-    }
-    return done;
-  }
-
-  /** Every window, in ID order, by its label. */
-  windows(): WindowEntry[] {
-    const app = this.#app;
-    if (app === null) {
-      return [];
-    }
-    return [...app.workspace.getState().nodes.values()]
-      .filter((node) => node.kind === 'window' && node.status === 'active')
-      .map((node) => ({ id: node.id, label: node.label ?? node.id }))
-      .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-  }
-
   async dispose(): Promise<void> {
     this.#disposed = true;
     await this.#starting;
     for (const stop of this.#stops.splice(0)) {
       stop();
     }
+    this.detach();
     const app = this.#app;
     this.#app = null;
+    this.#started.app = null;
     await app?.dispose();
-  }
-
-  #readHistory(): void {
-    const app = this.#app;
-    if (app === null) {
-      return;
-    }
-    const undo = app.workspace.canUndo();
-    const redo = app.workspace.canRedo();
-    if (undo !== this.history.undo || redo !== this.history.redo) {
-      this.history = { undo, redo };
-    }
-  }
-
-  #readSelection(): void {
-    const app = this.#app;
-    if (app === null) {
-      return;
-    }
-    const state = app.workspace.getState();
-    if (
-      state.selection.length !== this.selection.length ||
-      state.selection.some((id, i) => id !== this.selection[i])
-    ) {
-      this.selection = state.selection;
-    }
-    const id = state.selection[0];
-    const node = id === undefined ? undefined : state.nodes.get(id);
-    if (node === undefined) {
-      this.selected = null;
-      return;
-    }
-    // Where it stands as the panorama shows it, whatever group it is in and however that group
-    // is turned, a held window where it is held.
-    const pose = app.poseOf(node.id);
-    if (pose === null) {
-      this.selected = null;
-      return;
-    }
-    const tag = node.tags.find((t) => t === 'note' || t === 'tile');
-    const surfaceId = node.surfaceIds[0];
-    const next: SelectedWindow = {
-      ...pose,
-      id: node.id,
-      label: node.label,
-      content: tag ?? null,
-      presentation:
-        surfaceId === undefined
-          ? 'proxy'
-          : app.viewport.presentation(surfaceId) === 'live'
-            ? 'live'
-            : (app.viewport.lastFrame()?.frame.planned ?? []).some(
-                  (p) =>
-                    p.fragment.surfaceId === surfaceId && p.negotiation.layer === 'content-raster',
-                )
-              ? 'drawn'
-              : 'proxy',
-      representation: app.policies.representationOf(node.id),
-      side:
-        Math.cos(
-          pose.heading * (Math.PI / 180) - cameraHeading(app.workspace.getPresented(), VIEWPORT_ID),
-        ) >= 0
-          ? 'front'
-          : 'behind',
-    };
-    const last = this.selected;
-    if (
-      last === null ||
-      (Object.keys(next) as (keyof SelectedWindow)[]).some(
-        (key) => key !== 'position' && last[key] !== next[key],
-      ) ||
-      next.position.some((value, i) => value !== last.position[i])
-    ) {
-      this.selected = next;
-    }
   }
 }

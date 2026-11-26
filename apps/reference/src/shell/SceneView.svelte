@@ -16,13 +16,13 @@
   let { model }: Props = $props();
   const t = (id: MessageId) => model.messages.format(id);
 
-  const status = $derived(model.status);
+  const scene = $derived(model.scene);
   let seedText = $state('');
   let seedInvalid = $state(false);
   // The seed field follows the scene until the reader types in it.
   $effect(() => {
-    if (status !== null) {
-      seedText = String(status.scene.seed);
+    if (scene !== null) {
+      seedText = String(scene.seed);
       seedInvalid = false;
     }
   });
@@ -43,8 +43,8 @@
     handle={handleOf`page.scene.preset`}
     id="reference-preset"
     options={presets}
-    value={status?.scene.preset ?? DEFAULT_CONFIG.preset}
-    disabled={status === null}
+    value={scene?.preset ?? DEFAULT_CONFIG.preset}
+    disabled={scene === null}
     onchange={(value) => {
       void model.run('reference.preset.load', { preset: value as PresetId });
     }}
@@ -61,7 +61,7 @@
     step={1}
     value={seedText}
     invalid={seedInvalid}
-    disabled={status === null}
+    disabled={scene === null}
     oninput={(value) => {
       seedText = value;
     }}
@@ -84,7 +84,7 @@
         handle={handleOf`page.scene.reset`}
         label={t('command.scene.reset')}
         icon="undo"
-        disabled={status === null}
+        disabled={scene === null}
         onpress={() => {
           void model.run('reference.scene.reset', {});
         }}
@@ -93,7 +93,7 @@
         handle={handleOf`page.scene.reseed`}
         label={t('command.scene.reseed')}
         icon="refresh"
-        disabled={status === null}
+        disabled={scene === null}
         onpress={() => {
           void model.run('reference.scene.reseed', {});
         }}

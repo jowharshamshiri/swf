@@ -1,5 +1,5 @@
 {
-  "version": "0.118.761",
+  "version": "0.119.884",
   "name": "swf",
   "private": true,
   "description": "Spatial Workspace Framework: a browser-first TypeScript framework for spatial presentation and window management.",
@@ -28,15 +28,17 @@
     "packages/persistence",
     "packages/navigation",
     "packages/benchmark",
+    "ui/navigation",
     "apps/reference",
-    "examples"
+    "examples",
+    "examples/navigation-host"
   ],
   "scripts": {
     "build": "npm run build:packages && npm run build -w @swf/reference",
     "build:packages": "tsc -b tsconfig.build.json",
     "clean": "tsc -b tsconfig.build.json --clean",
     "typecheck": "npm run typecheck --workspaces",
-    "lint": "eslint .",
+    "lint": "node --max-old-space-size=4096 node_modules/eslint/bin/eslint.js .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",

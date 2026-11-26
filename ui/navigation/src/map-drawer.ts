@@ -1,6 +1,6 @@
 import type { StageUnit } from '@wsb/uikit/components';
 import { resolvePalette } from '@wsb/uikit/primitives';
-import type { ReferenceApp } from '../app.js';
+import type { Navigation } from '@swf/navigation';
 import type { MapScene, MapView } from '@swf/navigation';
 import {
   MAP_SCALE,
@@ -18,7 +18,7 @@ import {
   toMap,
   zoomed,
 } from '@swf/navigation';
-import type { Messages } from '../messages.js';
+import type { NavigationMessages } from './messages.js';
 import { models } from '@swf/models';
 
 /**
@@ -138,8 +138,8 @@ function stageUnit(label: Label): StageUnit {
 export interface MapDrawerOptions {
   /** Default `map`. */
   readonly kind?: MapKind;
-  readonly app: ReferenceApp;
-  readonly messages: Messages;
+  readonly app: Navigation;
+  readonly messages: NavigationMessages;
   readonly viewport: HTMLElement;
   readonly canvas: HTMLCanvasElement;
   /** The stage's layer of units, where a name is measured before it is placed. */

@@ -27,17 +27,16 @@
     Text,
   } from '@wsb/uikit/components';
   import { handleOf, keyed } from '@wsb/uikit/handles';
-  import type { MessageId } from '../messages.js';
-  import { contentOf } from '../presets.js';
-  import type { ShellModel } from './model.svelte.js';
+  import type { NavigationMessageId } from './messages.js';
+  import type { NavigationModel } from './model.svelte.js';
   import WindowActions from './WindowActions.svelte';
 
   interface Props {
-    model: ShellModel;
+    model: NavigationModel;
   }
 
   let { model }: Props = $props();
-  const t = (id: MessageId, params?: Readonly<Record<string, string | number>>) =>
+  const t = (id: NavigationMessageId, params?: Readonly<Record<string, string | number>>) =>
     model.messages.format(id, params);
   const round = (value: number, digits: number) => Number(value.toFixed(digits));
 
@@ -47,7 +46,7 @@
   // The selected window's surfaces, the other windows and the groups, from the same scene.
   const scene = $derived.by(() => {
     void model.revision;
-    const app = model.app;
+    const app = model.navigation;
     if (app === null || selected === null) {
       return null;
     }
@@ -62,12 +61,12 @@
       if (surface === undefined) {
         return [];
       }
-      const kind = contentOf(surface.adapterTypeId);
+      const shows = model.content.describe(surface);
       return [
         {
           id,
           label: surface.label ?? id,
-          detail: kind === null ? surface.adapterTypeId : t(`content.${kind}`),
+          detail: shows ?? surface.adapterTypeId,
         },
       ];
     });
@@ -101,7 +100,7 @@
           { term: t('inspector.name'), value: selected.label ?? selected.id },
           ...(selected.content === null
             ? []
-            : [{ term: t('inspector.content'), value: t(`content.${selected.content}`) }]),
+            : [{ term: t('inspector.content'), value: selected.content }]),
           ...(scene === null || scene.origin === null
             ? scene !== null && scene.parts > 0
               ? [{ term: t('inspector.parts'), value: t('inspector.parts.value', { count: scene.parts }) }]
@@ -137,7 +136,7 @@
   // The windows selected together, the inspected one first, and the name a group of them is given.
   const together = $derived.by(() => {
     void model.revision;
-    const state = model.app?.workspace.getState();
+    const state = model.navigation?.workspace.getState();
     return model.selection.flatMap((id) => {
       const node = state?.nodes.get(id);
       return node === undefined ? [] : [{ id, label: node.label ?? id }];
@@ -177,7 +176,7 @@
   });
 
   const refusal = $derived(
-    model.refusal !== null && model.isInspectorRefusal(model.refusal) ? model.refusal : null,
+    model.refusal !== null && model.placeOf(model.refusal) === 'inspector' ? model.refusal : null,
   );
 
   // PLACING IT (UX-006, UX-012, UX-014): every drag, resize handle, turn and wheel or pinch has
@@ -341,7 +340,7 @@
           </Stack>
           <Checkbox
             handle={handleOf`page.inspector.lock`}
-            id="reference-lock"
+            id="swf-lock"
             label={t('inspector.lock')}
             detail={t('inspector.lock.detail')}
             checked={selected.locked}
@@ -414,7 +413,7 @@
                     {#if scene.surfaces.length > 1}
                       <Select
                         handle={handleOf`page.inspector.move.surface`}
-                        id="reference-move-surface"
+                        id="swf-move-surface"
                         options={[
                           { value: '', label: t('inspector.surface.move.surface') },
                           ...scene.surfaces.map((s) => ({ value: s.id, label: s.label })),
@@ -427,7 +426,7 @@
                     {/if}
                     <Select
                       handle={handleOf`page.inspector.move.window`}
-                      id="reference-move-window"
+                      id="swf-move-window"
                       options={[{ value: '', label: t('inspector.surface.move.choose') }, ...scene.windows]}
                       value={chosen.movingTo}
                       onchange={(value) => {
@@ -437,7 +436,7 @@
                   </Stack>
                 {/snippet}
                 {@const surfaceId = scene.surfaces.length > 1 ? chosen.moving : (scene.surfaces[0]?.id ?? '')}
-                <Field label={t('inspector.surface.move')} for="reference-move-window" control={moveControl} />
+                <Field label={t('inspector.surface.move')} for="swf-move-window" control={moveControl} />
                 <Stack direction="row">
                   <Button
                     handle={handleOf`page.inspector.move`}
@@ -453,7 +452,7 @@
                 {#snippet mergeControl()}
                   <Select
                     handle={handleOf`page.inspector.merge.window`}
-                    id="reference-merge-window"
+                    id="swf-merge-window"
                     options={[{ value: '', label: t('inspector.surface.move.choose') }, ...scene.windows]}
                     value={chosen.mergeInto}
                     onchange={(value) => {
@@ -461,7 +460,7 @@
                     }}
                   />
                 {/snippet}
-                <Field label={t('inspector.window.merge')} for="reference-merge-window" control={mergeControl} />
+                <Field label={t('inspector.window.merge')} for="swf-merge-window" control={mergeControl} />
                 <Stack direction="row">
                   <Button
                     handle={handleOf`page.inspector.merge`}
@@ -477,7 +476,7 @@
               {#snippet groupControl()}
                 <Select
                   handle={handleOf`page.inspector.group.target`}
-                  id="reference-group"
+                  id="swf-group"
                   options={[
                     { value: '', label: t('inspector.window.group.choose') },
                     ...scene.groups,
@@ -489,19 +488,19 @@
                   }}
                 />
               {/snippet}
-              <Field label={t('inspector.window.group')} for="reference-group" control={groupControl} />
+              <Field label={t('inspector.window.group')} for="swf-group" control={groupControl} />
               {#if chosen.group === NEW_GROUP}
                 {#snippet nameControl()}
                   <Input
                     handle={handleOf`page.inspector.group.name`}
-                    id="reference-group-name"
+                    id="swf-group-name"
                     value={groupName}
                     oninput={(value) => {
                       groupName = value;
                     }}
                   />
                 {/snippet}
-                <Field label={t('inspector.window.group.name')} for="reference-group-name" control={nameControl} />
+                <Field label={t('inspector.window.group.name')} for="swf-group-name" control={nameControl} />
               {/if}
               <Stack direction="row">
                 <Button
@@ -526,7 +525,7 @@
         {#snippet togetherName()}
           <Input
             handle={handleOf`page.inspector.together.name`}
-            id="reference-together-name"
+            id="swf-together-name"
             value={togetherLabel}
             oninput={(value) => {
               togetherLabel = value;
@@ -539,7 +538,7 @@
           handle={handleOf`page.inspector.together`}
         >
           <Stack gap="small">
-            <Field label={t('inspector.together.name')} for="reference-together-name" control={togetherName} />
+            <Field label={t('inspector.together.name')} for="swf-together-name" control={togetherName} />
             <Stack direction="row">
               <Button
                 handle={handleOf`page.inspector.together.group`}

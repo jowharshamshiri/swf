@@ -5,6 +5,7 @@ import console from 'node:console';
 import process from 'node:process';
 import { gzipSync } from 'node:zlib';
 import { rolldown } from 'rolldown';
+import { uikitPresent } from './uikit.mjs';
 
 /**
  * Bundles every published package as an application would and holds it to its budget.
@@ -16,6 +17,11 @@ import { rolldown } from 'rolldown';
  * - that it tree-shakes: importing it for nothing leaves nothing in the bundle, so a host pays
  *   only for what it uses. The one package declared to have a side effect, `@swf/models`, keeps
  *   its program's loading and nothing else.
+ *
+ * The navigation controls (`ui/`) are Svelte components on the wsb UI kit, shipped as source a
+ * host's bundler compiles: where the kit is in the checkout, each is compiled for the browser as a
+ * host's build does and measured the same way, with Svelte, the kit and the framework's packages
+ * left external; without the kit it is left out, as the reference application is.
  *
  * `size-budgets.json` holds each package's budget (gzip bytes) and its recorded sizes. Every run
  * prints each package's sizes and the difference from the recorded ones; it fails when a package
@@ -45,22 +51,60 @@ if (unknown !== undefined || (record && verify)) {
 }
 
 const { workspaces } = JSON.parse(await readFile(path.join(ROOT, 'package.json'), 'utf8'));
+const withKit = uikitPresent();
 const packages = [];
-for (const workspace of workspaces.filter((w) => w.startsWith('packages/'))) {
+for (const workspace of workspaces.filter(
+  (w) => w.startsWith('packages/') || (withKit && w.startsWith('ui/')),
+)) {
   const manifest = JSON.parse(await readFile(path.join(ROOT, workspace, 'package.json'), 'utf8'));
-  packages.push({ name: manifest.name, sideEffects: manifest.sideEffects });
+  packages.push({
+    name: manifest.name,
+    sideEffects: manifest.sideEffects,
+    svelte: workspace.startsWith('ui/'),
+  });
 }
 
 const budgets = JSON.parse(await readFile(BUDGETS, 'utf8'));
 const problems = [];
 for (const name of Object.keys(budgets)) {
-  if (!packages.some((p) => p.name === name)) {
+  if (!packages.some((p) => p.name === name) && !(name.endsWith('-ui') && !withKit)) {
     problems.push(`size-budgets.json names ${name}, which is not a published package`);
   }
 }
 
+/**
+ * Compiles a Svelte package's sources as a host's build does: components and rune modules for the
+ * browser, TypeScript stripped, its styles kept with its code.
+ */
+async function sveltePlugin() {
+  const { compile, compileModule } = await import('svelte/compiler');
+  const ts = (await import('typescript')).default;
+  const strip = (code, fileName) =>
+    ts.transpileModule(code, {
+      fileName,
+      compilerOptions: {
+        target: ts.ScriptTarget.ES2022,
+        module: ts.ModuleKind.ESNext,
+        verbatimModuleSyntax: true,
+      },
+    }).outputText;
+  return {
+    name: 'swf-size-svelte',
+    transform(code, id) {
+      if (id.endsWith('.svelte')) {
+        return compile(code, { filename: id, generate: 'client', css: 'injected' }).js.code;
+      }
+      if (/\.svelte\.(?:ts|js)$/.test(id)) {
+        const js = id.endsWith('.ts') ? strip(code, id) : code;
+        return compileModule(js, { filename: id, generate: 'client' }).js.code;
+      }
+      return null;
+    },
+  };
+}
+
 /** The bundle of a one-line entry module, minified for the browser, with `own` bundled alone. */
-async function bundle(own, entry) {
+async function bundle(own, entry, svelte = false) {
   const build = await rolldown({
     input: 'swf-size-entry',
     platform: 'browser',
@@ -74,6 +118,7 @@ async function bundle(own, entry) {
         resolveId: (id) => (id === 'swf-size-entry' ? id : null),
         load: (id) => (id === 'swf-size-entry' ? entry : null),
       },
+      ...(svelte ? [await sveltePlugin()] : []),
     ],
   });
   try {
@@ -86,7 +131,7 @@ async function bundle(own, entry) {
 
 const signed = (n) => (n > 0 ? `+${String(n)}` : String(n));
 const rows = [];
-for (const { name, sideEffects } of packages) {
+for (const { name, sideEffects, svelte } of packages) {
   const entry = budgets[name];
   if (entry === undefined) {
     problems.push(`${name} has no budget in size-budgets.json`);
@@ -96,11 +141,11 @@ for (const { name, sideEffects } of packages) {
     problems.push(`size-budgets.json: ${name}.budget must be a positive number of gzip bytes`);
     continue;
   }
-  const full = await bundle(name, `export * from '${name}';`);
+  const full = await bundle(name, `export * from '${name}';`, svelte);
   const minified = Buffer.byteLength(full);
   const gzip = gzipSync(full, { level: 9 }).length;
 
-  const bare = (await bundle(name, `import '${name}';`)).trim();
+  const bare = (await bundle(name, `import '${name}';`, svelte)).trim();
   const declared = sideEffects !== false;
   const shakes = bare === '' || (declared && DECLARED_SIDE_EFFECT.test(bare));
   if (!shakes) {

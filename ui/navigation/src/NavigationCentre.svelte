@@ -8,20 +8,28 @@
   import { Tiling } from '@wsb/uikit/components';
   import type { TilingNode, TilingTile } from '@wsb/uikit/components';
   import { handleOf } from '@wsb/uikit/handles';
+  import type { Snippet } from 'svelte';
   import { FOCUS_ID, MAP, OVERVIEW } from '@swf/navigation';
-  import type { MessageId } from '../messages.js';
+  import type { NavigationMessageId } from './messages.js';
   import MapView from './MapView.svelte';
-  import type { ShellModel } from './model.svelte.js';
+  import type { NavigationModel } from './model.svelte.js';
   import FocusStrip from './FocusStrip.svelte';
-  import OverviewView from './OverviewView.svelte';
-  import PanoramaView from './PanoramaView.svelte';
+  import Overview from './Overview.svelte';
 
   interface Props {
-    model: ShellModel;
+    model: NavigationModel;
+    /** The panorama, as the host shows it: the package's `Panorama`, given the host's surface. */
+    panorama: Snippet;
+    /** Under the focused window: the package's focus strip unless the host gives its own; none with null. */
+    strip?: Snippet | null | undefined;
+    /** Over the panorama in the map mode: the package's map unless the host gives its own; none with null. */
+    map?: Snippet | null | undefined;
+    /** Over the panorama in the overview: the package's overview unless the host gives its own; none with null. */
+    overview?: Snippet | null | undefined;
   }
 
-  let { model }: Props = $props();
-  const t = (id: MessageId) => model.messages.format(id);
+  let { model, panorama, strip, map, overview }: Props = $props();
+  const t = (id: NavigationMessageId) => model.messages.format(id);
 
   /** The centre's height in rows: the edge between the halves moves a row at a time. */
   const ROWS = 100;
@@ -34,8 +42,11 @@
   let below = $state(34);
 
   const mode = $derived(model.status?.mode ?? null);
-  const beside = $derived(mode === MAP.id || mode === OVERVIEW.id);
-  const focused = $derived(mode === FOCUS_ID);
+  // A part the host leaves out (null) leaves the panorama the whole centre in its mode.
+  const beside = $derived(
+    (mode === MAP.id && map !== null) || (mode === OVERVIEW.id && overview !== null),
+  );
+  const focused = $derived(mode === FOCUS_ID && strip !== null);
   const root = $derived<TilingNode>(
     focused
       ? {
@@ -67,13 +78,25 @@
 
 {#snippet tile(each: TilingTile)}
   {#if each.id === 'panorama'}
-    <PanoramaView {model} />
+    {@render panorama()}
   {:else if each.id === 'strip'}
-    <FocusStrip {model} />
+    {#if strip === undefined}
+      <FocusStrip {model} />
+    {:else if strip !== null}
+      {@render strip()}
+    {/if}
   {:else if mode === MAP.id}
-    <MapView {model} />
+    {#if map === undefined}
+      <MapView {model} />
+    {:else if map !== null}
+      {@render map()}
+    {/if}
   {:else if mode === OVERVIEW.id}
-    <OverviewView {model} />
+    {#if overview === undefined}
+      <Overview {model} />
+    {:else if overview !== null}
+      {@render overview()}
+    {/if}
   {/if}
 {/snippet}
 

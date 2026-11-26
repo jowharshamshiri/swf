@@ -1,9 +1,9 @@
 import type { StageUnit } from '@wsb/uikit/components';
 import { resolvePalette } from '@wsb/uikit/primitives';
-import type { ReferenceApp } from '../app.js';
+import type { Navigation } from '@swf/navigation';
 import type { StripCard, StripMetrics } from '@swf/navigation';
 import { FOCUS_ID, VIEWPORT_ID, stripLayout, stripWindows } from '@swf/navigation';
-import type { ContentPreview } from '../content.js';
+import type { ContentPreview } from './model.svelte.js';
 
 /**
  * Draws the focus strip on the kit's stage and works it: each window a card where the strip's
@@ -36,7 +36,9 @@ export interface DrawnCard extends StripCard {
 }
 
 export interface StripDrawerOptions {
-  readonly app: ReferenceApp;
+  readonly app: Navigation;
+  /** The host's picture of the content a binding key binds, or null for none. */
+  readonly preview: (key: string) => ContentPreview | null;
   readonly viewport: HTMLElement;
   readonly canvas: HTMLCanvasElement;
   /** The layer the stage lays its units in, where each card's name is measured. */
@@ -240,7 +242,7 @@ export class StripDrawer {
     const pictures = layout.cards.map((card) => {
       const surfaces = card.window.surfaces.map((s) => ({
         ...s,
-        preview: app.content.preview(s.key),
+        preview: this.#options.preview(s.key),
       }));
       return { card, surfaces };
     });

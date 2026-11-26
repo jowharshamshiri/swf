@@ -28,18 +28,17 @@
     Text,
   } from '@wsb/uikit/components';
   import { handleOf, keyed } from '@wsb/uikit/handles';
-  import type { AppCommandId } from '../commands.js';
-  import type { ExperimentId, FeatureId } from '@swf/navigation';
+  import type { ExperimentId, FeatureId, NavigationCommandId } from '@swf/navigation';
   import { CAPABILITY_ORDER, EXPERIMENTS, EXPERIMENT_IDS } from '@swf/navigation';
-  import type { MessageId } from '../messages.js';
-  import type { ShellModel } from './model.svelte.js';
+  import type { NavigationMessageId } from './messages.js';
+  import type { NavigationModel } from './model.svelte.js';
 
   interface Props {
-    model: ShellModel;
+    model: NavigationModel;
   }
 
   let { model }: Props = $props();
-  const t = (id: MessageId, params?: Readonly<Record<string, string | number>>) =>
+  const t = (id: NavigationMessageId, params?: Readonly<Record<string, string | number>>) =>
     model.messages.format(id, params);
   /** Settings said under their own fields when refused. */
   const NUMBER_FIELDS = ['depth.full', 'depth.compact', 'snap.linear', 'snap.angular', 'snap.padding', 'snap.spoke', 'snap.ring'];
@@ -63,7 +62,7 @@
   type Setting = 'orbit' | 'depth' | 'cursor' | 'snap' | 'persistence';
   const SETTINGS: readonly Setting[] = ['orbit', 'depth', 'cursor', 'snap', 'persistence'];
   /** What each such section says the capability does. */
-  const DETAIL: Readonly<Record<Setting, MessageId>> = {
+  const DETAIL: Readonly<Record<Setting, NavigationMessageId>> = {
     orbit: 'orbit.detail',
     depth: 'depth.detail',
     cursor: 'cursor.detail',
@@ -71,7 +70,7 @@
     persistence: 'persistence.detail',
   };
   /** What is so while it is off (workspace rotation says it with what drags turn). */
-  const OFF: Readonly<Record<Exclude<Setting, 'orbit'>, MessageId>> = {
+  const OFF: Readonly<Record<Exclude<Setting, 'orbit'>, NavigationMessageId>> = {
     depth: 'depth.off',
     cursor: 'cursor.off',
     snap: 'snap.off',
@@ -121,9 +120,9 @@
   });
 
   /** The refusal of a setting, said under its field. */
-  function problem(command: AppCommandId, field: string): string | undefined {
+  function problem(command: NavigationCommandId, field: string): string | undefined {
     const refusal = model.refusal;
-    return refusal?.command === command && refusal.field === field
+    return refusal !== null && refusal.command === command && refusal.field === field
       ? t('setting.invalid', { reason: refusal.message })
       : undefined;
   }
@@ -147,7 +146,7 @@
   label: string,
   hint: string,
   value: number,
-  command: AppCommandId,
+  command: NavigationCommandId,
   field: string,
   disabled: boolean,
   apply: (value: number) => Promise<boolean>,
@@ -156,7 +155,7 @@
   {#snippet control()}
     <Input
       handle={handleOf`page.experiments.${key}`}
-      id={`reference-${key}`}
+      id={`swf-${key}`}
       type="number"
       min={0}
       step={0.01}
@@ -173,7 +172,7 @@
   {/snippet}
   <Field
     {label}
-    for={`reference-${key}`}
+    for={`swf-${key}`}
     {control}
     {hint}
     {...message === undefined ? {} : { message, messageTone: 'danger' as const }}
@@ -207,7 +206,7 @@
     {#snippet groupControl()}
       <Select
         handle={handleOf`page.experiments.orbit.group`}
-        id="reference-orbit-group"
+        id="swf-orbit-group"
         options={[{ value: '', label: t('orbit.group.none') }, ...(scene?.groups ?? [])]}
         value={scene?.rootId ?? ''}
         onchange={(value) => {
@@ -215,7 +214,7 @@
         }}
       />
     {/snippet}
-    <Field label={t('orbit.group')} for="reference-orbit-group" control={groupControl} />
+    <Field label={t('orbit.group')} for="swf-orbit-group" control={groupControl} />
     <Stack direction="row" gap="small" wrap>
       <Button
         handle={handleOf`page.experiments.orbit.left`}
@@ -261,7 +260,7 @@
 <Panel title={t('experiments.title')} titled={false} handle={handleOf`page.experiments`}>
   {#if status !== null && enabled !== null && context !== null}
     <Stack inset gap="large">
-      {#if model.refusal !== null && model.isFeatureRefusal(model.refusal) && !NUMBER_FIELDS.includes(model.refusal.field)}
+      {#if model.refusal !== null && model.placeOf(model.refusal) === 'experiments' && !NUMBER_FIELDS.includes(model.refusal.field)}
         <Notice
           tone="danger"
           title={model.refusalText(model.refusal)}
@@ -291,7 +290,7 @@
           {#each CAPABILITY_ORDER as feature (feature)}
             <Checkbox
               handle={handleOf`page.experiments.${feature}.enabled`}
-              id={`reference-${feature}-enabled`}
+              id={`swf-${feature}-enabled`}
               label={named(feature)}
               checked={enabled[feature]}
               onchange={(on) => {

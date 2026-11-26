@@ -7,16 +7,16 @@
   import { Stage } from '@wsb/uikit/components';
   import { handleOf } from '@wsb/uikit/handles';
   import { onDestroy } from 'svelte';
-  import type { MessageId } from '../messages.js';
+  import type { NavigationMessageId } from './messages.js';
   import { MapDrawer } from './map-drawer.js';
-  import type { ShellModel } from './model.svelte.js';
+  import type { NavigationModel } from './model.svelte.js';
 
   interface Props {
-    model: ShellModel;
+    model: NavigationModel;
   }
 
   let { model }: Props = $props();
-  const t = (id: MessageId) => model.messages.format(id);
+  const t = (id: NavigationMessageId) => model.messages.format(id);
 
   let viewport: HTMLElement | undefined = $state();
   let canvas: HTMLCanvasElement | undefined = $state();
@@ -25,7 +25,7 @@
   let drawer: MapDrawer | null = null;
 
   $effect(() => {
-    const app = model.app;
+    const app = model.navigation;
     if (
       app === null ||
       viewport === undefined ||

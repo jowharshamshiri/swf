@@ -24,17 +24,17 @@
   import { onDestroy } from 'svelte';
   import type { OverviewLayout, SearchResult } from '@swf/navigation';
   import { NO_FILTERS, PAGE_SIZE, VIEWPORT_ID, overviewScene } from '@swf/navigation';
-  import type { MessageId } from '../messages.js';
-  import type { ShellModel } from './model.svelte.js';
+  import type { NavigationMessageId } from './messages.js';
+  import type { NavigationModel } from './model.svelte.js';
   import { groupHue, OverviewDrawer } from './overview-drawer.js';
   import WindowActions from './WindowActions.svelte';
 
   interface Props {
-    model: ShellModel;
+    model: NavigationModel;
   }
 
   let { model }: Props = $props();
-  const t = (id: MessageId, params?: Readonly<Record<string, string | number>>) =>
+  const t = (id: NavigationMessageId, params?: Readonly<Record<string, string | number>>) =>
     model.messages.format(id, params);
 
   let viewport: HTMLElement | undefined = $state();
@@ -44,7 +44,7 @@
   let drawer: OverviewDrawer | null = $state(null);
 
   $effect(() => {
-    const app = model.app;
+    const app = model.navigation;
     if (app === null || viewport === undefined || canvas === undefined || drawer !== null) {
       return;
     }
@@ -77,7 +77,7 @@
 
   const found = $derived.by(() => {
     void model.searchVersion;
-    const search = model.app?.search;
+    const search = model.navigation?.search;
     if (search === undefined) {
       return null;
     }
@@ -104,20 +104,20 @@
   // The scene's groups, each in the colour its cards' strips are drawn in.
   const groups = $derived.by(() => {
     void model.revision;
-    const app = model.app;
+    const app = model.navigation;
     return app === null ? [] : overviewScene(app.workspace.getState(), VIEWPORT_ID, app.windows.category).groups;
   });
   /** Where a window stands, in words: the list says what the board shows, for whoever cannot see it. */
   const whereOf = (id: string): string | null => {
     void model.revision;
-    const pose = model.app?.poseOf(id) ?? null;
+    const pose = model.navigation?.poseOf(id) ?? null;
     return pose === null ? null : model.where(pose);
   };
   const windows = $derived(model.status?.windows ?? 0);
   const selected = $derived(model.selected?.id ?? null);
   const focused = $derived.by(() => {
     void model.revision;
-    return model.app?.workspace.getState().focusedId ?? null;
+    return model.navigation?.workspace.getState().focusedId ?? null;
   });
 </script>
 
@@ -133,7 +133,7 @@
     {#if found !== null}
       <Search
         handle={handleOf`page.overview.search`}
-        id="reference-overview-search"
+        id="swf-overview-search"
         value={found.typed}
         placeholder={t('search.placeholder')}
         oninput={(text) => {

@@ -1,13 +1,7 @@
 import type { JsonValue, NodeRecord, SceneCommand, TxResult } from '@swf/core';
 import { worldMatrix } from '@swf/core';
 import { MAX_SEED, seedIssue } from '@swf/math';
-import type {
-  ChromeTokens,
-  FeaturePatch,
-  Navigation,
-  NavigationStatus,
-  WindowTraits,
-} from '@swf/navigation';
+import type { FeaturePatch, Navigation, NavigationStatus, WindowTraits } from '@swf/navigation';
 import {
   CAMERA_ID,
   cameraHeading,
@@ -22,6 +16,7 @@ import {
   poseOf,
   VIEWPORT_ID,
 } from '@swf/navigation';
+import { KIT_CHROME, navigationWords } from '@swf/navigation-ui';
 import type { RestoreOutcome, SnapshotStore } from '@swf/persistence';
 import { createWebStorageStore } from '@swf/persistence';
 import type { AppCommands } from './commands.js';
@@ -37,6 +32,7 @@ import {
   addedWindow,
   CATEGORY_KEY,
   categoryOf,
+  PART_OF_KEY,
   COLOUR_KEY,
   colourName,
   colourOf,
@@ -56,25 +52,6 @@ import type { Scenarios, ScenarioId, ScenarioWorld } from './scenarios.js';
 import { BEHIND, createScenarios, offCamera, SCENARIOS } from './scenarios.js';
 import type { Challenge, ChallengeRun, MethodId } from './challenge.js';
 import { ChallengeRefusal, createChallenge } from './challenge.js';
-
-/**
- * The kit's colours window chrome is drawn in (UX-013): frames in the kit's quiet ink, the selected
- * window in its focus ring's, the focused one in its warning ink, names in the editor's ink on the
- * editor's ground. The kit checks each against the grounds it is drawn on, in both appearances.
- */
-const KIT_CHROME: ChromeTokens = Object.freeze({
-  frame: '--vscode-descriptionForeground',
-  selected: '--vscode-focusBorder',
-  focused: '--vscode-editorWarning-foreground',
-  text: '--vscode-editor-foreground',
-  ground: '--vscode-editor-background',
-});
-
-/**
- * The metadata key a window made from another window's surface keeps that window's ID under: the
- * window it is a part of.
- */
-export const PART_OF_KEY = 'host.reference.partOf';
 
 /** The seeded scene the workspace shows: the preset and seed it was last loaded from. */
 export interface SceneSource {
@@ -225,12 +202,7 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
     windows: demoTraits(content),
     backend: config.backend,
     chrome: KIT_CHROME,
-    words: {
-      role: messages.format('panorama.role'),
-      label: messages.format('panorama.label'),
-      keys: messages.format('panorama.keys'),
-      standIn: (reason) => messages.format(`standIn.${reason}`),
-    },
+    words: navigationWords(messages),
   });
   const { workspace, modes, policies } = navigation;
 

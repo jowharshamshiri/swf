@@ -15,7 +15,7 @@ import { parseConfig } from '../../src/config.js';
 import { createMessages } from '../../src/messages.js';
 import { planPreset, PRESETS } from '../../src/presets.js';
 import { ShellModel } from '../../src/shell/model.svelte.js';
-import ExperimentsView from '../../src/shell/ExperimentsView.svelte';
+import { ExperimentPanel } from '@swf/navigation-ui';
 import Shell from '../../src/shell/Shell.svelte';
 
 declare module 'vitest/browser' {
@@ -80,7 +80,7 @@ async function start(
   const model = new ShellModel(createMessages(), parseConfig(search), {
     store: createMemoryStore(),
   });
-  const shell = mount(Shell, { target: root, props: { model, experiments: ExperimentsView } });
+  const shell = mount(Shell, { target: root, props: { model, experiments: ExperimentPanel } });
   current = { model, shell, root };
   const driver = installAutomation(root, () => 'reference');
   await expect.poll(() => model.status, { timeout: 10_000 }).not.toBeNull();

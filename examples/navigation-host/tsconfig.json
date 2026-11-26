@@ -1,0 +1,27 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "preserveSymlinks": true,
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["vite/client"],
+    "paths": {
+      "@swf/math": ["../../packages/math/src/index.ts"],
+      "@swf/models": ["../../packages/models/src/index.ts"],
+      "@swf/core": ["../../packages/core/src/index.ts"],
+      "@swf/surfaces": ["../../packages/surfaces/src/index.ts"],
+      "@swf/presentation": ["../../packages/presentation/src/index.ts"],
+      "@swf/projections": ["../../packages/projections/src/index.ts"],
+      "@swf/interaction": ["../../packages/interaction/src/index.ts"],
+      "@swf/backend-dom": ["../../packages/backend-dom/src/index.ts"],
+      "@swf/backend-geometry": ["../../packages/backend-geometry/src/index.ts"],
+      "@swf/navigation": ["../../packages/navigation/src/index.ts"],
+      "@swf/navigation-ui": ["../../ui/navigation/src/index.ts"]
+    }
+  },
+  "include": ["src", "test"]
+}

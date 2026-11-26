@@ -31,7 +31,9 @@ const steps = [
     : [
         'run',
         'typecheck',
-        ...workspaces.filter((w) => w !== 'apps/reference').flatMap((w) => ['--workspace', w]),
+        ...workspaces
+          .filter((w) => w !== 'apps/reference' && !w.startsWith('ui/'))
+          .flatMap((w) => ['--workspace', w]),
       ],
   ['run', 'lint'],
   ['run', 'api-reference', '--', '--check'],

@@ -11,16 +11,16 @@
   import { handleOf, keyed } from '@wsb/uikit/handles';
   import { onDestroy } from 'svelte';
   import type { Neighbour } from '@swf/navigation';
-  import type { MessageId } from '../messages.js';
-  import type { ShellModel } from './model.svelte.js';
+  import type { NavigationMessageId } from './messages.js';
+  import type { NavigationModel } from './model.svelte.js';
   import { StripDrawer } from './strip-drawer.js';
 
   interface Props {
-    model: ShellModel;
+    model: NavigationModel;
   }
 
   let { model }: Props = $props();
-  const t = (id: MessageId, params?: Readonly<Record<string, string | number>>) =>
+  const t = (id: NavigationMessageId, params?: Readonly<Record<string, string | number>>) =>
     model.messages.format(id, params);
 
   /** Windows named each side of the focus; the rest are a step away. */
@@ -35,7 +35,7 @@
   let drawer: StripDrawer | null = null;
 
   $effect(() => {
-    const app = model.app;
+    const app = model.navigation;
     if (app === null || viewport === undefined || canvas === undefined || drawer !== null) {
       return;
     }
@@ -47,6 +47,7 @@
     element.setAttribute('aria-description', `${t('focus.strip.hint')}. ${t('focus.strip.keys')}`);
     drawer = new StripDrawer({
       app,
+      preview: (key) => model.content.preview(key),
       viewport: element,
       canvas,
       layer: () => layer,
@@ -71,7 +72,7 @@
 
   const around = $derived.by(() => {
     void model.revision;
-    const context = model.app?.focusNeighbours() ?? null;
+    const context = model.navigation?.focusNeighbours() ?? null;
     if (context === null) {
       return null;
     }

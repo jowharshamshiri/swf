@@ -239,6 +239,73 @@ Nothing of the host's is touched: its container elements stay in the page and it
 running. [Lifecycle and ownership](../reference/lifecycle-and-ownership.md) lists what each
 disposal releases.
 
+## Show the whole navigation experience
+
+Steps 1 to 5 build a viewport by hand. A host that wants what the reference application shows (the
+view modes and the view moving between them, focus with its strip, the map and the radar, the
+overview with search, workspace orbit, magnetic snapping, semantic depth, composition, and every
+action as a named command) makes it with `@swf/navigation` in one call, with its own adapters:
+
+```ts
+import { createNavigation, createNavigationCommands } from '@swf/navigation';
+
+const navigation = await createNavigation({
+  root: element, // the host's element; the viewport is as large as it, always
+  id: 'workbench',
+  adapters: [myAdapter],
+  windows: {
+    partOfKey: 'host.partOf', // where a window made from another's surface keeps its origin
+    searchKeys: ['host.kind'], // the host's metadata search reads
+    category: (node) => kindOf(node), // the overview's grouping
+    arrangeKey: (node) => kindOf(node) ?? '', // what arranging round the camera orders by
+    newWindowFor: (surface) => ({ tags: [], metadata: {} }), // a composed window's own
+  },
+  backend: 'geometry',
+  chrome: KIT_CHROME, // the custom properties window chrome is drawn in
+  words: navigationWords(messages), // what the viewport says, in the host's language
+});
+navigation.workspace.transaction(myOpeningCommands);
+const commands = createNavigationCommands(() => navigation); // every swf.* command
+```
+
+A host on the wsb UI kit takes the controls from `@swf/navigation-ui`: a `NavigationModel` bound
+to the navigation, and the components it wants, each taking only that model.
+
+```svelte
+<script lang="ts">
+  const model = new NavigationModel({ messages, content: myContent });
+  // In the panorama's onsurface: make the navigation there, then
+  // model.attach(navigation, createNavigationCommands(() => navigation), NAVIGATION_COMMAND_NAMES);
+</script>
+
+{#snippet panorama()}
+  <Panorama {model} onsurface={start} />
+{/snippet}
+<NavigationCentre {model} {panorama} />
+<ModeSwitcher {model} />
+<Radar {model} open ontoggle={…} />
+<Inspector {model} />
+<ExperimentPanel {model} />
+```
+
+- **Turn one off** by not mounting it; the rest work on. `NavigationCentre` takes `strip`, `map`
+  and `overview` as `null` to leave each out (its mode then shows the panorama whole), and
+  `Panorama` takes `controls` as `null` to show no view controls.
+- **Replace one** with a component of the host's own that reads the same model and runs the same
+  commands (`model.runNavigation`): `Panorama`'s `controls`, and `NavigationCentre`'s `strip`, `map`
+  and `overview`, take the host's snippet in the package's place.
+- **Style them** through the kit's theme, which every control draws from, and window chrome through
+  the `ChromeTokens` the host gives `createNavigation`.
+- **Give them the host's words** for its content in `HostContent` (what a surface and a window show,
+  and the strip's pictures), its own notices, bars and empty state through `Panorama`'s snippets,
+  and navigation's keys through `navigationKey(model, event)` in its page's key handler.
+
+The content stays the host's: an element is attached where the view shows it and detached into the
+host's keeping when a backend hands the viewport to another, which moves it between backends' slots.
+What a browser forgets when an element leaves the page (where it was scrolled) the host's adapter
+keeps across `detach` and `attach`. [`examples/navigation-host`](../../examples/navigation-host/)
+is a host page doing all of this with content of its own.
+
 ## Next
 
 - Check the integration with `@swf/conformance`

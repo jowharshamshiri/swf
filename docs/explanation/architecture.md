@@ -67,8 +67,10 @@ below the presentation contracts reaches a concrete renderer or compositor: the 
 persistence and interaction see only contracts. `@swf/models` is used only by the packages that
 decide something through it. `@swf/navigation` sits above them all: it composes the framework into
 the navigation experience a host shows its content with. The reference application depends on the
-packages' public entry points alone, like any host; it is the only part built on a UI kit, its
-future host's.
+packages' public entry points alone, like any host. It and the navigation controls
+(`@swf/navigation-ui`, `ui/navigation`), which it and any host on the same kit mount, are the only
+parts built on a UI kit, their future host's; no framework package depends on either
+([ADR 0014](../adr/0014-navigation-as-a-framework-package-and-kit-controls.md)).
 
 ## Why so many packages
 

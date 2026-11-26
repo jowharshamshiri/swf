@@ -6,26 +6,35 @@
   import {
     announce,
     Announcer,
-    Badge,
+    Button,
+    EmptyState,
     IconButton,
-    Segmented,
-    Select,
+    Notice,
     Stack,
     StatusItem,
     Tabs,
+    Text,
+    Toolbar,
   } from '@wsb/uikit/components';
-  import { FOCUS_ID, MAP, OVERVIEW, VIEWPORT_ID } from '@swf/navigation';
+  import {
+    Inspector,
+    ModeSwitcher,
+    NavigationCentre,
+    navigationKey,
+    Panorama,
+    Radar,
+    takesTyping,
+  } from '@swf/navigation-ui';
+  import { DEFAULT_CONFIG } from '../config.js';
+  import { FOCUS_ID } from '@swf/navigation';
   import { handleOf } from '@wsb/uikit/handles';
   import { Application } from '@wsb/uikit/surfaces/application';
   import type { MessageId } from '../messages.js';
   import { PRESETS } from '../presets.js';
   import type { Component } from 'svelte';
   import { untrack } from 'svelte';
-  import InspectorView from './InspectorView.svelte';
-  import RadarView from './RadarView.svelte';
   import type { ShellModel } from './model.svelte.js';
   import Palette from './Palette.svelte';
-  import CentreView from './CentreView.svelte';
   import SceneView from './SceneView.svelte';
   import ScenariosView from './ScenariosView.svelte';
   import StatusBody from './StatusBody.svelte';
@@ -49,8 +58,6 @@
   }
 
   let { model, developer = null, experiments = null }: Props = $props();
-  /** Inputs that are pressed or chosen, not typed in. */
-  const NOT_TYPED = ['checkbox', 'radio', 'button', 'submit', 'reset', 'range', 'color', 'file'];
   const t = (id: MessageId, params?: Readonly<Record<string, string | number>>) =>
     model.messages.format(id, params);
 
@@ -65,10 +72,8 @@
 
   /**
    * The application's keys, wherever the keyboard is but in a field or a window's own content,
-   * which keep their own (UX-012). As VS Code: Ctrl+Shift+P or F1 opens the command list; Ctrl+Z
-   * undoes, Ctrl+Shift+Z or Ctrl+Y redoes; Ctrl+S saves now (Cmd on a Mac). Escape cancels a
-   * gesture running, or else closes the focus, as it leaves VS Code's zen mode, unless something
-   * else took it first. In the panorama the framework's keys act first.
+   * which keep their own (UX-012). As VS Code: Ctrl+Shift+P or F1 opens the command list, and
+   * Ctrl+S saves now (Cmd on a Mac); every other key is navigation's ({@link navigationKey}).
    */
   function onkeydown(event: KeyboardEvent): void {
     const command = event.ctrlKey || event.metaKey;
@@ -79,89 +84,15 @@
       paletteOpen = true;
       return;
     }
-    const target = event.target;
-    // A field that takes typing keeps its own keys (its own undo among them), as whatever has the
-    // keyboard in a window's live content does (in the slot the host's content is attached to,
-    // whichever backend presents it); a checkbox, a choice or a button elsewhere takes none.
-    const typing =
-      target instanceof HTMLElement &&
-      (target.isContentEditable ||
-        (target instanceof HTMLInputElement && !NOT_TYPED.includes(target.type)) ||
-        target.closest('textarea, select, [data-swf-slot]') !== null);
-    if (event.defaultPrevented || paletteOpen || typing || model.app === null) {
+    if (event.defaultPrevented || paletteOpen || takesTyping(event.target) || model.app === null) {
       return;
     }
-    if (command && !event.altKey) {
-      const undo = key === 'z' && !event.shiftKey;
-      const redo = (key === 'z' && event.shiftKey) || (key === 'y' && !event.shiftKey);
-      if (undo || redo) {
-        event.preventDefault();
-        void model.run(undo ? 'swf.history.undo' : 'swf.history.redo', {});
-        return;
-      }
-      if (key === 's' && !event.shiftKey) {
-        event.preventDefault();
-        void model.run('reference.workspace.saveNow', {});
-        return;
-      }
-    }
-    if (event.key === 'Escape' && model.policies?.gesture != null) {
+    if (command && !event.altKey && key === 's' && !event.shiftKey) {
       event.preventDefault();
-      void model.run('swf.gesture.cancel', {});
+      void model.run('reference.workspace.saveNow', {});
       return;
     }
-    if (event.key === 'Escape' && model.status?.mode === FOCUS_ID) {
-      event.preventDefault();
-      void model.run('swf.focus.exit', {});
-      return;
-    }
-    if (event.target === model.app.root && !command && !event.altKey) {
-      panoramaKey(event);
-    }
-  }
-
-  /**
-   * The panorama's own keys for its views, while the panorama has the keyboard (so a single key
-   * never acts from anywhere else, WCAG 2.1.4): 1 to 4 show the views in the switcher's order, F
-   * focuses the selected window, M shows the map, Delete or Backspace removes the selected windows
-   * (one change, with an undo offered), and Escape leaves the map or the overview for the view it
-   * was opened from.
-   */
-  function panoramaKey(event: KeyboardEvent): void {
-    const listed = modes.filter((mode) => !mode.disabled);
-    const digit = /^[1-9]$/.test(event.key) ? Number(event.key) : null;
-    if (digit !== null) {
-      const mode = modes[digit - 1];
-      if (mode !== undefined && listed.includes(mode)) {
-        event.preventDefault();
-        void model.run('swf.mode.switch', { mode: mode.value });
-      }
-      return;
-    }
-    const key = event.key.toLowerCase();
-    if (key === 'f' && model.policies?.features.enabled.focus === true) {
-      event.preventDefault();
-      void model.run('swf.focus.enter', {});
-      return;
-    }
-    if (key === 'm' && model.policies?.features.enabled.map === true) {
-      event.preventDefault();
-      void model.run('swf.mode.switch', { mode: MAP.id });
-      return;
-    }
-    if (event.key === 'Delete' || event.key === 'Backspace') {
-      // As a file explorer: Delete (or Backspace) removes what is selected, with an undo offered.
-      const selection = model.selection;
-      if (selection.length > 0) {
-        event.preventDefault();
-        void model.removeWindows(selection);
-      }
-      return;
-    }
-    if (event.key === 'Escape' && (model.status?.mode === MAP.id || model.status?.mode === OVERVIEW.id)) {
-      event.preventDefault();
-      void model.run('swf.mode.back', {});
-    }
+    navigationKey(model, event);
   }
 
   // What the application did that is not shown as text is said, each announcement once: it
@@ -183,7 +114,7 @@
     }
   });
   $effect(() => {
-    if (model.refusal !== null && model.isInspectorRefusal(model.refusal)) {
+    if (model.refusal !== null && model.placeOf(model.refusal) === 'inspector') {
       rightView = 'inspector';
     }
   });
@@ -192,6 +123,13 @@
     if (model.scenarioStarts > 0) {
       leftView = 'scenarios';
     }
+  });
+
+  // A restore that failed (the workspace saved last, a named one, a file), until dismissed.
+  let dismissedRestore = $state<unknown>(null);
+  const restoreProblem = $derived.by(() => {
+    const error = model.workspaces?.restoreError ?? null;
+    return error === null || error === dismissedRestore ? null : error;
   });
 
   const persisting = $derived(model.policies?.features.enabled.persistence ?? false);
@@ -240,35 +178,9 @@
         : [{ id: 'developer', icon: 'tool' as const, label: t('dev.title') }]),
     ]),
   );
-  // Focus needs a window: offered once one is selected or focused, or while it is shown.
-  const focusable = $derived.by(() => {
-    void model.revision;
-    return (
-      model.selected !== null ||
-      model.status?.mode === FOCUS_ID ||
-      (model.app?.workspace.getState().focusedId ?? null) !== null
-    );
-  });
-  const modes = $derived(
-    model.modes.map((mode) => ({
-      value: mode.id,
-      label: model.messages.named(mode.name),
-      disabled: mode.id === FOCUS_ID && !focusable,
-    })),
-  );
   const status = $derived(model.status);
+  const scene = $derived(model.scene);
   const policies = $derived(model.policies);
-  /**
-   * A centre too narrow for every action across its top (a phone, NFR-023): the mode is chosen
-   * from a list, and what drags turn and the backend are left to the command list and the experiment panel,
-   * so the actions stay within the centre.
-   */
-  const COMPACT_BELOW = 600;
-  const compact = $derived.by(() => {
-    void model.revision;
-    const width = model.app?.workspace.getState().viewports.get(VIEWPORT_ID)?.size.width;
-    return width !== undefined && width < COMPACT_BELOW;
-  });
 </script>
 
 <svelte:window {onkeydown} />
@@ -292,7 +204,7 @@
   {#if view === 'inspector'}
     <!-- The radar first, then what is selected: the two share the side's height. -->
     <Stack fill gap="small">
-      <RadarView
+      <Radar
         {model}
         open={radarOpen}
         ontoggle={(open) => {
@@ -300,7 +212,7 @@
         }}
       />
       <Stack grow>
-        <InspectorView {model} />
+        <Inspector {model} />
       </Stack>
     </Stack>
   {:else if developer !== null && view === 'developer'}
@@ -309,59 +221,72 @@
   {/if}
 {/snippet}
 
+{#snippet startNotice()}
+  {#if model.startProblem !== null}
+    <Notice tone="danger" title={model.startProblem} handle={handleOf`page.panorama.problem`} />
+  {/if}
+{/snippet}
+
+{#snippet restoreBar()}
+  {#if restoreProblem !== null}
+    <Toolbar ariaLabel={t('restore.failed', { reason: restoreProblem.message })}>
+      <Text>{t('restore.failed', { reason: restoreProblem.message })}</Text>
+      {#snippet end()}
+        <IconButton
+          handle={handleOf`page.restore.dismiss`}
+          icon="close"
+          label={t('notice.dismiss')}
+          size="small"
+          onpress={() => {
+            dismissedRestore = restoreProblem;
+          }}
+        />
+      {/snippet}
+    </Toolbar>
+  {/if}
+{/snippet}
+
+{#snippet emptyWorkspace()}
+  <EmptyState title={t('empty.title')} detail={t('empty.body')} icon="add">
+    {#snippet action()}
+      <Stack direction="row" gap="small" justify="center" wrap>
+        <Button
+          handle={handleOf`page.panorama.load`}
+          label={t('empty.action')}
+          variant="primary"
+          onpress={() => {
+            void model.run('reference.preset.load', { preset: DEFAULT_CONFIG.preset });
+          }}
+        />
+        <Button
+          handle={handleOf`page.panorama.add`}
+          label={t('command.window.add')}
+          icon="add"
+          onpress={() => {
+            void model.run('reference.window.add', {});
+          }}
+        />
+      </Stack>
+    {/snippet}
+  </EmptyState>
+{/snippet}
+
+{#snippet panorama()}
+  <Panorama
+    {model}
+    onsurface={(surface) => model.start(surface)}
+    notices={startNotice}
+    bars={restoreBar}
+    empty={emptyWorkspace}
+  />
+{/snippet}
+
 {#snippet centreView()}
-  <CentreView {model} />
+  <NavigationCentre {model} {panorama} />
 {/snippet}
 
 {#snippet editorActions()}
-  {#if status !== null && modes.length === 1}
-    <!-- One mode is not a choice: it is said, and becomes a switcher once a second registers. -->
-    <Badge handle={handleOf`editor.actions.mode`} label={modes[0]?.label ?? status.mode} title={t('mode.label')} />
-  {:else if status !== null && modes.length > 1 && compact}
-    <Select
-      handle={handleOf`editor.actions.mode`}
-      id="reference-mode"
-      ariaLabel={t('mode.label')}
-      options={modes.map((mode) => ({ value: mode.value, label: mode.label, disabled: mode.disabled }))}
-      value={status.mode}
-      onchange={(mode) => {
-        void model.run('swf.mode.switch', { mode });
-      }}
-    />
-  {:else if status !== null && modes.length > 1}
-    <Segmented
-      handle={handleOf`editor.actions.mode`}
-      ariaLabel={t('mode.label')}
-      items={modes}
-      selected={status.mode}
-      onselect={(mode) => {
-        void model.run('swf.mode.switch', { mode });
-      }}
-    />
-  {/if}
-  {#if policies !== null && policies.features.enabled.orbit && !compact}
-    <!-- What a background drag turns is said where the view is, and changed there. -->
-    <Segmented
-      handle={handleOf`editor.actions.navigation`}
-      ariaLabel={t('orbit.navigation')}
-      items={[
-        { value: 'camera', label: t('orbit.navigation.camera'), title: t('command.navigation.camera') },
-        {
-          value: 'orbit',
-          label: t('orbit.navigation.orbit'),
-          disabled: policies.orbit.rootId === null,
-          title:
-            policies.orbit.rootId === null
-              ? t('orbit.navigation.noroot')
-              : t('command.navigation.orbit'),
-        },
-      ]}
-      selected={policies.orbit.navigation}
-      onselect={(target) => {
-        void model.run('swf.navigation.set', { target: target as 'camera' | 'orbit' });
-      }}
-    />
-  {/if}
+  <ModeSwitcher {model} />
   <IconButton
     handle={handleOf`editor.actions.undo`}
     icon="undo"
@@ -405,12 +330,12 @@
 {/snippet}
 
 {#snippet panelEnd()}
-  {#if status !== null}
+  {#if scene !== null && status !== null}
     <StatusItem
       handle={handleOf`application.panel.scene`}
       label={t('scene.summary', {
-        preset: t(PRESETS[status.scene.preset].name),
-        seed: status.scene.seed,
+        preset: t(PRESETS[scene.preset].name),
+        seed: scene.seed,
         windows: status.windows,
       })}
     />

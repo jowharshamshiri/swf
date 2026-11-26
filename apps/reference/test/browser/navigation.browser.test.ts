@@ -20,10 +20,9 @@ import {
   radarView,
   toMap,
 } from '@swf/navigation';
-import { PART_OF_KEY } from '../../src/app.js';
+import { PART_OF_KEY } from '../../src/presets.js';
 import type { ShellModel } from '../../src/shell/model.svelte.js';
-import { RADAR_MARGIN } from '../../src/shell/map-drawer.js';
-import { PanoramaGuides } from '../../src/shell/panorama-guides.js';
+import { PanoramaGuides, RADAR_MARGIN } from '@swf/navigation-ui';
 import { layout, start } from './shell-harness.js';
 
 declare module 'vitest/browser' {
@@ -268,7 +267,7 @@ describe('the panorama’s guides', () => {
       expect(overlaps(layout)).toEqual([]);
       // The horizon is drawn stronger than another line of height.
       const canvas = a.root.querySelectorAll<HTMLCanvasElement>(
-        '[data-swf-layer="reference-guides"] canvas',
+        '[data-swf-layer="swf-guides"] canvas',
       );
       const ours = there(canvas[0], 'the guides’ canvas');
       const horizon = layout.heights.find((l) => l.degrees === 0)?.runs[0]?.find(([x]) => x > 20);
@@ -545,9 +544,7 @@ describe('the seam', () => {
       last = now;
     }
     // The guides mark the seam at both edges while the whole circle is shown.
-    const guides = root.querySelector<HTMLCanvasElement>(
-      '[data-swf-layer="reference-guides"] canvas',
-    );
+    const guides = root.querySelector<HTMLCanvasElement>('[data-swf-layer="swf-guides"] canvas');
     expect(guides).not.toBeNull();
   });
 
@@ -610,9 +607,7 @@ describe('how windows look', () => {
     expect(selected?.borderTopWidth).toBe('3px');
     expect(plain?.borderTopWidth).toBe('1px');
     // Behind the camera, the panorama is shaded: window-04 is there, window-07 straight ahead.
-    const guides = root.querySelector<HTMLCanvasElement>(
-      '[data-swf-layer="reference-guides"] canvas',
-    );
+    const guides = root.querySelector<HTMLCanvasElement>('[data-swf-layer="swf-guides"] canvas');
     expect(guides).not.toBeNull();
     const behindInk = rgbOf('input.background');
     const atBehind = panoramaPoint(model, centreOf(model, 'window-04'));

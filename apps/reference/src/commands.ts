@@ -4,6 +4,7 @@ import type { CommandResult, NavigationCommandId, NavigationCommandSpecs } from 
 import { committed, createNavigationCommands, refusalOf, rejected } from '@swf/navigation';
 import type { ReferenceApp } from './app.js';
 import type { MessageId } from './messages.js';
+import { NAVIGATION_COMMAND_NAMES } from '@swf/navigation-ui';
 import type { PresetId } from './presets.js';
 import { PRESET_IDS } from './presets.js';
 import { WorkspaceRefusal } from './workspaces.js';
@@ -41,52 +42,13 @@ export interface ReferenceCommandSpecs {
   'reference.challenge.clear': Readonly<Record<string, never>>;
 }
 
-/** The message naming each command, in the order the command list shows them. */
+/** The message naming each command: navigation's, then the application's own. */
 export const APP_COMMAND_NAMES: Readonly<Record<AppCommandId, MessageId>> = Object.freeze({
+  ...NAVIGATION_COMMAND_NAMES,
   'reference.preset.load': 'command.preset.load',
   'reference.scene.reset': 'command.scene.reset',
   'reference.scene.reseed': 'command.scene.reseed',
-  'swf.mode.switch': 'command.mode.switch',
-  'swf.mode.back': 'command.mode.back',
-  'swf.backend.switch': 'command.backend.switch',
-  'swf.window.reveal': 'command.window.reveal',
-  'swf.focus.enter': 'command.focus.enter',
-  'swf.focus.exit': 'command.focus.exit',
-  'swf.focus.step': 'command.focus.step',
-  'swf.window.map': 'command.window.map',
-  'swf.window.inspect': 'command.window.inspect',
-  'swf.selection.toggle': 'command.selection.toggle',
-  'swf.window.place': 'command.window.place',
-  'swf.window.pose': 'command.window.pose',
-  'swf.window.lock': 'command.window.lock',
-  'swf.feature.set': 'command.feature.set',
-  'swf.feature.reset': 'command.feature.reset',
-  'swf.experiment.run': 'command.experiment.run',
-  'swf.snap.configure': 'command.snap.configure',
-  'swf.depth.configure': 'command.depth.configure',
-  'swf.navigation.set': 'command.navigation.set',
-  'swf.orbit.designate': 'command.orbit.designate',
-  'swf.orbit.turn': 'command.orbit.turn',
-  'swf.orbit.turnTo': 'command.orbit.turnTo',
-  'swf.view.fov': 'command.view.fov',
-  'swf.view.heading': 'command.view.heading',
-  'swf.window.arrange': 'command.window.arrange',
-  'swf.window.bringFront': 'command.window.bringFront',
-  'swf.window.sendBehind': 'command.window.sendBehind',
-  'swf.history.undo': 'command.history.undo',
-  'swf.history.redo': 'command.history.redo',
-  'swf.gesture.cancel': 'command.gesture.cancel',
-  'swf.gesture.grab': 'command.gesture.grab',
-  'swf.gesture.drop': 'command.gesture.drop',
-  'swf.window.remove': 'command.window.remove',
   'reference.window.add': 'command.window.add',
-  'swf.surface.detach': 'command.surface.detach',
-  'swf.surface.move': 'command.surface.move',
-  'swf.window.merge': 'command.window.merge',
-  'swf.window.split': 'command.window.split',
-  'swf.window.recombine': 'command.window.recombine',
-  'swf.window.regroup': 'command.window.regroup',
-  'swf.window.group': 'command.window.group',
   'reference.workspace.save': 'command.workspace.save',
   'reference.workspace.open': 'command.workspace.open',
   'reference.workspace.delete': 'command.workspace.delete',

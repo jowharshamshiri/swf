@@ -24,7 +24,7 @@ import type { ShellAppOptions } from '../../src/shell/model.svelte.js';
 import { ShellModel } from '../../src/shell/model.svelte.js';
 import { createMemoryStore } from '@swf/persistence';
 import DeveloperView from '../../src/shell/DeveloperView.svelte';
-import ExperimentsView from '../../src/shell/ExperimentsView.svelte';
+import { ExperimentPanel } from '@swf/navigation-ui';
 import Shell from '../../src/shell/Shell.svelte';
 
 declare module 'vitest/browser' {
@@ -81,7 +81,7 @@ async function start(
   const model = new ShellModel(createMessages(), parseConfig(search), appOptions);
   const shell = mount(Shell, {
     target: root,
-    props: { model, developer: DeveloperView, experiments: ExperimentsView },
+    props: { model, developer: DeveloperView, experiments: ExperimentPanel },
   });
   current = { model, shell, root };
   const driver = installAutomation(root, () => 'reference');
@@ -207,17 +207,17 @@ describe('the scene’s controls (FR-012, FR-131)', () => {
     const { model, driver, settle } = await start('?preset=sparse&seed=1');
     driver.act('page.scene.preset', 'choose', 'seam');
     await settle();
-    expect(model.status?.scene).toEqual({ preset: 'seam', seed: 1 });
+    expect(model.scene).toEqual({ preset: 'seam', seed: 1 });
     expect(model.status?.windows).toBe(planPreset('seam', 1).length);
 
     driver.act('page.scene.seed', 'set', '7');
     driver.act('page.scene.seed', 'key', 'Enter');
     await settle();
-    expect(model.status?.scene).toEqual({ preset: 'seam', seed: 7 });
+    expect(model.scene).toEqual({ preset: 'seam', seed: 7 });
 
     driver.act('page.scene.reseed', 'press');
     await settle();
-    expect(model.status?.scene).toEqual({ preset: 'seam', seed: 8 });
+    expect(model.scene).toEqual({ preset: 'seam', seed: 8 });
 
     const app = model.app;
     if (app === null) {
@@ -233,7 +233,7 @@ describe('the scene’s controls (FR-012, FR-131)', () => {
     expect(app.workspace.getState().nodes.get('window-01')?.transform.position).not.toEqual([
       0, 1, -2,
     ]);
-    expect(model.status?.scene).toEqual({ preset: 'seam', seed: 8 });
+    expect(model.scene).toEqual({ preset: 'seam', seed: 8 });
   });
 
   it('refuses a seed out of range, saying why at the field, and keeps the scene', async () => {
@@ -242,7 +242,7 @@ describe('the scene’s controls (FR-012, FR-131)', () => {
     driver.act('page.scene.seed', 'key', 'Enter');
     await settle();
     expect(root.textContent).toContain(ENGLISH['scene.seed.invalid']);
-    expect(model.status?.scene).toEqual({ preset: 'sparse', seed: 3 });
+    expect(model.scene).toEqual({ preset: 'sparse', seed: 3 });
   });
 });
 
@@ -254,7 +254,7 @@ describe('the empty state (UX-009)', () => {
     expect(root.textContent).toContain(ENGLISH['empty.body']);
     driver.act('page.panorama.load', 'press');
     await settle();
-    expect(model.status?.scene.preset).toBe('studio');
+    expect(model.scene?.preset).toBe('studio');
     expect(model.status?.windows).toBe(13);
     expect(driver.has('page.panorama.load')).toBe(false);
   });

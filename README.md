@@ -73,6 +73,14 @@ holds small hosts, each run by the tests.
   navigation control runs, each a named `swf.*` command (`createNavigationCommands`). It also
   exports the geometry a host's own controls draw from: the map and radar, the focus strip and the
   overview's layout. It never looks into the content.
+- `@swf/navigation-ui` (`ui/navigation`): the navigation controls for a host built on the wsb UI
+  kit, the workbench's: the panorama with its bars and guides, the centre by mode, the view
+  switcher, the view's controls, the radar, the inspector, the focus strip, the map, the overview
+  and the experiment panel, each a Svelte component taking one `NavigationModel` and using only the
+  framework's public entry points. A host turns each on or off, styles it through the kit's theme,
+  or puts a control of its own in its place
+  ([Integrate SWF into a host](docs/how-to/integrate-a-host.md#show-the-whole-navigation-experience)).
+  It is not a framework package: like the reference application it is built only where the kit is.
 - `@swf/benchmark`: the performance benchmark. Seeded standard and stress fixtures, a host that
   presents a fixture through the framework as an application would, the measures a run takes in
   the page (frame intervals, input-to-preview latency, hit queries), the statistics results are
@@ -884,8 +892,9 @@ and a store that holds a newer one, saved elsewhere, refuses it with `CONFLICT`.
 ## The reference application
 
 `apps/reference` is a host of the framework like any other: it imports only the packages' public
-entry points and registers everything it shows through them (the demo content's adapters, the
-DOM, layered and geometry backends, the projection, input and the view modes). It shows one
+entry points and registers everything it shows through them. Its navigation is `@swf/navigation`
+over the demo content's adapters, and its navigation controls are `@swf/navigation-ui`'s; its
+scenes, saving, scenarios and timed task are its own. It shows one
 scene four ways: as a 360° panorama around the camera, in focus, on a map from above and as tiles.
 
 Its window is built from wsb's UI kit (`@wsb/uikit`) with Svelte 5, and nothing else: every
@@ -1457,6 +1466,9 @@ with `npm run size -- --record` in the same commit, whose message gives the old 
 `@swf/models` is at 56576 bytes: it is the compiled program of every proved decision model the
 framework and the reference application run, so it grows with each model (56428 bytes
 measured, the names model included).
+`@swf/navigation-ui` starts at 40704 bytes, 10% over its first measured size (36775) rounded up to
+the next 256: the navigation controls compiled as a host's build compiles them, with Svelte, the kit
+and the framework's packages left out; it is measured only where the kit is.
 `@swf/navigation` starts at 29440 bytes, 10% over its first measured size (26607) rounded up to the
 next 256: the composition of the framework into the navigation experience and its capabilities.
 `@swf/presentation` (14592) and `@swf/backend-geometry` (8704) are where placing every window's name

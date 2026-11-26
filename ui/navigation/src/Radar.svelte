@@ -5,20 +5,20 @@
   // folds, and opens again from there.
   import { Button, IconButton, Notice, SectionLabel, Stack, Text, Toolbar } from '@wsb/uikit/components';
   import { handleOf } from '@wsb/uikit/handles';
-  import type { MessageId } from '../messages.js';
-  import type { ShellModel } from './model.svelte.js';
+  import type { NavigationMessageId } from './messages.js';
+  import type { NavigationModel } from './model.svelte.js';
   import RadarStage from './RadarStage.svelte';
 
   interface Props {
-    model: ShellModel;
+    model: NavigationModel;
     open: boolean;
     ontoggle: (open: boolean) => void;
   }
 
   let { model, open, ontoggle }: Props = $props();
-  const t = (id: MessageId) => model.messages.format(id);
+  const t = (id: NavigationMessageId) => model.messages.format(id);
   const refusal = $derived(
-    model.refusal !== null && model.isRadarRefusal(model.refusal) ? model.refusal : null,
+    model.refusal !== null && model.placeOf(model.refusal) === 'radar' ? model.refusal : null,
   );
 </script>
 

@@ -1,24 +1,39 @@
 <script lang="ts">
-  // THE PANORAMA: the workspace presented in the surface the kit hands out. An empty workspace
-  // says so above it, with the way to fill it. In focus, a bar above names the focused window,
-  // steps to the next window and closes the focus; the windows round it are in the strip below.
-  import { Button, EmptyState, IconButton, Notice, ScaledView, Stack, Text, Toolbar } from '@wsb/uikit/components';
+  // THE PANORAMA: the workspace presented in the surface the kit hands out, which the host makes
+  // its navigation in. An empty workspace shows what the host gives to fill it. In focus, a bar
+  // above names the focused window, steps to the next window and closes the focus; the windows
+  // round it are in the strip below.
+  import { Button, IconButton, Notice, ScaledView, Stack, Text, Toolbar } from '@wsb/uikit/components';
   import { handleOf } from '@wsb/uikit/handles';
+  import type { Snippet } from 'svelte';
   import { onMount } from 'svelte';
-  import { DEFAULT_CONFIG } from '../config.js';
   import type { SnapConstraint } from '@swf/navigation';
   import { FOCUS_ID } from '@swf/navigation';
-  import type { MessageId } from '../messages.js';
-  import type { ShellModel } from './model.svelte.js';
+  import type { NavigationMessageId } from './messages.js';
+  import type { NavigationModel } from './model.svelte.js';
+  import { PANORAMA_PLACE } from './model.svelte.js';
   import { PanoramaGuides } from './panorama-guides.js';
   import ViewControls from './ViewControls.svelte';
 
   interface Props {
-    model: ShellModel;
+    model: NavigationModel;
+    /**
+     * Given once the element the panorama is presented in: the host makes its navigation there and
+     * attaches it to the model, and the promise settles once it has (or could not).
+     */
+    onsurface: (surface: HTMLElement) => Promise<void>;
+    /** The host's own notices, above the panorama. */
+    notices?: Snippet;
+    /** The host's own bars across the top of the panorama, under the view's controls. */
+    bars?: Snippet;
+    /** What the panorama shows while the workspace has no window: the host's way to fill it. */
+    empty?: Snippet;
+    /** The view's own controls above it: the package's unless the host gives its own; none with null. */
+    controls?: Snippet | null | undefined;
   }
 
-  let { model }: Props = $props();
-  const t = (id: MessageId, params?: Readonly<Record<string, string | number>>) =>
+  let { model, onsurface, notices, bars, empty, controls }: Props = $props();
+  const t = (id: NavigationMessageId, params?: Readonly<Record<string, string | number>>) =>
     model.messages.format(id, params);
 
   let surface: HTMLElement | undefined = $state();
@@ -31,8 +46,8 @@
     // The guides under the windows: what lies behind the camera, and the seam.
     let guides: PanoramaGuides | null = null;
     let gone = false;
-    void model.start(element).then(() => {
-      const app = model.app;
+    void onsurface(element).then(() => {
+      const app = model.navigation;
       if (app !== null && !gone) {
         guides = new PanoramaGuides({ app, messages: model.messages, container: element });
       }
@@ -46,7 +61,7 @@
     // A double press on a window's frame or stand-in shows it in focus (its live content keeps
     // its own presses: a double press there selects a word, as anywhere else).
     const focusAt = (event: MouseEvent) => {
-      const app = model.app;
+      const app = model.navigation;
       if (app === null || model.policies?.features.enabled.focus !== true) {
         return;
       }
@@ -70,7 +85,7 @@
 
   const focus = $derived.by(() => {
     void model.revision;
-    const app = model.app;
+    const app = model.navigation;
     if (app === null || model.status?.mode !== FOCUS_ID) {
       return null;
     }
@@ -95,7 +110,7 @@
   /** Where the window a gesture works on would be now, read again on every frame drawn. */
   const readingOf = (operation: string, nodeId: string | null): string | null => {
     void model.frame;
-    const pose = nodeId === null ? null : (model.app?.poseOf(nodeId) ?? null);
+    const pose = nodeId === null ? null : (model.navigation?.poseOf(nodeId) ?? null);
     if (pose === null) {
       return null;
     }
@@ -115,7 +130,7 @@
 
   const labelOf = (id: string | null) => {
     void model.revision;
-    const node = id === null ? undefined : model.app?.workspace.getState().nodes.get(id);
+    const node = id === null ? undefined : model.navigation?.workspace.getState().nodes.get(id);
     return node?.label ?? id ?? '';
   };
 
@@ -203,13 +218,6 @@
     };
   });
 
-  // A restore that failed (the workspace saved last, a named one, a file), until dismissed.
-  let dismissedRestore = $state<unknown>(null);
-  const restoreProblem = $derived.by(() => {
-    const error = model.workspaces?.restoreError ?? null;
-    return error === null || error === dismissedRestore ? null : error;
-  });
-
   const orbitGroup = $derived.by(() => {
     const policies = model.policies;
     if (policies === null || policies.orbit.navigation !== 'orbit') {
@@ -220,23 +228,12 @@
 </script>
 
 {#snippet head()}
-  <ViewControls {model} />
-  {#if restoreProblem !== null}
-    <Toolbar ariaLabel={t('restore.failed', { reason: restoreProblem.message })}>
-      <Text>{t('restore.failed', { reason: restoreProblem.message })}</Text>
-      {#snippet end()}
-        <IconButton
-          handle={handleOf`page.restore.dismiss`}
-          icon="close"
-          label={t('notice.dismiss')}
-          size="small"
-          onpress={() => {
-            dismissedRestore = restoreProblem;
-          }}
-        />
-      {/snippet}
-    </Toolbar>
+  {#if controls === undefined}
+    <ViewControls {model} />
+  {:else if controls !== null}
+    {@render controls()}
   {/if}
+  {@render bars?.()}
   {#if model.removal !== null}
     <Toolbar ariaLabel={t('command.window.remove')}>
       <Text>{t('removed.text', { label: model.removal.label })}</Text>
@@ -404,38 +401,15 @@
 {/snippet}
 
 <Stack fill gap="small">
-  {#if model.startProblem !== null}
-    <Notice tone="danger" title={model.startProblem} handle={handleOf`page.panorama.problem`} />
-  {/if}
-  {#if model.refusal !== null && !model.isSceneRefusal(model.refusal) && !model.isFeatureRefusal(model.refusal) && !model.isWorkspaceRefusal(model.refusal) && !model.isInspectorRefusal(model.refusal) && !model.isRadarRefusal(model.refusal) && !model.isViewRefusal(model.refusal)}
+  {@render notices?.()}
+  {#if model.refusal !== null && model.placeOf(model.refusal) === PANORAMA_PLACE}
     <Notice tone="danger" title={model.refusalText(model.refusal)} handle={handleOf`page.panorama.refusal`} />
   {/if}
   {#if model.keyRefusal !== null}
     <Notice tone="danger" title={model.keyRefusal} handle={handleOf`page.panorama.keys.refusal`} />
   {/if}
   {#if model.status !== null && model.status.windows === 0}
-    <EmptyState title={t('empty.title')} detail={t('empty.body')} icon="add">
-      {#snippet action()}
-        <Stack direction="row" gap="small" justify="center" wrap>
-          <Button
-            handle={handleOf`page.panorama.load`}
-            label={t('empty.action')}
-            variant="primary"
-            onpress={() => {
-              void model.run('reference.preset.load', { preset: DEFAULT_CONFIG.preset });
-            }}
-          />
-          <Button
-            handle={handleOf`page.panorama.add`}
-            label={t('command.window.add')}
-            icon="add"
-            onpress={() => {
-              void model.run('reference.window.add', {});
-            }}
-          />
-        </Stack>
-      {/snippet}
-    </EmptyState>
+    {@render empty?.()}
   {/if}
   <Stack grow>
     <ScaledView ariaLabel={t('view.label')} handle={handleOf`page.panorama`} {head} bind:surface />

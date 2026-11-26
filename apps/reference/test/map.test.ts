@@ -4,7 +4,7 @@ import { cameraRotation, createProjectionRegistry, equirectangular } from '@swf/
 import { describe, expect, it } from 'vitest';
 import { planPreset, presetCommands } from '../src/presets.js';
 import type { MapView } from '@swf/navigation';
-import { PART_OF_KEY } from '../src/app.js';
+import { PART_OF_KEY } from '../src/presets.js';
 import {
   CAMERA_ID,
   MAP_SCALE,

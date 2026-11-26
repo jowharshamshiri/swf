@@ -1,10 +1,10 @@
 import type { Hue, StageUnit } from '@wsb/uikit/components';
 import { HUES } from '@wsb/uikit/components';
 import { resolvePalette } from '@wsb/uikit/primitives';
-import type { ReferenceApp } from '../app.js';
+import type { Navigation } from '@swf/navigation';
 import type { OverviewEntry, OverviewLayout, OverviewScene } from '@swf/navigation';
 import { CARD, VIEWPORT_ID, inView, layOverview, overviewScene } from '@swf/navigation';
-import type { Messages } from '../messages.js';
+import type { NavigationMessages } from './messages.js';
 
 /**
  * Draws the spatial overview on the kit's stage and works it. The board is the whole sphere round
@@ -62,8 +62,8 @@ export function groupHue(index: number): Hue {
 }
 
 export interface OverviewDrawerOptions {
-  readonly app: ReferenceApp;
-  readonly messages: Messages;
+  readonly app: Navigation;
+  readonly messages: NavigationMessages;
   readonly viewport: HTMLElement;
   readonly canvas: HTMLCanvasElement;
   /** The names and readings to lay over the drawing, as the stage shows them. */

@@ -12,7 +12,7 @@ import { createMessages } from '../../src/messages.js';
 import type { ShellAppOptions } from '../../src/shell/model.svelte.js';
 import { ShellModel } from '../../src/shell/model.svelte.js';
 import DeveloperView from '../../src/shell/DeveloperView.svelte';
-import ExperimentsView from '../../src/shell/ExperimentsView.svelte';
+import { ExperimentPanel } from '@swf/navigation-ui';
 import Shell from '../../src/shell/Shell.svelte';
 
 /**
@@ -73,7 +73,7 @@ export async function start(
   const model = new ShellModel(createMessages(), parseConfig(search), appOptions);
   const shell = mount(Shell, {
     target: root,
-    props: { model, developer: DeveloperView, experiments: experiments ? ExperimentsView : null },
+    props: { model, developer: DeveloperView, experiments: experiments ? ExperimentPanel : null },
   });
   mounted.push({ model, shell, root });
   const driver = installAutomation(root, () => 'reference');

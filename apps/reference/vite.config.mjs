@@ -32,6 +32,10 @@ const alias = Object.fromEntries(
     fileURLToPath(new URL(`../../packages/${pkg}/src/index.ts`, import.meta.url)),
   ]),
 );
+// The navigation controls, by their public entry point, as a host takes them.
+alias['@swf/navigation-ui'] = fileURLToPath(
+  new URL('../../ui/navigation/src/index.ts', import.meta.url),
+);
 
 /** Text safe to put inside an inline script or style element. */
 const inlineSafe = (code, tag) => code.replaceAll(`</${tag}`, `<\\/${tag}`);
@@ -112,20 +116,18 @@ function carried(mode) {
 /**
  * A module the build fills with a view or with none: `export const <name>` is the view's
  * component where the mode carries it, null where it does not, so nothing of a view left out
- * reaches the bundle.
+ * reaches the bundle. `from` is the view's own file, or the package and the component it exports.
  */
-function optionalView(module, name, file, carries) {
+function optionalView(module, name, from, carries) {
   const resolved = `\0${module}`;
-  const view = fileURLToPath(new URL(file, import.meta.url));
+  const view =
+    'file' in from
+      ? `export { default as ${name} } from ${JSON.stringify(fileURLToPath(new URL(from.file, import.meta.url)))};`
+      : `export { ${from.component} as ${name} } from ${JSON.stringify(from.package)};`;
   return {
     name: `swf-optional-${name}`,
     resolveId: (id) => (id === module ? resolved : null),
-    load: (id) =>
-      id !== resolved
-        ? null
-        : carries
-          ? `export { default as ${name} } from ${JSON.stringify(view)};`
-          : `export const ${name} = null;`,
+    load: (id) => (id !== resolved ? null : carries ? view : `export const ${name} = null;`),
   };
 }
 
@@ -154,13 +156,13 @@ export default defineConfig(({ mode }) => {
       optionalView(
         'virtual:reference/debug',
         'developer',
-        './src/shell/DeveloperView.svelte',
+        { file: './src/shell/DeveloperView.svelte' },
         carries.developer,
       ),
       optionalView(
         'virtual:reference/experiments',
         'experiments',
-        './src/shell/ExperimentsView.svelte',
+        { package: '@swf/navigation-ui', component: 'ExperimentPanel' },
         carries.experiments,
       ),
       singleFile(),

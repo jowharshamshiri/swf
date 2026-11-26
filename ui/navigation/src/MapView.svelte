@@ -9,16 +9,16 @@
   import { onDestroy } from 'svelte';
   import type { MapView } from '@swf/navigation';
   import { MAP_SCALE, VIEWPORT_ID, mapScene } from '@swf/navigation';
-  import type { MessageId } from '../messages.js';
+  import type { NavigationMessageId } from './messages.js';
   import { MapDrawer } from './map-drawer.js';
-  import type { ShellModel } from './model.svelte.js';
+  import type { NavigationModel } from './model.svelte.js';
 
   interface Props {
-    model: ShellModel;
+    model: NavigationModel;
   }
 
   let { model }: Props = $props();
-  const t = (id: MessageId, params?: Readonly<Record<string, string | number>>) =>
+  const t = (id: NavigationMessageId, params?: Readonly<Record<string, string | number>>) =>
     model.messages.format(id, params);
   const round = (value: number) => Number(value.toFixed(2));
 
@@ -34,7 +34,7 @@
   let invalid = $state<'x' | 'y' | 'z' | null>(null);
 
   $effect(() => {
-    const app = model.app;
+    const app = model.navigation;
     if (
       app === null ||
       viewport === undefined ||
@@ -80,7 +80,7 @@
 
   const marker = $derived.by(() => {
     void model.revision;
-    const app = model.app;
+    const app = model.navigation;
     const id = model.selected?.id;
     if (app === null || id === undefined) {
       return null;
@@ -157,14 +157,14 @@
       {#key `${marker.id}:${String(marker.x)}:${String(marker.y)}:${String(marker.z)}`}
         <Field
           label={t('map.x')}
-          for="reference-map-x"
+          for="swf-map-x"
           message={invalid === 'x' ? t('map.number.invalid') : undefined}
           messageTone="danger"
         >
           {#snippet control()}
             <Input
               handle={handleOf`page.map.x`}
-              id="reference-map-x"
+              id="swf-map-x"
               type="number"
               step={0.1}
               value={String(round(marker.x))}
@@ -177,14 +177,14 @@
         </Field>
         <Field
           label={t('map.z')}
-          for="reference-map-z"
+          for="swf-map-z"
           message={invalid === 'z' ? t('map.number.invalid') : undefined}
           messageTone="danger"
         >
           {#snippet control()}
             <Input
               handle={handleOf`page.map.z`}
-              id="reference-map-z"
+              id="swf-map-z"
               type="number"
               step={0.1}
               value={String(round(marker.z))}
@@ -197,7 +197,7 @@
         </Field>
         <Field
           label={t('map.height')}
-          for="reference-map-y"
+          for="swf-map-y"
           hint={t('map.height.hint')}
           message={invalid === 'y' ? t('map.number.invalid') : undefined}
           messageTone="danger"
@@ -205,7 +205,7 @@
           {#snippet control()}
             <Input
               handle={handleOf`page.map.height`}
-              id="reference-map-y"
+              id="swf-map-y"
               type="number"
               step={0.1}
               value={String(round(marker.y))}

@@ -7,21 +7,21 @@
   import { Button, Notice, Slider, Stack, Text, Toolbar } from '@wsb/uikit/components';
   import { handleOf } from '@wsb/uikit/handles';
   import { FIELD_OF_VIEW, VIEWPORT_ID, cameraHeading, fieldOfViewOf, orbitHeading } from '@swf/navigation';
-  import type { MessageId } from '../messages.js';
-  import type { ShellModel } from './model.svelte.js';
+  import type { NavigationMessageId } from './messages.js';
+  import type { NavigationModel } from './model.svelte.js';
 
   interface Props {
-    model: ShellModel;
+    model: NavigationModel;
   }
 
   let { model }: Props = $props();
-  const t = (id: MessageId) => model.messages.format(id);
+  const t = (id: NavigationMessageId) => model.messages.format(id);
   const DEGREES = 180 / Math.PI;
 
   /** The view as the controls show it: read again on every commit. */
   const view = $derived.by(() => {
     void model.revision;
-    const app = model.app;
+    const app = model.navigation;
     if (app === null) {
       return null;
     }
@@ -49,7 +49,7 @@
         : null,
   );
   const refusal = $derived(
-    model.refusal !== null && model.isViewRefusal(model.refusal) ? model.refusal : null,
+    model.refusal !== null && model.placeOf(model.refusal) === 'view' ? model.refusal : null,
   );
 </script>
 
