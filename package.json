@@ -1,0 +1,39 @@
+{
+  "name": "@swf/models",
+  "version": "0.1.0",
+  "description": "The Spatial Workspace Framework's state machines and decision logic, written and proved in Lean and run as WebAssembly: the program lungo generates from models/, loaded once.",
+  "license": "Apache-2.0",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jowharshamshiri/swf.git",
+    "directory": "packages/models"
+  },
+  "type": "module",
+  "sideEffects": [
+    "./dist/index.js"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "program",
+    "src",
+    "CHANGELOG.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "lungo-ts": "1.131.83"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  }
+}
