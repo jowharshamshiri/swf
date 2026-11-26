@@ -7,10 +7,10 @@
     }
   },
   "@swf/models": {
-    "budget": 52224,
+    "budget": 53504,
     "recorded": {
-      "minified": 309135,
-      "gzip": 51456
+      "minified": 320932,
+      "gzip": 53398
     }
   },
   "@swf/core": {
