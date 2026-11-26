@@ -71,6 +71,20 @@ holds small hosts, each run by the tests.
   reported in, and a probe of the listeners, observers, frames and timers a page holds, for
   disposal soaks.
 
+## Installing
+
+The packages are installed by git URL, never from a package registry: each release makes a git
+ref of this repository for each package, `<folder>/v<version>`, holding exactly the built package,
+and a package brings its sibling packages by their refs. For example, with release 0.1.0 of each:
+
+```sh
+npm install git+https://github.com/jowharshamshiri/swf.git#core/v0.1.0
+```
+
+installs `@swf/core` with `@swf/math` and `@swf/models`. Each release's `COMPATIBILITY.md` lists
+every package with its URL; [Integrate SWF into a host](docs/how-to/integrate-a-host.md#install-the-packages)
+says which a browser host needs.
+
 ## Using the kernel
 
 ```ts
@@ -1178,7 +1192,10 @@ fetches, so the page still runs offline from the file.
 
 ## Development
 
-The workspace needs Node.js 24 or later and npm.
+The workspace needs Node.js 24 or later and npm. The reference application is built from the wsb
+UI kit, which comes from the git submodule `wsb`; its repository is not public. A clone without
+it checks, tests and builds every package and the examples, and leaves the reference application
+out, saying so; with access to it, `git submodule update --init wsb` and `npm install` bring it.
 
 ```sh
 npm install     # install the locked development tools
@@ -1195,7 +1212,7 @@ npm run api-reference   # the API reference in api-reference/, failing on an und
 `npm run check` runs `npm run size` and `npm run smoke:packages` after building the packages, and
 `npm run api-reference -- --check` after the lint. The first fails a package over its budget in
 `size-budgets.json`, or one that leaves code behind when imported for nothing, and reports each
-package's change from its recorded size; the second packs every package as npm publishes it,
+package's change from its recorded size; the second packs every package as npm packs it for a host,
 installs the tarballs in a fresh project, and compiles and runs a program using them all, with every
 library's declarations checked; the third fails on an undocumented public declaration. `npm run
 release` builds a versioned release from a commit ([Release the packages](docs/how-to/release.md)).

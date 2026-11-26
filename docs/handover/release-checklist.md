@@ -28,7 +28,9 @@ Tick each step for every release. [Release the packages](../how-to/release.md) e
   - [ ] `npm run check` passed (models, formatting, types, lint, tests, sizes, builds);
   - [ ] the bundle sizes equal those recorded, within budget, every package tree-shaking;
   - [ ] the API reference has no undocumented public declaration and no `any`;
-  - [ ] the tarballs installed in a fresh host compile strictly and run;
+  - [ ] every package's ref holds exactly its tarball's files and requires its siblings by their
+        refs, and a version already released kept its files;
+  - [ ] the packages installed by git URL in a fresh host compile strictly and run;
   - [ ] a host's install has no known vulnerability, and the development tools none high or
         critical.
 - [ ] `sha256sum -c SHA256SUMS` passes in `release/<version>/`.
@@ -36,18 +38,16 @@ Tick each step for every release. [Release the packages](../how-to/release.md) e
 
 ## Publish
 
-Waiting on the owner's choice of registry, package scope and licence. Until then the packages are
-`private` and `UNLICENSED`, and the steps below are not taken.
+Packages go to no package registry: they are released as git refs of this repository.
 
-- [ ] The packages' names, `license` and `private` reflect the owner's choice, released again.
-- [ ] Each tarball of the release is published, in dependency order, never a fresh pack.
-- [ ] Each published package's integrity equals `release.json`'s.
-- [ ] The commit is tagged `v<version>`.
+- [ ] The release's package refs are pushed from `release/<version>/git`.
+- [ ] The release's commit is tagged `v<version>` and the tag pushed.
+- [ ] A package installed by its git URL in an empty project locks the commit `release.json` names.
 - [ ] The reference application's `reference-app/index.html` is deployed, and the previous
       release's is kept for a rollback.
 
 ## After
 
 - [ ] The release folder is kept with its evidence.
-- [ ] Rollback is known: the previous release's tarballs and page, and its `COMPATIBILITY.md`'s
+- [ ] Rollback is known: the previous release's package refs and page, and its `COMPATIBILITY.md`'s
       snapshot formats ([Roll a release back](../how-to/release.md#roll-a-release-back)).

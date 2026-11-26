@@ -1,6 +1,6 @@
 # 0009. Independent package versions with exact sibling pins, released from one commit
 
-- **Status:** Accepted
+- **Status:** Superseded by [0013](0013-released-as-git-refs.md)
 - **Date:** 2026-11-25
 - **Requirements:** DLV-001, DLV-013, ENV-007, NFR-028, SEC-015
 

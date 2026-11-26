@@ -9,7 +9,8 @@ What a team taking over SWF needs beyond the code and the rest of the documentat
   a new version of the specification.
 - [Demo recipes](demo-recipes.md): how to show each capability in the reference application.
 - [Quality reports](quality-reports.md): which reports exist, how each is made, and how to read it.
-- [Release checklist](release-checklist.md): every step from a commit to published packages.
+- [Release checklist](release-checklist.md): every step from a commit to packages released as git
+  refs.
 - [Known limitations](known-limitations.md): what SWF does not do, or does not do yet, and why.
 
 Every release folder (`release/<version>/`, made by `npm run release`) carries that release's

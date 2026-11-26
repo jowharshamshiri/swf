@@ -11,13 +11,25 @@ binding key.
 
 ## Install the packages
 
-Install the packages of one release together: each requires its siblings at exactly the
-versions released with it ([Versions and compatibility](../reference/versions-and-compatibility.md)).
-A browser host needs at least:
+The packages are not on a package registry. Each is released as a git ref of the repository,
+`<folder>/v<version>`, and installed by its git URL; it requires its sibling packages by their
+refs of the same release, so npm brings them too. Install the packages a host uses from one
+release: that release's `COMPATIBILITY.md` lists every package with its URL
+([Versions and compatibility](../reference/versions-and-compatibility.md)). For a browser host of
+release 0.1.0 of each package:
 
 ```sh
-npm install @swf/core @swf/surfaces @swf/presentation @swf/projections @swf/interaction @swf/backend-dom
+npm install \
+  git+https://github.com/jowharshamshiri/swf.git#core/v0.1.0 \
+  git+https://github.com/jowharshamshiri/swf.git#surfaces/v0.1.0 \
+  git+https://github.com/jowharshamshiri/swf.git#presentation/v0.1.0 \
+  git+https://github.com/jowharshamshiri/swf.git#projections/v0.1.0 \
+  git+https://github.com/jowharshamshiri/swf.git#interaction/v0.1.0 \
+  git+https://github.com/jowharshamshiri/swf.git#backend-dom/v0.1.0
 ```
+
+The packages keep their names, so the host imports `@swf/core` and the rest as usual. npm
+records each package's commit in the host's lock, so a reinstall gets the very same files.
 
 They are ES2022 modules with `sideEffects: false` (except `@swf/models`, which loads its
 WebAssembly program when first imported), so a bundler keeps only what the host uses. Without a

@@ -1,8 +1,10 @@
 # Release the packages
 
 A release is built from one commit on the main branch, after every check has passed, into
-`release/<version>/`, where `<version>` is the repository's version (`version.txt`). It holds
-the package tarballs with their hashes, the release notes, the compatibility matrix, the
+`release/<version>/`, where `<version>` is the repository's version (`version.txt`). Packages are
+not put on a package registry: each is released as a git ref of this repository, which a host
+installs by git URL ([Install the packages](integrate-a-host.md#install-the-packages)). The release
+folder holds those refs, the package tarballs with their hashes, the release notes, the compatibility matrix, the
 dependency inventory and vulnerability audits, the API reference, the reference application's
 static page, and the quality records it was released on. The
 [release checklist](../handover/release-checklist.md) lists every step to tick.
@@ -13,7 +15,8 @@ static page, and the quality records it was released on. The
 - lungo 1.131.83 and Lean 4.35.0, for `npm run models:verify`
   ([Building and changing the models](../../README.md#building-and-changing-the-models)).
 - Playwright's browsers: `npx playwright install --with-deps chromium firefox webkit`.
-- Network access to the npm registry, for the vulnerability audits.
+- Network access to the npm registry, for the vulnerability audits, and read access to this
+  repository's remote, to see which package refs are already released.
 
 ## 1. Set each package's version and changelog
 
@@ -57,43 +60,55 @@ It refuses an uncommitted tree, and then:
    (no budget missed), refusing either if it was recorded before the commit;
 3. runs `npm run check` (models, formatting, types, lint, tests, builds), the bundle sizes
    against their recorded values, and the API reference with its documentation gate;
-4. packs each package and records its size, SHA-256 and npm integrity (SHA-512);
-5. installs the tarballs in a fresh project as a host would, compiles a program using every
+4. makes each package's release ref in `git/`, a repository of the release's own: the ref
+   `<folder>/v<version>` (`core/v0.1.0`) names a commit holding exactly the package as npm packs
+   it, requiring each sibling package by the sibling's ref. A version whose ref the remote already
+   has must hold the same files, and is then reused; other files under a released version are
+   refused, naming the package to raise;
+5. packs each package from its ref's files and records its size, SHA-256 and npm integrity
+   (SHA-512), then checks that every ref holds exactly its tarball's files and requires its
+   siblings by their own refs;
+6. installs every package by its git URL in a fresh project, as a host would (git reads the
+   remote as the release's `git/` until the refs are pushed), compiles a program using every
    package under strict options with every library's declarations checked, and runs it: a scene
    commits, saves and restores the same;
-6. writes the inventory of everything that install holds (with a CycloneDX SBOM) and audits it,
+7. writes the inventory of everything that install holds (with a CycloneDX SBOM) and audits it,
    refusing any known vulnerability, and audits the development tools, refusing a high or
    critical one;
-7. writes `COMPATIBILITY.md`, `RELEASE-NOTES.md`, `release.json` and `SHA256SUMS`.
+8. writes `COMPATIBILITY.md`, `RELEASE-NOTES.md`, `release.json` and `SHA256SUMS`.
 
 Check the result with `sha256sum -c SHA256SUMS` in the release folder, and read
 `RELEASE-NOTES.md`.
 
 ## 4. Publish
 
-Publishing makes the packages public and cannot be undone, so it waits on the owner's choice of
-registry, package scope and licence. Until then every package is `"private": true` with
-`"license": "UNLICENSED"`, and npm refuses to publish it. Once those are chosen:
+Publishing pushes the release's refs, and tags the release's commit, on this repository's
+remote. A pushed ref is what hosts install and must never move, so push only a release that has
+passed every step above:
 
-1. Set each package's `name` to the chosen scope, its `license`, and remove `private`; record
-   the change in each changelog and release again.
-2. Publish each tarball of the release, never a fresh pack, so what is published is what was
-   checked and hashed: `npm publish release/<version>/packages/<tarball> --access public`, in
-   dependency order (`@swf/math`, `@swf/models`, `@swf/core`, then the rest).
-3. Check each published package's integrity against `release.json`
-   (`npm view <name>@<version> dist.integrity`).
-4. Tag the commit `v<version>`.
+```sh
+v=<version>
+git --git-dir release/$v/git push https://github.com/jowharshamshiri/swf.git 'refs/tags/*'
+git tag v$v "$(node -p "require('./release/$v/release.json').commit")" && git push origin v$v
+```
+
+The first command pushes each package's ref (a ref already released is pushed unchanged). Then
+check that a host installs from the remote: in an empty project, `npm install` the URL of one
+package from `COMPATIBILITY.md`, and compare the commit its lock records with `release.json`.
+
+Every package stays `"private": true`, so npm refuses to publish one to a registry by mistake,
+and `"license": "UNLICENSED"` until a licence is chosen.
 
 The reference application's static page (`reference-app/index.html`) is one self-contained file:
 deploy it to any static host as it is.
 
 ## Roll a release back
 
-**Packages.** A host goes back by installing the previous release's packages together, at their
-exact versions, from the registry or from that release's tarballs (check them against its
-`SHA256SUMS`). On the registry, never unpublish: deprecate the bad versions
-(`npm deprecate <name>@<version> "<why>; use <good version>"`) and release the fix as a new
-version.
+**Packages.** A host goes back by installing the previous release's packages by their refs (in
+that release's `COMPATIBILITY.md`), together, and `npm install` updates its lock to their
+commits. A released ref is never moved or deleted, since hosts' locks name its commit: a bad
+release is followed by a fixed one under new versions, and the bad versions are named in the
+fixed release's changelogs.
 
 **The reference application.** Deploy the previous release's `reference-app/index.html` in
 place of the current one.

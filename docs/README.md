@@ -21,7 +21,7 @@ release it need beyond that.
   to its newer version, and a host to newer packages.
 - [Troubleshoot](how-to/troubleshoot.md) a refused operation, a blank or degraded view, a
   surface that never shows, lost input, a failed save or restore.
-- [Release the packages](how-to/release.md), publish them, and roll a release back.
+- [Release the packages](how-to/release.md) as git refs, push them, and roll a release back.
 - [Change a contract](how-to/change-a-contract.md): how a change to a public contract or a
   closed decision is made.
 

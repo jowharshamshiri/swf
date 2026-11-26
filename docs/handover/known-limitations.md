@@ -18,8 +18,12 @@ What SWF does not do, or does not do yet. Each item says why and what a host can
 
 ## Not yet done
 
-- **Publishing.** The packages are not on a registry: their scope, licence and registry wait on
-  the owner's decision. They are `private` and `UNLICENSED` until then.
+- **Licence.** The packages carry no licence yet (`"license": "UNLICENSED"`): it waits on the
+  owner's decision. They are installed by git URL, never from a package registry.
+- **The reference application in a public clone.** It is built from the wsb UI kit, which comes
+  from the git submodule `wsb`, whose repository is not public. A clone without it checks, tests
+  and builds every package and the examples, and leaves the reference application out, saying so;
+  building or serving the application says it needs the kit and how to fetch it.
 - **Safari.** The suites run in Playwright's WebKit on Linux, which is not Safari; Safari itself
   is checked once the suites run on macOS.
 - **Firefox's performance on Windows.** The Windows test guests run Firefox without a desktop

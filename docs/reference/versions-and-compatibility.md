@@ -14,8 +14,18 @@ The public API is what each package's entry point exports and the documented beh
 declaration; anything else (internal module paths, an error's `message` wording, the order of
 fields in a report) may change in any version.
 
-A package requires each sibling at exactly the version released with it. Install the packages of
-one release together; mixing releases is refused by npm rather than left to fail at run time.
+## Releases and refs
+
+A release is the repository's commit tagged `v<version>`, with the repository's version
+(`version.txt`). Each package of it is a git ref of its own, `<folder>/v<version>` with the
+package's version (`core/v0.1.0`), whose commit holds exactly the package as npm packs it; a host
+installs a package by the repository's git URL and that ref. A package whose version is unchanged
+keeps its ref, and its files, from the release that made it. A released ref never moves.
+
+A package requires each sibling by the sibling's ref of its own release, that is at exactly the
+version released with it. Install the packages a host uses from one release: a package of another
+release requiring a sibling at another version gets its own copy of that sibling, and two copies
+of a package in one page do not work together.
 
 Each package's `CHANGELOG.md` says what each version changed for those who use it.
 
