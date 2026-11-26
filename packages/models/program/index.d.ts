@@ -612,6 +612,57 @@ export type SnapOutcome =
 /** The descriptor of Swf.AppSnap.SnapOutcome: how its values cross the boundary. */
 export function snapOutcomeType(): L.Type<SnapOutcome>;
 
+/**
+ * A burst under way: the window it moves, and how far in all, in world units away from the
+ * camera (negative: nearer).
+ */
+export interface Burst {
+  /** The window the burst moves. */
+  readonly nodeId: string;
+  /** How far the ticks so far take it, away from the camera. */
+  readonly depth: number;
+}
+/** The descriptor of Swf.AppWheel.Burst: how its values cross the boundary. */
+export function burstType(): L.Type<Burst>;
+
+/** What happens to a burst. */
+export type WheelEvent =
+  | {
+      /** A wheel tick over window `nodeId`, taking it `delta` world units away from the camera. */
+      readonly kind: "tick";
+      /** The field `nodeId` of Lean's Swf.AppWheel.WheelEvent.tick. */
+      readonly nodeId: string;
+      /** The field `delta` of Lean's Swf.AppWheel.WheelEvent.tick. */
+      readonly delta: number;
+    }
+  | {
+      /** The wheel rested, or other input came: the burst ends as it is. */
+      readonly kind: "settle";
+    }
+  | {
+      /** The burst is cancelled (Escape, or its window went away): nothing of it is kept. */
+      readonly kind: "cancel";
+    }
+;
+/** The descriptor of Swf.AppWheel.WheelEvent: how its values cross the boundary. */
+export function wheelEventType(): L.Type<WheelEvent>;
+
+/** A step, or the refusal of a tick that moves the window by no finite amount. */
+export type WheelOutcome =
+  | {
+      /** The step. */
+      readonly kind: "step";
+      /** The field `s` of Lean's Swf.AppWheel.WheelOutcome.step. */
+      readonly s: WheelStep;
+    }
+  | {
+      /** The tick's delta is not a finite number. */
+      readonly kind: "invalidDelta";
+    }
+;
+/** The descriptor of Swf.AppWheel.WheelOutcome: how its values cross the boundary. */
+export function wheelOutcomeType(): L.Type<WheelOutcome>;
+
 /** Why a file cannot be imported. */
 export type ImportIssue =
   | {
@@ -2213,6 +2264,16 @@ export interface SnapCandidate {
 /** The descriptor of Swf.AppSnap.SnapCandidate: how its values cross the boundary. */
 export function snapCandidateType(): L.Type<SnapCandidate>;
 
+/** The burst under way after a step, and what the application does, in order. */
+export interface WheelStep {
+  /** The burst under way after the step, if one is. */
+  readonly burst: L.Option<Burst>;
+  /** What to do, in order. */
+  readonly actions: Array<WheelAction>;
+}
+/** The descriptor of Swf.AppWheel.WheelStep: how its values cross the boundary. */
+export function wheelStepType(): L.Type<WheelStep>;
+
 /** How the saver stands: saved, changed since, saving, or failed to save. */
 export type SaverState =
   | {
@@ -2670,6 +2731,28 @@ export type SnapConstraint =
 /** The descriptor of Swf.AppSnap.SnapConstraint: how its values cross the boundary. */
 export function snapConstraintType(): L.Type<SnapConstraint>;
 
+/** What the application does. */
+export type WheelAction =
+  | {
+      /** Show `burst` as a preview, in place of what was shown. */
+      readonly kind: "show";
+      /** The field `burst` of Lean's Swf.AppWheel.WheelAction.show. */
+      readonly burst: Burst;
+    }
+  | {
+      /** Commit `burst` as one undoable change, ending what was shown. */
+      readonly kind: "commit";
+      /** The field `burst` of Lean's Swf.AppWheel.WheelAction.commit. */
+      readonly burst: Burst;
+    }
+  | {
+      /** Discard what was shown. */
+      readonly kind: "discard";
+    }
+;
+/** The descriptor of Swf.AppWheel.WheelAction: how its values cross the boundary. */
+export function wheelActionType(): L.Type<WheelAction>;
+
 /** How an endpoint is attached (its attach strategy). */
 export type Strategy =
   | {
@@ -2903,6 +2986,12 @@ export class SwfModels {
    * Lean's Swf.AppSnap.snapResolve : String → Swf.AppSnap.SnapSeen → Array Swf.AppSnap.SnapNeighbour → Swf.AppFeatures.SnapSettings → Swf.AppSnap.SnapOutcome
    */
   snapResolve(movingId: string, m: SnapSeen, neighbours: Array<SnapNeighbour>, settings: SnapSettings): SnapOutcome;
+  /**
+   * The step a wheel event takes from the burst under way.
+   *
+   * Lean's Swf.AppWheel.wheelStep : Option Swf.AppWheel.Burst → Swf.AppWheel.WheelEvent → Swf.AppWheel.WheelOutcome
+   */
+  wheelStep(current: L.Option<Burst>, event: WheelEvent): WheelOutcome;
   /**
    * Why a file cannot be imported, or none when it is read: its name (none when it is not a
    * string) must end in `.json`, and its content must be text.

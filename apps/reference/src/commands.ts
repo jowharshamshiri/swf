@@ -639,7 +639,7 @@ export function createAppCommands(app: () => ReferenceApp): AppCommands {
     },
     'reference.gesture.cancel': () =>
       Promise.resolve(
-        app().router.cancel('host') > 0 ? DONE : rejected('gesture', 'no gesture is running'),
+        app().policies.cancelGesture() ? DONE : rejected('gesture', 'no gesture is running'),
       ),
     'reference.gesture.grab': now(({ id }) => {
       if (!isWindow(id)) {

@@ -1927,6 +1927,171 @@
       }
     },
     {
+      "name": "Swf.AppWheel.commits_only_the_burst_under_way",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppWheel.wheelStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (current : Option Swf.AppWheel.Burst) (event : Swf.AppWheel.WheelEvent) (s : Swf.AppWheel.WheelStep)\n  (b : Swf.AppWheel.Burst),\n  Swf.AppWheel.wheelStep current event = Swf.AppWheel.WheelOutcome.step s →\n    Swf.AppWheel.WheelAction.commit b ∈ s.actions →\n      current = some b ∧\n        event ≠ Swf.AppWheel.WheelEvent.cancel ∧ s.actions.head? = some (Swf.AppWheel.WheelAction.commit b)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "f58d51db4373a15bae935edc36f86655ca66deb9a159d80c98067475620c49c7",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppWheel.lean",
+        "start": {
+          "line": 92,
+          "column": 1
+        },
+        "end": {
+          "line": 131,
+          "column": 71
+        }
+      }
+    },
+    {
+      "name": "Swf.AppWheel.ends_leave_no_burst",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppWheel.wheelStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (current : Option Swf.AppWheel.Burst) (event : Swf.AppWheel.WheelEvent) (s : Swf.AppWheel.WheelStep),\n  event = Swf.AppWheel.WheelEvent.settle ∨ event = Swf.AppWheel.WheelEvent.cancel →\n    Swf.AppWheel.wheelStep current event = Swf.AppWheel.WheelOutcome.step s → s.burst = none",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "be6c71e35482efd900427801e7f5ff96baebab8bf77140775fbb55eabecf5e08",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppWheel.lean",
+        "start": {
+          "line": 85,
+          "column": 1
+        },
+        "end": {
+          "line": 90,
+          "column": 91
+        }
+      }
+    },
+    {
+      "name": "Swf.AppWheel.shows_the_burst_under_way",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppWheel.wheelStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (current : Option Swf.AppWheel.Burst) (event : Swf.AppWheel.WheelEvent) (s : Swf.AppWheel.WheelStep)\n  (b : Swf.AppWheel.Burst),\n  Swf.AppWheel.wheelStep current event = Swf.AppWheel.WheelOutcome.step s →\n    Swf.AppWheel.WheelAction.show b ∈ s.actions → s.burst = some b",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "86eb5cc88b9f67582ef240d35d779b30e37b620ddf92a4069e7c955bbe76c0a2",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppWheel.lean",
+        "start": {
+          "line": 143,
+          "column": 1
+        },
+        "end": {
+          "line": 169,
+          "column": 81
+        }
+      }
+    },
+    {
+      "name": "Swf.AppWheel.tick_refused_iff_not_finite",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppWheel.wheelStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (current : Option Swf.AppWheel.Burst) (nodeId : String) (delta : Float),\n  Swf.AppWheel.wheelStep current (Swf.AppWheel.WheelEvent.tick nodeId delta) = Swf.AppWheel.WheelOutcome.invalidDelta ↔\n    delta.isFinite = false",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "09a597bff0f9e3ffab080431dd7c93a7def2eaae525c6d051bbdde3342636d2b",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppWheel.lean",
+        "start": {
+          "line": 75,
+          "column": 1
+        },
+        "end": {
+          "line": 83,
+          "column": 76
+        }
+      }
+    },
+    {
+      "name": "Swf.AppWheel.ticks_add_up",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppWheel.wheelStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (b : Swf.AppWheel.Burst) (delta : Float) (s : Swf.AppWheel.WheelStep),\n  delta.isFinite = true →\n    Swf.AppWheel.wheelStep (some b) (Swf.AppWheel.WheelEvent.tick b.nodeId delta) = Swf.AppWheel.WheelOutcome.step s →\n      s.burst = some { nodeId := b.nodeId, depth := b.depth + delta } ∧\n        s.actions = [Swf.AppWheel.WheelAction.show { nodeId := b.nodeId, depth := b.depth + delta }]",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "dbb67d461f77d557dacb56e44286e4ce911cf88158101c223439b0532eaee16c",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppWheel.lean",
+        "start": {
+          "line": 133,
+          "column": 1
+        },
+        "end": {
+          "line": 141,
+          "column": 19
+        }
+      }
+    },
+    {
       "name": "Swf.AppWorkspaces.autosave_only_when_dirty",
       "relation": "lungo.law",
       "subjects": [
@@ -6232,6 +6397,48 @@
         "end": {
           "line": 225,
           "column": 80
+        }
+      }
+    },
+    {
+      "name": "Swf.AppWheel.wheelStep",
+      "module": "Swf.AppWheel",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_float_add",
+          "lean_float_isfinite",
+          "lean_string_dec_eq"
+        ]
+      },
+      "claims": [
+        "Swf.AppWheel.commits_only_the_burst_under_way",
+        "Swf.AppWheel.ends_leave_no_burst",
+        "Swf.AppWheel.shows_the_burst_under_way",
+        "Swf.AppWheel.tick_refused_iff_not_finite",
+        "Swf.AppWheel.ticks_add_up"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppWheel.lean",
+        "start": {
+          "line": 53,
+          "column": 1
+        },
+        "end": {
+          "line": 71,
+          "column": 41
         }
       }
     },

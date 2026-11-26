@@ -20,3 +20,4 @@ import Swf.AppComposition
 import Swf.AppWorkspaces
 import Swf.AppScenarios
 import Swf.AppChallenge
+import Swf.AppWheel

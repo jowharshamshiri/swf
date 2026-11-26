@@ -17,6 +17,13 @@ import { same, start } from './shell-harness.js';
 
 declare module 'vitest/browser' {
   interface BrowserCommands {
+    wheel: (
+      x: number,
+      y: number,
+      deltaX: number,
+      deltaY: number,
+      modifiers?: readonly string[],
+    ) => Promise<void>;
     mouse: (
       action: 'move' | 'down' | 'up',
       x: number,
@@ -198,6 +205,50 @@ describe('a window handled directly in the panorama', () => {
     expect(app.workspace.getState().nodes.get('window-01')?.transform).toEqual(
       before.nodes.get('window-01')?.transform,
     );
+  });
+
+  it('goes farther with Shift and the wheel, shown as it goes, the burst one change once the wheel rests', async () => {
+    const m = await visit();
+    const { app } = m;
+    const before = app.workspace.getState();
+    const history = app.workspace.history().length;
+    const [x, y] = onFrame(m, app, 'window-01');
+    const reach = () => app.poseOf('window-01')?.reach ?? NaN;
+    const start = reach();
+    const seen: { reach: number; committed: number; bar: string }[] = [];
+    for (let i = 0; i < 5; i += 1) {
+      await commands.wheel(x, y, 0, -100, ['Shift']);
+      await nextFrame();
+      seen.push({ reach: reach(), committed: app.workspace.history().length, bar: bar(m) });
+    }
+    // Farther at every tick, nothing committed while the wheel turns, and said in the bar.
+    expect(seen.every((s, i) => s.reach > (seen[i - 1]?.reach ?? start))).toBe(true);
+    expect(seen.every((s) => s.committed === history)).toBe(true);
+    expect(seen.at(-1)?.bar).toContain('Moving Tile 01');
+    // The wheel rests: one change.
+    await expect.poll(() => app.workspace.history().length).toBe(history + 1);
+    expect(poseIn(app.workspace.getState(), 'window-01').reach).toBeCloseTo(
+      seen.at(-1)?.reach ?? NaN,
+      9,
+    );
+    await m.settle();
+    expect(bar(m)).toContain('Moved Tile 01');
+    m.driver.act('page.gesture.undo', 'press');
+    await m.settle();
+    expect(app.workspace.getState().nodes.get('window-01')?.transform).toEqual(
+      before.nodes.get('window-01')?.transform,
+    );
+    // A burst cancelled leaves the window where it was, with nothing to undo.
+    await commands.wheel(x, y, 0, -100, ['Shift']);
+    await commands.wheel(x, y, 0, -100, ['Shift']);
+    expect(reach()).toBeGreaterThan(start);
+    expect(await m.model.run('reference.gesture.cancel', {})).toBe(true);
+    await m.settle();
+    expect(reach()).toBeCloseTo(start, 9);
+    expect(app.workspace.getState().nodes.get('window-01')?.transform).toEqual(
+      before.nodes.get('window-01')?.transform,
+    );
+    expect(bar(m)).toContain(ENGLISH['gesture.cancelled']);
   });
 
   it('turns about its own vertical with Ctrl held, shown as it turns, as one change', async () => {

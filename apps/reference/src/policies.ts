@@ -22,6 +22,7 @@ import type { OrbitEvent, OrbitState } from './orbit.js';
 import { orbitHeading, orbitKeymap, orbitRepair, orbitStateOf, orbitTransition } from './orbit.js';
 import { semanticDepth } from './semantic-depth.js';
 import type { WrapFrame } from './wrapped-cursor.js';
+import { createWheelBursts } from './wheel-burst.js';
 import { wrappedInput } from './wrapped-cursor.js';
 
 /**
@@ -57,7 +58,7 @@ const WINDOW_GESTURES: readonly string[] = Object.freeze([
   'node.resize',
 ]);
 
-/** A gesture the framework is running. */
+/** A gesture running: the framework's, or a burst of the wheel over a window. */
 export interface RunningGesture {
   readonly gestureId: string;
   /** The command it does, such as `node.move`, `orbit.turn` or `camera.turn`. */
@@ -118,8 +119,16 @@ export interface Policies {
   ): TxResult | PreviewResult | null;
   /** How the viewport shows a window now (as of its last frame), or null when it is not shown. */
   representationOf(nodeId: Id): Representation | null;
-  /** The device's adapter with the wrapped cursor between it and the framework. */
+  /**
+   * The device's adapter with the wheel's bursts and the wrapped cursor between it and the
+   * framework.
+   */
   input(device: InputAdapter): InputAdapter;
+  /**
+   * Cancels the gesture running, the framework's or a wheel burst, leaving what it moved where it
+   * was; false when none is running.
+   */
+  cancelGesture(): boolean;
   /**
    * Starts presenting through a viewport: its representation policy, and a virtual cursor in its
    * container. The returned function stops.
@@ -242,6 +251,35 @@ export function createPolicies(options: PolicyOptions): Policies {
       cursor?.hide();
     }
   };
+
+  // A burst of the wheel over a window, with the depth modifier held, is a gesture of its own:
+  // shown as one, ended as one.
+  const bursts = createWheelBursts({
+    workspace,
+    router,
+    viewportId,
+    gestureRunning: () => gesture !== null && !gesture.gestureId.startsWith('wheel-'),
+    report(report) {
+      if (report.kind === 'started') {
+        gesture = Object.freeze({
+          gestureId: report.burstId,
+          operation: 'node.move',
+          nodeId: report.nodeId,
+          snap: null,
+        });
+      } else if (gesture?.gestureId === report.burstId) {
+        ended = Object.freeze({
+          operation: 'node.move',
+          nodeId: report.nodeId,
+          outcome: report.outcome,
+          reason: report.outcome === 'cancelled' ? 'escape' : null,
+          snap: null,
+        });
+        gesture = null;
+      }
+      tell();
+    },
+  });
 
   const stopRouter = router.subscribe((event) => {
     if (event.type === 'gesture.started' && event.viewportId === viewportId) {
@@ -390,7 +428,7 @@ export function createPolicies(options: PolicyOptions): Policies {
     },
     input(device: InputAdapter): InputAdapter {
       return wrappedInput({
-        device,
+        device: bursts.input(device),
         enabled: () => features.enabled.cursor,
         frame: wrapFrame,
         cursor: (at) => {
@@ -414,7 +452,11 @@ export function createPolicies(options: PolicyOptions): Policies {
         viewport = null;
       };
     },
+    cancelGesture() {
+      return bursts.cancel() || router.cancel('host') > 0;
+    },
     dispose() {
+      bursts.dispose();
       stopRouter();
       stopScene();
       unregisterSnap?.();
