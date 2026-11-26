@@ -10,7 +10,7 @@
   "input_digests": {
     "Swf.lean": "e5d584cc3266e6ca0dba9930f7818f4211677b8e1b2a058d1db40d2fa30a358c",
     "Swf/AppChallenge.lean": "746c6675931e4af153a180187045200a7dccf311831f61dc0940952dcecf6501",
-    "Swf/AppComposition.lean": "134595b34019753a47a70c3c5a7666d55d4d82eceecfc810a4a549eaf608ed25",
+    "Swf/AppComposition.lean": "7a6a673922943cc4f59b08b897196736d7263797709ddad1740240cb667b22db",
     "Swf/AppCursor.lean": "0dd3b5872225738d8c53e8833bf4b0395f0b808bebbbf5e532641172b2af802b",
     "Swf/AppDepth.lean": "25f2b92dc3e1f676b790e6dfccf260704a0769d9580435933de89c9eb9c10b5e",
     "Swf/AppFeatures.lean": "3780f0b9e775065f44abb759d40d276e3b5438145d70aa44ceeb3a3be4cb66c4",
@@ -39,9 +39,9 @@
   "project": ".",
   "link_directives": [],
   "output_digests": {
-    "assurance.json": "8494fb7ae67777f1a719a14dbaedc4b90a03ca4fa2e326a3f0e4daf041b3af97",
-    "index.d.ts": "5d9f98ef9fd7197b2bac48f21e4ec8da54ee2757d73a3fb55d8a4caa20453bc5",
-    "index.js": "be20a3c2bd3dbebd10e97e338ae8f3c04c00eb67cb710201dedbcc05f5e62103"
+    "assurance.json": "25d2b8fcb9cf7e582a1208cfd1c921bc4d669ba9c38afe86edf8d295f63f0251",
+    "index.d.ts": "2a8fe48975b0e5507168474461c1c6a85d226974cf9f76807fee810776a310ba",
+    "index.js": "279ef7e926b4444120e5723f590949c1e913649e06cec1c6407d636d2363c0ee"
   },
   "platform_products": [
     "program.wasm"

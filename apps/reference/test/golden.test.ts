@@ -249,7 +249,9 @@ describe('golden scenes and scripted traces: the eight behaviour modules (QA-012
       }
       expect(world.ws.transaction(plan.commands, { source: 'user' }).status).toBe('committed');
     };
-    commit(detachSurface(world.ws.getState(), 'window-02-surface', { tags: [], metadata: {} }));
+    commit(
+      detachSurface(world.ws.getState(), 'window-02-surface', () => ({ tags: [], metadata: {} })),
+    );
     commit(moveSurface(world.ws.getState(), 'window-02-surface', 'window-04'));
     commit(mergeWindow(world.ws.getState(), 'window-05', 'board'));
     await expect(record(world, trace)).toMatchFileSnapshot(golden('module-composition'));

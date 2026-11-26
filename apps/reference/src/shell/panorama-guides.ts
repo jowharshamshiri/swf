@@ -3,14 +3,18 @@ import { viewGeometryOf } from '@swf/presentation';
 import { headingPitchOf, projectionFor } from '@swf/projections';
 import type { ReferenceApp } from '../app.js';
 import { VIEWPORT_ID } from '../app.js';
+import type { PartLink } from '../map.js';
+import { partLinks } from '../map.js';
 import type { Messages } from '../messages.js';
 
 /**
  * Guides drawn under the panorama's windows, so where things are around the camera is seen in the
  * panorama itself: the parts of the view that lie behind the camera are shaded and named, and,
  * while the view shows the whole circle, its two edges are marked as the seam where they meet, a
- * dashed line on each with its name. Everything is placed by the view's own projection, so the
- * guides move with the camera and the field of view, preview included.
+ * dashed line on each with its name; and each window made from another window's surface is linked
+ * to that window by a dashed line along the shortest way round between them. Everything is placed
+ * by the view's own projection, so the guides move with the camera, the windows and the field of
+ * view, previews included.
  *
  * The guides sit in a holder of no size prepended to the panorama's container, as the framework's
  * virtual cursor does, under the presented view: they take no input and are hidden from assistive
@@ -21,6 +25,7 @@ import type { Messages } from '../messages.js';
 const INKS = Object.freeze({
   behind: 'input.background',
   rule: 'descriptionForeground',
+  link: 'focusBorder',
 });
 type Inks = { readonly [K in keyof typeof INKS]: string };
 
@@ -40,6 +45,8 @@ export interface GuideLayout {
   readonly behind: readonly (readonly [number, number])[];
   /** The x of each seam edge marked: both edges of a full-circle view, else none. */
   readonly seams: readonly number[];
+  /** Each part linked to the window it came from, and the runs of its line drawn. */
+  readonly links: readonly PartLink[];
 }
 
 export class PanoramaGuides {
@@ -48,7 +55,7 @@ export class PanoramaGuides {
   readonly #canvas: HTMLCanvasElement;
   #inks: Inks;
   #frame: number | null = null;
-  #layout: GuideLayout = { behind: [], seams: [] };
+  #layout: GuideLayout = { behind: [], seams: [], links: [] };
   readonly #stops: (() => void)[] = [];
 
   constructor(options: PanoramaGuidesOptions) {
@@ -131,7 +138,7 @@ export class PanoramaGuides {
       }
       return value;
     };
-    return { behind: ink(INKS.behind), rule: ink(INKS.rule) };
+    return { behind: ink(INKS.behind), rule: ink(INKS.rule), link: ink(INKS.link) };
   }
 
   #schedule(): void {
@@ -181,13 +188,18 @@ export class PanoramaGuides {
     }
     const domain = projection.describeDomain();
     const seams = domain.fullCircle && domain.seamWrapping ? [0, width] : [];
-    return { behind, seams, width, height };
+    const links = partLinks(state, VIEWPORT_ID, app.projections);
+    return { behind, seams, links, width, height };
   }
 
   #draw(): void {
     const measured = this.#measure();
     const { width, height } = measured;
-    this.#layout = Object.freeze({ behind: measured.behind, seams: measured.seams });
+    this.#layout = Object.freeze({
+      behind: measured.behind,
+      seams: measured.seams,
+      links: measured.links,
+    });
     const canvas = this.#canvas;
     const ratio = canvas.ownerDocument.defaultView?.devicePixelRatio ?? 1;
     const pixels = {
@@ -232,6 +244,23 @@ export class PanoramaGuides {
         g.fillText(label, (a + b) / 2, 22);
       }
     }
+    g.strokeStyle = ink.link;
+    g.lineWidth = 1.5;
+    g.setLineDash([6, 4]);
+    for (const link of measured.links) {
+      for (const run of link.runs) {
+        g.beginPath();
+        run.forEach(([x, y], i) => {
+          if (i === 0) {
+            g.moveTo(x, y);
+          } else {
+            g.lineTo(x, y);
+          }
+        });
+        g.stroke();
+      }
+    }
+    g.setLineDash([]);
     if (measured.seams.length > 0) {
       g.strokeStyle = ink.rule;
       g.lineWidth = 2;

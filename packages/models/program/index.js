@@ -178,6 +178,15 @@ export function compStepType() {
           L.STRING.encode(w, v.id);
           L.STRING.encode(w, v.label);
           return;
+        case "split":
+          w.u32(5);
+          compRefType().encode(w, v.window);
+          return;
+        case "recombine":
+          w.u32(6);
+          compRefType().encode(w, v.window);
+          L.array(compRefType()).encode(w, v.parts);
+          return;
         default:
           throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.AppComposition.CompStep`);
       }
@@ -190,6 +199,8 @@ export function compStepType() {
         case 2: return ({ kind: "merge", window: compRefType().decode(r), target: compRefType().decode(r) });
         case 3: return ({ kind: "regroup", window: compRefType().decode(r), target: compTargetType().decode(r) });
         case 4: return ({ kind: "group", windows: L.array(compRefType()).decode(r), id: L.STRING.decode(r), label: L.STRING.decode(r) });
+        case 5: return ({ kind: "split", window: compRefType().decode(r) });
+        case 6: return ({ kind: "recombine", window: compRefType().decode(r), parts: L.array(compRefType()).decode(r) });
         default: throw new L.MalformedError(`constructor index ${c} of Swf.AppComposition.CompStep`);
       }
     },
@@ -246,6 +257,20 @@ export function compPlanType() {
           L.option(L.STRING).encode(w, v.parentId);
           L.array(L.STRING).encode(w, v.removed);
           return;
+        case "split":
+          w.u32(6);
+          L.STRING.encode(w, v.window);
+          L.STRING.encode(w, v.kept);
+          L.option(L.STRING).encode(w, v.parentId);
+          L.array(L.pair(L.STRING, L.pair(L.STRING, L.STRING))).encode(w, v.parts);
+          return;
+        case "recombine":
+          w.u32(7);
+          L.STRING.encode(w, v.window);
+          L.array(L.STRING).encode(w, v.moved);
+          L.array(L.STRING).encode(w, v.laidOut);
+          L.array(L.STRING).encode(w, v.removed);
+          return;
         default:
           throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.AppComposition.CompPlan`);
       }
@@ -259,6 +284,8 @@ export function compPlanType() {
         case 3: return ({ kind: "merge", source: L.STRING.decode(r), target: L.STRING.decode(r), moved: L.array(L.STRING).decode(r), laidOut: L.array(L.STRING).decode(r) });
         case 4: return ({ kind: "regroup", window: L.STRING.decode(r), into: compIntoType().decode(r), removed: L.option(L.STRING).decode(r) });
         case 5: return ({ kind: "group", windows: L.array(L.STRING).decode(r), id: L.STRING.decode(r), label: L.STRING.decode(r), parentId: L.option(L.STRING).decode(r), removed: L.array(L.STRING).decode(r) });
+        case 6: return ({ kind: "split", window: L.STRING.decode(r), kept: L.STRING.decode(r), parentId: L.option(L.STRING).decode(r), parts: L.array(L.pair(L.STRING, L.pair(L.STRING, L.STRING))).decode(r) });
+        case 7: return ({ kind: "recombine", window: L.STRING.decode(r), moved: L.array(L.STRING).decode(r), laidOut: L.array(L.STRING).decode(r), removed: L.array(L.STRING).decode(r) });
         default: throw new L.MalformedError(`constructor index ${c} of Swf.AppComposition.CompPlan`);
       }
     },
@@ -4258,16 +4285,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "63d6eeb68d1a0f926786336541e9c841026d7e8efa0c4d6ff8bf51dda6530606",
+      "fingerprint": "8049e0f692d4a1773b28dde9807c79736401d1bf077b0c39bf2debcdbdf0091c",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppComposition.lean",
         "start": {
-          "line": 386,
+          "line": 449,
           "column": 1
         },
         "end": {
-          "line": 407,
+          "line": 470,
           "column": 39
         }
       }
@@ -4291,16 +4318,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "a8853ce3589f67ce714562d87df1914f5347e5ade1e5dd8d60a9731afab690db",
+      "fingerprint": "eb29428b4ed240049eb0d10882ed32c0e5129a3dcb5b966171ad0f45244cd845",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppComposition.lean",
         "start": {
-          "line": 549,
+          "line": 612,
           "column": 1
         },
         "end": {
-          "line": 590,
+          "line": 653,
           "column": 17
         }
       }
@@ -4324,16 +4351,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "b4e3f67a4917a4dd144926d1d02b6a53dca2182240149517ebd30cbaac2ecb36",
+      "fingerprint": "03edc003efcd47d95d60fb80240a661dd0cc05c6728cf4e94f92dc2e2297e991",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppComposition.lean",
         "start": {
-          "line": 492,
+          "line": 555,
           "column": 1
         },
         "end": {
-          "line": 509,
+          "line": 572,
           "column": 20
         }
       }
@@ -4362,11 +4389,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppComposition.lean",
         "start": {
-          "line": 351,
+          "line": 414,
           "column": 1
         },
         "end": {
-          "line": 360,
+          "line": 423,
           "column": 16
         }
       }
@@ -4395,11 +4422,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppComposition.lean",
         "start": {
-          "line": 344,
+          "line": 407,
           "column": 1
         },
         "end": {
-          "line": 349,
+          "line": 412,
           "column": 36
         }
       }
@@ -4423,16 +4450,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "cbbc104bca9b88f8aa8b56b34fae68f1b085297ed366eff3b554c13d34c93d65",
+      "fingerprint": "13103752642b3e9ff34f28358b6de05327dc7a1f1395ec61d2d13b0531779ba0",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppComposition.lean",
         "start": {
-          "line": 641,
+          "line": 704,
           "column": 1
         },
         "end": {
-          "line": 667,
+          "line": 730,
           "column": 32
         }
       }
@@ -4456,16 +4483,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "2ef0a5722f27da289dc1baeae8aa8fa872831958b0fa0846ff432b8085fc8a82",
+      "fingerprint": "bc25e986219ffc4e67b8cd4fb9a6a6776171f73e32da388113139e885497e699",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppComposition.lean",
         "start": {
-          "line": 669,
+          "line": 732,
           "column": 1
         },
         "end": {
-          "line": 704,
+          "line": 767,
           "column": 21
         }
       }
@@ -4489,16 +4516,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "7fa718198c8d71b63e6a6297a0494943c4395a494fba97d820f707c175986ee7",
+      "fingerprint": "530679c87e7351358d5dc056adedba4fd3805fadeed741932374ff44bca98b74",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppComposition.lean",
         "start": {
-          "line": 409,
+          "line": 472,
           "column": 1
         },
         "end": {
-          "line": 431,
+          "line": 494,
           "column": 86
         }
       }
@@ -4522,17 +4549,50 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "a823a55396addc1fc665fd24466cc30a8b4fe339a342313067077ae9f2aabd83",
+      "fingerprint": "a70a6e448df62db88eb07a512d5e5d0b04c12062a1f6afdfd61842e472401026",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppComposition.lean",
         "start": {
-          "line": 433,
+          "line": 496,
           "column": 1
         },
         "end": {
-          "line": 466,
+          "line": 529,
           "column": 26
+        }
+      }
+    },
+    {
+      "name": "Swf.AppComposition.recombine_keeps_every_surface",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppComposition.compositionPlan"
+      ],
+      "specifications": [],
+      "statement": "∀ (s : Swf.AppComposition.CompScene) (r : Swf.AppComposition.CompRef) (rs : Array Swf.AppComposition.CompRef)\n  (w : String) (moved laidOut removed : Array String),\n  Swf.AppComposition.compositionPlan s (Swf.AppComposition.CompStep.recombine r rs) =\n      Swf.AppComposition.CompPlan.recombine w moved laidOut removed →\n    ∃ origin,\n      s.window? r.id = some origin ∧\n        origin.id = w ∧\n          0 < removed.size ∧\n            removed.toList.Nodup ∧\n              ¬w ∈ removed ∧\n                laidOut = origin.surfaceIds ++ moved ∧\n                  ∀ (p : String), p ∈ removed → ∃ n, s.window? (some p) = some n ∧ n.childIds.size = 0",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "e1abe9b6bb73b68251a81c80f757d64764a92f2de27cb3689f7ff3b38bc2622b",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppComposition.lean",
+        "start": {
+          "line": 887,
+          "column": 1
+        },
+        "end": {
+          "line": 919,
+          "column": 50
         }
       }
     },
@@ -4555,17 +4615,50 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "2db95b570cd068b84e62e71eaf00478e111f4d00e5ef0b57e163e95f034956cf",
+      "fingerprint": "5e800eb06df9a0f539ad5fb88c33d85b44575780c507c40e758262974c3e1da3",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppComposition.lean",
         "start": {
-          "line": 511,
+          "line": 574,
           "column": 1
         },
         "end": {
-          "line": 547,
+          "line": 610,
           "column": 16
+        }
+      }
+    },
+    {
+      "name": "Swf.AppComposition.split_keeps_every_surface",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppComposition.compositionPlan"
+      ],
+      "specifications": [],
+      "statement": "∀ (s : Swf.AppComposition.CompScene) (r : Swf.AppComposition.CompRef) (w kept : String) (parentId : Option String)\n  (parts : Array (String × String × String)),\n  Swf.AppComposition.compositionPlan s (Swf.AppComposition.CompStep.split r) =\n      Swf.AppComposition.CompPlan.split w kept parentId parts →\n    ∃ n,\n      s.window? r.id = some n ∧\n        n.id = w ∧\n          2 ≤ n.surfaceIds.size ∧\n            n.surfaceIds.toList = kept :: List.map (fun x => x.fst) parts.toList ∧\n              (∀ (x : String × String × String), x ∈ parts → ¬x.snd.fst ∈ s.ids) ∧\n                (List.map (fun x => x.snd.fst) parts.toList).Nodup",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "64d72fd3b36f4319c079e55e70e8d70804422b2faf0f2c1bb9f3202fcabe5c07",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppComposition.lean",
+        "start": {
+          "line": 812,
+          "column": 1
+        },
+        "end": {
+          "line": 844,
+          "column": 14
         }
       }
     },
@@ -4588,16 +4681,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "a5c09f65a2dc4c1211b6bd359d7ed1ee626390524091fa6a3cf42a70c0d49392",
+      "fingerprint": "0ab74b85523cf1d8336b4fc16ee00c01a3b9e21ddd2b1095600abbfe30fd8d82",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppComposition.lean",
         "start": {
-          "line": 468,
+          "line": 531,
           "column": 1
         },
         "end": {
-          "line": 490,
+          "line": 553,
           "column": 10
         }
       }
@@ -9893,11 +9986,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppComposition.lean",
         "start": {
-          "line": 178,
+          "line": 191,
           "column": 1
         },
         "end": {
-          "line": 180,
+          "line": 193,
           "column": 98
         }
       }
@@ -9957,7 +10050,9 @@ export const ASSURANCE = L.parseAssurance({
         "Swf.AppComposition.group_removes_only_emptied",
         "Swf.AppComposition.merge_keeps_every_surface",
         "Swf.AppComposition.move_keeps_every_surface",
+        "Swf.AppComposition.recombine_keeps_every_surface",
         "Swf.AppComposition.regroup_into_other_group",
+        "Swf.AppComposition.split_keeps_every_surface",
         "Swf.AppComposition.window_with_nodes_never_emptied"
       ],
       "assumptions": [],
@@ -9967,12 +10062,12 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/AppComposition.lean",
         "start": {
-          "line": 329,
+          "line": 390,
           "column": 1
         },
         "end": {
-          "line": 336,
-          "column": 50
+          "line": 399,
+          "column": 44
         }
       }
     },
@@ -12726,8 +12821,8 @@ export const leanTypes = Object.freeze({
   "Swf.AppChallenge.ChallengeAnswer": Object.freeze({ fingerprint: "30120f0e4d416320d9114ffe3bc9ea5a9777a221faf98693a82c0a754e3592a3", type: challengeAnswerType }),
   "Swf.AppChallenge.ChallengeCandidate": Object.freeze({ fingerprint: "929277e4f9645fb6690508b675f8d33caf8036091b8c398af71607fe83b12a51", type: challengeCandidateType }),
   "Swf.AppComposition.CompScene": Object.freeze({ fingerprint: "8c18ebf3c4a4b5495646722a7d7aed92ec3944f5e4061b1efa8627ca0b134908", type: compSceneType }),
-  "Swf.AppComposition.CompStep": Object.freeze({ fingerprint: "c658bacb444e00a71a698f667defd109727562c3798eff612616e4dd749ab604", type: compStepType }),
-  "Swf.AppComposition.CompPlan": Object.freeze({ fingerprint: "28101f98770ec2b08c4f333bdab10644c7f9ffabfe086f591d65d0350f2697b4", type: compPlanType }),
+  "Swf.AppComposition.CompStep": Object.freeze({ fingerprint: "6c344a83b2a07c5a2298d6948b7a6e68dad5131b46edf183775e40ecbd0ef9ab", type: compStepType }),
+  "Swf.AppComposition.CompPlan": Object.freeze({ fingerprint: "6e024435c8b2c940dd734c6ef8783a9f6b8596d6136d0cb167ef63eafcc29e36", type: compPlanType }),
   "Swf.AppCursor.WrapPhase": Object.freeze({ fingerprint: "a39b66c42b89ee2ea9e6a7f154af4ab10494385ad579d2bee046369b80671c52", type: wrapPhaseType }),
   "Swf.AppCursor.WrapOutcome": Object.freeze({ fingerprint: "a234a4daab6e873a9822b6838345cc4ef7b0b26879e4a32d25b91b750aa77a8e", type: wrapOutcomeType }),
   "Swf.AppDepth.DepthQuery": Object.freeze({ fingerprint: "c0a4fd17fa88fb5d52a00b7108f6fd22a9906f0e6bf12e281e59ac9e87a82bfb", type: depthQueryType }),

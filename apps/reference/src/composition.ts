@@ -8,7 +8,10 @@ import { models } from '@swf/models';
  * Multi-surface composition (FR-126, WF-06, AC-016): the surfaces a host supplied, rearranged
  * among windows. A surface can be detached into a window of its own, moved into another window,
  * or a window's surfaces merged into another's; a window can be moved into another group, or a
- * new one, and several windows gathered into a new group together. Each step is decided from the committed scene alone by the Lean model
+ * new one, and several windows gathered into a new group together. A window can be broken into
+ * parts, each of its surfaces but the first in a window of its own, and parts put back together.
+ * A window made from another's surface keeps a link to the window it came from
+ * ({@link PART_OF_KEY}), so its parts can be shown linked and recombined. Each step is decided from the committed scene alone by the Lean model
  * `Swf.AppComposition` (models/Swf/AppComposition.lean), where it is proved that no surface is
  * lost and that a new node's ID is free; this module lays the windows out round their surfaces
  * and turns the decision into the scene commands of one undoable transaction. Only associations
@@ -21,6 +24,18 @@ import { models } from '@swf/models';
  * the sides and below, and a gap between surfaces side by side.
  */
 export const WINDOW_FRAME = Object.freeze({ side: 0.08, top: 0.2, bottom: 0.08, gap: 0.06 });
+
+/**
+ * The metadata key a window made from another window's surface keeps that window's ID under: the
+ * window it is a part of, the first one when parts are broken again.
+ */
+export const PART_OF_KEY = 'host.reference.partOf';
+
+/** The window a window is a part of, or null for one that is no part. */
+export function partOf(node: { readonly metadata: Readonly<Record<string, unknown>> }): Id | null {
+  const origin = node.metadata[PART_OF_KEY];
+  return typeof origin === 'string' ? origin : null;
+}
 
 /** Where a window's surfaces go, side by side in their order, and the window's size round them. */
 export interface SurfaceLayout {
@@ -146,7 +161,11 @@ const refOf = (id: unknown): Lean.CompRef => ({
 });
 
 /** The plan the model decided for a step, as scene commands. */
-function commandsOf(state: SceneState, plan: Lean.CompPlan, window?: NewWindow): CompositionPlan {
+function commandsOf(
+  state: SceneState,
+  plan: Lean.CompPlan,
+  window?: (surfaceId: Id) => NewWindow,
+): CompositionPlan {
   switch (plan.kind) {
     case 'refused':
       return Object.freeze({ kind: 'refused', field: plan.field, reason: plan.reason });
@@ -154,6 +173,7 @@ function commandsOf(state: SceneState, plan: Lean.CompPlan, window?: NewWindow):
       if (window === undefined) {
         throw new Error('a detached surface needs what its new window is given');
       }
+      const given = window(plan.surface);
       const [surface] = surfacesOf(state, plan.window, [plan.surface]);
       if (surface === undefined) {
         throw new Error(`no surface "${plan.surface}"`);
@@ -180,8 +200,8 @@ function commandsOf(state: SceneState, plan: Lean.CompPlan, window?: NewWindow):
               kind: 'window',
               parentId: plan.parentId,
               label: plan.label,
-              tags: [...window.tags],
-              metadata: window.metadata,
+              tags: [...given.tags],
+              metadata: given.metadata,
               bounds: alone.bounds,
               transform: placed,
             },
@@ -229,6 +249,68 @@ function commandsOf(state: SceneState, plan: Lean.CompPlan, window?: NewWindow):
           : [{ type: 'node.delete', id: plan.removed, mode: 'rejectIfChildren' } as const]),
       ]);
     }
+    case 'split': {
+      if (window === undefined) {
+        throw new Error('a window broken into parts needs what each part is given');
+      }
+      const owner = nodeOf(state, plan.window);
+      const kept = surfacesOf(state, owner.id, [plan.kept]);
+      const commands: SceneCommand[] = [];
+      // Side by side to the owner's right, along its own right, edge to edge with a gap.
+      let x = layoutSurfaces(kept.map(sizeOf)).bounds[0] / 2 + WINDOW_FRAME.gap;
+      for (const [surfaceId, [created, label]] of plan.parts) {
+        const [surface] = surfacesOf(state, owner.id, [surfaceId]);
+        if (surface === undefined) {
+          throw new Error(`no surface "${surfaceId}"`);
+        }
+        const alone = layoutSurfaces([sizeOf(surface)]);
+        const [width] = alone.bounds;
+        const from = owner.transform;
+        const given = window(surfaceId);
+        commands.push(
+          {
+            type: 'node.create',
+            node: {
+              id: created,
+              kind: 'window',
+              parentId: plan.parentId,
+              label,
+              tags: [...given.tags],
+              metadata: given.metadata,
+              bounds: alone.bounds,
+              transform: {
+                position: transformPoint(from, [x + width / 2, 0, 0]),
+                rotation: from.rotation,
+                scale: from.scale,
+              },
+            },
+          },
+          { type: 'surface.move', id: surfaceId, ownerNodeId: created, keep: 'local' },
+          {
+            type: 'surface.patch',
+            id: surfaceId,
+            transform: { ...surface.transform, position: offsetAt(alone, 0) },
+          },
+        );
+        x += width + WINDOW_FRAME.gap;
+      }
+      return planned([...commands, ...relayout(owner, kept)]);
+    }
+    case 'recombine':
+      return planned([
+        ...plan.moved.map((surfaceId): SceneCommand => ({
+          type: 'surface.move',
+          id: surfaceId,
+          ownerNodeId: plan.window,
+          keep: 'local',
+        })),
+        ...relayout(nodeOf(state, plan.window), surfacesOf(state, plan.window, plan.laidOut)),
+        ...plan.removed.map((id): SceneCommand => ({
+          type: 'node.delete',
+          id,
+          mode: 'rejectIfChildren',
+        })),
+      ]);
     case 'group':
       return planned([
         {
@@ -260,13 +342,45 @@ export function freeId(state: SceneState, stem: string): Id {
 export function detachSurface(
   state: SceneState,
   surfaceId: unknown,
-  window: NewWindow,
+  window: (surfaceId: Id) => NewWindow,
 ): CompositionPlan {
   const plan = models.compositionPlan(sceneOf(state), {
     kind: 'detach',
     surface: refOf(surfaceId),
   });
   return commandsOf(state, plan, window);
+}
+
+/**
+ * Breaks a window into parts: it keeps its first surface, closing up round it, and each other
+ * surface goes into a window of its own (`window` says what each is given), named after it, in the
+ * same group, side by side to its right, turned as it is. A window with one surface has no parts.
+ */
+export function splitWindow(
+  state: SceneState,
+  windowId: unknown,
+  window: (surfaceId: Id) => NewWindow,
+): CompositionPlan {
+  const plan = models.compositionPlan(sceneOf(state), { kind: 'split', window: refOf(windowId) });
+  return commandsOf(state, plan, window);
+}
+
+/**
+ * Puts parts back into the window they came from: every surface of each part goes into it, after
+ * its own, laid out side by side again, and the emptied parts are removed. At least one part is
+ * named; a part that holds other nodes is not emptied.
+ */
+export function recombineParts(
+  state: SceneState,
+  windowId: unknown,
+  partIds: readonly unknown[],
+): CompositionPlan {
+  const plan = models.compositionPlan(sceneOf(state), {
+    kind: 'recombine',
+    window: refOf(windowId),
+    parts: partIds.map(refOf),
+  });
+  return commandsOf(state, plan);
 }
 
 /**

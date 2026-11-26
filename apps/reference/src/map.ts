@@ -9,6 +9,7 @@ import type {
 import { effectiveState, nodeFrameGeometry, worldMatrix } from '@swf/core';
 import { headingOf, placementOf, translatedBy, turnedAbout, worldOrigin } from '@swf/interaction';
 import type { Transform3D, Vec3 } from '@swf/math';
+import { partOf } from './composition.js';
 import type { SnapSettings } from './features.js';
 import type { Snap, SnapBox } from './magnetic.js';
 import {
@@ -96,6 +97,8 @@ export interface MapMarker {
   readonly visible: boolean;
   readonly selected: boolean;
   readonly focused: boolean;
+  /** The window it is a part of ({@link PART_OF_KEY}), or null for one that is no part. */
+  readonly partOf: Id | null;
 }
 
 export interface MapScene {
@@ -146,6 +149,7 @@ export function mapScene(state: SceneState, viewportId: Id): MapScene {
       visible: effective.visible,
       selected: state.selection.includes(node.id),
       focused: state.focusedId === node.id,
+      partOf: partOf(node),
     });
   }
   return { camera: { x: ex, z: ez, heading }, markers };
@@ -525,4 +529,104 @@ export class MarkerDrag {
       this.#workspace.cancelPreview(this.#previewId, 'escape');
     }
   }
+}
+
+/** A part linked to the window it came from, as the panorama draws it. */
+export interface PartLink {
+  readonly part: Id;
+  readonly origin: Id;
+  /**
+   * The line between them in the view's CSS pixels, along the shortest way round seen from the
+   * camera: in runs, broken where it leaves the view or crosses the seam.
+   */
+  readonly runs: readonly (readonly (readonly [number, number])[])[];
+}
+
+/** How many pieces a link's line is drawn in. */
+const LINK_STEPS = 32;
+
+/**
+ * Every part in the scene linked to the window it came from ({@link PART_OF_KEY}), as the
+ * viewport's projection draws the line between their centres: directions from the camera turned
+ * evenly from one to the other, each placed at its image nearest the last one, so the line follows
+ * the view and breaks only where it leaves it or crosses the seam.
+ */
+export function partLinks(
+  state: SceneState,
+  viewportId: Id,
+  projections: { get(id: string): ProjectionModule | undefined },
+): PartLink[] {
+  const view = viewGeometryOf(state, viewportId);
+  const module = projections.get(view.projectionId);
+  const viewport = state.viewports.get(viewportId);
+  const camera = viewport === undefined ? undefined : state.cameras.get(viewport.cameraId);
+  if (module === undefined || camera === undefined) {
+    throw new Error(`viewport "${viewportId}" cannot be drawn in`);
+  }
+  const projection = projectionFor(module, view);
+  const eye = camera.position;
+  const directionTo = (id: Id): Vec3 | null => {
+    const world = worldMatrix(state.nodes, id);
+    if (world === undefined) {
+      return null;
+    }
+    const d: Vec3 = [world[12] - eye[0], world[13] - eye[1], world[14] - eye[2]];
+    const length = Math.hypot(...d);
+    return length > 0 ? [d[0] / length, d[1] / length, d[2] / length] : null;
+  };
+  const links: PartLink[] = [];
+  for (const node of state.nodes.values()) {
+    const origin = partOf(node);
+    if (
+      node.kind !== 'window' ||
+      effectiveState(state.nodes, node.id)?.active !== true ||
+      origin === null
+    ) {
+      continue;
+    }
+    const from = directionTo(node.id);
+    const to = directionTo(origin);
+    if (from === null || to === null) {
+      continue;
+    }
+    const cosine = from[0] * to[0] + from[1] * to[1] + from[2] * to[2];
+    const angle = Math.acos(Math.max(-1, Math.min(1, cosine)));
+    const runs: [number, number][][] = [];
+    let run: [number, number][] = [];
+    for (let i = 0; i <= LINK_STEPS; i += 1) {
+      const t = i / LINK_STEPS;
+      // Turned evenly between the two; straight along when they (nearly) coincide.
+      const [a, b] =
+        angle < 1e-9
+          ? [1 - t, t]
+          : [Math.sin((1 - t) * angle) / Math.sin(angle), Math.sin(t * angle) / Math.sin(angle)];
+      const direction: Vec3 = [
+        a * from[0] + b * to[0],
+        a * from[1] + b * to[1],
+        a * from[2] + b * to[2],
+      ];
+      const images = projection.projectDirection(direction, view).images;
+      const last = run.at(-1);
+      const image =
+        last === undefined
+          ? images[0]
+          : [...images].sort((p, q) => Math.abs(p[0] - last[0]) - Math.abs(q[0] - last[0]))[0];
+      if (
+        image === undefined ||
+        (last !== undefined && Math.abs(image[0] - last[0]) > view.width / 2)
+      ) {
+        if (run.length > 1) {
+          runs.push(run);
+        }
+        run = image === undefined ? [] : [[image[0], image[1]]];
+      } else {
+        run.push([image[0], image[1]]);
+      }
+    }
+    if (run.length > 1) {
+      runs.push(run);
+    }
+    links.push({ part: node.id, origin, runs });
+  }
+  return links;
 }

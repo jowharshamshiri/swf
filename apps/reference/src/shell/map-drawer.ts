@@ -493,6 +493,26 @@ export class MapDrawer {
     g.closePath();
     g.fill();
 
+    // A part and the window it came from, linked by a dashed line under both.
+    const byId = new Map(scene.markers.map((marker) => [marker.id, marker]));
+    g.strokeStyle = ink.accent;
+    g.lineWidth = 1.5;
+    g.setLineDash([5, 4]);
+    g.globalAlpha = 0.8;
+    for (const marker of scene.markers) {
+      const origin = marker.partOf === null ? undefined : byId.get(marker.partOf);
+      if (origin !== undefined) {
+        const [px, py] = toMap(view, marker.x, marker.z);
+        const [ox, oy] = toMap(view, origin.x, origin.z);
+        g.beginPath();
+        g.moveTo(px, py);
+        g.lineTo(ox, oy);
+        g.stroke();
+      }
+    }
+    g.setLineDash([]);
+    g.globalAlpha = 1;
+
     // Windows: the line each stands on, and its centre.
     const order = [...scene.markers].sort(
       (a, b) => Number(a.selected) - Number(b.selected) || b.distance - a.distance,

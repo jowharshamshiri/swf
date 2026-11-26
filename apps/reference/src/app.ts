@@ -65,7 +65,11 @@ import {
   groupWindows,
   mergeWindow,
   moveSurface,
+  PART_OF_KEY,
+  partOf,
+  recombineParts,
   regroupWindow,
+  splitWindow,
 } from './composition.js';
 import type { AppConfig, BackendId } from './config.js';
 import { BACKEND_IDS } from './config.js';
@@ -256,6 +260,10 @@ export type CompositionStep =
   | { readonly kind: 'detach'; readonly surfaceId: Id }
   | { readonly kind: 'move'; readonly surfaceId: Id; readonly windowId: Id }
   | { readonly kind: 'merge'; readonly windowId: Id; readonly targetId: Id }
+  /** Each surface of a window but its first into a window of its own. */
+  | { readonly kind: 'split'; readonly windowId: Id }
+  /** Every part of the window this one came from (or of this one) back into it. */
+  | { readonly kind: 'recombine'; readonly windowId: Id }
   | { readonly kind: 'regroup'; readonly windowId: Id; readonly target: GroupTarget }
   | {
       readonly kind: 'group';
@@ -863,19 +871,28 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
     return workspace.transaction(plan.commands, { source: 'user' });
   };
   /** What a window made for a detached surface is tagged and described with: its content's. */
+  /**
+   * What a window made for a surface is given: its content's tag, its colour and category, and a
+   * link to the window it is a part of (the first one, when a part is broken again).
+   */
   const newWindowFor = (surfaceId: Id) => {
-    const surface = workspace.getState().surfaces.get(surfaceId);
+    const state = workspace.getState();
+    const surface = state.surfaces.get(surfaceId);
     const kind = surface === undefined ? null : contentOf(surface.adapterTypeId);
     const planned = surface?.bindingKey == null ? null : content.find(surface.bindingKey);
+    const owner = surface === undefined ? undefined : state.nodes.get(surface.ownerNodeId);
+    const origin = owner === undefined ? null : (partOf(owner) ?? owner.id);
     return {
       tags: kind === null ? [] : [kind],
-      metadata:
-        planned === null
+      metadata: {
+        ...(planned === null
           ? {}
           : {
               [COLOUR_KEY]: colourName(planned.hue),
               ...(planned.detail === undefined ? {} : { [CATEGORY_KEY]: planned.detail.category }),
-            },
+            }),
+        ...(origin === null ? {} : { [PART_OF_KEY]: origin }),
+      },
     };
   };
 
@@ -1248,7 +1265,18 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
       const state = workspace.getState();
       switch (step.kind) {
         case 'detach':
-          return commitPlan(detachSurface(state, step.surfaceId, newWindowFor(step.surfaceId)));
+          return commitPlan(detachSurface(state, step.surfaceId, newWindowFor));
+        case 'split':
+          return commitPlan(splitWindow(state, step.windowId, newWindowFor));
+        case 'recombine': {
+          // The window the parts came from, and every window that is a part of it.
+          const node = state.nodes.get(step.windowId);
+          const origin = node === undefined ? step.windowId : (partOf(node) ?? node.id);
+          const parts = [...state.nodes.values()]
+            .filter((n) => n.kind === 'window' && n.status === 'active' && partOf(n) === origin)
+            .map((n) => n.id);
+          return commitPlan(recombineParts(state, origin, parts));
+        }
         case 'move':
           return commitPlan(moveSurface(state, step.surfaceId, step.windowId));
         case 'merge':

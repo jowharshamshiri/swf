@@ -463,3 +463,42 @@ describe('the inspector’s sliders', () => {
     expect(app.workspace.getState().nodes.get('window-01')?.flags.locked).toBe(true);
   });
 });
+
+describe('breaking a window into parts', () => {
+  it('breaks the studio’s board into linked parts and recombines them, one undoable change each', async () => {
+    const m = await start('', { store: createMemoryStore() });
+    const app = m.model.app;
+    if (app === null) {
+      throw new Error('no application');
+    }
+    const { driver, settle } = m;
+    await m.model.inspect('board');
+    await settle();
+    const surfaces = app.workspace.getState().nodes.get('board')?.surfaceIds ?? [];
+    expect(surfaces.length).toBe(3);
+    const history = app.workspace.history().length;
+    driver.act('page.inspector.split', 'press');
+    await settle();
+    const state = app.workspace.getState();
+    expect(state.nodes.get('board')?.surfaceIds).toEqual(surfaces.slice(0, 1));
+    const parts = surfaces.slice(1).map((id) => state.surfaces.get(id)?.ownerNodeId ?? '');
+    expect(parts.every((id) => id !== 'board' && state.nodes.has(id))).toBe(true);
+    expect(app.workspace.history()).toHaveLength(history + 1);
+    const facts = () => m.root.querySelector('[aria-label="Selected window"]')?.textContent ?? '';
+    expect(facts()).toContain('2 linked windows');
+    // A part says what it is a part of, and recombines from there too.
+    await m.model.inspect(parts[0] ?? '');
+    await settle();
+    expect(facts()).toContain('Project Board, linked');
+    driver.act('page.inspector.recombine', 'press');
+    await settle();
+    expect(app.workspace.getState().nodes.get('board')?.surfaceIds).toEqual(surfaces);
+    expect(parts.some((id) => app.workspace.getState().nodes.has(id))).toBe(false);
+    expect(app.workspace.history()).toHaveLength(history + 2);
+    // One undo brings the parts back; another puts the board together as it was.
+    expect(await m.model.run('reference.history.undo', {})).toBe(true);
+    expect(parts.every((id) => app.workspace.getState().nodes.has(id))).toBe(true);
+    expect(await m.model.run('reference.history.undo', {})).toBe(true);
+    expect(app.workspace.getState().nodes.get('board')?.surfaceIds).toEqual(surfaces);
+  });
+});

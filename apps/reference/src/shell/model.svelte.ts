@@ -155,6 +155,8 @@ const INSPECTOR_COMMANDS: readonly AppCommandId[] = Object.freeze([
   'reference.surface.detach',
   'reference.surface.move',
   'reference.window.merge',
+  'reference.window.split',
+  'reference.window.recombine',
   'reference.window.regroup',
   'reference.window.group',
   'reference.window.bringFront',

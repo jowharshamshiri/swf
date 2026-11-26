@@ -77,6 +77,11 @@ inductive CompStep where
   /-- Gathers several windows into a new group with ID `id`, labelled `label`, each keeping its
   place in the world. -/
   | group (windows : Array CompRef) (id : String) (label : String)
+  /-- Breaks a window into parts: each surface but its first goes into a new window of its own. -/
+  | split (window : CompRef)
+  /-- Puts parts back together: every surface of each part goes into `window`, after its own, and
+  the emptied parts are removed. -/
+  | recombine (window : CompRef) (parts : Array CompRef)
 
 /-- Where a regrouped window goes. -/
 inductive CompInto where
@@ -88,7 +93,8 @@ inductive CompInto where
 /-- The plan of a composition step: what changes, or why it cannot be done. -/
 inductive CompPlan where
   /-- The step cannot be done and nothing changes: `field` names the argument at fault
-  (`surfaceId`, `windowId`, `targetId`, `groupId` or `windowIds`), `reason` says why, in English. -/
+  (`surfaceId`, `windowId`, `targetId`, `groupId`, `windowIds` or `partIds`), `reason` says why,
+  in English. -/
   | refused (field : String) (reason : String)
   /-- `surface` leaves `window` (laid out again round `kept`) for a new window `created`, named
   `label`, in the same group (`parentId`), beside the window it left. -/
@@ -107,6 +113,13 @@ inductive CompPlan where
   empty, which go with them. -/
   | group (windows : Array String) (id label : String) (parentId : Option String)
       (removed : Array String)
+  /-- `window` keeps `kept`, its first surface, laid out round it alone; each other surface leaves
+  it for a new window of its own, in `parts` as (surface, new window, its label), in the window's
+  group (`parentId`), beside it. -/
+  | split (window kept : String) (parentId : Option String) (parts : Array (String × String × String))
+  /-- `moved`, the surfaces of `removed` (the parts, in order), go into `window` after its own,
+  laid out again round `laidOut`; the emptied parts are removed. -/
+  | recombine (window : String) (moved laidOut removed : Array String)
 
 def CompScene.node? (s : CompScene) (id : String) : Option CompNode := s.nodes.find? (·.id == id)
 
@@ -326,6 +339,54 @@ def compGroup (s : CompScene) (rs : Array CompRef) (id label : String) : CompPla
     else .group (ws.map (·.id)).toArray id label (sharedParent ws)
       (emptiedGroups s ws (sharedParent ws)).toArray
 
+/-- The new windows for surfaces, each named after its surface and free among `taken` and the
+windows named before it. -/
+def partIds (taken : List String) : List CompSurface → List (String × String × String)
+  | [] => []
+  | sf :: rest =>
+    let stem := windowStem sf.id
+    let id := freeId taken (if stem = "" then sf.id ++ "-window" else stem)
+    (sf.id, id, sf.label.getD id) :: partIds (taken ++ [id]) rest
+
+def compSplit (s : CompScene) (r : CompRef) : CompPlan :=
+  match s.window? r.id with
+  | none => .refused "windowId" s!"no window \"{r.shown}\""
+  | some w =>
+    match w.surfaceIds.toList with
+    | kept :: others@(_ :: _) =>
+      let surfaces := others.filterMap s.surface?
+      if surfaces.length ≠ others.length then
+        .refused "windowId" s!"{nameOf w.id w.label} names a surface the scene lacks"
+      else .split w.id kept w.parentId (partIds s.ids surfaces).toArray
+    | _ =>
+      .refused "windowId"
+        s!"{nameOf w.id w.label} holds one surface: there are no parts to break it into, and a surface’s own content is never split"
+
+/-- The parts a recombination names, after `acc`, each an active window other than `origin`,
+holding no other nodes and named once; or the refusal of the first that is not. -/
+def recombineParts (s : CompScene) (origin : CompNode) :
+    List CompRef → List CompNode → Except String (List CompNode)
+  | [], acc => .ok acc
+  | r :: rest, acc =>
+    match s.window? r.id with
+    | none => .error s!"no window \"{r.shown}\""
+    | some p =>
+      if p.id = origin.id then .error s!"{nameOf p.id p.label} cannot be a part of itself"
+      else if acc.any (·.id == p.id) then .error s!"{nameOf p.id p.label} is named twice"
+      else if p.childIds.size > 0 then .error (holdsNodes p)
+      else recombineParts s origin rest (acc ++ [p])
+
+def compRecombine (s : CompScene) (r : CompRef) (rs : Array CompRef) : CompPlan :=
+  match s.window? r.id with
+  | none => .refused "windowId" s!"no window \"{r.shown}\""
+  | some origin =>
+    match recombineParts s origin rs.toList [] with
+    | .error reason => .refused "partIds" reason
+    | .ok [] => .refused "partIds" s!"{nameOf origin.id origin.label} has no parts to put back"
+    | .ok parts =>
+      let moved := (parts.map (·.surfaceIds.toList)).flatten.toArray
+      .recombine origin.id moved (origin.surfaceIds ++ moved) (parts.map (·.id)).toArray
+
 /-- The plan of a composition step, from the committed scene alone. -/
 def compositionPlan (s : CompScene) (step : CompStep) : CompPlan :=
   match step with
@@ -334,6 +395,8 @@ def compositionPlan (s : CompScene) (step : CompStep) : CompPlan :=
   | .merge r t => compMerge s r t
   | .regroup r t => compRegroup s r t
   | .group rs id label => compGroup s rs id label
+  | .split r => compSplit s r
+  | .recombine r rs => compRecombine s r rs
 
 /-! ## Invariants -/
 
@@ -702,5 +765,157 @@ theorem group_removes_only_emptied (s : CompScene) (rs : Array CompRef) (id labe
           simp only [List.mem_toArray, List.mem_map]
           exact ⟨n, hn, hid⟩
         · cases hsel
+
+theorem partIds_spec : ∀ (taken : List String) (sfs : List CompSurface),
+    (partIds taken sfs).map (·.1) = sfs.map (·.id) ∧
+      (∀ x ∈ partIds taken sfs, x.2.1 ∉ taken) ∧ ((partIds taken sfs).map (·.2.1)).Nodup
+  | _, [] => by simp [partIds]
+  | taken, sf :: rest => by
+    obtain ⟨h1, h2, h3⟩ := partIds_spec (taken ++ [freeId taken (if windowStem sf.id = "" then sf.id ++ "-window" else windowStem sf.id)]) rest
+    have hfree : ∀ stem, freeId taken stem ∉ taken := fun stem => by
+      have := free_id_unused taken.toArray stem
+      simpa [compositionFreeId] using this
+    refine ⟨by simp [partIds, h1], ?_, ?_⟩
+    · intro x hx
+      simp only [partIds, List.mem_cons] at hx
+      rcases hx with rfl | hx
+      · exact hfree _
+      · have := h2 x hx
+        simp only [List.mem_append, not_or] at this
+        exact this.1
+    · simp only [partIds, List.map_cons, List.nodup_cons]
+      refine ⟨?_, h3⟩
+      intro hm
+      simp only [List.mem_map] at hm
+      obtain ⟨x, hx, hxe⟩ := hm
+      have := h2 x hx
+      simp only [List.mem_append, List.mem_singleton, not_or] at this
+      exact this.2 hxe
+
+theorem filterMap_surface_ids (s : CompScene) : ∀ (xs : List String),
+    (xs.filterMap s.surface?).length = xs.length → (xs.filterMap s.surface?).map (·.id) = xs
+  | [], _ => rfl
+  | x :: xs, h => by
+    cases hs : s.surface? x with
+    | none =>
+      simp only [List.filterMap_cons, hs, List.length_cons] at h
+      have := List.length_filterMap_le s.surface? xs
+      omega
+    | some sf =>
+      simp only [List.filterMap_cons, hs, List.length_cons] at h
+      simp only [List.filterMap_cons, hs, List.map_cons]
+      have hid : sf.id = x := by
+        have := Array.find?_some hs
+        simpa using this
+      rw [hid, filterMap_surface_ids s xs (by omega)]
+
+/-- A window is broken into parts only when it holds two surfaces or more: it keeps its first, and
+every other goes into a window of its own, each once, under an ID no node or surface holds and no
+other part takes. -/
+@[lungo_claim "lungo.law" subject compositionPlan]
+theorem split_keeps_every_surface (s : CompScene) (r : CompRef) (w kept : String)
+    (parentId : Option String) (parts : Array (String × String × String))
+    (h : compositionPlan s (.split r) = .split w kept parentId parts) :
+    ∃ n, s.window? r.id = some n ∧ n.id = w ∧ 2 ≤ n.surfaceIds.size ∧
+      n.surfaceIds.toList = kept :: parts.toList.map (·.1) ∧
+      (∀ x ∈ parts, x.2.1 ∉ s.ids) ∧ (parts.toList.map (·.2.1)).Nodup := by
+  simp only [compositionPlan, compSplit] at h
+  split at h
+  · cases h
+  · rename_i n hn
+    split at h
+    · rename_i k o os ho
+      split at h
+      · cases h
+      · rename_i hlen
+        simp only [CompPlan.split.injEq] at h
+        obtain ⟨rfl, rfl, -, rfl⟩ := h
+        obtain ⟨h1, h2, h3⟩ := partIds_spec s.ids ((o :: os).filterMap s.surface?)
+        have hids := filterMap_surface_ids s (o :: os) (by simpa using hlen)
+        refine ⟨n, hn, rfl, ?_, ?_, ?_, by simpa using h3⟩
+        · have : n.surfaceIds.toList.length = (k :: o :: os).length := by rw [ho]
+          simp at this
+          omega
+        · rw [ho]
+          simp only [List.cons.injEq, true_and]
+          rw [h1, hids]
+        · intro x hx
+          exact h2 x (by simpa using hx)
+    · cases h
+
+theorem recombineParts_spec (s : CompScene) (origin : CompNode) :
+    ∀ (rs : List CompRef) (acc ps : List CompNode),
+      (∀ p ∈ acc, s.window? (some p.id) = some p ∧ p.id ≠ origin.id ∧ p.childIds.size = 0) →
+      (acc.map (·.id)).Nodup → recombineParts s origin rs acc = .ok ps →
+      (∀ p ∈ ps, s.window? (some p.id) = some p ∧ p.id ≠ origin.id ∧ p.childIds.size = 0) ∧
+        (ps.map (·.id)).Nodup
+  | [], acc, ps, ha, hd, h => by
+    simp only [recombineParts, Except.ok.injEq] at h
+    subst h
+    exact ⟨ha, hd⟩
+  | r :: rest, acc, ps, ha, hd, h => by
+    simp only [recombineParts] at h
+    split at h
+    · cases h
+    · rename_i p hp
+      split at h
+      · cases h
+      · rename_i hne
+        split at h
+        · cases h
+        · rename_i hnot
+          split at h
+          · cases h
+          · rename_i hkids
+            refine recombineParts_spec s origin rest (acc ++ [p]) ps ?_ ?_ h
+            · intro q hq
+              simp only [List.mem_append, List.mem_singleton] at hq
+              rcases hq with hq | rfl
+              · exact ha q hq
+              · exact ⟨(window?_some hp).2, hne, by omega⟩
+            · rw [List.map_append, List.nodup_append]
+              refine ⟨hd, by simp, ?_⟩
+              intro a ha' b hb heq
+              simp only [List.map_cons, List.map_nil, List.mem_singleton] at hb
+              subst hb heq
+              apply hnot
+              simp only [List.mem_map] at ha'
+              obtain ⟨q, hq, hqid⟩ := ha'
+              simp only [List.any_eq_true, beq_iff_eq]
+              exact ⟨q, hq, hqid⟩
+
+/-- Parts are put back only into an active window, each part an active window other than it,
+holding no other nodes and named once; every surface they hold goes into it after its own, none
+lost, and only the parts are removed. -/
+@[lungo_claim "lungo.law" subject compositionPlan]
+theorem recombine_keeps_every_surface (s : CompScene) (r : CompRef) (rs : Array CompRef)
+    (w : String) (moved laidOut removed : Array String)
+    (h : compositionPlan s (.recombine r rs) = .recombine w moved laidOut removed) :
+    ∃ origin, s.window? r.id = some origin ∧ origin.id = w ∧ 0 < removed.size ∧
+      removed.toList.Nodup ∧ w ∉ removed ∧ laidOut = origin.surfaceIds ++ moved ∧
+      ∀ p ∈ removed, ∃ n, s.window? (some p) = some n ∧ n.childIds.size = 0 := by
+  simp only [compositionPlan, compRecombine] at h
+  split at h
+  · cases h
+  · rename_i origin ho
+    split at h
+    · cases h
+    · cases h
+    · rename_i ps hne hps
+      simp only [CompPlan.recombine.injEq] at h
+      obtain ⟨rfl, hm, hl, rfl⟩ := h
+      obtain ⟨hall, hnd⟩ := recombineParts_spec s origin rs.toList [] ps (by simp) (by simp) hps
+      refine ⟨origin, ho, rfl, ?_, by simpa using hnd, ?_, by rw [← hl, hm], ?_⟩
+      · cases ps with
+        | nil => exact absurd rfl hne
+        | cons _ _ => simp
+      · intro hmem
+        simp only [List.mem_toArray, List.mem_map] at hmem
+        obtain ⟨p, hp, hpid⟩ := hmem
+        exact (hall p hp).2.1 hpid
+      · intro p hp
+        simp only [List.mem_toArray, List.mem_map] at hp
+        obtain ⟨q, hq, rfl⟩ := hp
+        exact ⟨q, (hall q hq).1, (hall q hq).2.2⟩
 
 end Swf.AppComposition

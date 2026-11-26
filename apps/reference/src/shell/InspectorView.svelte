@@ -28,6 +28,7 @@
   } from '@wsb/uikit/components';
   import { handleOf, keyed } from '@wsb/uikit/handles';
   import type { MessageId } from '../messages.js';
+  import { partOf } from '../composition.js';
   import { contentOf } from '../presets.js';
   import type { ShellModel } from './model.svelte.js';
   import WindowActions from './WindowActions.svelte';
@@ -42,41 +43,6 @@
   const round = (value: number, digits: number) => Number(value.toFixed(digits));
 
   const selected = $derived(model.selected);
-  const facts = $derived(
-    selected === null
-      ? []
-      : [
-          { term: t('inspector.id'), value: selected.id, literal: true },
-          { term: t('inspector.name'), value: selected.label ?? selected.id },
-          ...(selected.content === null
-            ? []
-            : [{ term: t('inspector.content'), value: t(`content.${selected.content}`) }]),
-          {
-            term: t('inspector.side'),
-            value: t(selected.side === 'front' ? 'inspector.side.front' : 'inspector.side.behind'),
-          },
-          {
-            term: t('inspector.position'),
-            value: t('inspector.position.value', {
-              x: round(selected.position[0], 2),
-              y: round(selected.position[1], 2),
-              z: round(selected.position[2], 2),
-            }),
-          },
-          {
-            term: t('inspector.locked'),
-            value: t(selected.locked ? 'inspector.locked.yes' : 'inspector.locked.no'),
-          },
-          {
-            term: t('inspector.presentation'),
-            value:
-              selected.representation === 'compact' || selected.representation === 'label'
-                ? t(`representation.${selected.representation}`)
-                : t(`presentation.${selected.presentation}`),
-          },
-        ],
-  );
-
   const composing = $derived(model.policies?.features.enabled.composition ?? false);
 
   // The selected window's surfaces, the other windows and the groups, from the same scene.
@@ -112,8 +78,61 @@
     const groups = [...state.nodes.values()]
       .filter((n) => n.kind === 'group' && n.status === 'active' && n.id !== node.parentId)
       .map((n) => ({ value: n.id, label: nameOf(n) }));
-    return { surfaces, windows, groups };
+    // The window it is a part of, and how many parts that one (or this one) has.
+    const originId = partOf(node);
+    const origin = originId === null ? undefined : state.nodes.get(originId);
+    const parts = [...state.nodes.values()].filter(
+      (n) => n.kind === 'window' && n.status === 'active' && partOf(n) === (originId ?? node.id),
+    ).length;
+    return {
+      surfaces,
+      windows,
+      groups,
+      origin: origin === undefined ? null : nameOf(origin),
+      parts,
+    };
   });
+
+  const facts = $derived(
+    selected === null
+      ? []
+      : [
+          { term: t('inspector.id'), value: selected.id, literal: true },
+          { term: t('inspector.name'), value: selected.label ?? selected.id },
+          ...(selected.content === null
+            ? []
+            : [{ term: t('inspector.content'), value: t(`content.${selected.content}`) }]),
+          ...(scene === null || scene.origin === null
+            ? scene !== null && scene.parts > 0
+              ? [{ term: t('inspector.parts'), value: t('inspector.parts.value', { count: scene.parts }) }]
+              : []
+            : [{ term: t('inspector.partOf'), value: t('inspector.partOf.value', { label: scene.origin }) }]),
+          {
+            term: t('inspector.side'),
+            value: t(selected.side === 'front' ? 'inspector.side.front' : 'inspector.side.behind'),
+          },
+          {
+            term: t('inspector.position'),
+            value: t('inspector.position.value', {
+              x: round(selected.position[0], 2),
+              y: round(selected.position[1], 2),
+              z: round(selected.position[2], 2),
+            }),
+          },
+          {
+            term: t('inspector.locked'),
+            value: t(selected.locked ? 'inspector.locked.yes' : 'inspector.locked.no'),
+          },
+          {
+            term: t('inspector.presentation'),
+            value:
+              selected.representation === 'compact' || selected.representation === 'label'
+                ? t(`representation.${selected.representation}`)
+                : t(`presentation.${selected.presentation}`),
+          },
+        ],
+  );
+
 
   // The windows selected together, the inspected one first, and the name a group of them is given.
   const together = $derived.by(() => {
@@ -367,6 +386,28 @@
               {#if scene.surfaces.length < 2}
                 <Text quiet>{t('inspector.surface.only')}</Text>
               {/if}
+              <Stack direction="row" gap="small" wrap>
+                <Button
+                  handle={handleOf`page.inspector.split`}
+                  label={t('inspector.split')}
+                  icon="split-beside"
+                  size="small"
+                  disabled={scene.surfaces.length < 2}
+                  onpress={() => {
+                    void model.run('reference.window.split', { id: selected.id });
+                  }}
+                />
+                <Button
+                  handle={handleOf`page.inspector.recombine`}
+                  label={t('inspector.recombine')}
+                  icon="tab-move"
+                  size="small"
+                  disabled={scene.parts === 0}
+                  onpress={() => {
+                    void model.run('reference.window.recombine', { id: selected.id });
+                  }}
+                />
+              </Stack>
               {#if scene.windows.length > 0}
                 {#snippet moveControl()}
                   <Stack gap="small">

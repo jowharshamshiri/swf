@@ -104,6 +104,10 @@ export interface AppCommandSpecs {
   'reference.surface.detach': { readonly surfaceId: string };
   'reference.surface.move': { readonly surfaceId: string; readonly windowId: string };
   'reference.window.merge': { readonly id: string; readonly targetId: string };
+  /** Breaks a window into parts: each surface but its first into a window of its own. */
+  'reference.window.split': { readonly id: string };
+  /** Puts every part back into the window it came from, as one change. */
+  'reference.window.recombine': { readonly id: string };
   /** Into a group by its ID, or into a new group of its own named `label` when `groupId` is null. */
   'reference.window.regroup': {
     readonly id: string;
@@ -172,6 +176,8 @@ export const APP_COMMAND_NAMES: Readonly<Record<AppCommandId, MessageId>> = Obje
   'reference.surface.detach': 'command.surface.detach',
   'reference.surface.move': 'command.surface.move',
   'reference.window.merge': 'command.window.merge',
+  'reference.window.split': 'command.window.split',
+  'reference.window.recombine': 'command.window.recombine',
   'reference.window.regroup': 'command.window.regroup',
   'reference.window.group': 'command.window.group',
   'reference.workspace.save': 'command.workspace.save',
@@ -682,6 +688,10 @@ export function createAppCommands(app: () => ReferenceApp): AppCommands {
       viewChange(() => app().compose({ kind: 'detach', surfaceId })),
     'reference.surface.move': async ({ surfaceId, windowId }) =>
       viewChange(() => app().compose({ kind: 'move', surfaceId, windowId })),
+    'reference.window.split': async ({ id }) =>
+      viewChange(() => app().compose({ kind: 'split', windowId: id })),
+    'reference.window.recombine': async ({ id }) =>
+      viewChange(() => app().compose({ kind: 'recombine', windowId: id })),
     'reference.window.merge': async ({ id, targetId }) =>
       viewChange(() => app().compose({ kind: 'merge', windowId: id, targetId })),
     'reference.window.regroup': async ({ id, groupId, label }) => {

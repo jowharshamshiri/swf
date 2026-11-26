@@ -139,6 +139,23 @@ export type CompStep =
       /** The field `label` of Lean's Swf.AppComposition.CompStep.group. */
       readonly label: string;
     }
+  | {
+      /** Breaks a window into parts: each surface but its first goes into a new window of its own. */
+      readonly kind: "split";
+      /** The field `window` of Lean's Swf.AppComposition.CompStep.split. */
+      readonly window: CompRef;
+    }
+  | {
+      /**
+       * Puts parts back together: every surface of each part goes into `window`, after its own, and
+       * the emptied parts are removed.
+       */
+      readonly kind: "recombine";
+      /** The field `window` of Lean's Swf.AppComposition.CompStep.recombine. */
+      readonly window: CompRef;
+      /** The field `parts` of Lean's Swf.AppComposition.CompStep.recombine. */
+      readonly parts: Array<CompRef>;
+    }
 ;
 /** The descriptor of Swf.AppComposition.CompStep: how its values cross the boundary. */
 export function compStepType(): L.Type<CompStep>;
@@ -148,7 +165,8 @@ export type CompPlan =
   | {
       /**
        * The step cannot be done and nothing changes: `field` names the argument at fault
-       * (`surfaceId`, `windowId`, `targetId`, `groupId` or `windowIds`), `reason` says why, in English.
+       * (`surfaceId`, `windowId`, `targetId`, `groupId`, `windowIds` or `partIds`), `reason` says why,
+       * in English.
        */
       readonly kind: "refused";
       /** The field `field` of Lean's Swf.AppComposition.CompPlan.refused. */
@@ -234,6 +252,37 @@ export type CompPlan =
       /** The field `parentId` of Lean's Swf.AppComposition.CompPlan.group. */
       readonly parentId: L.Option<string>;
       /** The field `removed` of Lean's Swf.AppComposition.CompPlan.group. */
+      readonly removed: Array<string>;
+    }
+  | {
+      /**
+       * `window` keeps `kept`, its first surface, laid out round it alone; each other surface leaves
+       * it for a new window of its own, in `parts` as (surface, new window, its label), in the window's
+       * group (`parentId`), beside it.
+       */
+      readonly kind: "split";
+      /** The field `window` of Lean's Swf.AppComposition.CompPlan.split. */
+      readonly window: string;
+      /** The field `kept` of Lean's Swf.AppComposition.CompPlan.split. */
+      readonly kept: string;
+      /** The field `parentId` of Lean's Swf.AppComposition.CompPlan.split. */
+      readonly parentId: L.Option<string>;
+      /** The field `parts` of Lean's Swf.AppComposition.CompPlan.split. */
+      readonly parts: Array<[string, [string, string]]>;
+    }
+  | {
+      /**
+       * `moved`, the surfaces of `removed` (the parts, in order), go into `window` after its own,
+       * laid out again round `laidOut`; the emptied parts are removed.
+       */
+      readonly kind: "recombine";
+      /** The field `window` of Lean's Swf.AppComposition.CompPlan.recombine. */
+      readonly window: string;
+      /** The field `moved` of Lean's Swf.AppComposition.CompPlan.recombine. */
+      readonly moved: Array<string>;
+      /** The field `laidOut` of Lean's Swf.AppComposition.CompPlan.recombine. */
+      readonly laidOut: Array<string>;
+      /** The field `removed` of Lean's Swf.AppComposition.CompPlan.recombine. */
       readonly removed: Array<string>;
     }
 ;

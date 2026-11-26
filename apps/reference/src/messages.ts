@@ -449,6 +449,8 @@ export const ENGLISH = Object.freeze({
   'command.surface.detach': 'Detach a surface into a window of its own',
   'command.surface.move': 'Move a surface into another window',
   'command.window.merge': 'Merge a window into another',
+  'command.window.split': 'Break a window into parts',
+  'command.window.recombine': 'Recombine a window’s parts',
   'command.window.regroup': 'Move a window into a group',
   'command.window.group': 'Group the selected windows',
   'command.workspace.save': 'Save the workspace under a name',
@@ -463,6 +465,12 @@ export const ENGLISH = Object.freeze({
   'inspector.surfaces.detail':
     'What the host supplied for this window, side by side. Each is moved whole, never split.',
   'inspector.surface.detach': 'Detach into its own window',
+  'inspector.split': 'Break into parts',
+  'inspector.recombine': 'Recombine parts',
+  'inspector.partOf': 'Part of',
+  'inspector.partOf.value': '{label}, linked',
+  'inspector.parts': 'Parts',
+  'inspector.parts.value': '{count} linked windows',
   'inspector.surface.only':
     'The window’s only surface: there is nothing to detach it from, and its content is never split.',
   'inspector.surface.move': 'Move to window',

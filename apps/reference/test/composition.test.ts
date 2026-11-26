@@ -3,7 +3,7 @@ import { createWorkspace, surfaceWorldMatrix, worldMatrix } from '@swf/core';
 import { mat4ApproxEquals, mat4InvertAffine, mat4TransformPoint } from '@swf/math';
 import { createPersistence } from '@swf/persistence';
 import { createPresentationRegistry } from '@swf/presentation';
-import { createProjectionRegistry, equirectangular } from '@swf/projections';
+import { cameraRotation, createProjectionRegistry, equirectangular } from '@swf/projections';
 import { describe, expect, it } from 'vitest';
 import type { CompositionPlan } from '../src/composition.js';
 import {
@@ -12,9 +12,13 @@ import {
   layoutSurfaces,
   mergeWindow,
   moveSurface,
+  PART_OF_KEY,
+  recombineParts,
+  splitWindow,
   regroupWindow,
   WINDOW_FRAME,
 } from '../src/composition.js';
+import { partLinks } from '../src/map.js';
 import { PANORAMA } from '../src/modes.js';
 import { CAMERA_ID, planPreset, presetCommands, WORKSPACE_GROUP_ID } from '../src/presets.js';
 
@@ -95,7 +99,7 @@ describe('multi-surface composition (FR-126, WF-06, AC-016)', () => {
       'window-02-surface',
       'window-03-surface',
     ]);
-    const plan = detachSurface(before, 'window-02-surface', NEW);
+    const plan = detachSurface(before, 'window-02-surface', () => NEW);
     expect(plan).toMatchObject({ kind: 'plan', createdWindowId: 'window-02' });
     commit(ws, plan);
     const after = ws.getState();
@@ -139,13 +143,13 @@ describe('multi-surface composition (FR-126, WF-06, AC-016)', () => {
 
   it('never splits a window’s only surface: there is nothing to detach', () => {
     const ws = composed();
-    expect(detachSurface(ws.getState(), 'window-04-surface', NEW)).toEqual({
+    expect(detachSurface(ws.getState(), 'window-04-surface', () => NEW)).toEqual({
       kind: 'refused',
       field: 'surfaceId',
       reason:
         '“Note 04” is the only surface of “Note 04”: there is nothing to detach it from, and a surface’s own content is never split',
     });
-    expect(detachSurface(ws.getState(), 'nope', NEW)).toMatchObject({ kind: 'refused' });
+    expect(detachSurface(ws.getState(), 'nope', () => NEW)).toMatchObject({ kind: 'refused' });
   });
 
   it('moves a surface into another window, closing up both, and removes a window it empties', () => {
@@ -270,10 +274,113 @@ describe('multi-surface composition (FR-126, WF-06, AC-016)', () => {
     });
   });
 
+  it('breaks a window into parts at once, each linked to it, and recombines them as one change each', () => {
+    const ws = composed();
+    const before = ws.getState();
+    const was = worldOf(before);
+    const history = ws.history().length;
+    const linked = (surfaceId: string) => ({
+      tags: ['note'],
+      metadata: { [PART_OF_KEY]: 'board' },
+      surfaceId,
+    });
+    commit(ws, splitWindow(before, 'board', linked));
+    let state = ws.getState();
+    // The board keeps its first surface; each other is a window of its own, named after it, linked.
+    const [kept, ...others] = before.nodes.get('board')?.surfaceIds ?? [];
+    expect(state.nodes.get('board')?.surfaceIds).toEqual([kept]);
+    const parts = others.map((surfaceId) => state.surfaces.get(surfaceId)?.ownerNodeId ?? '');
+    expect(parts).toEqual(['window-02', 'window-03']);
+    for (const part of parts) {
+      expect(state.nodes.get(part)?.metadata[PART_OF_KEY]).toBe('board');
+      expect(state.nodes.get(part)?.parentId).toBe(before.nodes.get('board')?.parentId);
+    }
+    // Every surface is where it was in the world, its endpoint untouched.
+    for (const surfaceId of others) {
+      expect(state.surfaces.get(surfaceId)?.bindingKey).toBe(
+        before.surfaces.get(surfaceId)?.bindingKey,
+      );
+    }
+    // Side by side to the board's right, none covering another.
+    const right = (id: string) => worldMatrix(state.nodes, id)?.[12] ?? NaN;
+    expect(right('window-02')).toBeGreaterThan(right('board'));
+    expect(right('window-03')).toBeGreaterThan(right('window-02'));
+    // Each part is linked to the board in the panorama, its line in one run straight ahead.
+    const links = partLinks(state, 'main', { get: () => equirectangular });
+    expect(links.map((link) => [link.part, link.origin])).toEqual([
+      ['window-02', 'board'],
+      ['window-03', 'board'],
+    ]);
+    expect(
+      links.every((link) => link.runs.length === 1 && (link.runs[0]?.length ?? 0) === 33),
+    ).toBe(true);
+    // Turned round, the links lie across the seam: drawn in runs that never jump the view.
+    const headingOf = (id: string) => {
+      const m = worldMatrix(state.nodes, id);
+      return Math.atan2(m?.[12] ?? NaN, -(m?.[14] ?? NaN));
+    };
+    const camera = state.cameras.get(CAMERA_ID);
+    expect(
+      ws.transaction([
+        {
+          type: 'camera.patch',
+          id: CAMERA_ID,
+          // The seam, behind the camera, between the board and its first part.
+          rotation: cameraRotation(Math.PI + (headingOf('board') + headingOf('window-02')) / 2, 0),
+        },
+      ]).status,
+    ).toBe('committed');
+    const width = state.viewports.get('main')?.size.width ?? 0;
+    const across = partLinks(ws.getState(), 'main', { get: () => equirectangular });
+    expect(across.some((link) => link.runs.length === 2)).toBe(true);
+    for (const run of across.flatMap((link) => link.runs)) {
+      for (let i = 1; i < run.length; i += 1) {
+        expect(Math.abs((run[i]?.[0] ?? 0) - (run[i - 1]?.[0] ?? 0))).toBeLessThan(width / 2);
+      }
+    }
+    expect(
+      ws.transaction([
+        { type: 'camera.patch', id: CAMERA_ID, rotation: camera?.rotation ?? [0, 0, 0, 1] },
+      ]).status,
+    ).toBe('committed');
+    state = ws.getState();
+    expect(ws.history()).toHaveLength(history + 1);
+    // Recombined: every surface back on the board, the parts gone, one change.
+    commit(ws, recombineParts(state, 'board', parts));
+    state = ws.getState();
+    expect(state.nodes.get('board')?.surfaceIds).toEqual([kept, ...others]);
+    expect(parts.some((part) => state.nodes.has(part))).toBe(false);
+    expect(ws.history()).toHaveLength(history + 2);
+    for (const surfaceId of before.nodes.get('board')?.surfaceIds ?? []) {
+      expect(same(surfaceWorldMatrix(state, surfaceId), was.surfaces.get(surfaceId))).toBe(true);
+    }
+  });
+
+  it('refuses to break a window of one surface, or recombine with no parts, itself or a part named twice', () => {
+    const state = composed().getState();
+    expect(splitWindow(state, 'window-04', () => NEW)).toMatchObject({
+      kind: 'refused',
+      field: 'windowId',
+    });
+    expect(recombineParts(state, 'board', [])).toMatchObject({ kind: 'refused', field: 'partIds' });
+    expect(recombineParts(state, 'board', ['board'])).toMatchObject({
+      kind: 'refused',
+      field: 'partIds',
+    });
+    expect(recombineParts(state, 'board', ['window-04', 'window-04'])).toMatchObject({
+      kind: 'refused',
+      field: 'partIds',
+      reason: expect.stringContaining('named twice') as unknown,
+    });
+  });
+
   it('detaches, reattaches, saves and restores with every world transform kept (§33.2 scenario 4)', async () => {
     const ws = composed();
     const original = worldOf(ws.getState());
-    commit(ws, detachSurface(ws.getState(), 'window-03-surface', NEW));
+    commit(
+      ws,
+      detachSurface(ws.getState(), 'window-03-surface', () => NEW),
+    );
     commit(ws, moveSurface(ws.getState(), 'window-03-surface', 'board'));
     const state = ws.getState();
     expect(state.nodes.has('window-03')).toBe(false);
