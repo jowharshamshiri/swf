@@ -123,7 +123,7 @@ describe('the development server', () => {
     const messages = join(root, 'src', 'messages.ts');
     const source = await readFile(messages, 'utf8');
     const edited = source.replace(
-      "'A native page element: select and type here.'",
+      "'A note: select it and type here.'",
       "'Edited while running.'",
     );
     expect(edited).not.toBe(source);
