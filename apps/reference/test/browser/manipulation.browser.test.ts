@@ -6,7 +6,7 @@ import { createMemoryStore } from '@swf/persistence';
 import { viewGeometryOf } from '@swf/presentation';
 import { equirectangular } from '@swf/projections';
 import { describe, expect, it } from 'vitest';
-import { commands } from 'vitest/browser';
+import { commands, userEvent } from 'vitest/browser';
 import type { ReferenceApp } from '../../src/app.js';
 import { VIEWPORT_ID } from '../../src/app.js';
 import { ENGLISH } from '../../src/messages.js';
@@ -349,6 +349,11 @@ describe('a window handled directly in the panorama', () => {
     // Each stays where it stood.
     expect(same(worldMatrix(state.nodes, 'window-01'), was.a)).toBe(true);
     expect(same(worldMatrix(state.nodes, 'window-02'), was.b)).toBe(true);
+    // Grouped, each window still takes its own presses: the group takes none.
+    await tap('window-01');
+    expect(app.workspace.getState().selection).toEqual(['window-01']);
+    await tap('window-02');
+    expect(app.workspace.getState().selection).toEqual(['window-02']);
     expect(await m.model.run('reference.history.undo', {})).toBe(true);
     expect(app.workspace.getState().nodes.has(groupId)).toBe(false);
   });
@@ -364,11 +369,23 @@ describe('a window handled directly in the panorama', () => {
     expect(await m.model.run('reference.focus.exit', {})).toBe(true);
     expect(await m.model.run('reference.selection.toggle', { id: 'window-02' })).toBe(true);
     await settle();
+    // Ctrl and click on one of them in the panorama gives the panorama the keyboard, as a click in
+    // a list does: Delete then removes both.
+    expect(await m.model.run('reference.view.heading', { degrees: 25 })).toBe(true);
+    await settle();
+    const [x, y] = onFrame(m, app, 'window-01');
+    await commands.mouse('move', x, y);
+    await commands.mouse('down', x, y, ['Control']);
+    await commands.mouse('up', x, y, ['Control']);
+    await settle();
+    expect(app.workspace.getState().selection).toEqual(['window-02']);
+    await commands.mouse('down', x, y, ['Control']);
+    await commands.mouse('up', x, y, ['Control']);
+    await settle();
+    expect(app.workspace.getState().selection).toEqual(['window-01', 'window-02']);
+    expect(document.activeElement).toBe(app.root);
     const history = app.workspace.history().length;
-    app.root.focus();
-    app.root.dispatchEvent(
-      new KeyboardEvent('keydown', { key: 'Delete', bubbles: true, cancelable: true }),
-    );
+    await userEvent.keyboard('{Delete}');
     await settle();
     expect(app.workspace.getState().nodes.has('window-01')).toBe(false);
     expect(app.workspace.getState().nodes.has('window-02')).toBe(false);

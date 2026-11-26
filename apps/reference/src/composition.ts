@@ -1,6 +1,14 @@
 import type { Id, JsonValue, NodeRecord, SceneCommand, SceneState, SurfaceRecord } from '@swf/core';
+import { worldMatrix } from '@swf/core';
 import type { Transform3D, Vec3 } from '@swf/math';
-import { transformPoint } from '@swf/math';
+import {
+  IDENTITY_MAT4,
+  mat4Decompose,
+  mat4FromTransform,
+  mat4InvertAffine,
+  mat4Multiply,
+  transformPoint,
+} from '@swf/math';
 import type * as Lean from '@swf/models';
 import { models } from '@swf/models';
 
@@ -160,12 +168,65 @@ const refOf = (id: unknown): Lean.CompRef => ({
   shown: String(id),
 });
 
+/**
+ * Where a group composition makes stands, under `parentId`: at the camera (`eye`), as the
+ * workspace's own group does, its box a cube round the camera holding every member wherever it is
+ * turned. A group frames no window of its own, so its rectangle lies in a plane through the eye and
+ * takes no press meant for the windows in it.
+ */
+function groupAtEye(
+  state: SceneState,
+  parentId: Id | null,
+  memberIds: readonly Id[],
+  eye: Vec3,
+): { readonly transform: Transform3D; readonly bounds: Vec3 } {
+  const parentWorld = parentId === null ? IDENTITY_MAT4 : worldMatrix(state.nodes, parentId);
+  const toParent = parentWorld === undefined ? null : mat4InvertAffine(parentWorld);
+  const local =
+    toParent === null
+      ? null
+      : mat4Decompose(
+          mat4Multiply(
+            toParent,
+            mat4FromTransform({ position: eye, rotation: [0, 0, 0, 1], scale: [1, 1, 1] }),
+          ),
+        );
+  if (!local?.ok) {
+    throw new Error(
+      `a group cannot be made under "${String(parentId)}": its placement is singular`,
+    );
+  }
+  const reach = memberIds.reduce((most, id) => {
+    const node = nodeOf(state, id);
+    const world = worldMatrix(state.nodes, id);
+    if (world === undefined) {
+      throw new Error(`the plan names node "${id}", which has no placement`);
+    }
+    const scale = Math.max(
+      Math.hypot(world[0], world[1], world[2]),
+      Math.hypot(world[4], world[5], world[6]),
+      Math.hypot(world[8], world[9], world[10]),
+    );
+    const centre = Math.hypot(world[12] - eye[0], world[13] - eye[1], world[14] - eye[2]);
+    return Math.max(most, centre + (scale * Math.hypot(...node.bounds)) / 2);
+  }, 1);
+  return { transform: local.transform, bounds: [2 * reach, 2 * reach, 2 * reach] };
+}
+
 /** The plan the model decided for a step, as scene commands. */
 function commandsOf(
   state: SceneState,
   plan: Lean.CompPlan,
   window?: (surfaceId: Id) => NewWindow,
+  eye?: Vec3,
 ): CompositionPlan {
+  /** Where a new group stands: at the camera, which a step making one is given. */
+  const atEye = (parentId: Id | null, members: readonly Id[]) => {
+    if (eye === undefined) {
+      throw new Error('a step making a group needs where the camera stands');
+    }
+    return groupAtEye(state, parentId, members, eye);
+  };
   switch (plan.kind) {
     case 'refused':
       return Object.freeze({ kind: 'refused', field: plan.field, reason: plan.reason });
@@ -240,7 +301,12 @@ function commandsOf(
           : {
               type: 'node.group',
               nodeIds: [plan.window],
-              group: { id: into.id, label: into.label, parentId: into.parentId },
+              group: {
+                id: into.id,
+                label: into.label,
+                parentId: into.parentId,
+                ...atEye(into.parentId, [plan.window]),
+              },
             };
       return planned([
         move,
@@ -316,7 +382,12 @@ function commandsOf(
         {
           type: 'node.group',
           nodeIds: [...plan.windows],
-          group: { id: plan.id, label: plan.label, parentId: plan.parentId },
+          group: {
+            id: plan.id,
+            label: plan.label,
+            parentId: plan.parentId,
+            ...atEye(plan.parentId, plan.windows),
+          },
         },
         ...plan.removed.map((id): SceneCommand => ({
           type: 'node.delete',
@@ -422,12 +493,14 @@ export function mergeWindow(
 
 /**
  * Moves a window into another group, keeping its place in the world. A group it leaves empty is
- * removed with it, unless it is the group workspace orbit turns.
+ * removed with it, unless it is the group workspace orbit turns. A new group stands at the camera
+ * (`eye`), so it takes no press meant for its window.
  */
 export function regroupWindow(
   state: SceneState,
   windowId: unknown,
   target: GroupTarget,
+  eye: Vec3,
 ): CompositionPlan {
   const plan = models.compositionPlan(sceneOf(state), {
     kind: 'regroup',
@@ -437,19 +510,21 @@ export function regroupWindow(
         ? { kind: 'group', id: target.id }
         : { kind: 'fresh', id: target.id, label: target.label },
   });
-  return commandsOf(state, plan);
+  return commandsOf(state, plan, undefined, eye);
 }
 
 /**
  * Gathers windows into a new group together, each keeping its place in the world: the group is made
  * in the group they all share, or at the root when they share none, and a group they leave empty is
- * removed with them, unless it is the group workspace orbit turns. At least two windows are named,
+ * removed with them, unless it is the group workspace orbit turns. The group stands at the camera
+ * (`eye`), so it takes no press meant for its windows. At least two windows are named,
  * each once; a window inside another window moves with it and is not grouped on its own.
  */
 export function groupWindows(
   state: SceneState,
   windowIds: readonly unknown[],
   group: { readonly id: Id; readonly label: string },
+  eye: Vec3,
 ): CompositionPlan {
   const plan = models.compositionPlan(sceneOf(state), {
     kind: 'group',
@@ -457,7 +532,7 @@ export function groupWindows(
     id: group.id,
     label: group.label,
   });
-  return commandsOf(state, plan);
+  return commandsOf(state, plan, undefined, eye);
 }
 
 /** A composition step that cannot be done, naming the field at fault. */

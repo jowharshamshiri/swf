@@ -1,5 +1,5 @@
 import type { SceneState, Workspace } from '@swf/core';
-import { createWorkspace, surfaceWorldMatrix, worldMatrix } from '@swf/core';
+import { createWorkspace, nodeFrameGeometry, surfaceWorldMatrix, worldMatrix } from '@swf/core';
 import { mat4ApproxEquals, mat4InvertAffine, mat4TransformPoint } from '@swf/math';
 import { createPersistence } from '@swf/persistence';
 import { createPresentationRegistry } from '@swf/presentation';
@@ -195,20 +195,28 @@ describe('multi-surface composition (FR-126, WF-06, AC-016)', () => {
     const was = worldMatrix(ws.getState().nodes, 'window-04');
     commit(
       ws,
-      regroupWindow(ws.getState(), 'window-04', { kind: 'new', id: 'group-1', label: 'Left' }),
+      regroupWindow(
+        ws.getState(),
+        'window-04',
+        { kind: 'new', id: 'group-1', label: 'Left' },
+        [0, 0, 0],
+      ),
     );
     let state = ws.getState();
     expect(state.nodes.get('window-04')?.parentId).toBe('group-1');
     expect(state.nodes.get('group-1')).toMatchObject({ kind: 'group', label: 'Left' });
     expect(same(worldMatrix(state.nodes, 'window-04'), was)).toBe(true);
     // Back into the workspace: the group it leaves empty goes with it.
-    commit(ws, regroupWindow(state, 'window-04', { kind: 'group', id: WORKSPACE_GROUP_ID }));
+    commit(
+      ws,
+      regroupWindow(state, 'window-04', { kind: 'group', id: WORKSPACE_GROUP_ID }, [0, 0, 0]),
+    );
     state = ws.getState();
     expect(state.nodes.get('window-04')?.parentId).toBe(WORKSPACE_GROUP_ID);
     expect(state.nodes.has('group-1')).toBe(false);
     expect(same(worldMatrix(state.nodes, 'window-04'), was)).toBe(true);
     expect(
-      regroupWindow(state, 'window-04', { kind: 'group', id: WORKSPACE_GROUP_ID }),
+      regroupWindow(state, 'window-04', { kind: 'group', id: WORKSPACE_GROUP_ID }, [0, 0, 0]),
     ).toMatchObject({ kind: 'refused', field: 'groupId' });
   });
 
@@ -219,7 +227,12 @@ describe('multi-surface composition (FR-126, WF-06, AC-016)', () => {
     // Two windows of the workspace group: their group is made inside it.
     commit(
       ws,
-      groupWindows(ws.getState(), ['window-04', 'window-05'], { id: 'group-1', label: 'Pair' }),
+      groupWindows(
+        ws.getState(),
+        ['window-04', 'window-05'],
+        { id: 'group-1', label: 'Pair' },
+        [0, 0, 0],
+      ),
     );
     let state = ws.getState();
     expect(state.nodes.get('group-1')).toMatchObject({
@@ -231,12 +244,18 @@ describe('multi-surface composition (FR-126, WF-06, AC-016)', () => {
     expect(state.nodes.get('window-05')?.parentId).toBe('group-1');
     // Windows from different groups: their group is made at the root, and a group left holding
     // another window stays.
-    commit(ws, groupWindows(state, ['board', 'window-04'], { id: 'group-2', label: 'Mixed' }));
+    commit(
+      ws,
+      groupWindows(state, ['board', 'window-04'], { id: 'group-2', label: 'Mixed' }, [0, 0, 0]),
+    );
     state = ws.getState();
     expect(state.nodes.get('group-2')?.parentId).toBeNull();
     expect(state.nodes.get('group-1')?.childIds).toEqual(['window-05']);
     // Its last window gathered elsewhere, a group goes with it.
-    commit(ws, groupWindows(state, ['window-05', 'window-04'], { id: 'group-3', label: 'Again' }));
+    commit(
+      ws,
+      groupWindows(state, ['window-05', 'window-04'], { id: 'group-3', label: 'Again' }, [0, 0, 0]),
+    );
     state = ws.getState();
     expect(state.nodes.has('group-1')).toBe(false);
     expect(state.nodes.get('group-2')?.childIds).toEqual(['board']);
@@ -252,10 +271,56 @@ describe('multi-surface composition (FR-126, WF-06, AC-016)', () => {
     expect(ws.getState().nodes.has('group-1')).toBe(false);
   });
 
+  it('makes groups that take no press meant for their windows: their frame lies in a plane through the camera', () => {
+    const ws = composed();
+    const eye = ws.getState().cameras.get(CAMERA_ID)?.position ?? [0, 0, 0];
+    commit(
+      ws,
+      groupWindows(
+        ws.getState(),
+        ['window-04', 'window-05'],
+        { id: 'group-1', label: 'Pair' },
+        eye,
+      ),
+    );
+    commit(
+      ws,
+      regroupWindow(ws.getState(), 'board', { kind: 'new', id: 'group-2', label: 'Own' }, eye),
+    );
+    const state = ws.getState();
+    for (const [groupId, members] of [
+      ['group-1', ['window-04', 'window-05']],
+      ['group-2', ['board']],
+    ] as const) {
+      const frame = nodeFrameGeometry(state, groupId);
+      for (const id of members) {
+        const m = worldMatrix(state.nodes, id);
+        const [tx, ty, tz] = [
+          (m?.[12] ?? 0) - eye[0],
+          (m?.[13] ?? 0) - eye[1],
+          (m?.[14] ?? 0) - eye[2],
+        ];
+        const length = Math.hypot(tx, ty, tz);
+        const hit = frame?.intersect({
+          origin: eye,
+          direction: [tx / length, ty / length, tz / length],
+        });
+        // No hit in front of the camera: nothing the picker would take before the window.
+        expect(
+          hit === null || hit === undefined || hit.distance < 1e-9,
+          `${groupId} over ${id}`,
+        ).toBe(true);
+      }
+      // Its box holds every window it gathers, wherever the group is turned.
+      const [w, h, d] = state.nodes.get(groupId)?.bounds ?? [0, 0, 0];
+      expect(Math.min(w, h, d)).toBeGreaterThan(2 * 3);
+    }
+  });
+
   it('refuses to group fewer than two windows, one named twice, one that is not there, or an ID in use', () => {
     const state = composed().getState();
     const refused = (ids: readonly unknown[], id = 'group-1') =>
-      groupWindows(state, ids, { id, label: 'G' });
+      groupWindows(state, ids, { id, label: 'G' }, [0, 0, 0]);
     expect(refused(['window-04'])).toMatchObject({ kind: 'refused', field: 'windowIds' });
     expect(refused(['window-04', 'window-04'])).toMatchObject({
       kind: 'refused',

@@ -108,6 +108,7 @@ import {
 } from './presets.js';
 import type { Attachment, Search } from './search.js';
 import { createSearch } from './search.js';
+import type { Vec3 } from '@swf/math';
 import { MAX_SEED, seedIssue } from '@swf/math';
 import type { Pose, PoseTarget } from './pose.js';
 import { posedPatch, poseOf } from './pose.js';
@@ -196,7 +197,9 @@ function kitInks(document: Document): () => GeometryInks {
 /**
  * Makes the element the panorama is presented in one stop of the page's keyboard order, a
  * spatial workspace the keyboard operates (FR-109, UX-012, UX-013): it says what it is and which
- * keys act there. Returns what puts the element back as it was.
+ * keys act there. A press in it that is not in a window's live content gives it the keyboard, as a
+ * press in any list does, though the framework keeps that press from the page: so a window clicked
+ * is then moved, removed or focused by its keys. Returns what puts the element back as it was.
  */
 function keyboardTarget(element: HTMLElement, messages: Messages): () => void {
   const attributes: Readonly<Record<string, string>> = {
@@ -210,7 +213,17 @@ function keyboardTarget(element: HTMLElement, messages: Messages): () => void {
   for (const [name, value] of Object.entries(attributes)) {
     element.setAttribute(name, value);
   }
+  const take = (event: Event) => {
+    const target = event.target;
+    const live = target instanceof Element && target.closest('[data-swf-slot]') !== null;
+    if (!live && element.ownerDocument.activeElement !== element) {
+      element.focus({ preventScroll: true });
+    }
+  };
+  // Before the framework hears the press, which may keep it from the page.
+  element.addEventListener('pointerdown', take, { capture: true });
   return () => {
+    element.removeEventListener('pointerdown', take, { capture: true });
     for (const [name, value] of before) {
       if (value === null) {
         element.removeAttribute(name);
@@ -1263,6 +1276,13 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
         throw new CompositionRefusal('feature', 'composition is turned off');
       }
       const state = workspace.getState();
+      const eye = (): Vec3 => {
+        const camera = state.cameras.get(CAMERA_ID);
+        if (camera === undefined) {
+          throw new Error(`no camera "${CAMERA_ID}"`);
+        }
+        return camera.position;
+      };
       switch (step.kind) {
         case 'detach':
           return commitPlan(detachSurface(state, step.surfaceId, newWindowFor));
@@ -1282,9 +1302,9 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
         case 'merge':
           return commitPlan(mergeWindow(state, step.windowId, step.targetId));
         case 'regroup':
-          return commitPlan(regroupWindow(state, step.windowId, step.target));
+          return commitPlan(regroupWindow(state, step.windowId, step.target, eye()));
         case 'group':
-          return commitPlan(groupWindows(state, step.windowIds, step.group));
+          return commitPlan(groupWindows(state, step.windowIds, step.group, eye()));
       }
     },
     poseOf(id) {

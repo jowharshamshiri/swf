@@ -42,6 +42,27 @@ in the command list (Ctrl+Shift+P or F1).
 4. Drag a window by its frame: it follows the pointer and commits once when released. Press
    Escape during a drag: it goes back.
 
+## Handling windows directly
+
+1. Open the studio. Drag a window by its frame: it moves round you, and the bar above the
+   panorama says where it would be as it goes (its angle, height and distance). The inspector's
+   sliders follow it. Let go: one change, which Undo in that bar puts back.
+2. Hold Shift and drag a window up or down: it goes farther or comes nearer, and round you as the
+   pointer goes across. Hold Shift and turn the wheel over it: the same, the burst of turns one
+   change once the wheel rests.
+3. Hold Ctrl (⌘ on a Mac) and drag a window across: it turns about its own vertical. Drag its
+   edge: it resizes.
+4. Ctrl-click (⌘-click) a second window: both are selected, and the inspector offers to group
+   them under a name, as one change. Delete removes what is selected, with an undo offered.
+5. In the inspector, drag the Angle, Distance, Height, Turned and frame size sliders: the window
+   moves in the panorama as the thumb moves, and letting go is one change. Arrow keys step them;
+   a typed number places it exactly.
+6. Select the Project Board and press Break into parts: its other two surfaces become windows of
+   their own beside it, linked to it by dashed lines in the panorama, on the radar and on the map.
+   Recombine parts, from the board or a part, puts them back as one change.
+7. With magnetic placement on, drag a window near a spoke (every 15° round you) or a ring (where
+   Arrange round lays windows): it snaps there, and the bar says to what.
+
 ## The seam behind the camera
 
 1. Open `?preset=seam`. Turn round: windows straddle the seam behind the camera, and one sits
