@@ -1,5 +1,9 @@
 import { fileURLToPath, URL } from 'node:url';
 import { defineConfig } from 'vitest/config';
+import { withReferenceApp } from './scripts/uikit.mjs';
+
+// The reference application needs the wsb UI kit; without it, its tests are left out, saying so.
+const withApp = withReferenceApp();
 
 const source = (pkg) => fileURLToPath(new URL(`./packages/${pkg}/src/index.ts`, import.meta.url));
 
@@ -25,7 +29,7 @@ export default defineConfig({
   test: {
     include: [
       'packages/*/test/**/*.test.ts',
-      'apps/*/test/**/*.test.ts',
+      ...(withApp ? ['apps/*/test/**/*.test.ts'] : []),
       'examples/test/**/*.test.ts',
     ],
     // Browser tests need a real browser: `npm run test:browser`.

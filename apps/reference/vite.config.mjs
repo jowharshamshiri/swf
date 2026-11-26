@@ -1,7 +1,11 @@
 import { fileURLToPath, URL } from 'node:url';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
-import { uikit } from '@wsb/uikit/vite';
 import { defineConfig } from 'vite';
+import { UIKIT_MISSING, uikitPresent } from '../../scripts/uikit.mjs';
+
+// The application is built from the wsb UI kit: without it there is nothing to build.
+if (!uikitPresent()) throw new Error(UIKIT_MISSING);
+const { uikit } = await import('@wsb/uikit/vite');
 
 const PACKAGES = [
   'math',

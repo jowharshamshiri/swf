@@ -1,6 +1,7 @@
 import js from '@eslint/js';
 import { defineConfig } from 'eslint/config';
 import tseslint from 'typescript-eslint';
+import { withReferenceApp } from './scripts/uikit.mjs';
 
 export default defineConfig(
   {
@@ -19,6 +20,8 @@ export default defineConfig(
       // The pinned checkout of wsb, for its UI kit, and the dev-server test's copy of the app.
       'wsb/**',
       'apps/reference/.dev-test-*/**',
+      // The reference application needs the wsb UI kit to be checked; without it, it is left out.
+      ...(withReferenceApp() ? [] : ['apps/reference/**']),
     ],
   },
   js.configs.recommended,
