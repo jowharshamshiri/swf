@@ -11,6 +11,8 @@
   import type { SnapConstraint } from '../magnetic.js';
   import type { MessageId } from '../messages.js';
   import type { ShellModel } from './model.svelte.js';
+  import { PanoramaGuides } from './panorama-guides.js';
+  import ViewControls from './ViewControls.svelte';
 
   interface Props {
     model: ShellModel;
@@ -30,7 +32,15 @@
       throw new Error('the panorama has no surface to present in');
     }
     const element = surface;
-    void model.start(element);
+    // The guides under the windows: what lies behind the camera, and the seam.
+    let guides: PanoramaGuides | null = null;
+    let gone = false;
+    void model.start(element).then(() => {
+      const app = model.app;
+      if (app !== null && !gone) {
+        guides = new PanoramaGuides({ app, messages: model.messages, container: element });
+      }
+    });
     // Whether the panorama itself has the keyboard, so its keys can be shown where hints are.
     const follow = () => {
       model.panoramaFocused = element.ownerDocument.activeElement === element;
@@ -38,6 +48,9 @@
     element.addEventListener('focusin', follow);
     element.addEventListener('focusout', follow);
     return () => {
+      gone = true;
+      guides?.dispose();
+      guides = null;
       element.removeEventListener('focusin', follow);
       element.removeEventListener('focusout', follow);
       model.panoramaFocused = false;
@@ -169,6 +182,7 @@
 </script>
 
 {#snippet head()}
+  <ViewControls {model} />
   {#if restoreProblem !== null}
     <Toolbar ariaLabel={t('restore.failed', { reason: restoreProblem.message })}>
       <Text>{t('restore.failed', { reason: restoreProblem.message })}</Text>
@@ -345,7 +359,7 @@
   {#if model.startProblem !== null}
     <Notice tone="danger" title={model.startProblem} handle={handleOf`page.panorama.problem`} />
   {/if}
-  {#if model.refusal !== null && !model.isSceneRefusal(model.refusal) && !model.isFeatureRefusal(model.refusal) && !model.isWorkspaceRefusal(model.refusal) && !model.isInspectorRefusal(model.refusal)}
+  {#if model.refusal !== null && !model.isSceneRefusal(model.refusal) && !model.isFeatureRefusal(model.refusal) && !model.isWorkspaceRefusal(model.refusal) && !model.isInspectorRefusal(model.refusal) && !model.isRadarRefusal(model.refusal) && !model.isViewRefusal(model.refusal)}
     <Notice tone="danger" title={model.refusalText(model.refusal)} handle={handleOf`page.panorama.refusal`} />
   {/if}
   {#if model.keyRefusal !== null}

@@ -220,19 +220,29 @@ describe('the reference controls (QA-009, UX-013, NFR-024)', () => {
     await settle();
     /** The panorama's frame: its view draws the ring there while the panorama has the keyboard. */
     const frame = root.querySelector('[data-wsb="page.panorama.viewport"]')?.parentElement ?? null;
-    /** What shows an element has the keyboard: its ring, its edge, its ground. */
+    /**
+     * What shows an element has the keyboard: its ring, its edge, its ground, and the ring of
+     * what it draws inside it (a slider rings its thumb).
+     */
     const look = (element: HTMLElement) => {
       const style = getComputedStyle(element);
       const ring =
         element === app.root && frame !== null ? getComputedStyle(frame, '::after') : null;
+      const outline = (s: CSSStyleDeclaration) =>
+        s.outlineStyle === 'none'
+          ? 'none'
+          : `${s.outlineStyle} ${s.outlineWidth} ${s.outlineColor}`;
+      const inner =
+        element === app.root
+          ? []
+          : [...element.querySelectorAll('*')].map((child) => outline(getComputedStyle(child)));
       return [
         ring === null ? '' : `${ring.content} ${ring.borderTopStyle} ${ring.borderTopColor}`,
-        style.outlineStyle === 'none'
-          ? 'none'
-          : `${style.outlineStyle} ${style.outlineWidth} ${style.outlineColor}`,
+        outline(style),
         style.borderTopColor,
         style.backgroundColor,
         style.boxShadow,
+        ...inner,
       ].join(' / ');
     };
     const unringed: string[] = [];

@@ -101,6 +101,18 @@
             'reference.gesture.grab',
             { id: model.selected.id },
           ),
+          command(
+            'window.bringFront',
+            t('command.window.bringFront.named', { label: model.selected.label ?? model.selected.id }),
+            'reference.window.bringFront',
+            { id: model.selected.id },
+          ),
+          command(
+            'window.sendBehind',
+            t('command.window.sendBehind.named', { label: model.selected.label ?? model.selected.id }),
+            'reference.window.sendBehind',
+            { id: model.selected.id },
+          ),
         ]),
     {
       value: 'panorama.focus',

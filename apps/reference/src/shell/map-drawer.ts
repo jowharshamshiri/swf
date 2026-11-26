@@ -3,21 +3,51 @@ import { resolvePalette } from '@wsb/uikit/primitives';
 import type { ReferenceApp } from '../app.js';
 import { VIEWPORT_ID } from '../app.js';
 import type { MapScene, MapView } from '../map.js';
-import { MAP_SCALE, mapScene, MarkerDrag, markerAt, toGround, toMap, zoomed } from '../map.js';
+import {
+  inView,
+  MAP_SCALE,
+  mapScene,
+  MarkerDrag,
+  markerAt,
+  radarReach,
+  radarView,
+  ringStep,
+  toGround,
+  toMap,
+  zoomed,
+} from '../map.js';
 import type { Messages } from '../messages.js';
+import { fieldOfViewOf } from '../modes.js';
 
 /**
  * Draws the map on the kit's stage and works it: the ground split into what lies in front of the
- * camera and what lies behind, rings a world unit apart round the camera, the camera with its
- * heading, and each window as the line it stands on from above with a dot at its centre (filled
- * in front, hollow behind). Window names are the stage's units, real text over the drawing.
+ * camera and what lies behind, the wedge the panorama shows (while it shows less than the whole
+ * circle), rings round the camera, the camera with its heading, and each window as the line it
+ * stands on from above with a dot at its centre (filled in front, hollow and dashed behind, faded
+ * while the panorama does not show it, ringed while it is focused, in the selection's colour while
+ * it is selected). Window names are the stage's units, real text over the drawing.
  *
  * A press on a window selects it, and dragging it (past the router's slop) moves the window on
  * the ground as far as the pointer moves, the point it was grabbed by staying under the pointer:
  * previewed on every move, so every view shows it where it is being put, and committed once when
- * it is let go (Escape puts it back). A press that does not drag moves nothing. A press on the ground pans the map; the wheel zooms it about the pointer.
- * The map's centre and scale are its own view state, never the scene's.
+ * it is let go (Escape puts it back). A press that does not drag moves nothing.
+ *
+ * Drawn as the map, a press on the ground pans it and the wheel zooms it about the pointer: its
+ * centre and scale are its own view state, never the scene's. Drawn as the radar, it is always
+ * centred on the camera and scaled to hold every window inside its rim, with the distance of each
+ * ring and the bearing round the rim written on it; the ground takes no press and the wheel scrolls
+ * what the radar is in. Its scale holds while a window is dragged, so the pointer keeps its place.
  */
+
+/** A map the reader pans and zooms, or a radar that follows the camera. */
+export type MapKind = 'map' | 'radar';
+
+/** Room round the radar's rim for its bearings, in CSS pixels. */
+export const RADAR_MARGIN = 24;
+/** A bearing written round the radar's rim, and its tick. */
+const BEARINGS = Object.freeze([0, 90, 180, -90]);
+/** Room for a ring's distance or a bearing, in CSS pixels. */
+const READING = Object.freeze({ width: 60, height: 22 });
 
 /** How near a press must be to a window's dot to take it, in CSS pixels. */
 const REACH = 12;
@@ -32,11 +62,14 @@ const INKS = Object.freeze({
   quiet: 'descriptionForeground',
   ink: 'editor.foreground',
   accent: 'focusBorder',
+  focused: 'editorWarning.foreground',
   camera: 'button.background',
 });
 type Inks = { readonly [K in keyof typeof INKS]: string };
 
 export interface MapDrawerOptions {
+  /** Default `map`. */
+  readonly kind?: MapKind;
   readonly app: ReferenceApp;
   readonly messages: Messages;
   readonly viewport: HTMLElement;
@@ -52,6 +85,7 @@ export interface MapDrawerOptions {
 export class MapDrawer {
   #view: MapView;
   readonly #options: MapDrawerOptions;
+  readonly #kind: MapKind;
   #inks: Inks;
   /**
    * A marker pressed: it becomes a drag (`marker`) once the pointer has moved past the router's
@@ -69,6 +103,7 @@ export class MapDrawer {
 
   constructor(options: MapDrawerOptions) {
     this.#options = options;
+    this.#kind = options.kind ?? 'map';
     const box = options.viewport.getBoundingClientRect();
     this.#view = { centre: [0, 0], scale: MAP_SCALE.initial, width: box.width, height: box.height };
     this.#inks = this.#readInks();
@@ -142,6 +177,9 @@ export class MapDrawer {
       viewport,
       'wheel',
       (event) => {
+        if (this.#kind === 'radar') {
+          return;
+        }
         event.preventDefault();
         const [x, y] = this.#local(event);
         this.#setView(zoomed(this.#view, Math.pow(MAP_SCALE.step, -event.deltaY / 100), x, y));
@@ -195,6 +233,16 @@ export class MapDrawer {
     }
   }
 
+  /** The view the drawing is laid out in now: the radar's follows the camera and fits the scene. */
+  #laidOut(scene: MapScene): MapView {
+    if (this.#kind === 'map' || this.#drag?.marker != null) {
+      return this.#view;
+    }
+    const { width, height } = this.#view;
+    this.#view = radarView(scene, width, height, RADAR_MARGIN);
+    return this.#view;
+  }
+
   #readInks(): Inks {
     const palette = resolvePalette(this.#options.viewport.ownerDocument.documentElement);
     const ink = (name: string): string => {
@@ -211,6 +259,7 @@ export class MapDrawer {
       quiet: ink(INKS.quiet),
       ink: ink(INKS.ink),
       accent: ink(INKS.accent),
+      focused: ink(INKS.focused),
       camera: ink(INKS.camera),
     };
   }
@@ -247,13 +296,19 @@ export class MapDrawer {
       return;
     }
     const [x, y] = this.#local(event);
-    const marker = markerAt(this.#view, this.#scene(), x, y, REACH);
-    this.#options.viewport.setPointerCapture(event.pointerId);
-    event.preventDefault();
+    const scene = this.#scene();
+    const marker = markerAt(this.#laidOut(scene), scene, x, y, REACH);
     if (marker === null) {
-      this.#pan = { pointer: event.pointerId, x, y };
+      // The radar's ground takes no press: it always shows the camera at its centre.
+      if (this.#kind === 'map') {
+        this.#options.viewport.setPointerCapture(event.pointerId);
+        event.preventDefault();
+        this.#pan = { pointer: event.pointerId, x, y };
+      }
       return;
     }
+    this.#options.viewport.setPointerCapture(event.pointerId);
+    event.preventDefault();
     this.#options.onselect(marker.id);
     this.#drag = { nodeId: marker.id, pointer: event.pointerId, from: [x, y], marker: null };
   }
@@ -267,11 +322,16 @@ export class MapDrawer {
         if (Math.hypot(x - drag.from[0], y - drag.from[1]) <= slopPx) {
           return;
         }
+        const { policies } = this.#options.app;
         drag.marker = new MarkerDrag(
           this.#options.app.workspace,
           VIEWPORT_ID,
           drag.nodeId,
           toGround(this.#view, drag.from[0], drag.from[1]),
+          () => {
+            const features = policies.status().features;
+            return features.enabled.snap ? features.snap : null;
+          },
         );
       }
       const [gx, gz] = toGround(this.#view, x, y);
@@ -320,10 +380,27 @@ export class MapDrawer {
     }
     const ink = this.#inks;
     const scene = this.#scene();
-    const view = this.#view;
+    const view = this.#laidOut(scene);
+    const { app } = this.#options;
+    const presented = app.workspace.getPresented();
+    const shown = new Set(
+      scene.markers
+        .filter((marker) => inView(presented, VIEWPORT_ID, app.projections, marker.id))
+        .map((marker) => marker.id),
+    );
+    const projection = presented.viewports.get(VIEWPORT_ID)?.projection;
+    const fieldOfView = projection === undefined ? 360 : fieldOfViewOf(projection);
     g.setTransform(ratio, 0, 0, ratio, 0, 0);
     g.fillStyle = ink.ground;
     g.fillRect(0, 0, width, height);
+    g.save();
+    if (this.#kind === 'radar') {
+      // The radar is a disc: nothing it draws reaches past its rim.
+      const [rx, ry] = toMap(view, scene.camera.x, scene.camera.z);
+      g.beginPath();
+      g.arc(rx, ry, radarReach(scene) * view.scale + 1, 0, 2 * Math.PI);
+      g.clip();
+    }
 
     // Behind the camera: the half-plane on the far side of the line through it, square to its
     // heading.
@@ -349,15 +426,59 @@ export class MapDrawer {
     g.lineTo(cx - across[0] * far, cy - across[1] * far);
     g.stroke();
 
-    // Rings a world unit apart round the camera, as far as the map shows.
-    const reach =
-      Math.hypot(width, height) / view.scale +
-      Math.hypot(view.centre[0] - scene.camera.x, view.centre[1] - scene.camera.z);
-    const every = view.scale < 20 ? 5 : 1;
-    for (let r = every; r <= reach; r += every) {
+    // What the panorama shows: a wedge about the heading, while it shows less than the circle.
+    if (fieldOfView < 360) {
+      const half = (fieldOfView * Math.PI) / 360;
+      // The canvas measures angles clockwise from +X; a heading, clockwise from up.
+      const start = scene.camera.heading - half - Math.PI / 2;
+      g.globalAlpha = 0.16;
+      g.fillStyle = ink.accent;
       g.beginPath();
-      g.arc(cx, cy, r * view.scale, 0, 2 * Math.PI);
+      g.moveTo(cx, cy);
+      g.arc(cx, cy, far, start, start + 2 * half);
+      g.closePath();
+      g.fill();
+      g.globalAlpha = 0.7;
+      g.strokeStyle = ink.accent;
+      g.beginPath();
+      g.moveTo(cx + Math.cos(start) * far, cy + Math.sin(start) * far);
+      g.lineTo(cx, cy);
+      g.lineTo(cx + Math.cos(start + 2 * half) * far, cy + Math.sin(start + 2 * half) * far);
       g.stroke();
+      g.globalAlpha = 1;
+      g.strokeStyle = ink.rule;
+    }
+
+    // Rings round the camera: a world unit apart as far as the map shows, or the radar's own.
+    if (this.#kind === 'radar') {
+      const reach = radarReach(scene);
+      const step = ringStep(reach);
+      for (let r = step; r <= reach + 1e-9; r += step) {
+        g.beginPath();
+        g.arc(cx, cy, r * view.scale, 0, 2 * Math.PI);
+        g.stroke();
+      }
+      // The bearings round the rim, a tick at each.
+      const rim = reach * view.scale;
+      g.strokeStyle = ink.quiet;
+      for (let degrees = 0; degrees < 360; degrees += 30) {
+        const a = (degrees * Math.PI) / 180;
+        const inner = rim - (degrees % 90 === 0 ? 8 : 4);
+        g.beginPath();
+        g.moveTo(cx + Math.sin(a) * inner, cy - Math.cos(a) * inner);
+        g.lineTo(cx + Math.sin(a) * rim, cy - Math.cos(a) * rim);
+        g.stroke();
+      }
+    } else {
+      const reach =
+        Math.hypot(width, height) / view.scale +
+        Math.hypot(view.centre[0] - scene.camera.x, view.centre[1] - scene.camera.z);
+      const every = view.scale < 20 ? 5 : 1;
+      for (let r = every; r <= reach; r += every) {
+        g.beginPath();
+        g.arc(cx, cy, r * view.scale, 0, 2 * Math.PI);
+        g.stroke();
+      }
     }
 
     // The camera, and its heading.
@@ -379,7 +500,7 @@ export class MapDrawer {
       const [ax, ay] = toMap(view, a[0], a[1]);
       const [bx, by] = toMap(view, b[0], b[1]);
       const colour = marker.selected ? ink.accent : marker.side === 'front' ? ink.ink : ink.quiet;
-      g.globalAlpha = marker.visible ? 1 : 0.45;
+      g.globalAlpha = marker.visible && shown.has(marker.id) ? 1 : 0.4;
       g.strokeStyle = colour;
       g.lineWidth = marker.selected ? 4 : 3;
       g.setLineDash(marker.side === 'behind' ? [4, 3] : []);
@@ -394,21 +515,27 @@ export class MapDrawer {
         g.fillStyle = colour;
         g.fill();
       } else {
+        // Hollow: its middle is the ground behind the camera, however faded its ring.
+        const alpha = g.globalAlpha;
+        g.globalAlpha = 1;
         g.fillStyle = ink.behind;
         g.fill();
+        g.globalAlpha = alpha;
         g.lineWidth = 2;
         g.stroke();
       }
+      // Focus is never faded: the window keys act on is always seen.
+      g.globalAlpha = 1;
       if (marker.focused) {
-        g.strokeStyle = ink.accent;
+        g.strokeStyle = ink.focused;
         g.lineWidth = 2;
         g.beginPath();
         g.arc(mx, my, 10, 0, 2 * Math.PI);
         g.stroke();
       }
-      g.globalAlpha = 1;
     }
-    this.#options.onunits(this.#units(scene));
+    g.restore();
+    this.#options.onunits(this.#units(scene, view));
   }
 
   /**
@@ -416,8 +543,7 @@ export class MapDrawer {
    * the selected and focused windows', then the nearest to the camera, each only where it
    * overlaps no name already placed.
    */
-  #units(scene: MapScene): StageUnit[] {
-    const view = this.#view;
+  #units(scene: MapScene, view: MapView): StageUnit[] {
     const units: StageUnit[] = [];
     const placed: { x: number; y: number }[] = [];
     const free = (x: number, y: number) =>
@@ -434,10 +560,58 @@ export class MapDrawer {
       Math.sin(scene.camera.heading),
       -Math.cos(scene.camera.heading),
     ];
-    for (const [key, sign, label] of [
-      ['region.front', 1, messages.format('map.front')],
-      ['region.behind', -1, messages.format('map.behind')],
-    ] as const) {
+    const reading = (key: string, title: string, x: number, y: number) => {
+      placed.push({ x, y });
+      units.push({
+        key,
+        title,
+        x,
+        y,
+        width: READING.width,
+        height: READING.height,
+        scale: 1,
+        depth: 0,
+        container: false,
+        band: 0,
+        emphasis: 'quiet',
+        titled: true,
+        open: false,
+        interactive: false,
+      });
+    };
+    if (this.#kind === 'radar') {
+      // Each ring's distance, down the line straight behind as the scene was made; each bearing,
+      // at the rim.
+      const reach = radarReach(scene);
+      const step = ringStep(reach);
+      for (let r = step; r <= reach + 1e-9; r += step) {
+        const value = Number(r.toFixed(2));
+        reading(
+          `ring.${String(value)}`,
+          messages.format('radar.ring', { value }),
+          cx + 3,
+          cy + r * view.scale - READING.height + 4,
+        );
+      }
+      // Straight ahead and behind outside the rim; the sides just inside it, above their ticks,
+      // where a reading fits however narrow the radar is.
+      const rim = reach * view.scale;
+      for (const degrees of BEARINGS) {
+        const title = messages.format('radar.bearing', { value: degrees });
+        const side = degrees === 0 || degrees === 180 ? 0 : Math.sign(degrees);
+        const [x, y] =
+          side === 0
+            ? [cx - READING.width / 2, degrees === 0 ? cy - rim - READING.height : cy + rim]
+            : [side > 0 ? cx + rim - READING.width - 2 : cx - rim + 2, cy - READING.height - 2];
+        reading(`bearing.${String(degrees)}`, title, x, y);
+      }
+    }
+    for (const [key, sign, label] of this.#kind === 'radar'
+      ? []
+      : ([
+          ['region.front', 1, messages.format('map.front')],
+          ['region.behind', -1, messages.format('map.behind')],
+        ] as const)) {
       const x = cx + sign * ahead[0] * 48 - LABEL.width / 2;
       const y = cy + sign * ahead[1] * 48 - LABEL.height / 2;
       placed.push({ x, y });
@@ -465,7 +639,8 @@ export class MapDrawer {
       if (x > view.width || y > view.height || x + LABEL.width < 0 || y + LABEL.height < 0) {
         continue;
       }
-      const titled = marker.selected || marker.focused || free(x, y);
+      // On the radar, only the selected and the focused window are named: it is small.
+      const titled = marker.selected || marker.focused || (this.#kind === 'map' && free(x, y));
       if (titled) {
         placed.push({ x, y });
       }

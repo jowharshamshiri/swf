@@ -18,7 +18,7 @@ import {
   LayeredRenderer,
 } from '@swf/backend-geometry';
 import type { Id, JsonValue, SceneCommand, SceneState, TxResult, Workspace } from '@swf/core';
-import { createWorkspace, nodeFrameGeometry, worldMatrix } from '@swf/core';
+import { createWorkspace, worldMatrix } from '@swf/core';
 import type {
   CommandOutcome,
   DispatchResult,
@@ -26,7 +26,7 @@ import type {
   InputIntent,
   InteractionRouter,
 } from '@swf/interaction';
-import { createInteractionRouter } from '@swf/interaction';
+import { createInteractionRouter, DEFAULT_KEYBOARD_STEPS } from '@swf/interaction';
 import type {
   BackendChoice,
   PresentationRegistry,
@@ -35,7 +35,7 @@ import type {
   SwitchOutcome,
 } from '@swf/presentation';
 import type { StandInReason } from '@swf/presentation';
-import { createPresentationRegistry, createPresenter, viewGeometryOf } from '@swf/presentation';
+import { createPresentationRegistry, createPresenter } from '@swf/presentation';
 import type { RestoreOutcome, SnapshotStore } from '@swf/persistence';
 import { createWebStorageStore } from '@swf/persistence';
 import type { ProjectionRegistry } from '@swf/projections';
@@ -43,7 +43,7 @@ import {
   cameraRotation,
   createProjectionRegistry,
   equirectangular,
-  projectionFor,
+  headingPitchOf,
 } from '@swf/projections';
 import type { SurfaceRuntime } from '@swf/surfaces';
 import { createSurfaceRuntime } from '@swf/surfaces';
@@ -65,7 +65,8 @@ import type { Messages } from './messages.js';
 import { createMessages } from './messages.js';
 import type { FocusContext } from './focus.js';
 import { createFocusMode, FOCUS_ID, focusContext } from './focus.js';
-import { placedAt } from './map.js';
+import type { AroundSide } from './map.js';
+import { aroundCamera, arrangedAround, inView, placedAt } from './map.js';
 import type { Modes } from './modes.js';
 import { createModes, MAP, OVERVIEW, PANORAMA } from './modes.js';
 import type { FeaturePatch } from './features.js';
@@ -303,6 +304,24 @@ export interface ReferenceApp {
       readonly z?: number | undefined;
     },
   ): TxResult;
+  /**
+   * Puts a window straight ahead of the camera or straight behind it, at its distance and height,
+   * facing the camera as it did: one undoable commit. Throws a RangeError for a window standing at
+   * the camera.
+   */
+  placeAround(id: string, side: AroundSide): TxResult;
+  /**
+   * Arranges every window that stands on its own and is not locked round the camera, evenly over
+   * the whole circle from straight ahead, by what it shows and its colour, on three rings: one
+   * within each band semantic depth draws by (near enough to show whole, compact, a label alone).
+   * One undoable commit; null when there is no window to arrange.
+   */
+  arrangeWindows(): TxResult | null;
+  /**
+   * Turns the camera to a heading, in degrees to the right of straight ahead, keeping its pitch:
+   * view state, never undone.
+   */
+  turnCamera(degrees: number): TxResult;
   /** The windows around the focused one while focus is shown; null otherwise. */
   focusNeighbours(): FocusContext | null;
   /** How a window stands as the panorama shows it now (a held window where it is held). */
@@ -488,6 +507,25 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
     presentation: (surfaceId) => mount.viewport.presentation(surfaceId),
     timer,
   });
+  // A and D turn the camera as Alt+← and Alt+→ do, the keys a game turns with, kept to the
+  // panorama as every framework key is. Set before the policies read the keymap they keep.
+  router.configure({
+    keymap: [
+      ...router.settings().keymap,
+      {
+        key: 'a',
+        modifiers: [],
+        command: 'camera.turn',
+        args: { heading: -DEFAULT_KEYBOARD_STEPS.turn },
+      },
+      {
+        key: 'd',
+        modifiers: [],
+        command: 'camera.turn',
+        args: { heading: DEFAULT_KEYBOARD_STEPS.turn },
+      },
+    ],
+  });
   const modes = createModes(workspace, VIEWPORT_ID);
   modes.register(PANORAMA);
   // Focus and the map are features: the policies register them while they are on, after the
@@ -591,17 +629,10 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
         return 'unbound';
     }
   };
-  const coverageOf = (state: SceneState, nodeId: string) => {
-    const view = viewGeometryOf(state, VIEWPORT_ID);
-    const module = projections.get(view.projectionId);
-    const frame = nodeFrameGeometry(state, nodeId);
-    if (module === undefined || frame === undefined) {
-      throw new Error(`window "${nodeId}" cannot be placed in the view`);
-    }
-    return projectionFor(module, view).clipVisibility(frame, view).state === 'outside'
-      ? ('out-of-view' as const)
-      : ('in-view' as const);
-  };
+  const coverageOf = (state: SceneState, nodeId: string) =>
+    inView(state, VIEWPORT_ID, projections, nodeId)
+      ? ('in-view' as const)
+      : ('out-of-view' as const);
   const search = createSearch({
     workspace,
     viewportId: VIEWPORT_ID,
@@ -844,6 +875,45 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
         throw new Error(`window "${id}" cannot be placed: its group's placement is singular`);
       }
       return workspace.dispatch({ type: 'node.patch', id, transform }, { source: 'user' });
+    },
+    placeAround(id, side) {
+      const state = workspace.getState();
+      if (state.nodes.get(id)?.kind !== 'window') {
+        throw new Error(`no window "${id}"`);
+      }
+      const transform = aroundCamera(state, id, VIEWPORT_ID, side);
+      if (transform === null) {
+        throw new Error(`window "${id}" cannot be placed: its group's placement is singular`);
+      }
+      return workspace.dispatch({ type: 'node.patch', id, transform }, { source: 'user' });
+    },
+    arrangeWindows() {
+      const { full, compact } = policies.status().features.depth;
+      const commands = arrangedAround(
+        workspace.getState(),
+        VIEWPORT_ID,
+        [full * 0.75, (full + compact) / 2, compact * 1.15],
+        (node) => {
+          const colour = node.metadata[COLOUR_KEY];
+          return typeof colour === 'string' ? colour : '';
+        },
+      );
+      return commands.length === 0 ? null : workspace.transaction(commands, { source: 'user' });
+    },
+    turnCamera(degrees) {
+      const camera = workspace.getState().cameras.get(CAMERA_ID);
+      if (camera === undefined) {
+        throw new Error(`no camera "${CAMERA_ID}"`);
+      }
+      const { pitch } = headingPitchOf(camera.rotation);
+      return workspace.dispatch(
+        {
+          type: 'camera.patch',
+          id: CAMERA_ID,
+          rotation: cameraRotation((degrees * Math.PI) / 180, pitch),
+        },
+        { source: 'user' },
+      );
     },
     focusNeighbours() {
       const state = workspace.getState();

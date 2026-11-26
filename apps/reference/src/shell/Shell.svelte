@@ -10,6 +10,7 @@
     IconButton,
     Segmented,
     Select,
+    Stack,
     StatusItem,
     Tabs,
   } from '@wsb/uikit/components';
@@ -23,11 +24,13 @@
   import type { Component } from 'svelte';
   import { untrack } from 'svelte';
   import InspectorView from './InspectorView.svelte';
+  import RadarView from './RadarView.svelte';
   import type { ShellModel } from './model.svelte.js';
   import Palette from './Palette.svelte';
   import CentreView from './CentreView.svelte';
   import FeaturesView from './FeaturesView.svelte';
   import { FOCUS_ID } from '../focus.js';
+  import { MAP, OVERVIEW } from '../modes.js';
   import SceneView from './SceneView.svelte';
   import StatusBody from './StatusBody.svelte';
   import WindowsView from './WindowsView.svelte';
@@ -51,6 +54,8 @@
 
   let leftView = $state<string | null>('scene');
   let rightView = $state<string | null>('inspector');
+  /** The radar is open above the inspector: folded, it leaves the inspector the whole side. */
+  let radarOpen = $state(true);
   let widths = $state({ left: 280, right: 280 });
   let panelOpen = $state(true);
   let panelHeight = $state(190);
@@ -105,6 +110,44 @@
     if (event.key === 'Escape' && model.status?.mode === FOCUS_ID) {
       event.preventDefault();
       void model.run('reference.focus.exit', {});
+      return;
+    }
+    if (event.target === model.app.root && !command && !event.altKey) {
+      panoramaKey(event);
+    }
+  }
+
+  /**
+   * The panorama's own keys for its views, while the panorama has the keyboard (so a single key
+   * never acts from anywhere else, WCAG 2.1.4): 1 to 4 show the views in the switcher's order, F
+   * focuses the selected window, M shows the map, and Escape leaves the map or the overview for
+   * the view it was opened from.
+   */
+  function panoramaKey(event: KeyboardEvent): void {
+    const listed = modes.filter((mode) => !mode.disabled);
+    const digit = /^[1-9]$/.test(event.key) ? Number(event.key) : null;
+    if (digit !== null) {
+      const mode = modes[digit - 1];
+      if (mode !== undefined && listed.includes(mode)) {
+        event.preventDefault();
+        void model.run('reference.mode.switch', { mode: mode.value });
+      }
+      return;
+    }
+    const key = event.key.toLowerCase();
+    if (key === 'f' && model.policies?.features.enabled.focus === true) {
+      event.preventDefault();
+      void model.run('reference.focus.enter', {});
+      return;
+    }
+    if (key === 'm' && model.policies?.features.enabled.map === true) {
+      event.preventDefault();
+      void model.run('reference.mode.switch', { mode: MAP.id });
+      return;
+    }
+    if (event.key === 'Escape' && (model.status?.mode === MAP.id || model.status?.mode === OVERVIEW.id)) {
+      event.preventDefault();
+      void model.run('reference.mode.back', {});
     }
   }
 
@@ -169,7 +212,7 @@
   });
   const rightViews = $derived(
     sideViews([
-      { id: 'inspector', icon: 'info', label: t('inspector.title') },
+      { id: 'inspector', icon: 'info', label: t('side.right') },
       ...(developer === null
         ? []
         : [{ id: 'developer', icon: 'tool' as const, label: t('dev.title') }]),
@@ -223,7 +266,19 @@
 
 {#snippet rightContent(view: string)}
   {#if view === 'inspector'}
-    <InspectorView {model} />
+    <!-- The radar first, then what is selected: the two share the side's height. -->
+    <Stack fill gap="small">
+      <RadarView
+        {model}
+        open={radarOpen}
+        ontoggle={(open) => {
+          radarOpen = open;
+        }}
+      />
+      <Stack grow>
+        <InspectorView {model} />
+      </Stack>
+    </Stack>
   {:else if developer !== null && view === 'developer'}
     {@const Developer = developer}
     <Developer {model} />

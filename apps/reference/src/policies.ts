@@ -1,6 +1,14 @@
 import { createVirtualCursor } from '@swf/backend-dom';
-import type { CancelReason, Id, NavigationTarget, TxResult, Workspace } from '@swf/core';
+import type {
+  CancelReason,
+  Id,
+  NavigationTarget,
+  PreviewResult,
+  TxResult,
+  Workspace,
+} from '@swf/core';
 import type { CommandOutcome, InputAdapter, InteractionRouter, KeyBinding } from '@swf/interaction';
+import { placementOf, turnedAbout } from '@swf/interaction';
 import type { PresentedViewport, Representation } from '@swf/presentation';
 import type { Modes, ViewMode } from './modes.js';
 import { viewGeometryOf } from '@swf/presentation';
@@ -11,7 +19,7 @@ import { DEFAULT_FEATURES, updateFeatures } from './features.js';
 import type { Snap } from './magnetic.js';
 import { magneticMovePolicy } from './magnetic-policy.js';
 import type { OrbitEvent, OrbitState } from './orbit.js';
-import { orbitKeymap, orbitRepair, orbitStateOf, orbitTransition } from './orbit.js';
+import { orbitHeading, orbitKeymap, orbitRepair, orbitStateOf, orbitTransition } from './orbit.js';
 import { semanticDepth } from './semantic-depth.js';
 import type { WrapFrame } from './wrapped-cursor.js';
 import { wrappedInput } from './wrapped-cursor.js';
@@ -90,6 +98,17 @@ export interface Policies {
    * there is no root.
    */
   turnWorkspace(degrees: number): CommandOutcome;
+  /**
+   * Turns the orbit root about the camera until it stands `degrees` to the right of where it was
+   * placed, the shorter way round. With `preview` (a control being dragged) it previews, each
+   * preview replacing the last; without, it commits, the preview open included, as one undoable
+   * change, or returns null when the root already stands so (ending any preview). Throws
+   * {@link PolicyRefusal} when orbit is off, there is no root, or `degrees` is not finite.
+   */
+  turnWorkspaceTo(
+    degrees: number,
+    options: { readonly preview: boolean },
+  ): TxResult | PreviewResult | null;
   /** How the viewport shows a window now (as of its last frame), or null when it is not shown. */
   representationOf(nodeId: Id): Representation | null;
   /** The device's adapter with the wrapped cursor between it and the framework. */
@@ -165,6 +184,9 @@ export function createPolicies(options: PolicyOptions): Policies {
     const domain = projectionFor(module, view).describeDomain();
     return { width: view.width, wraps: domain.fullCircle && domain.seamWrapping };
   };
+
+  /** The preview a control turning the workspace has open, by its ID. */
+  let turnPreview: string | null = null;
 
   /** Commits an orbit transition, or throws its refusal. */
   const transit = (event: OrbitEvent, source: 'user' | 'system' = 'user'): TxResult | null => {
@@ -295,6 +317,51 @@ export function createPolicies(options: PolicyOptions): Policies {
         throw new Error(`orbit.turn did not run: ${String(result.reason)}`);
       }
       return outcome;
+    },
+    turnWorkspaceTo(degrees: number, { preview }: { readonly preview: boolean }) {
+      if (typeof degrees !== 'number' || !Number.isFinite(degrees)) {
+        throw new PolicyRefusal('degrees', 'must be a finite number of degrees');
+      }
+      const state = orbit();
+      if (!state.enabled) {
+        throw new PolicyRefusal('feature', 'workspace orbit is turned off');
+      }
+      const scene = workspace.getState();
+      const rootId = scene.orbitRootId;
+      const turned = orbitHeading(scene);
+      if (rootId === null || turned === null) {
+        throw new PolicyRefusal('orbit', 'no group is designated for workspace orbit');
+      }
+      const viewport = scene.viewports.get(viewportId);
+      const camera = viewport === undefined ? undefined : scene.cameras.get(viewport.cameraId);
+      if (camera === undefined) {
+        throw new Error(`viewport "${viewportId}" has no camera`);
+      }
+      // The shorter way round: never more than half a turn.
+      const target = (degrees * Math.PI) / 180;
+      const angle = Math.atan2(Math.sin(target - turned), Math.cos(target - turned));
+      const open = turnPreview;
+      if (!preview && open === null && Math.abs(angle) < 1e-12) {
+        return null;
+      }
+      const transform = turnedAbout(placementOf(scene, rootId), camera.position, angle);
+      if (transform === null) {
+        throw new PolicyRefusal(
+          'orbit',
+          'the orbit group cannot be turned: its parent is singular',
+        );
+      }
+      const commands = [{ type: 'node.patch' as const, id: rootId, transform }];
+      if (preview) {
+        const id = open ?? `reference.orbit.turn-to/${String(scene.revision)}`;
+        turnPreview = id;
+        return workspace.preview(id, commands, { source: 'user' });
+      }
+      turnPreview = null;
+      return workspace.transaction(commands, {
+        source: 'user',
+        ...(open === null ? {} : { previewId: open }),
+      });
     },
     representationOf(nodeId: Id): Representation | null {
       const frame = viewport?.lastFrame()?.frame;

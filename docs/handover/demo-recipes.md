@@ -40,6 +40,18 @@ in the command list (Ctrl+Shift+P or F1).
    Escape returns to the mode, camera and projection it was entered from.
 4. In Overview, every window is a tile; pressing one selects it. No mode moves a window.
 
+## Navigating with the radar
+
+1. The radar is at the top of the right side in every view: the camera's heading is its arrow,
+   what lies behind is shaded, and the wedge is what the panorama shows.
+2. Set the field of view above the panorama to 150°: the panorama zooms, and the radar's wedge
+   narrows; windows outside it fade on the radar.
+3. Drag a window on the radar to the far side of the camera: the panorama shows it move as you
+   drag, and it lands behind the camera, in the shaded band at the panorama's edges.
+4. Select a window and use its actions: bring it in front of the camera, send it behind, centre the
+   view on it, focus it. Arrange round spreads every window round the circle on three rings.
+5. With the panorama focused, A and D turn the camera, 1 to 4 show the views and M the map.
+
 ## Independent policies
 
 1. Open Features. Turn each module on and off on its own: focus and context, workspace orbit,

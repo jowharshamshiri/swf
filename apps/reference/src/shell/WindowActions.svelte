@@ -1,7 +1,9 @@
 <script lang="ts">
-  // WHAT CAN BE DONE WITH A WINDOW FOUND: focus it, reveal it in the panorama, show it in the map,
-  // or inspect it. None of them moves it; each acts on the window's own ID, whichever list or
-  // tile it was found in. Focus and the map are features: while one is off its action says so.
+  // WHAT CAN BE DONE WITH A WINDOW FOUND: focus it, centre the view on it, bring it in front of
+  // the camera or send it behind, show it in the map, or inspect it. Only bringing and sending move
+  // it (each one undoable change, at the distance it stands); each acts on the window's own ID,
+  // whichever list or tile it was found in. Focus and the map are features: while one is off its
+  // action says so.
   import { IconButton } from '@wsb/uikit/components';
   import { keyed } from '@wsb/uikit/handles';
   import type { MessageId } from '../messages.js';
@@ -41,6 +43,26 @@
   {disabled}
   onpress={() => {
     void model.run('reference.window.reveal', { id });
+  }}
+/>
+<IconButton
+  handle={keyed(`${handle}.front`, id)}
+  icon="ahead"
+  label={t('action.front')}
+  size="small"
+  {disabled}
+  onpress={() => {
+    void model.run('reference.window.bringFront', { id });
+  }}
+/>
+<IconButton
+  handle={keyed(`${handle}.behind`, id)}
+  icon="behind"
+  label={t('action.behind')}
+  size="small"
+  {disabled}
+  onpress={() => {
+    void model.run('reference.window.sendBehind', { id });
   }}
 />
 <IconButton

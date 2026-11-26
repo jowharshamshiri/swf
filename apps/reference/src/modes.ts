@@ -21,8 +21,17 @@ export interface ViewMode {
   /** A stable ID, stored as the viewport's mode. */
   readonly id: string;
   readonly name: MessageId;
-  /** The projection the viewport shows this mode with. */
+  /**
+   * The projection the viewport shows this mode with. A panoramic mode shows the panorama's own
+   * instead, at the field of view the reader last set ({@link Modes.fieldOfView}); this is the one
+   * it starts from.
+   */
   readonly projection: ProjectionSetting;
+  /**
+   * The mode shows the whole panorama at the field of view the reader sets: switching between
+   * panoramic modes keeps it, and a mode that frames its own view (focus) leaves it as it was.
+   */
+  readonly panoramic?: boolean;
   /** Leaving the mode by any route puts the camera back as it was when the mode was entered. */
   readonly restoresView?: boolean;
   /**
@@ -88,30 +97,68 @@ export interface Modes {
    * none.
    */
   back(options?: { readonly source?: 'user' | 'system' }): TxResult;
+  /** The projection panoramic modes show: the panorama at the field of view the reader last set. */
+  panorama(): ProjectionSetting;
+  /**
+   * Sets the panorama's horizontal field of view, in degrees from {@link FIELD_OF_VIEW}'s `min` to
+   * its `max`, as one view-state commit: the panorama zooms, its vertical angle keeping the
+   * panorama's proportion. Throws {@link ModeRefusal} naming `degrees` for a value out of range,
+   * or `mode` while the active mode frames its own view.
+   */
+  fieldOfView(degrees: number): TxResult;
   dispose(): void;
+}
+
+/**
+ * The panorama's horizontal field of view, in degrees: the whole circle at most, and never so
+ * narrow that the panorama stops being one (a quarter of it, about).
+ */
+export const FIELD_OF_VIEW = Object.freeze({ min: 85, max: 360 });
+
+/** The panorama's vertical angle for each degree across: 120° down for the whole 360° across. */
+const VERTICAL_PER_HORIZONTAL = 120 / 360;
+
+/** The projection the panorama is shown with at a horizontal field of view, in degrees. */
+export function panoramaProjection(horizontal: number): ProjectionSetting {
+  return Object.freeze({
+    id: 'equirectangular/1',
+    config: Object.freeze({ horizontal, vertical: horizontal * VERTICAL_PER_HORIZONTAL }),
+  });
+}
+
+/** The horizontal field of view a panorama projection shows, in degrees. */
+export function fieldOfViewOf(projection: ProjectionSetting): number {
+  const config = projection.config as Readonly<Record<string, unknown>> | null;
+  const horizontal = config?.['horizontal'];
+  if (projection.id !== 'equirectangular/1' || typeof horizontal !== 'number') {
+    throw new Error(
+      `the panorama is shown with an equirectangular projection (got ${JSON.stringify(projection)})`,
+    );
+  }
+  return horizontal;
 }
 
 export const PANORAMA: ViewMode = Object.freeze({
   id: 'panorama',
   name: 'mode.panorama',
-  projection: Object.freeze({
-    id: 'equirectangular/1',
-    config: Object.freeze({ horizontal: 360, vertical: 120 }),
-  }),
+  projection: panoramaProjection(FIELD_OF_VIEW.max),
+  panoramic: true,
 });
 
-/** The top-down map: drawn beside the whole panorama, which keeps showing every window. */
+/** The top-down map: drawn beside the panorama, which keeps showing every window. */
 export const MAP: ViewMode = Object.freeze({
   id: 'map',
   name: 'mode.map',
   projection: PANORAMA.projection,
+  panoramic: true,
 });
 
-/** The tiled overview: every window as a tile, beside the whole panorama. */
+/** The tiled overview: every window as a tile, beside the panorama. */
 export const OVERVIEW: ViewMode = Object.freeze({
   id: 'overview',
   name: 'mode.overview',
   projection: PANORAMA.projection,
+  panoramic: true,
 });
 
 export function createModes(workspace: WorkspaceReader & WorkspaceMutator, viewportId: Id): Modes {
@@ -129,6 +176,17 @@ export function createModes(workspace: WorkspaceReader & WorkspaceMutator, viewp
   };
   const recorded = (): string => viewport().mode;
   let machine: ModeMachine = initialMode(recorded());
+  /**
+   * The projection panoramic modes show: the viewport's own whenever it shows one of them (the
+   * reader's field of view, or a restored workspace's), kept while another mode frames its own.
+   */
+  let panorama: ProjectionSetting = PANORAMA.projection;
+  const keepPanorama = () => {
+    const record = viewport();
+    if (modes.get(record.mode)?.panoramic === true) {
+      panorama = record.projection;
+    }
+  };
 
   const view = (): ViewSettings => {
     const record = viewport();
@@ -144,6 +202,7 @@ export function createModes(workspace: WorkspaceReader & WorkspaceMutator, viewp
 
   /** Runs the hooks of the mode the viewport records, stopping the previous mode's. */
   const follow = () => {
+    keepPanorama();
     const id = recorded();
     machine = observedMode(machine, id);
     if (active?.id === id) {
@@ -195,7 +254,7 @@ export function createModes(workspace: WorkspaceReader & WorkspaceMutator, viewp
       type: 'viewport.patch',
       id: viewportId,
       mode: mode.id,
-      projection: next.projection ?? mode.projection,
+      projection: next.projection ?? (mode.panoramic === true ? panorama : mode.projection),
     });
     if (event.kind === 'switch' && mode.enter !== undefined) {
       commands.push(...mode.enter({ viewportId, workspace, target: options.target ?? null }));
@@ -244,6 +303,31 @@ export function createModes(workspace: WorkspaceReader & WorkspaceMutator, viewp
     },
     back(options: { readonly source?: 'user' | 'system' } = {}): TxResult {
       return commit({ kind: 'back' }, options);
+    },
+    panorama: () => panorama,
+    fieldOfView(degrees: number): TxResult {
+      if (
+        typeof degrees !== 'number' ||
+        !Number.isFinite(degrees) ||
+        degrees < FIELD_OF_VIEW.min ||
+        degrees > FIELD_OF_VIEW.max
+      ) {
+        throw new ModeRefusal(
+          'degrees',
+          `the field of view is a number of degrees from ${String(FIELD_OF_VIEW.min)} to ${String(FIELD_OF_VIEW.max)} (got ${String(degrees)})`,
+        );
+      }
+      const id = recorded();
+      if (modes.get(id)?.panoramic !== true) {
+        throw new ModeRefusal(
+          'mode',
+          `the ${id} mode frames its own view: leave it to set the panorama's field of view`,
+        );
+      }
+      return workspace.transaction(
+        [{ type: 'viewport.patch', id: viewportId, projection: panoramaProjection(degrees) }],
+        { source: 'user' },
+      );
     },
     dispose() {
       unsubscribe();

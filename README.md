@@ -847,9 +847,10 @@ scene four ways: as a 360° panorama around the camera, in focus, on a map from 
 
 Its window is built from wsb's UI kit (`@wsb/uikit`) with Svelte 5, and nothing else: every
 control, look and automation handle is the kit's. The scene's controls and the windows (with their
-search) are on the left; what is selected is on the right; the panorama is the whole centre, with the
-view mode, the backend, the command list and the panel across its top; how the panorama is
-presented is in the panel below it. In a narrow window one side at a time floats
+search) are on the left; the radar and what is selected are on the right; the panorama is the whole
+centre, with the view mode, the backend, the command list and the panel across its top and the
+view's own controls (field of view, camera heading, workspace turned) above it; how the panorama
+is presented is in the panel below it. In a narrow window one side at a time floats
 over the panorama, and a panorama narrower than 600 CSS pixels (a phone's) has the view mode as a
 list across its top, leaving what drags turn and the backend to the command list and Features, so
 the actions stay within it: at 320 pixels the scene, the overview, selection and the inspector are
@@ -906,7 +907,9 @@ DOM one.
 Every string the application shows is a message with a stable ID, in English unless a translation
 pack is given, and each action is a command with a stable ID (`reference.preset.load`,
 `reference.scene.reset`, `reference.scene.reseed`, `reference.mode.switch`,
-`reference.backend.switch`, `reference.window.reveal`, `reference.focus.enter`,
+`reference.mode.back`, `reference.view.fov`, `reference.view.heading`,
+`reference.backend.switch`, `reference.window.reveal`, `reference.window.bringFront`,
+`reference.window.sendBehind`, `reference.window.arrange`, `reference.focus.enter`,
 `reference.focus.exit`, `reference.focus.step`, `reference.window.map`,
 `reference.window.inspect`, `reference.window.place`, `reference.window.nudge`,
 `reference.window.turn`, `reference.window.resize`, `reference.window.size`,
@@ -914,6 +917,7 @@ pack is given, and each action is a command with a stable ID (`reference.preset.
 `reference.gesture.drop`, `reference.feature.set`,
 `reference.feature.reset`, `reference.snap.configure`, `reference.depth.configure`,
 `reference.navigation.set`, `reference.orbit.designate`, `reference.orbit.turn`,
+`reference.orbit.turnTo`,
 `reference.history.undo`, `reference.history.redo`, `reference.gesture.cancel`,
 `reference.feature.combine`, `reference.window.remove`, `reference.surface.detach`,
 `reference.surface.move`, `reference.window.merge`, `reference.window.regroup`,
@@ -934,7 +938,10 @@ gesture, saving and restoring.
 - **The panorama** is one stop of the page's keyboard order, an application a screen reader
   names "Panorama" and describes by its keys (`aria-description`). With the keyboard there, the
   framework's keymap acts on the selected window (arrows, Page Up/Down, `[` `]`, `+` `-`, N and
-  P, Enter, Space to pick it up), and the panel's hint lists the keys. While it has the keyboard
+  P, Enter, Space to pick it up), A and D turn the camera as Alt with Left and Right do, 1 to 4
+  show the views in the switcher's order, F shows the selected window in focus, M shows the map
+  and Escape leaves the map or the overview for the view it was opened from; the panel's hint lists
+  the keys. These single keys act only while the panorama has the keyboard. While it has the keyboard
   the kit's view draws its focus ring inside its own edge. Tab leaves it, through the windows' own
   content, which keeps its own keys. The selected window is outlined in the kit's focus colour and
   the focused one in its warning colour, in both backends and appearances.
@@ -951,7 +958,10 @@ gesture, saving and restoring.
   Windows list.
 - **The Windows view** stands in for the panorama for whoever cannot see it: every window, by
   name, with where it is (degrees right or left, up or down, and units away), selected, focused,
-  revealed or inspected from its row.
+  centred on, brought in front of the camera, sent behind it or inspected from its row.
+- **The view's controls** above the panorama are the kit's sliders, each with a number to type:
+  the arrows step them a degree, Page Up and Page Down a tenth of their range, Home and End to
+  their ends.
 - **What happens is said.** What a key or a control did (a window selected, moved, turned,
   resized, picked up, put down, cancelled, locked, the workspace saved) is spoken politely
   through the kit's one announcer, which takes no room; what was refused, and why, is shown as an
@@ -970,7 +980,13 @@ viewport's view setting, never a placement: switching mode changes no window's w
 ID or surface association, and the panorama stays presented in the same element throughout, so no
 content is attached or detached by a switch.
 
-- **Panorama**: the whole 360° around the camera.
+- **Panorama**: the whole 360° around the camera, or as much of it as the field of view shows.
+  The field of view (85° to 360°, set above the panorama) zooms it, its vertical angle keeping the
+  panorama's proportion; the map and the overview show the panorama at the same field of view, and
+  focus, which frames its window with a projection of its own, puts it back when it closes. Under
+  the windows the panorama shades what lies behind the camera and names it, and while it shows the
+  whole circle it marks both edges as the seam, where they meet: a window carried past one edge
+  comes in at the other, its heading moving on without a jump.
 - **Focus**: the selected (or focused) window shown readably, centred and filling three-quarters
   of the view at most two and a half times its content's own size, by turning the camera to face
   it and narrowing the projection to frame it (the same angle per pixel across and down, so
@@ -980,13 +996,16 @@ content is attached or detached by a switch.
   fits the frame again. Escape or the bar's close button leaves focus for the mode, projection and
   camera it was entered from, and leaving it for any other mode puts the camera back too.
 - **Map**: the scene from above, with straight ahead of the default camera up the page: the
-  camera and its heading, the ground in front of it and behind it shaded apart, rings a world unit
-  apart, and each window as the line it stands on, filled in front and hollow behind, with its name.
+  camera and its heading, the ground in front of it and behind it shaded apart, the wedge the
+  panorama shows while its field of view is less than the circle, rings a world unit apart, and
+  each window as the line it stands on, filled in front and hollow and dashed behind, faded while
+  the panorama does not show it, ringed while it is focused, with its name.
   Pressing a window selects it; dragging it (past the same slop as the panorama's) moves it on the
   ground as far as the pointer moves, the point it was grabbed by staying under the pointer,
   previewed in every view as it goes (the panorama below the map shows it move) and committed once
   when let go; Escape puts it back. A press that does not drag moves nothing. A window moved round
-  the camera turns with it, so it keeps facing the camera. Dragging the ground pans, the wheel and
+  the camera turns with it, so it keeps facing the camera, and with magnetic positioning on it
+  snaps to the windows beside it as a move in the panorama does. Dragging the ground pans, the wheel and
   the zoom buttons zoom, and the fields beside the map place the selected window exactly, its
   height (which a map from above cannot show) included.
 - **Overview**: every window the search finds, as tiles, a page at a time with the rest a press
@@ -995,6 +1014,29 @@ content is attached or detached by a switch.
 
 The map and the overview take the top of the centre over the live panorama, with a movable edge
 between them.
+
+### The radar and the view's controls
+
+The radar is at the top of the right side, above what is selected, in every view: the map's
+drawing, always centred on the camera and scaled to hold every window inside its rim, with the
+distance of each ring and the bearings round the rim written on it, and a line saying what its
+marks mean. Pressing a window on it selects it; dragging one moves it round the camera, behind it
+too, previewed in the panorama as it goes and committed once when let go. Under it, Centre on the
+selected turns the camera to face the selected window, and Arrange round spreads every window that
+stands on its own and is not locked evenly round the whole circle from straight ahead, by what it
+shows and its colour, on three rings (one in each band semantic depth draws by), as one undoable
+change. Its head folds it, leaving the side to the selection, and opens it again.
+
+Above the panorama, three sliders set the view: the field of view, the camera's heading and the
+workspace's turn. The heading and the field of view are view state, never undone; turning the
+workspace previews as the slider moves and is one undoable change when let go, and is offered while
+workspace orbit is on and a group is designated, saying why when it is not. Switching what a drag
+on the panorama's background turns, the camera or the workspace, changes no scene coordinate.
+
+Each window's actions, in the inspector, the Windows view's rows and the overview, focus it,
+centre the view on it, bring it straight in front of the camera or send it straight behind (at the
+distance and height it stands, facing the camera; one undoable change each), and show it in the
+map.
 
 ### Behaviour modules
 
@@ -1018,7 +1060,7 @@ Each application holds its own modules: nothing is shared between two of them.
   switched by where the pointer is: the panel says which one is in force, and while drags turn the
   workspace a line above the panorama says so. The Features view picks the group, turns it by 15°
   either way (as do Alt+Shift+Left and Right), and shows the camera's heading beside the
-  workspace's turn to compare the two. Off, drags turn the camera and the keys that turn the group
+  workspace's turn to compare the two; the slider above the panorama turns it to any heading. Off, drags turn the camera and the keys that turn the group
   are taken out of the keymap; the group stays designated.
 - **Semantic depth** represents each window by its distance from the camera: nearer than the first
   band it shows its content, then a compact preview stands for it, and beyond the second band its
@@ -1122,8 +1164,8 @@ the viewport shows it. Results sort by most recently focused (the default), name
 value), distance from the camera, group or ID, either way round; ties go by name, then ID. The
 list draws only the rows in view and reads the results in pages of 50, so hundreds are all
 reachable and none is cut off; when nothing matches it says so and offers to clear the filters or
-reset the search. Each result can be focused, revealed in the panorama, shown in the map or
-inspected, and none of these moves it.
+reset the search. Each result can be focused, centred on in the panorama, brought in front of the
+camera, sent behind it, shown in the map or inspected; only bringing and sending move it.
 
 ## State machines and decision logic
 

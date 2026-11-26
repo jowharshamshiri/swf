@@ -1,4 +1,4 @@
-import type { JsonValue, TxResult } from '@swf/core';
+import type { JsonValue, PreviewResult, TxResult } from '@swf/core';
 import type { ReferenceApp } from './app.js';
 import type { BackendId } from './config.js';
 import { BACKEND_IDS } from './config.js';
@@ -7,7 +7,7 @@ import type { FeatureId } from './features.js';
 import { ALL_ENABLED, DEFAULT_FEATURES, FEATURE_IDS, FeatureError } from './features.js';
 import { FOCUS_ID } from './focus.js';
 import type { MessageId } from './messages.js';
-import { ModeRefusal } from './modes.js';
+import { ModeRefusal, PANORAMA } from './modes.js';
 import { PolicyRefusal } from './policies.js';
 import type { PresetId } from './presets.js';
 import { PRESET_IDS } from './presets.js';
@@ -25,6 +25,8 @@ export interface AppCommandSpecs {
   'reference.scene.reset': Readonly<Record<string, never>>;
   'reference.scene.reseed': { readonly seed?: number };
   'reference.mode.switch': { readonly mode: string };
+  /** Leaves the view shown for the one it was opened from, or the panorama when there is none. */
+  'reference.mode.back': Readonly<Record<string, never>>;
   'reference.backend.switch': { readonly backend: BackendId };
   'reference.window.reveal': { readonly id: string };
   'reference.focus.enter': { readonly id?: string };
@@ -70,6 +72,21 @@ export interface AppCommandSpecs {
   'reference.navigation.set': { readonly target: 'camera' | 'orbit' };
   'reference.orbit.designate': { readonly id: string | null };
   'reference.orbit.turn': { readonly degrees: number };
+  /**
+   * Turns the workspace to stand this many degrees to the right of where it was placed: a preview
+   * while a control is dragged (`preview`), then one undoable change.
+   */
+  'reference.orbit.turnTo': { readonly degrees: number; readonly preview?: boolean };
+  /** Sets the panorama's horizontal field of view, in degrees. */
+  'reference.view.fov': { readonly degrees: number };
+  /** Turns the camera to a heading, in degrees to the right of straight ahead. */
+  'reference.view.heading': { readonly degrees: number };
+  /** Arranges the windows round the camera on three rings, by what they show. */
+  'reference.window.arrange': Readonly<Record<string, never>>;
+  /** Puts a window straight ahead of the camera, at its distance. */
+  'reference.window.bringFront': { readonly id: string };
+  /** Puts a window straight behind the camera, at its distance. */
+  'reference.window.sendBehind': { readonly id: string };
   'reference.history.undo': Readonly<Record<string, never>>;
   'reference.history.redo': Readonly<Record<string, never>>;
   'reference.gesture.cancel': Readonly<Record<string, never>>;
@@ -103,6 +120,7 @@ export const APP_COMMAND_NAMES: Readonly<Record<AppCommandId, MessageId>> = Obje
   'reference.scene.reset': 'command.scene.reset',
   'reference.scene.reseed': 'command.scene.reseed',
   'reference.mode.switch': 'command.mode.switch',
+  'reference.mode.back': 'command.mode.back',
   'reference.backend.switch': 'command.backend.switch',
   'reference.window.reveal': 'command.window.reveal',
   'reference.focus.enter': 'command.focus.enter',
@@ -125,6 +143,12 @@ export const APP_COMMAND_NAMES: Readonly<Record<AppCommandId, MessageId>> = Obje
   'reference.navigation.set': 'command.navigation.set',
   'reference.orbit.designate': 'command.orbit.designate',
   'reference.orbit.turn': 'command.orbit.turn',
+  'reference.orbit.turnTo': 'command.orbit.turnTo',
+  'reference.view.fov': 'command.view.fov',
+  'reference.view.heading': 'command.view.heading',
+  'reference.window.arrange': 'command.window.arrange',
+  'reference.window.bringFront': 'command.window.bringFront',
+  'reference.window.sendBehind': 'command.window.sendBehind',
   'reference.history.undo': 'command.history.undo',
   'reference.history.redo': 'command.history.redo',
   'reference.gesture.cancel': 'command.gesture.cancel',
@@ -161,9 +185,9 @@ const rejected = (field: string, message: string): AppCommandOutcome =>
   Object.freeze({ status: 'rejected', field, message });
 
 /** The outcome of a scene change, once it is made (a change asked for during another one waits). */
-async function committed(result: TxResult): Promise<AppCommandOutcome> {
+async function committed(result: TxResult | PreviewResult): Promise<AppCommandOutcome> {
   const outcome = result.status === 'queued' ? await result.completion : result;
-  return outcome.status === 'committed'
+  return outcome.status === 'committed' || outcome.status === 'previewed'
     ? DONE
     : rejected(outcome.error.path ?? 'scene', outcome.error.message);
 }
@@ -172,8 +196,10 @@ async function committed(result: TxResult): Promise<AppCommandOutcome> {
  * A change that a mode, a policy or the features' validation may refuse: its refusal said as the
  * command's, by its field. A change that needs no commit (it is already so) is done.
  */
-async function viewChange(change: () => TxResult | null): Promise<AppCommandOutcome> {
-  let result: TxResult | null;
+async function viewChange(
+  change: () => TxResult | PreviewResult | null,
+): Promise<AppCommandOutcome> {
+  let result: TxResult | PreviewResult | null;
   try {
     result = change();
   } catch (error) {
@@ -292,6 +318,20 @@ export function createAppCommands(app: () => ReferenceApp): AppCommands {
     }
     return null;
   };
+  /** Puts a window straight ahead of the camera or behind it, or says why it cannot. */
+  const around = (id: string, side: 'front' | 'behind'): Promise<AppCommandOutcome> => {
+    if (!isWindow(id)) {
+      return Promise.resolve(rejected('id', `no window "${id}"`));
+    }
+    try {
+      return committed(app().placeAround(id, side));
+    } catch (error) {
+      if (error instanceof RangeError) {
+        return Promise.resolve(rejected('id', error.message));
+      }
+      throw error;
+    }
+  };
   /** How a window stands now, or the refusal for a window that is not there. */
   const poseFor = (id: string) => (isWindow(id) ? app().poseOf(id) : null);
   const RADIANS = Math.PI / 180;
@@ -318,6 +358,15 @@ export function createAppCommands(app: () => ReferenceApp): AppCommands {
         return rejected('mode', `no mode "${mode}" is registered`);
       }
       return viewChange(() => app().modes.switchTo(mode));
+    },
+    'reference.mode.back': async () => {
+      const modes = app().modes;
+      if (modes.current() === PANORAMA.id) {
+        return rejected('mode', 'the panorama is shown already');
+      }
+      return viewChange(() =>
+        modes.enteredFrom() === null ? modes.switchTo(PANORAMA.id) : modes.back(),
+      );
     },
     'reference.backend.switch': async ({ backend }) => {
       if (!(BACKEND_IDS as readonly string[]).includes(backend)) {
@@ -533,6 +582,26 @@ export function createAppCommands(app: () => ReferenceApp): AppCommands {
       return viewChange(() => app().policies.designate(id));
     },
     'reference.orbit.turn': ({ degrees }) => Promise.resolve(turnWorkspace(degrees)),
+    'reference.orbit.turnTo': async ({ degrees, preview }) => {
+      const asked: unknown = preview;
+      if (asked !== undefined && typeof asked !== 'boolean') {
+        return rejected('preview', 'preview must be true or false');
+      }
+      return viewChange(() =>
+        app().policies.turnWorkspaceTo(degrees, { preview: preview ?? false }),
+      );
+    },
+    'reference.view.fov': async ({ degrees }) => viewChange(() => app().modes.fieldOfView(degrees)),
+    'reference.view.heading': async ({ degrees }) =>
+      finite(degrees, 'degrees', 'degrees') ?? committed(app().turnCamera(degrees)),
+    'reference.window.arrange': async () => {
+      const result = app().arrangeWindows();
+      return result === null
+        ? rejected('windows', 'there is no window to arrange: each is locked or inside another')
+        : committed(result);
+    },
+    'reference.window.bringFront': async ({ id }) => around(id, 'front'),
+    'reference.window.sendBehind': async ({ id }) => around(id, 'behind'),
     'reference.history.undo': async () => {
       const workspace = app().workspace;
       return workspace.canUndo()

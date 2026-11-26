@@ -101,6 +101,8 @@ const PLACING: Readonly<Partial<Record<AppCommandId, 'moved' | 'turned' | 'resiz
     'reference.window.face': 'turned',
     'reference.window.resize': 'resized',
     'reference.window.size': 'resized',
+    'reference.window.bringFront': 'moved',
+    'reference.window.sendBehind': 'moved',
   });
 
 /** The commands the scene view runs: their refusals are said there, the rest over the centre. */
@@ -148,6 +150,18 @@ const INSPECTOR_COMMANDS: readonly AppCommandId[] = Object.freeze([
   'reference.surface.move',
   'reference.window.merge',
   'reference.window.regroup',
+  'reference.window.bringFront',
+  'reference.window.sendBehind',
+]);
+
+/** The commands the radar runs: their refusals are said there. */
+const RADAR_COMMANDS: readonly AppCommandId[] = Object.freeze(['reference.window.arrange']);
+
+/** The commands the view's controls run: their refusals are said there. */
+const VIEW_COMMANDS: readonly AppCommandId[] = Object.freeze([
+  'reference.view.fov',
+  'reference.view.heading',
+  'reference.orbit.turnTo',
 ]);
 
 export class ShellModel {
@@ -498,6 +512,16 @@ export class ShellModel {
   /** Whether a refusal is of a workspaces command, said in the workspaces view. */
   isWorkspaceRefusal(refusal: Refusal): boolean {
     return WORKSPACE_COMMANDS.includes(refusal.command);
+  }
+
+  /** Whether a refusal is of a command the radar runs, said there. */
+  isRadarRefusal(refusal: Refusal): boolean {
+    return RADAR_COMMANDS.includes(refusal.command);
+  }
+
+  /** Whether a refusal is of a command the view's controls run, said there. */
+  isViewRefusal(refusal: Refusal): boolean {
+    return VIEW_COMMANDS.includes(refusal.command);
   }
 
   /** Whether a refusal is of a command the inspector runs, said there. */
