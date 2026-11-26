@@ -4,6 +4,11 @@
   "description": "Conformance suites for Spatial Workspace Framework adapters, renderers and compositors, with reference mocks.",
   "license": "UNLICENSED",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jowharshamshiri/swf.git",
+    "directory": "packages/conformance"
+  },
   "type": "module",
   "sideEffects": false,
   "exports": {

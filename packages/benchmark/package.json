@@ -4,6 +4,11 @@
   "description": "The Spatial Workspace Framework's performance benchmark: seeded standard and stress fixtures, a host that presents them, in-page measures, statistics and a resource probe for disposal soaks.",
   "license": "UNLICENSED",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jowharshamshiri/swf.git",
+    "directory": "packages/benchmark"
+  },
   "type": "module",
   "sideEffects": false,
   "exports": {

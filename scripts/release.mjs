@@ -2,19 +2,33 @@ import { spawn } from 'node:child_process';
 import console from 'node:console';
 import { createHash } from 'node:crypto';
 import { createWriteStream, rmSync } from 'node:fs';
-import { cp, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readdir, readFile, stat, writeFile } from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 import { pathToFileURL } from 'node:url';
+import {
+  makeRefs,
+  publishedRefs,
+  readAs,
+  refOf,
+  repositoryOf,
+  verifyRefs,
+} from './release-refs.mjs';
 import { installHost, smokeHost } from './smoke-host.mjs';
 
 /**
  * Builds a versioned release of every published package from the committed tree, into
  * `release/<version>/`, where `<version>` is the repository's version (version.txt):
  *
- * - `packages/`: each package's tarball, as `npm pack` makes it;
- * - `release.json`: the commit, the tools, and each package's version, tarball, size, SHA-256
- *   and npm integrity (SHA-512);
+ * - `git/`: a git repository holding each package's release ref, `<folder>/v<version>`
+ *   (`core/v0.1.0`): a commit with exactly the package as npm packs it, requiring each sibling by
+ *   the sibling's ref, so a host installs a package by the repository's git URL and that ref
+ *   (`npm install git+https://…/swf.git#core/v0.1.0`). A ref already pushed for a version must
+ *   hold the same files, or the release is refused;
+ * - `packages/`: each package's tarball, holding the same files as its ref;
+ * - `release.json`: the commit, the tools, and each package's version, ref, commit, tree,
+ *   tarball, size, SHA-256 and npm integrity (SHA-512);
  * - `RELEASE-NOTES.md`: each package's changelog section for its version, with the
  *   compatibility matrix and the checks the release passed;
  * - `COMPATIBILITY.md`: each package's version and what it requires, the browsers it was
@@ -38,7 +52,7 @@ import { installHost, smokeHost } from './smoke-host.mjs';
  * record with a failed or missing scenario;
  * a benchmark that missed a budget on the standard fixture; any known vulnerability in what a
  * host installs; and a high or critical one in the development tools. Nothing is published:
- * publishing the tarballs is a separate step (docs/how-to/release.md).
+ * pushing the refs and the release tag is a separate step (docs/how-to/release.md).
  */
 
 const ROOT = path.resolve(import.meta.dirname, '..');
@@ -100,6 +114,15 @@ async function must(command, args, options = {}) {
   return result.output;
 }
 
+/** Runs `step`, turning anything it throws into the release's refusal. */
+async function attempt(step) {
+  try {
+    return await step();
+  } catch (error) {
+    return fail(error instanceof Error ? error.message : String(error));
+  }
+}
+
 const json = async (file) => JSON.parse(await readFile(file, 'utf8'));
 const exact = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 const sha = (algorithm, data, encoding) => createHash(algorithm).update(data).digest(encoding);
@@ -124,6 +147,8 @@ const root = await json(path.join(ROOT, 'package.json'));
 if (root.version !== version) {
   fail(`package.json says ${String(root.version)} but version.txt says ${version}`);
 }
+// Where hosts install the packages from: the repository's git URL (package.json `repository`).
+const repository = await attempt(() => repositoryOf(root.repository?.url));
 const out = path.join(ROOT, 'release', version);
 if (
   await stat(out).then(
@@ -236,37 +261,89 @@ await cp(args.bench, path.join(out, 'quality', 'benchmark'), { recursive: true }
 
 // --- Packages -------------------------------------------------------------------------------
 
+// Each package is released as a git ref of its own (scripts/release-refs.mjs): a host installs it
+// by the repository's git URL and the ref; the tarball beside it holds the same files.
 const tarballs = path.join(out, 'packages');
 await mkdir(tarballs, { recursive: true });
-const released = [];
+const refsRepository = path.join(out, 'git');
+await must('git', ['init', '--quiet', '--bare', refsRepository], { quiet: true });
+const staging = await mkdtemp(path.join(os.tmpdir(), 'swf-release-staging-'));
+process.on('exit', () => {
+  rmSync(staging, { recursive: true, force: true });
+});
+const packedFirst = [];
 for (const { manifest, workspace } of packages) {
   const packed = JSON.parse(
-    await must('npm', ['pack', '--json', '--pack-destination', tarballs, `./${workspace}`], {
+    await must('npm', ['pack', '--json', '--pack-destination', staging, `./${workspace}`], {
       quiet: true,
     }),
   )[0];
-  const file = path.join(tarballs, packed.filename);
-  const data = await readFile(file);
-  const integrity = `sha512-${sha('sha512', data, 'base64')}`;
-  if (integrity !== packed.integrity) {
-    fail(`${packed.filename}: npm reports ${packed.integrity} but the file hashes to ${integrity}`);
-  }
-  released.push({
+  packedFirst.push({
     name: manifest.name,
     version: manifest.version,
+    workspace,
+    tarball: path.join(staging, packed.filename),
+  });
+}
+const made = await attempt(async () =>
+  makeRefs({
+    repo: refsRepository,
+    repository,
+    packages: packedFirst,
+    published: await attempt(() =>
+      publishedRefs(
+        repository,
+        packedFirst.map((p) => refOf(p.workspace, p.version)),
+      ),
+    ),
+    staging,
+  }),
+);
+const released = [];
+for (const m of made) {
+  const { manifest } = packages.find((p) => p.manifest.name === m.name);
+  const final = JSON.parse(
+    await must('npm', ['pack', '--json', '--pack-destination', tarballs, m.dir], { quiet: true }),
+  )[0];
+  const file = path.join(tarballs, final.filename);
+  const data = await readFile(file);
+  const integrity = `sha512-${sha('sha512', data, 'base64')}`;
+  if (integrity !== final.integrity) {
+    fail(`${final.filename}: npm reports ${final.integrity} but the file hashes to ${integrity}`);
+  }
+  released.push({
+    name: m.name,
+    version: m.version,
     license: manifest.license,
-    file: `packages/${packed.filename}`,
+    ref: m.ref,
+    url: m.url,
+    commit: m.commit,
+    tree: m.tree,
+    new: m.new,
+    file: `packages/${final.filename}`,
     bytes: data.length,
     sha256: sha('sha256', data, 'hex'),
     integrity,
-    files: packed.entryCount,
-    dependencies: manifest.dependencies ?? {},
+    files: final.entryCount,
+    dependencies: m.dependencies,
   });
 }
+await attempt(() =>
+  verifyRefs({
+    repo: refsRepository,
+    released: released.map((p) => ({ ...p, tarball: path.join(out, p.file) })),
+    staging,
+  }),
+);
 
 // --- A host's install: smoke test, inventory and audit --------------------------------------
 
-const host = await installHost(released.map((p) => path.join(out, p.file)));
+// A host installs every package by its git URL, as it will once the refs are pushed; until then
+// git reads the repository's URL as the refs repository of this release.
+const host = await installHost(
+  released.map((p) => p.url),
+  readAs(repository, refsRepository),
+);
 // Removed however the release ends: a refusal exits the process from inside the steps below.
 process.on('exit', () => {
   rmSync(host, { recursive: true, force: true });
@@ -286,7 +363,7 @@ const installed = Object.entries(lock.packages)
     version: entry.version,
     license: entry.license ?? null,
     integrity: entry.integrity ?? null,
-    from: entry.resolved?.startsWith('file:') ? 'this release' : (entry.resolved ?? null),
+    from: releasedFrom(where) ?? entry.resolved ?? null,
   }))
   .sort((a, b) => a.name.localeCompare(b.name));
 const sbom = await must('npm', ['sbom', '--sbom-format', 'cyclonedx', '--omit', 'dev'], {
@@ -368,6 +445,7 @@ const manifest = {
     npm: (await must('npm', ['--version'], { quiet: true })).trim(),
     typescript,
   },
+  repository: repository.url,
   packages: released,
   formats,
   browsers: conformance.browsers.map((b) => ({
@@ -410,6 +488,13 @@ console.log(
 
 // --- Helpers --------------------------------------------------------------------------------
 
+/** Where an installed package of this release came from: its git ref and commit. */
+function releasedFrom(where) {
+  const name = where.slice(where.lastIndexOf('node_modules/') + 'node_modules/'.length);
+  const p = released.find((r) => r.name === name);
+  return p === undefined ? null : `this release: ${p.ref} (${p.commit.slice(0, 12)})`;
+}
+
 function inventoryMarkdown(installed, host, development) {
   const advisoryLines = (list) =>
     list.length === 0
@@ -451,16 +536,20 @@ function compatibilityMarkdown({ released: list, engines, typescript, browsers, 
     '',
     '## Packages',
     '',
-    'Each package requires its siblings at exactly the versions released with it: install the',
-    'packages of one release together.',
+    'A host installs each package by its git URL: the repository and the release ref of the package.',
+    'Each package requires its siblings by their refs of the same release, so installing one brings',
+    'what it needs; install the packages a host uses from one release.',
     '',
-    '| Package | Version | Requires |',
-    '| --- | --- | --- |',
+    '| Package | Version | Install | Requires |',
+    '| --- | --- | --- | --- |',
     ...list.map(
       (p) =>
-        `| ${p.name} | ${p.version} | ${
+        `| ${p.name} | ${p.version} | \`npm install ${p.url}\` | ${
           Object.entries(p.dependencies)
-            .map(([n, v]) => `${n} ${v}`)
+            .map(([n, v]) => {
+              const sibling = list.find((r) => r.name === n);
+              return sibling === undefined ? `${n} ${v}` : `${n} (${sibling.ref})`;
+            })
             .join(', ') || 'nothing'
         } |`,
     ),
@@ -492,9 +581,14 @@ function releaseNotes(manifest, sections, compatibility) {
     `From commit ${manifest.commit}, built ${manifest.date} with Node.js ${manifest.tools.node},`,
     `npm ${manifest.tools.npm} and TypeScript ${manifest.tools.typescript}.`,
     '',
-    '| Package | Version | SHA-256 |',
-    '| --- | --- | --- |',
-    ...manifest.packages.map((p) => `| ${p.name} | ${p.version} | \`${p.sha256}\` |`),
+    '| Package | Version | Git ref | Commit | Tarball SHA-256 |',
+    '| --- | --- | --- | --- | --- |',
+    ...manifest.packages.map(
+      (p) =>
+        `| ${p.name} | ${p.version} | \`${p.ref}\`${p.new ? '' : ' (released before)'} | \`${p.commit}\` | \`${p.sha256}\` |`,
+    ),
+    '',
+    `Install a package with \`npm install ${manifest.repository}#<ref>\`, such as \`npm install ${manifest.packages[0]?.url ?? ''}\`.`,
     '',
     ...manifest.packages.flatMap((p) => [
       `## ${p.name} ${p.version}`,
@@ -517,7 +611,7 @@ function releaseNotes(manifest, sections, compatibility) {
       )
       .join('; ')}.`,
     `- No known vulnerability in what a host installs; ${String(manifest.advisories.development.length)} in the development tools (\`dependencies/inventory.md\`).`,
-    '- A host install of the tarballs compiles and runs (`smoke`).',
+    '- A host that installs every package by its git URL compiles and runs (`smoke`).',
     '',
     compatibility
       .replace(/^# .*\n/, '')

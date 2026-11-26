@@ -4,6 +4,11 @@
   "description": "Opaque presentation surfaces for the Spatial Workspace Framework: adapter registration, capability negotiation, binding resolution and the presentation lifecycle.",
   "license": "UNLICENSED",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jowharshamshiri/swf.git",
+    "directory": "packages/surfaces"
+  },
   "type": "module",
   "sideEffects": false,
   "exports": {

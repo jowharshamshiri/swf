@@ -4,6 +4,11 @@
   "description": "Vectors, quaternions, rigid transforms, rays and bounding boxes for the Spatial Workspace Framework.",
   "license": "UNLICENSED",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jowharshamshiri/swf.git",
+    "directory": "packages/math"
+  },
   "type": "module",
   "sideEffects": false,
   "exports": {

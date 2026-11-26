@@ -4,6 +4,11 @@
   "description": "Input and interaction for the Spatial Workspace Framework: device-neutral intents, spatial picking, input regions, a gesture arena with pointer capture, previewed drags committed once, explicit cancellation, and command equivalents for every spatial operation.",
   "license": "UNLICENSED",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jowharshamshiri/swf.git",
+    "directory": "packages/interaction"
+  },
   "type": "module",
   "sideEffects": false,
   "exports": {

@@ -4,6 +4,11 @@
   "description": "Projections for the Spatial Workspace Framework: the projection contract and registry, the equirectangular reference projection with seam-continuous inverse mapping, and viewport view and picking helpers.",
   "license": "UNLICENSED",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jowharshamshiri/swf.git",
+    "directory": "packages/projections"
+  },
   "type": "module",
   "sideEffects": false,
   "exports": {

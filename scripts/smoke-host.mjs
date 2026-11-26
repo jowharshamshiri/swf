@@ -21,8 +21,12 @@ const ROOT = path.resolve(import.meta.dirname, '..');
 const TSC = path.join(ROOT, 'node_modules/typescript/bin/tsc');
 
 /** Runs a command that must succeed; returns its output. */
-function run(command, args, cwd) {
-  const result = spawnSync(command, args, { cwd, encoding: 'utf8' });
+function run(command, args, cwd, env = {}) {
+  const result = spawnSync(command, args, {
+    cwd,
+    encoding: 'utf8',
+    env: { ...process.env, ...env },
+  });
   if (result.status !== 0) {
     throw new Error(
       `${path.basename(command)} ${args.join(' ')} failed in ${cwd} (exit ${String(result.status)}):\n${result.stdout}${result.stderr}`,
@@ -35,16 +39,17 @@ function run(command, args, cwd) {
 const must = (args, cwd) => run(process.execPath, args, cwd);
 
 /**
- * A fresh host project in a new temporary folder with `tarballs` installed together, as a host
- * installs a release. The caller removes the folder.
+ * A fresh host project in a new temporary folder with the packages `specs` names (tarballs, or
+ * git URLs) installed together, as a host installs a release, with `env` added to npm's
+ * environment. The caller removes the folder.
  */
-export async function installHost(tarballs) {
+export async function installHost(specs, env = {}) {
   const dir = await mkdtemp(path.join(os.tmpdir(), 'swf-host-'));
   await writeFile(
     path.join(dir, 'package.json'),
     `${JSON.stringify({ name: 'swf-host', version: '0.0.0', private: true, type: 'module' }, null, 2)}\n`,
   );
-  run('npm', ['install', '--no-fund', '--no-audit', '--prefer-offline', ...tarballs], dir);
+  run('npm', ['install', '--no-fund', '--no-audit', '--prefer-offline', ...specs], dir, env);
   return dir;
 }
 

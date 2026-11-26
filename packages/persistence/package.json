@@ -4,6 +4,11 @@
   "description": "Versioned, canonical workspace snapshots for the Spatial Workspace Framework: a published JSON Schema with its validator, extension and policy state, a storage interface with an in-memory store, and the save state machine.",
   "license": "UNLICENSED",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jowharshamshiri/swf.git",
+    "directory": "packages/persistence"
+  },
   "type": "module",
   "sideEffects": false,
   "exports": {

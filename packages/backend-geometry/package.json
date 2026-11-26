@@ -4,6 +4,11 @@
   "description": "A geometry presentation backend for the Spatial Workspace Framework: drawn content, proxies, placeholders, window chrome and spatial indicators on canvases, a layered renderer pairing it with a native renderer, and a compositor stacking live and drawn layers in one explicit order.",
   "license": "UNLICENSED",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jowharshamshiri/swf.git",
+    "directory": "packages/backend-geometry"
+  },
   "type": "module",
   "sideEffects": false,
   "exports": {

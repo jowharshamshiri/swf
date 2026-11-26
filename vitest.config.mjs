@@ -31,6 +31,7 @@ export default defineConfig({
       'packages/*/test/**/*.test.ts',
       ...(withApp ? ['apps/*/test/**/*.test.ts'] : []),
       'examples/test/**/*.test.ts',
+      'scripts/test/**/*.test.mjs',
     ],
     // Browser tests need a real browser: `npm run test:browser`.
     exclude: ['**/*.browser.test.ts', '**/*.build.test.ts'],

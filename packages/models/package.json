@@ -4,6 +4,11 @@
   "description": "The Spatial Workspace Framework's state machines and decision logic, written and proved in Lean and run as WebAssembly: the program lungo generates from models/, loaded once.",
   "license": "UNLICENSED",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jowharshamshiri/swf.git",
+    "directory": "packages/models"
+  },
   "type": "module",
   "sideEffects": [
     "./dist/index.js"
