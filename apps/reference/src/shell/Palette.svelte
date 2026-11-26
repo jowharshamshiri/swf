@@ -79,11 +79,12 @@
       : [
           {
             value: 'window.remove',
-            label: t('command.window.remove.named', {
-              label: model.selected.label ?? model.selected.id,
-            }),
+            label:
+              model.selection.length > 1
+                ? t('command.window.remove.many', { count: model.selection.length })
+                : t('command.window.remove.named', { label: model.selected.label ?? model.selected.id }),
             detail: t('palette.command'),
-            run: () => (model.selected === null ? Promise.resolve(false) : model.removeWindow(model.selected.id)),
+            run: () => (model.selected === null ? Promise.resolve(false) : model.removeWindows(model.selection)),
           },
         ]),
     ...(model.selected === null

@@ -1,4 +1,4 @@
-import type { JsonValue, PreviewResult, TxResult } from '@swf/core';
+import type { JsonValue, PreviewResult, SceneState, TxResult } from '@swf/core';
 import type { ReferenceApp } from './app.js';
 import type { BackendId } from './config.js';
 import { BACKEND_IDS } from './config.js';
@@ -12,7 +12,6 @@ import { PolicyRefusal } from './policies.js';
 import type { PresetId } from './presets.js';
 import { PRESET_IDS } from './presets.js';
 import { seedIssue } from '@swf/math';
-import { wrapDegrees } from './pose.js';
 import { WorkspaceRefusal } from './workspaces.js';
 import type { ScenarioId } from './scenarios.js';
 import { SCENARIO_IDS } from './scenarios.js';
@@ -38,31 +37,30 @@ export interface AppCommandSpecs {
   'reference.focus.step': { readonly direction: 'left' | 'right' };
   'reference.window.map': { readonly id: string };
   'reference.window.inspect': { readonly id: string };
+  /** Adds a window to the selection, first, or takes it out if it is in it. */
+  'reference.selection.toggle': { readonly id: string };
   'reference.window.place': {
     readonly id: string;
     readonly x?: number;
     readonly y?: number;
     readonly z?: number;
   };
-  /** Moves a window by world units along the camera's right and up, and away from the camera. */
-  'reference.window.nudge': {
+  /**
+   * Poses a window: round the camera (`heading`, degrees right of straight ahead), out from it
+   * across the ground (`reach`, world units), up (`y`, its centre's world height), turned from
+   * facing the camera (`turned`, degrees to the right) and sized (`width`, `height`, world units);
+   * each left out stays as it is. With `preview`, it is shown and not committed.
+   */
+  'reference.window.pose': {
     readonly id: string;
-    readonly right?: number;
-    readonly up?: number;
-    readonly depth?: number;
-  };
-  /** Turns a window about the vertical through it, by degrees to the right. */
-  'reference.window.turn': { readonly id: string; readonly degrees: number };
-  /** Changes a window's width and height by world units. */
-  'reference.window.resize': {
-    readonly id: string;
+    readonly heading?: number;
+    readonly reach?: number;
+    readonly y?: number;
+    readonly turned?: number;
     readonly width?: number;
     readonly height?: number;
+    readonly preview?: boolean;
   };
-  /** Gives a window a width and a height, in world units. */
-  'reference.window.size': { readonly id: string; readonly width: number; readonly height: number };
-  /** Turns a window to stand this many degrees to the right of facing the camera. */
-  'reference.window.face': { readonly id: string; readonly degrees: number };
   'reference.window.lock': { readonly id: string; readonly locked: boolean };
   'reference.feature.set': { readonly feature: FeatureId; readonly enabled: boolean };
   'reference.feature.reset': Readonly<Record<string, never>>;
@@ -97,7 +95,8 @@ export interface AppCommandSpecs {
   /** Picks a window up: its moves preview until it is put down or the gesture is cancelled. */
   'reference.gesture.grab': { readonly id: string };
   'reference.gesture.drop': Readonly<Record<string, never>>;
-  'reference.window.remove': { readonly id: string };
+  /** Removes windows, and what they hold, as one undoable change. */
+  'reference.window.remove': { readonly ids: readonly string[] };
   /** Adds a blank note window straight ahead of the camera. */
   'reference.window.add': Readonly<Record<string, never>>;
   'reference.surface.detach': { readonly surfaceId: string };
@@ -109,6 +108,8 @@ export interface AppCommandSpecs {
     readonly groupId: string | null;
     readonly label?: string;
   };
+  /** Gathers windows into a new group named `label`, each keeping its place: one change. */
+  'reference.window.group': { readonly windowIds: readonly string[]; readonly label: string };
   'reference.workspace.save': { readonly name: string };
   'reference.workspace.open': { readonly name: string };
   'reference.workspace.delete': { readonly name: string };
@@ -141,12 +142,9 @@ export const APP_COMMAND_NAMES: Readonly<Record<AppCommandId, MessageId>> = Obje
   'reference.focus.step': 'command.focus.step',
   'reference.window.map': 'command.window.map',
   'reference.window.inspect': 'command.window.inspect',
+  'reference.selection.toggle': 'command.selection.toggle',
   'reference.window.place': 'command.window.place',
-  'reference.window.nudge': 'command.window.nudge',
-  'reference.window.turn': 'command.window.turn',
-  'reference.window.resize': 'command.window.resize',
-  'reference.window.size': 'command.window.size',
-  'reference.window.face': 'command.window.face',
+  'reference.window.pose': 'command.window.pose',
   'reference.window.lock': 'command.window.lock',
   'reference.feature.set': 'command.feature.set',
   'reference.feature.reset': 'command.feature.reset',
@@ -173,6 +171,7 @@ export const APP_COMMAND_NAMES: Readonly<Record<AppCommandId, MessageId>> = Obje
   'reference.surface.move': 'command.surface.move',
   'reference.window.merge': 'command.window.merge',
   'reference.window.regroup': 'command.window.regroup',
+  'reference.window.group': 'command.window.group',
   'reference.workspace.save': 'command.workspace.save',
   'reference.workspace.open': 'command.workspace.open',
   'reference.workspace.delete': 'command.workspace.delete',
@@ -266,6 +265,15 @@ function restoredOutcome(outcome: Awaited<ReturnType<ReferenceApp['workspaces'][
     : rejected(outcome.error.path ?? 'snapshot', outcome.error.message);
 }
 
+/** The first `group-<n>` no node or surface holds: the ID of a group made by a command. */
+function newGroupId(state: SceneState): string {
+  let n = 1;
+  while (state.nodes.has(`group-${String(n)}`) || state.surfaces.has(`group-${String(n)}`)) {
+    n += 1;
+  }
+  return `group-${String(n)}`;
+}
+
 export function createAppCommands(app: () => ReferenceApp): AppCommands {
   const ids = Object.freeze(Object.keys(APP_COMMAND_NAMES) as AppCommandId[]);
   const isWindow = (id: unknown): boolean =>
@@ -352,9 +360,6 @@ export function createAppCommands(app: () => ReferenceApp): AppCommands {
       throw error;
     }
   };
-  /** How a window stands now, or the refusal for a window that is not there. */
-  const poseFor = (id: string) => (isWindow(id) ? app().poseOf(id) : null);
-  const RADIANS = Math.PI / 180;
   /** A command that is done at once, as every command is: its outcome, as a promise. */
   const now =
     <P>(run: (params: P) => AppCommandOutcome) =>
@@ -447,6 +452,18 @@ export function createAppCommands(app: () => ReferenceApp): AppCommands {
         app().workspace.dispatch({ type: 'selection.set', ids: [id] }, { source: 'user' }),
       );
     },
+    'reference.selection.toggle': async ({ id }) => {
+      if (!isWindow(id)) {
+        return rejected('id', `no window "${id}"`);
+      }
+      const selection = app().workspace.getState().selection;
+      const ids = selection.includes(id)
+        ? selection.filter((other) => other !== id)
+        : [id, ...selection];
+      return committed(
+        app().workspace.dispatch({ type: 'selection.set', ids }, { source: 'user' }),
+      );
+    },
     'reference.window.place': async ({ id, x, y, z }) => {
       if (!isWindow(id)) {
         return rejected('id', `no window "${id}"`);
@@ -465,88 +482,74 @@ export function createAppCommands(app: () => ReferenceApp): AppCommands {
       }
       return committed(app().placeWindow(id, { x, y, z }));
     },
-    'reference.window.nudge': now(({ id, right, up, depth }) => {
-      if (!isWindow(id)) {
+    'reference.window.pose': async ({ id, heading, reach, y, turned, width, height, preview }) => {
+      const pose = isWindow(id) ? app().poseOf(id) : null;
+      if (pose === null) {
         return rejected('id', `no window "${id}"`);
       }
-      return (
+      const asked: unknown = preview;
+      if (asked !== undefined && typeof asked !== 'boolean') {
+        return rejected('preview', 'preview must be true or false');
+      }
+      const bad =
         numbers(
           [
-            ['right', right],
-            ['up', up],
-            ['depth', depth],
+            ['heading', heading],
+            ['turned', turned],
           ],
-          'world units',
+          'degrees',
         ) ??
-        spatial('node.move', {
-          nodeId: id,
-          viewportId: app().viewport.viewportId,
-          right: right ?? 0,
-          up: up ?? 0,
-          depth: depth ?? 0,
-        })
-      );
-    }),
-    'reference.window.turn': now(({ id, degrees }) => {
-      if (!isWindow(id)) {
-        return rejected('id', `no window "${id}"`);
-      }
-      return (
-        finite(degrees, 'degrees', 'degrees') ??
-        spatial('node.rotate', { nodeId: id, yaw: degrees * RADIANS })
-      );
-    }),
-    'reference.window.resize': now(({ id, width, height }) => {
-      if (!isWindow(id)) {
-        return rejected('id', `no window "${id}"`);
-      }
-      return (
         numbers(
           [
+            ['reach', reach],
+            ['y', y],
             ['width', width],
             ['height', height],
           ],
           'world units',
-        ) ?? spatial('node.resize', { nodeId: id, width: width ?? 0, height: height ?? 0 })
-      );
-    }),
-    'reference.window.size': now(({ id, width, height }) => {
-      const pose = poseFor(id);
-      if (pose === null) {
-        return rejected('id', `no window "${id}"`);
+        );
+      if (bad !== null) {
+        return bad;
       }
-      const least = app().router.settings().minSize;
+      const placing = heading !== undefined || reach !== undefined || y !== undefined;
+      const sizing = width !== undefined || height !== undefined;
+      if (!placing && !sizing && turned === undefined) {
+        return rejected('pose', 'a pose sets heading, reach, y, turned, width or height');
+      }
+      if (pose.locked) {
+        return rejected('id', `window "${id}" is locked: unlock it to move, turn or size it`);
+      }
+      const refusedBy =
+        placing && !pose.movable
+          ? 'moved'
+          : turned !== undefined && !pose.rotatable
+            ? 'turned'
+            : sizing && !pose.resizable
+              ? 'resized'
+              : null;
+      if (refusedBy !== null) {
+        return rejected('id', `the host of window "${id}" does not let it be ${refusedBy}`);
+      }
+      const { minDistance, minSize } = app().router.settings();
+      if (reach !== undefined && reach < minDistance) {
+        return rejected('reach', `reach must be at least ${String(minDistance)} world units`);
+      }
       for (const [field, value] of [
         ['width', width],
         ['height', height],
       ] as const) {
-        const bad = finite(value, field, 'world units');
-        if (bad !== null) {
-          return bad;
-        }
-        if (value < least) {
-          return rejected(field, `${field} must be at least ${String(least)} world units`);
+        if (value !== undefined && value < minSize) {
+          return rejected(field, `${field} must be at least ${String(minSize)} world units`);
         }
       }
-      return spatial('node.resize', {
-        nodeId: id,
-        width: width - pose.width,
-        height: height - pose.height,
-      });
-    }),
-    'reference.window.face': now(({ id, degrees }) => {
-      const pose = poseFor(id);
-      if (pose === null) {
-        return rejected('id', `no window "${id}"`);
-      }
-      return (
-        finite(degrees, 'degrees', 'degrees') ??
-        spatial('node.rotate', {
-          nodeId: id,
-          yaw: wrapDegrees(degrees - pose.turned) * RADIANS,
-        })
+      return committed(
+        app().poseWindow(
+          id,
+          { heading, reach, y, turned, width, height },
+          { preview: preview ?? false },
+        ),
       );
-    }),
+    },
     'reference.window.lock': async ({ id, locked }) => {
       if (!isWindow(id)) {
         return rejected('id', `no window "${id}"`);
@@ -662,11 +665,16 @@ export function createAppCommands(app: () => ReferenceApp): AppCommands {
       }
     }),
     'reference.window.add': () => viewChange(() => app().addWindow()),
-    'reference.window.remove': async ({ id }) => {
-      if (!isWindow(id)) {
-        return rejected('id', `no window "${id}"`);
+    'reference.window.remove': async ({ ids }) => {
+      const asked: unknown = ids;
+      if (!Array.isArray(asked) || asked.length === 0) {
+        return rejected('ids', 'name at least one window to remove');
       }
-      return committed(app().removeWindow(id));
+      const missing: unknown = (asked as unknown[]).find((id) => !isWindow(id));
+      if (missing !== undefined) {
+        return rejected('ids', `no window ${JSON.stringify(missing)}`);
+      }
+      return committed(app().removeWindows(ids));
     },
     'reference.surface.detach': async ({ surfaceId }) =>
       viewChange(() => app().compose({ kind: 'detach', surfaceId })),
@@ -683,18 +691,33 @@ export function createAppCommands(app: () => ReferenceApp): AppCommands {
       if (groupId === null && name === '') {
         return rejected('label', 'a new group needs a name');
       }
-      let n = 1;
-      while (state.nodes.has(`group-${String(n)}`) || state.surfaces.has(`group-${String(n)}`)) {
-        n += 1;
-      }
       return viewChange(() =>
         app().compose({
           kind: 'regroup',
           windowId: id,
           target:
             groupId === null
-              ? { kind: 'new', id: `group-${String(n)}`, label: name }
+              ? { kind: 'new', id: newGroupId(state), label: name }
               : { kind: 'group', id: groupId },
+        }),
+      );
+    },
+    'reference.window.group': async ({ windowIds, label }) => {
+      const asked: unknown = windowIds;
+      if (!Array.isArray(asked)) {
+        return rejected('windowIds', 'the windows to group are a list of their IDs');
+      }
+      const named: unknown = label;
+      const name = typeof named === 'string' ? named.trim() : '';
+      if (name === '') {
+        return rejected('label', 'a new group needs a name');
+      }
+      const state = app().workspace.getState();
+      return viewChange(() =>
+        app().compose({
+          kind: 'group',
+          windowIds: asked as readonly string[],
+          group: { id: newGroupId(state), label: name },
         }),
       );
     },

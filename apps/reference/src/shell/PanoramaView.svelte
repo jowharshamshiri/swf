@@ -82,10 +82,31 @@
   const degrees = (neighbour: Neighbour) => Math.round(Math.abs(neighbour.bearing));
 
   /**
-   * Gestures that change the scene: each shows its preview, its snap, its cancel and its end. A
-   * window held from the keyboard (`gesture.grab`) is one too.
+   * Gestures that change the scene: each shows its preview, where the window would be as it goes,
+   * its snap, its cancel and its end. A window held from the keyboard (`gesture.grab`) is one too.
    */
-  const MODIFYING = ['node.move', 'node.resize', 'orbit.turn', 'gesture.grab'];
+  const MODIFYING = ['node.move', 'node.rotate', 'node.resize', 'orbit.turn', 'gesture.grab'];
+
+  /** Where the window a gesture works on would be now, read again on every frame drawn. */
+  const readingOf = (operation: string, nodeId: string | null): string | null => {
+    void model.frame;
+    const pose = nodeId === null ? null : (model.app?.poseOf(nodeId) ?? null);
+    if (pose === null) {
+      return null;
+    }
+    const round = (value: number, digits: number) => Number(value.toFixed(digits));
+    switch (operation) {
+      case 'node.rotate':
+        return t('gesture.reading.turned', { degrees: round(pose.turned, 0) });
+      case 'node.resize':
+        return t('gesture.reading.size', { width: round(pose.width, 2), height: round(pose.height, 2) });
+      case 'node.move':
+      case 'gesture.grab':
+        return model.where(pose);
+      default:
+        return null;
+    }
+  };
 
   const labelOf = (id: string | null) => {
     void model.revision;
@@ -116,15 +137,18 @@
     const what =
       gesture.operation === 'node.move'
         ? t('gesture.node.move', { label })
-        : gesture.operation === 'node.resize'
-          ? t('gesture.node.resize', { label })
-          : held
-            ? t('gesture.gesture.grab', { label })
-            : t('gesture.orbit.turn');
+        : gesture.operation === 'node.rotate'
+          ? t('gesture.node.rotate', { label })
+          : gesture.operation === 'node.resize'
+            ? t('gesture.node.resize', { label })
+            : held
+              ? t('gesture.gesture.grab', { label })
+              : t('gesture.orbit.turn');
     const snapping = model.policies?.features.enabled.snap === true && gesture.operation === 'node.move';
     return {
       what,
       held,
+      reading: readingOf(gesture.operation, gesture.nodeId),
       detail: held
         ? t('panorama.held.keys')
         : gesture.snap !== null && gesture.snap.constraints.length > 0
@@ -149,11 +173,13 @@
     const done =
       last.operation === 'node.move'
         ? t('gesture.done.node.move', { label })
-        : last.operation === 'node.resize'
-          ? t('gesture.done.node.resize', { label })
-          : last.operation === 'gesture.grab'
-            ? t('gesture.done.gesture.grab', { label })
-            : t('gesture.done.orbit.turn');
+        : last.operation === 'node.rotate'
+          ? t('gesture.done.node.rotate', { label })
+          : last.operation === 'node.resize'
+            ? t('gesture.done.node.resize', { label })
+            : last.operation === 'gesture.grab'
+              ? t('gesture.done.gesture.grab', { label })
+              : t('gesture.done.orbit.turn');
     return {
       last,
       committed: last.outcome === 'committed',
@@ -235,6 +261,9 @@
   {#if running !== null}
     <Toolbar ariaLabel={t('gesture.label')}>
       <Text>{running.what}</Text>
+      {#if running.reading !== null}
+        <Text>{running.reading}</Text>
+      {/if}
       <Text quiet>{running.detail}</Text>
       {#snippet end()}
         {#if running.held}
@@ -281,6 +310,24 @@
           size="small"
           onpress={() => {
             dismissed = ended.last;
+          }}
+        />
+      {/snippet}
+    </Toolbar>
+  {:else if focus === null}
+    <!-- The gesture bar stays, saying how windows are handled, so a gesture starting never moves
+         the panorama under the pointer. -->
+    <Toolbar ariaLabel={t('gesture.label')}>
+      <Text quiet>{t('gesture.help')}</Text>
+      {#snippet end()}
+        <Button
+          handle={handleOf`page.gesture.idle.undo`}
+          label={t('command.history.undo')}
+          icon="undo"
+          size="small"
+          disabled={!model.history.undo}
+          onpress={() => {
+            void model.run('reference.history.undo', {});
           }}
         />
       {/snippet}

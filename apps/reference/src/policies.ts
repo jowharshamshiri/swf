@@ -50,6 +50,13 @@ export class PolicyRefusal extends Error {
   }
 }
 
+/** The gestures that move, turn or resize a window: each selects the window it takes. */
+const WINDOW_GESTURES: readonly string[] = Object.freeze([
+  'node.move',
+  'node.rotate',
+  'node.resize',
+]);
+
 /** A gesture the framework is running. */
 export interface RunningGesture {
   readonly gestureId: string;
@@ -238,6 +245,16 @@ export function createPolicies(options: PolicyOptions): Policies {
 
   const stopRouter = router.subscribe((event) => {
     if (event.type === 'gesture.started' && event.viewportId === viewportId) {
+      // A window taken by a drag is selected, as a press selects it, so the inspector follows it
+      // as it goes; one already among the selected keeps the selection. Not an undo step.
+      const nodeId = event.nodeId;
+      if (
+        nodeId !== null &&
+        WINDOW_GESTURES.includes(event.operation) &&
+        !workspace.getState().selection.includes(nodeId)
+      ) {
+        workspace.transaction([{ type: 'selection.set', ids: [nodeId] }], { source: 'user' });
+      }
       gesture = Object.freeze({
         gestureId: event.gestureId,
         operation: event.operation,

@@ -1,8 +1,10 @@
-import type { Id, SceneState } from '@swf/core';
+import type { Id, SceneCommand, SceneState } from '@swf/core';
 import { worldMatrix } from '@swf/core';
+import { placementOf, turnedAbout, worldOrigin } from '@swf/interaction';
 import type { Vec3 } from '@swf/math';
-import { mat4Decompose } from '@swf/math';
+import { mat4Decompose, mat4FromTransform, mat4Multiply } from '@swf/math';
 import { headingPitchOf } from '@swf/projections';
+import { placedAt } from './map.js';
 
 /**
  * Where a window is around the camera and how it stands, as an operator reads it: what the
@@ -15,6 +17,11 @@ export interface Pose {
   readonly elevation: number;
   /** World units from the camera. */
   readonly distance: number;
+  /**
+   * World units from the camera across the ground: how far out it stands, whatever its height.
+   * With its heading and its height it says where the window is, each set on its own.
+   */
+  readonly reach: number;
   /**
    * Degrees it is turned to the right from facing the camera, from −180 to 180: 0 when it faces
    * the camera squarely.
@@ -58,6 +65,7 @@ export function poseOf(scene: SceneState, id: Id, eye: Vec3): Pose | null {
     heading: wrapDegrees(heading),
     elevation: Math.atan2(y, Math.hypot(x, z)) * DEGREES,
     distance: Math.hypot(x, y, z),
+    reach: Math.hypot(x, z),
     turned: wrapDegrees(yaw - heading),
     position,
     width: node.bounds[0],
@@ -67,4 +75,81 @@ export function poseOf(scene: SceneState, id: Id, eye: Vec3): Pose | null {
     rotatable: node.flags.rotatable,
     resizable: node.flags.resizable,
   });
+}
+
+/** What the inspector sets of a window's pose; each left out stays as it is. */
+export interface PoseTarget {
+  /** Degrees to the right of straight ahead, round the camera. */
+  readonly heading?: number | undefined;
+  /** World units from the camera across the ground. */
+  readonly reach?: number | undefined;
+  /** The world height of its centre. */
+  readonly y?: number | undefined;
+  /** Degrees it is turned to the right from facing the camera. */
+  readonly turned?: number | undefined;
+  /** Its frame's width and height, in world units. */
+  readonly width?: number | undefined;
+  readonly height?: number | undefined;
+}
+
+/**
+ * The one change that poses a window as `target` says, seen from `eye`: a `node.patch` of its
+ * transform, its bounds, or both. Moved round the camera or out from it, it keeps facing the
+ * camera as it did, unless `turned` is given; resized, it keeps its centre. Null when its group's
+ * placement cannot be inverted. Throws an Error when there is no such window; the values are the
+ * caller's to check.
+ */
+export function posedPatch(
+  scene: SceneState,
+  id: Id,
+  eye: Vec3,
+  target: PoseTarget,
+): Extract<SceneCommand, { type: 'node.patch' }> | null {
+  const node = scene.nodes.get(id);
+  const pose = poseOf(scene, id, eye);
+  if (node === undefined || pose === null) {
+    throw new Error(`no window "${id}" to pose`);
+  }
+  const placed =
+    target.heading !== undefined || target.reach !== undefined || target.y !== undefined;
+  let local = placementOf(scene, id).local;
+  if (placed) {
+    const heading = (target.heading ?? pose.heading) / DEGREES;
+    const reach = target.reach ?? pose.reach;
+    const ground = placedAt(scene, id, eye, {
+      x: eye[0] + reach * Math.sin(heading),
+      y: target.y,
+      z: eye[2] - reach * Math.cos(heading),
+    });
+    if (ground === null) {
+      return null;
+    }
+    local = ground;
+  }
+  if (target.turned !== undefined) {
+    // Turned about its own centre, from where it now stands, by as much as it is short of the turn.
+    const { parentWorld } = placementOf(scene, id);
+    const standing = {
+      local,
+      parentWorld,
+      world: mat4Multiply(parentWorld, mat4FromTransform(local)),
+    };
+    const turned = turnedAbout(
+      standing,
+      worldOrigin(standing),
+      wrapDegrees(target.turned - pose.turned) / DEGREES,
+    );
+    if (turned === null) {
+      return null;
+    }
+    local = turned;
+  }
+  const sized = target.width !== undefined || target.height !== undefined;
+  const [width, height, depth] = node.bounds;
+  return {
+    type: 'node.patch',
+    id,
+    ...(placed || target.turned !== undefined ? { transform: local } : {}),
+    ...(sized ? { bounds: [target.width ?? width, target.height ?? height, depth] as const } : {}),
+  };
 }

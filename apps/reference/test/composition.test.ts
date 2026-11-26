@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 import type { CompositionPlan } from '../src/composition.js';
 import {
   detachSurface,
+  groupWindows,
   layoutSurfaces,
   mergeWindow,
   moveSurface,
@@ -205,6 +206,68 @@ describe('multi-surface composition (FR-126, WF-06, AC-016)', () => {
     expect(
       regroupWindow(state, 'window-04', { kind: 'group', id: WORKSPACE_GROUP_ID }),
     ).toMatchObject({ kind: 'refused', field: 'groupId' });
+  });
+
+  it('gathers several windows into a new group at once, keeping each in the world, and removes a group they empty', () => {
+    const ws = composed();
+    const was = worldOf(ws.getState());
+    const history = ws.history().length;
+    // Two windows of the workspace group: their group is made inside it.
+    commit(
+      ws,
+      groupWindows(ws.getState(), ['window-04', 'window-05'], { id: 'group-1', label: 'Pair' }),
+    );
+    let state = ws.getState();
+    expect(state.nodes.get('group-1')).toMatchObject({
+      kind: 'group',
+      label: 'Pair',
+      parentId: WORKSPACE_GROUP_ID,
+    });
+    expect(state.nodes.get('window-04')?.parentId).toBe('group-1');
+    expect(state.nodes.get('window-05')?.parentId).toBe('group-1');
+    // Windows from different groups: their group is made at the root, and a group left holding
+    // another window stays.
+    commit(ws, groupWindows(state, ['board', 'window-04'], { id: 'group-2', label: 'Mixed' }));
+    state = ws.getState();
+    expect(state.nodes.get('group-2')?.parentId).toBeNull();
+    expect(state.nodes.get('group-1')?.childIds).toEqual(['window-05']);
+    // Its last window gathered elsewhere, a group goes with it.
+    commit(ws, groupWindows(state, ['window-05', 'window-04'], { id: 'group-3', label: 'Again' }));
+    state = ws.getState();
+    expect(state.nodes.has('group-1')).toBe(false);
+    expect(state.nodes.get('group-2')?.childIds).toEqual(['board']);
+    for (const id of ['board', 'window-04', 'window-05']) {
+      expect(same(worldMatrix(state.nodes, id), was.nodes.get(id)), id).toBe(true);
+    }
+    // Each gathering is one change: three undos put the scene back.
+    expect(ws.history()).toHaveLength(history + 3);
+    for (let i = 0; i < 3; i += 1) {
+      expect(ws.undo({ source: 'user' }).status).toBe('committed');
+    }
+    expect(ws.getState().nodes.get('window-04')?.parentId).toBe(WORKSPACE_GROUP_ID);
+    expect(ws.getState().nodes.has('group-1')).toBe(false);
+  });
+
+  it('refuses to group fewer than two windows, one named twice, one that is not there, or an ID in use', () => {
+    const state = composed().getState();
+    const refused = (ids: readonly unknown[], id = 'group-1') =>
+      groupWindows(state, ids, { id, label: 'G' });
+    expect(refused(['window-04'])).toMatchObject({ kind: 'refused', field: 'windowIds' });
+    expect(refused(['window-04', 'window-04'])).toMatchObject({
+      kind: 'refused',
+      field: 'windowIds',
+      reason: expect.stringContaining('named twice') as unknown,
+    });
+    expect(refused(['window-04', 'nowhere'])).toMatchObject({
+      kind: 'refused',
+      field: 'windowIds',
+      reason: 'no window "nowhere"',
+    });
+    expect(refused(['window-04', 42])).toMatchObject({ kind: 'refused', field: 'windowIds' });
+    expect(refused(['window-04', 'window-05'], 'board')).toMatchObject({
+      kind: 'refused',
+      field: 'groupId',
+    });
   });
 
   it('detaches, reattaches, saves and restores with every world transform kept (§33.2 scenario 4)', async () => {

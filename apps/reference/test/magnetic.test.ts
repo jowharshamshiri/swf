@@ -173,7 +173,10 @@ describe('a magnetic move (FR-125, UX-007, BR-004)', () => {
     const history = w.ws.history().length;
     // Moved 1.2° short of touching (0.063 units): inside the snap distance.
     moveB(w, 2 * (HALF / RAD) + 1.2, false);
-    expect(w.ws.getState()).toBe(before);
+    // Nothing is committed while it moves but the window's selection: taken, it is selected.
+    expect(w.ws.getState().nodes).toStrictEqual(before.nodes);
+    expect(w.ws.getState().selection).toEqual(['b']);
+    expect(w.ws.history()).toHaveLength(history);
     const previewed = gapOf(w, true);
     expect(previewed.gap).toBeCloseTo(previewed.padding, 6);
     expect(w.policies.status().gesture).toMatchObject({
@@ -201,9 +204,12 @@ describe('a magnetic move (FR-125, UX-007, BR-004)', () => {
   it('cancels with Escape, leaving the window where it was', () => {
     const w = scene();
     const before = w.ws.getState();
+    const history = w.ws.history().length;
     moveB(w, 2 * (HALF / RAD) + 1.2, false);
     w.input.key('Escape', { viewportId: VIEWPORT });
-    expect(w.ws.getState()).toBe(before);
+    // Nothing changed but the selection, which is not undone.
+    expect(w.ws.getState().nodes).toStrictEqual(before.nodes);
+    expect(w.ws.history()).toHaveLength(history);
     expect(worldMatrix(w.ws.getPresented().nodes, 'b')).toEqual(worldMatrix(before.nodes, 'b'));
     expect(w.policies.status().ended).toMatchObject({ outcome: 'cancelled', reason: 'escape' });
   });

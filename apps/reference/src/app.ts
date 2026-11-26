@@ -17,7 +17,15 @@ import {
   LayerCompositor,
   LayeredRenderer,
 } from '@swf/backend-geometry';
-import type { Id, JsonValue, SceneCommand, SceneState, TxResult, Workspace } from '@swf/core';
+import type {
+  Id,
+  JsonValue,
+  PreviewResult,
+  SceneCommand,
+  SceneState,
+  TxResult,
+  Workspace,
+} from '@swf/core';
 import { createWorkspace, worldMatrix } from '@swf/core';
 import type {
   CommandOutcome,
@@ -54,6 +62,7 @@ import {
   CompositionRefusal,
   detachSurface,
   freeId,
+  groupWindows,
   mergeWindow,
   moveSurface,
   regroupWindow,
@@ -66,6 +75,7 @@ import type { Messages } from './messages.js';
 import { createMessages } from './messages.js';
 import type { FocusContext } from './focus.js';
 import { createFocusMode, FOCUS_ID, focusContext } from './focus.js';
+import { MANIPULATION_POLICIES } from './manipulation.js';
 import type { AroundSide } from './map.js';
 import { aroundCamera, arrangedAround, inView, placedAt } from './map.js';
 import type { Modes } from './modes.js';
@@ -94,8 +104,8 @@ import {
 import type { Attachment, Search } from './search.js';
 import { createSearch } from './search.js';
 import { MAX_SEED, seedIssue } from '@swf/math';
-import type { Pose } from './pose.js';
-import { poseOf } from './pose.js';
+import type { Pose, PoseTarget } from './pose.js';
+import { posedPatch, poseOf } from './pose.js';
 import type { Workspaces } from './workspaces.js';
 import { createWorkspaces, hostExtension } from './workspaces.js';
 import type { Scenarios, ScenarioId, ScenarioWorld } from './scenarios.js';
@@ -245,7 +255,12 @@ export type CompositionStep =
   | { readonly kind: 'detach'; readonly surfaceId: Id }
   | { readonly kind: 'move'; readonly surfaceId: Id; readonly windowId: Id }
   | { readonly kind: 'merge'; readonly windowId: Id; readonly targetId: Id }
-  | { readonly kind: 'regroup'; readonly windowId: Id; readonly target: GroupTarget };
+  | { readonly kind: 'regroup'; readonly windowId: Id; readonly target: GroupTarget }
+  | {
+      readonly kind: 'group';
+      readonly windowIds: readonly Id[];
+      readonly group: { readonly id: Id; readonly label: string };
+    };
 
 /** An input intent dispatched, with what the framework did with it, for the host to measure. */
 export interface ObservedInput {
@@ -340,6 +355,18 @@ export interface ReferenceApp {
     },
   ): TxResult;
   /**
+   * Poses a window as the inspector's controls set it: round the camera, out from it, up, turned
+   * and sized, each left out staying as it is ({@link posedPatch}). With `preview`, the change is
+   * shown and not committed, replacing the pose shown before; without it, it is committed as one
+   * undoable change, ending the pose shown. A control dragged previews as it moves and commits
+   * once when let go: one undo puts it back. Posing another window ends the pose shown first.
+   */
+  poseWindow(
+    id: string,
+    target: PoseTarget,
+    options: { readonly preview: boolean },
+  ): TxResult | PreviewResult;
+  /**
    * Puts a window straight ahead of the camera or straight behind it, at its distance and height,
    * facing the camera as it did: one undoable commit. Throws a RangeError for a window standing at
    * the camera.
@@ -367,10 +394,11 @@ export interface ReferenceApp {
    */
   spatial(command: string, args: Readonly<Record<string, JsonValue>>): CommandOutcome;
   /**
-   * Removes a window from the workspace, with what it holds, as one undoable change (UX-011). Its
-   * surfaces' content is the host's: removing a window never deletes or stops it.
+   * Removes windows from the workspace, with what they hold, as one undoable change (UX-011). Their
+   * surfaces' content is the host's: removing a window never deletes or stops it. A window inside
+   * another one named goes with it. Throws an Error naming an ID that is no window.
    */
-  removeWindow(id: string): TxResult;
+  removeWindows(ids: readonly string[]): TxResult;
   /**
    * Rearranges supplied surfaces among windows, or a window among groups, as one undoable change.
    * Throws {@link CompositionRefusal} naming the field at fault; a window's only surface is never
@@ -542,6 +570,11 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
     presentation: (surfaceId) => mount.viewport.presentation(surfaceId),
     timer,
   });
+  // Shift and drag for depth, Ctrl (⌘) and drag to turn, Ctrl (⌘) and click to select more: the
+  // panorama's direct manipulation beyond the framework's own move and resize.
+  for (const policy of MANIPULATION_POLICIES) {
+    router.registerPolicy(policy);
+  }
   // A and D turn the camera as Alt+← and Alt+→ do, the keys a game turns with, kept to the
   // panorama as every framework key is. Set before the policies read the keymap they keep.
   router.configure({
@@ -561,6 +594,8 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
       },
     ],
   });
+  /** The pose the inspector's controls show and have not committed yet, by window. */
+  let posePreview: { readonly nodeId: Id; readonly previewId: string } | null = null;
   const modes = createModes(workspace, VIEWPORT_ID);
   modes.register(PANORAMA);
   // Focus and the map are features: the policies register them while they are on, after the
@@ -1094,6 +1129,35 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
       }
       return workspace.dispatch({ type: 'node.patch', id, transform }, { source: 'user' });
     },
+    poseWindow(id, target, { preview }) {
+      const state = workspace.getState();
+      const camera = state.cameras.get(CAMERA_ID);
+      if (camera === undefined) {
+        throw new Error(`no camera "${CAMERA_ID}"`);
+      }
+      const open = posePreview;
+      // Another window's pose shown is ended first: a pose shows one window at a time.
+      if (open !== null && open.nodeId !== id) {
+        workspace.cancelPreview(open.previewId, 'host');
+        posePreview = null;
+      }
+      const patch = posedPatch(state, id, camera.position, target);
+      if (patch === null) {
+        throw new Error(`window "${id}" cannot be posed: its group's placement is singular`);
+      }
+      const shown = posePreview;
+      if (preview) {
+        const previewId =
+          shown?.previewId ?? `reference.window.pose/${id}/${String(state.revision)}`;
+        posePreview = { nodeId: id, previewId };
+        return workspace.preview(previewId, [patch], { source: 'user' });
+      }
+      posePreview = null;
+      return workspace.transaction([patch], {
+        source: 'user',
+        ...(shown === null ? {} : { previewId: shown.previewId }),
+      });
+    },
     placeAround(id, side) {
       const state = workspace.getState();
       if (state.nodes.get(id)?.kind !== 'window') {
@@ -1140,16 +1204,42 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
         ? null
         : focusContext(state, state.focusedId, camera.position);
     },
-    removeWindow(id) {
-      const node = workspace.getState().nodes.get(id);
-      if (node?.kind !== 'window') {
-        throw new Error(`no window "${id}"`);
+    removeWindows(ids) {
+      const state = workspace.getState();
+      for (const id of ids) {
+        if (state.nodes.get(id)?.kind !== 'window') {
+          throw new Error(`no window "${id}"`);
+        }
       }
-      // Focus is on the window about to go: leave it first, putting its view back.
-      if (modes.current() === FOCUS_ID && workspace.getState().focusedId === id) {
+      const named = new Set(ids);
+      /** Whether a window is inside another one named: removing that one takes it too. */
+      const within = (id: string): boolean => {
+        for (
+          let up = state.nodes.get(id)?.parentId ?? null;
+          up !== null;
+          up = state.nodes.get(up)?.parentId ?? null
+        ) {
+          if (named.has(up)) {
+            return true;
+          }
+        }
+        return false;
+      };
+      // Focus is on a window about to go: leave it first, putting its view back.
+      const focused = state.focusedId;
+      if (
+        modes.current() === FOCUS_ID &&
+        focused !== null &&
+        (named.has(focused) || within(focused))
+      ) {
         modes.back({ source: 'system' });
       }
-      return workspace.dispatch({ type: 'node.delete', id, mode: 'subtree' }, { source: 'user' });
+      return workspace.transaction(
+        [...named]
+          .filter((id) => !within(id))
+          .map((id): SceneCommand => ({ type: 'node.delete', id, mode: 'subtree' })),
+        { source: 'user' },
+      );
     },
     compose(step) {
       if (!policies.status().features.enabled.composition) {
@@ -1165,6 +1255,8 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
           return commitPlan(mergeWindow(state, step.windowId, step.targetId));
         case 'regroup':
           return commitPlan(regroupWindow(state, step.windowId, step.target));
+        case 'group':
+          return commitPlan(groupWindows(state, step.windowIds, step.group));
       }
     },
     poseOf(id) {

@@ -11,6 +11,30 @@
     "entries": [
       {
         "causeId": null,
+        "changedNodeIds": [],
+        "changedSurfaceIds": [],
+        "commandTypes": [
+          "selection.set"
+        ],
+        "commands": [
+          {
+            "ids": [
+              "window-02"
+            ],
+            "type": "selection.set"
+          }
+        ],
+        "error": null,
+        "history": null,
+        "outcome": "committed",
+        "previousRevision": 1,
+        "revision": 2,
+        "seq": 1,
+        "source": "user",
+        "transactionId": "test/tx-2"
+      },
+      {
+        "causeId": null,
         "changedNodeIds": [
           "window-02"
         ],
@@ -45,34 +69,6 @@
         "error": null,
         "history": null,
         "outcome": "committed",
-        "previousRevision": 1,
-        "revision": 2,
-        "seq": 1,
-        "source": "user",
-        "transactionId": "test/tx-10"
-      },
-      {
-        "causeId": null,
-        "changedNodeIds": [],
-        "changedSurfaceIds": [],
-        "commandTypes": [
-          "camera.patch"
-        ],
-        "commands": [
-          {
-            "id": "camera",
-            "rotation": [
-              0,
-              0.058870804,
-              0,
-              0.99826561
-            ],
-            "type": "camera.patch"
-          }
-        ],
-        "error": null,
-        "history": null,
-        "outcome": "committed",
         "previousRevision": 2,
         "revision": 3,
         "seq": 2,
@@ -91,9 +87,9 @@
             "id": "camera",
             "rotation": [
               0,
-              0.117537397,
+              0.058870804,
               0,
-              0.993068457
+              0.99826561
             ],
             "type": "camera.patch"
           }
@@ -119,9 +115,9 @@
             "id": "camera",
             "rotation": [
               0,
-              0.17579628,
+              0.117537397,
               0,
-              0.984426568
+              0.993068457
             ],
             "type": "camera.patch"
           }
@@ -147,9 +143,9 @@
             "id": "camera",
             "rotation": [
               0,
-              0.233445364,
+              0.17579628,
               0,
-              0.97236992
+              0.984426568
             ],
             "type": "camera.patch"
           }
@@ -175,9 +171,9 @@
             "id": "camera",
             "rotation": [
               0,
-              0.290284677,
+              0.233445364,
               0,
-              0.956940336
+              0.97236992
             ],
             "type": "camera.patch"
           }
@@ -203,9 +199,9 @@
             "id": "camera",
             "rotation": [
               0,
-              0.346117057,
+              0.290284677,
               0,
-              0.938191336
+              0.956940336
             ],
             "type": "camera.patch"
           }
@@ -231,9 +227,9 @@
             "id": "camera",
             "rotation": [
               0,
-              0.400748833,
+              0.346117057,
               0,
-              0.916187957
+              0.938191336
             ],
             "type": "camera.patch"
           }
@@ -259,9 +255,9 @@
             "id": "camera",
             "rotation": [
               0,
-              0.4539905,
+              0.400748833,
               0,
-              0.891006524
+              0.916187957
             ],
             "type": "camera.patch"
           }
@@ -274,6 +270,34 @@
         "seq": 9,
         "source": "user",
         "transactionId": "test/tx-18"
+      },
+      {
+        "causeId": null,
+        "changedNodeIds": [],
+        "changedSurfaceIds": [],
+        "commandTypes": [
+          "camera.patch"
+        ],
+        "commands": [
+          {
+            "id": "camera",
+            "rotation": [
+              0,
+              0.4539905,
+              0,
+              0.891006524
+            ],
+            "type": "camera.patch"
+          }
+        ],
+        "error": null,
+        "history": null,
+        "outcome": "committed",
+        "previousRevision": 10,
+        "revision": 11,
+        "seq": 10,
+        "source": "user",
+        "transactionId": "test/tx-19"
       }
     ],
     "trace": "swf.operation-trace/1",
@@ -281,7 +305,7 @@
   },
   "scene": {
     "workspaceId": "test",
-    "revision": 10,
+    "revision": 11,
     "rootIds": [
       "workspace"
     ],
@@ -991,7 +1015,9 @@
       }
     ],
     "orbitRootId": "workspace",
-    "selection": [],
+    "selection": [
+      "window-02"
+    ],
     "focusedId": null
   }
 }

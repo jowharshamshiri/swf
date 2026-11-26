@@ -100,12 +100,8 @@ describe('the guided scenarios, driven from the Scenarios view', () => {
     expect(offCamera(app, 'desk')).toBeLessThan(90);
     await goTo(m, 'Writing Desk', 'desk');
     await due(m, 2);
-    // Behind the camera, by its exact place in the inspector: across the camera from where it was.
-    const [x, , z] = app.poseOf('desk')?.position ?? [NaN, NaN, NaN];
-    m.driver.act('page.inspector.exact#x', 'set', String(-x));
-    m.driver.act('page.inspector.exact#z', 'set', String(-z));
-    await m.settle();
-    m.driver.act('page.inspector.exact.apply', 'press');
+    // Behind the camera, by its angle in the inspector: straight behind, where the camera faces.
+    m.driver.act('page.inspector.pose.number#heading', 'set', '180');
     await due(m, 3);
     expect(offCamera(app, 'desk')).toBeGreaterThan(90);
     m.driver.act('editor.actions.mode#map', 'press');
@@ -279,7 +275,7 @@ describe('the timed window-finding task, driven from the Scenarios view', () => 
     if (run == null) {
       throw new Error('no run started');
     }
-    await m.model.removeWindow(run.target);
+    await m.model.removeWindows([run.target]);
     await m.settle();
     expect(m.model.challenge?.run).toBeNull();
     expect(m.driver.has('page.challenge.removed')).toBe(true);

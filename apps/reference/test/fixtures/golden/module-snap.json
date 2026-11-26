@@ -11,6 +11,30 @@
     "entries": [
       {
         "causeId": null,
+        "changedNodeIds": [],
+        "changedSurfaceIds": [],
+        "commandTypes": [
+          "selection.set"
+        ],
+        "commands": [
+          {
+            "ids": [
+              "window-02"
+            ],
+            "type": "selection.set"
+          }
+        ],
+        "error": null,
+        "history": null,
+        "outcome": "committed",
+        "previousRevision": 1,
+        "revision": 2,
+        "seq": 1,
+        "source": "user",
+        "transactionId": "test/tx-2"
+      },
+      {
+        "causeId": null,
         "changedNodeIds": [
           "window-02"
         ],
@@ -45,11 +69,11 @@
         "error": null,
         "history": null,
         "outcome": "committed",
-        "previousRevision": 1,
-        "revision": 2,
-        "seq": 1,
+        "previousRevision": 2,
+        "revision": 3,
+        "seq": 2,
         "source": "user",
-        "transactionId": "test/tx-10"
+        "transactionId": "test/tx-11"
       }
     ],
     "trace": "swf.operation-trace/1",
@@ -57,7 +81,7 @@
   },
   "scene": {
     "workspaceId": "test",
-    "revision": 2,
+    "revision": 3,
     "rootIds": [
       "workspace"
     ],
@@ -767,7 +791,9 @@
       }
     ],
     "orbitRootId": "workspace",
-    "selection": [],
+    "selection": [
+      "window-02"
+    ],
     "focusedId": null
   },
   "snapped": {

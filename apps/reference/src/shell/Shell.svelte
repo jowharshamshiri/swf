@@ -121,8 +121,9 @@
   /**
    * The panorama's own keys for its views, while the panorama has the keyboard (so a single key
    * never acts from anywhere else, WCAG 2.1.4): 1 to 4 show the views in the switcher's order, F
-   * focuses the selected window, M shows the map, and Escape leaves the map or the overview for
-   * the view it was opened from.
+   * focuses the selected window, M shows the map, Delete or Backspace removes the selected windows
+   * (one change, with an undo offered), and Escape leaves the map or the overview for the view it
+   * was opened from.
    */
   function panoramaKey(event: KeyboardEvent): void {
     const listed = modes.filter((mode) => !mode.disabled);
@@ -144,6 +145,15 @@
     if (key === 'm' && model.policies?.features.enabled.map === true) {
       event.preventDefault();
       void model.run('reference.mode.switch', { mode: MAP.id });
+      return;
+    }
+    if (event.key === 'Delete' || event.key === 'Backspace') {
+      // As a file explorer: Delete (or Backspace) removes what is selected, with an undo offered.
+      const selection = model.selection;
+      if (selection.length > 0) {
+        event.preventDefault();
+        void model.removeWindows(selection);
+      }
       return;
     }
     if (event.key === 'Escape' && (model.status?.mode === MAP.id || model.status?.mode === OVERVIEW.id)) {

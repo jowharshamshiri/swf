@@ -444,10 +444,10 @@ describe('the reference controls (QA-009, UX-013, NFR-024)', () => {
     expect(root.querySelectorAll('[data-wsb="application.announcer"]')).toHaveLength(1);
     await model.select(FIRST.id);
     await settle();
-    driver.act('page.inspector.step#right', 'press');
+    driver.act('page.inspector.pose#heading', 'key', 'ArrowRight');
     await settle();
     expect(polite?.lastElementChild?.textContent).toContain(`${FIRST.label} moved`);
-    driver.act('page.inspector.step#left', 'press');
+    driver.act('page.inspector.pose#heading', 'key', 'ArrowLeft');
     await settle();
     // Said again, as another line: a repeat is heard too.
     expect(polite?.children.length).toBe(2);
@@ -456,25 +456,15 @@ describe('the reference controls (QA-009, UX-013, NFR-024)', () => {
     const said = announcer?.getBoundingClientRect();
     expect((said?.width ?? 0) * (said?.height ?? 0)).toBeLessThanOrEqual(1);
     expect(announcer === null ? '' : getComputedStyle(announcer).overflow).toBe('hidden');
-    // An entry that is not a number is refused at once, under the entry, read with it and marked,
-    // and said once: not again over the inspector.
-    driver.act('page.inspector.exact#x', 'type', 'far');
+    // A refusal is said over the inspector, once, as an alert.
+    const near = await model.run('reference.window.pose', { id: FIRST.id, reach: 0 });
+    expect(near).toBe(false);
     await settle();
-    driver.act('page.inspector.exact.apply', 'press');
-    await settle();
-    const entry = root.querySelector<HTMLElement>('[data-wsb="page.inspector.exact#x"]');
-    expect(entry?.getAttribute('aria-invalid')).toBe('true');
-    const described = (entry?.getAttribute('aria-describedby') ?? '')
-      .split(/\s+/)
-      .map((id) => document.getElementById(id))
-      .filter((element) => element !== null);
-    const message = described.find((element) =>
-      element.textContent.includes('x must be a finite number'),
-    );
-    expect(message?.getAttribute('role')).toBe('alert');
-    expect(root.querySelector('[data-wsb="page.inspector.refusal"]')).toBeNull();
+    const refused = root.querySelector('[data-wsb="page.inspector.refusal"]');
+    expect(refused?.getAttribute('role')).toBe('alert');
+    expect(refused?.textContent).toMatch(/reach must be at least/);
     expect(root.querySelectorAll('[role="alert"]')).toHaveLength(1);
-    // A refusal that names no entry is said over the inspector, once.
+    // Another refusal takes its place, said once.
     const asked: unknown = 'yes';
     await model.run('reference.window.lock', { id: FIRST.id, locked: asked as boolean });
     await settle();
@@ -496,6 +486,12 @@ describe('a control for every gesture, for touch, pen and keyboard (UX-014, UX-0
       'swf.window-move/1',
       'swf.window-resize/1',
     ]);
+    expect(app.router.policyIds().filter((id) => id.startsWith('reference.'))).toEqual([
+      'reference.depth-drag/1',
+      'reference.magnetic-move/1',
+      'reference.select-toggle/1',
+      'reference.turn-drag/1',
+    ]);
     const pose = () =>
       app.poseOf(FIRST.id) ??
       (() => {
@@ -507,36 +503,42 @@ describe('a control for every gesture, for touch, pen and keyboard (UX-014, UX-0
     driver.act(`page.windows.window#${FIRST.id}`, 'press');
     await settle();
     expect(model.selected?.id).toBe(FIRST.id);
-    // A window drag: the moves, and the exact place.
+    // Ctrl+click to select more: a row's own toggle.
+    const other = SPARSE[1]?.id ?? '';
+    driver.act(`page.windows.row.select#${other}`, 'press');
+    await settle();
+    expect(app.workspace.getState().selection).toEqual([other, FIRST.id]);
+    driver.act(`page.windows.row.select#${other}`, 'press');
+    await settle();
+    expect(app.workspace.getState().selection).toEqual([FIRST.id]);
+    // A window drag (and its magnetic move): round the camera and up.
     let before = pose();
-    driver.act('page.inspector.step#right', 'press');
-    driver.act('page.inspector.step#up', 'press');
+    driver.act('page.inspector.pose#heading', 'key', 'ArrowRight');
+    driver.act('page.inspector.pose#y', 'key', 'ArrowUp');
     await settle();
     expect(pose().heading).toBeGreaterThan(before.heading);
-    expect(pose().elevation).toBeGreaterThan(before.elevation);
-    // The wheel with Shift, and a pinch: nearer and farther.
+    expect(pose().position[1]).toBeGreaterThan(before.position[1]);
+    // Shift and drag, the wheel with Shift, and a pinch: nearer and farther.
     before = pose();
-    driver.act('page.inspector.step#farther', 'press');
+    driver.act('page.inspector.pose#reach', 'key', 'ArrowRight');
     await settle();
-    expect(pose().distance).toBeCloseTo(before.distance + 0.25, 6);
-    driver.act('page.inspector.step#nearer', 'press');
+    expect(pose().reach).toBeGreaterThan(before.reach);
+    driver.act('page.inspector.pose#reach', 'key', 'ArrowLeft');
     await settle();
-    expect(pose().distance).toBeCloseTo(before.distance, 6);
+    expect(pose().reach).toBeLessThan(before.reach + 0.1);
     // A resize handle: wider, taller, and the exact size.
-    driver.act('page.inspector.step#wider', 'press');
-    driver.act('page.inspector.step#taller', 'press');
+    driver.act('page.inspector.pose#width', 'key', 'ArrowRight');
+    driver.act('page.inspector.pose#height', 'key', 'ArrowRight');
     await settle();
-    expect(pose().width).toBeCloseTo(before.width + 0.1, 6);
-    expect(pose().height).toBeCloseTo(before.height + 0.1, 6);
-    driver.act('page.inspector.exact#width', 'type', '2');
-    await settle();
-    driver.act('page.inspector.exact.apply', 'press');
+    expect(pose().width).toBeGreaterThan(before.width);
+    expect(pose().height).toBeGreaterThan(before.height);
+    driver.act('page.inspector.pose.number#width', 'set', '2');
     await settle();
     expect(pose().width).toBeCloseTo(2, 6);
-    // Turning a window: a step, and the exact turn.
-    driver.act('page.inspector.step#turn-right', 'press');
+    // Ctrl and drag: turning a window.
+    driver.act('page.inspector.pose#turned', 'key', 'ArrowRight');
     await settle();
-    expect(pose().turned).toBeCloseTo(before.turned + 15, 6);
+    expect(pose().turned).toBeGreaterThan(before.turned);
     // A background drag turns the camera: the window's Reveal turns it to the window.
     await model.run('reference.window.reveal', { id: SPARSE[2]?.id ?? '' });
     driver.act(`page.inspector.window.reveal#${SPARSE[2]?.id ?? ''}`, 'press');

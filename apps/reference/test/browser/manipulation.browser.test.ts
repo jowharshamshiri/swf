@@ -1,0 +1,414 @@
+import { worldMatrix } from '@swf/core';
+import type { SceneState } from '@swf/core';
+import type { Vec3 } from '@swf/math';
+import { mat4TransformPoint } from '@swf/math';
+import { createMemoryStore } from '@swf/persistence';
+import { viewGeometryOf } from '@swf/presentation';
+import { equirectangular } from '@swf/projections';
+import { describe, expect, it } from 'vitest';
+import { commands } from 'vitest/browser';
+import type { ReferenceApp } from '../../src/app.js';
+import { VIEWPORT_ID } from '../../src/app.js';
+import { ENGLISH } from '../../src/messages.js';
+import { poseOf } from '../../src/pose.js';
+import { CAMERA_ID } from '../../src/presets.js';
+import type { Mounted } from './shell-harness.js';
+import { same, start } from './shell-harness.js';
+
+declare module 'vitest/browser' {
+  interface BrowserCommands {
+    mouse: (
+      action: 'move' | 'down' | 'up',
+      x: number,
+      y: number,
+      modifiers?: readonly string[],
+    ) => Promise<void>;
+  }
+}
+
+/**
+ * Windows handled directly in the panorama and set from the inspector's sliders: every gesture
+ * shows where the window would be as it goes, commits once when it ends (one undo puts it back),
+ * and the scene's transform is what every control reads.
+ */
+
+/** The sparse scene, seen through a 120° panorama so its windows are large enough to take. */
+async function visit(): Promise<Mounted & { readonly app: ReferenceApp }> {
+  const m = await start('?preset=sparse', { store: createMemoryStore() });
+  const app = m.model.app;
+  if (app === null) {
+    throw new Error('no application');
+  }
+  // The inspector open on the right, whatever an earlier visit left there.
+  if (!m.driver.has('page.inspector')) {
+    m.driver.act('worktree.view#inspector', 'press');
+    await m.settle();
+  }
+  expect(m.driver.has('page.inspector')).toBe(true);
+  // Each gesture's place exactly as the pointer takes it, with no snap at release.
+  app.policies.configure({ enabled: { snap: false } });
+  expect(await m.model.run('reference.view.fov', { degrees: 120 })).toBe(true);
+  await m.settle();
+  return { ...m, app };
+}
+
+/** Where a point of a window, in its own frame, is on the page. */
+function onPage(m: Mounted, app: ReferenceApp, id: string, local: Vec3): [number, number] {
+  const state = app.workspace.getState();
+  const world = worldMatrix(state.nodes, id);
+  const box = m.root.querySelector('[data-swf-viewport]')?.getBoundingClientRect();
+  if (world === undefined || box === undefined) {
+    throw new Error(`${id} is not shown`);
+  }
+  const view = viewGeometryOf(state, VIEWPORT_ID);
+  const image = equirectangular
+    .create(view.projectionConfig)
+    .projectDirection(mat4TransformPoint(world, local), view).images[0];
+  if (image === undefined) {
+    throw new Error(`${id} is not in view`);
+  }
+  return [Math.round(box.left + image[0]), Math.round(box.top + image[1])];
+}
+
+/** A point on a window's frame, in its title band below the edge a resize takes. */
+function onFrame(m: Mounted, app: ReferenceApp, id: string): [number, number] {
+  const height = app.workspace.getState().nodes.get(id)?.bounds[1] ?? 0;
+  return onPage(m, app, id, [0, height / 2 - 0.15, 0]);
+}
+
+/** A window's pose in a scene, seen from the camera. */
+function poseIn(state: SceneState, id: string) {
+  const eye = state.cameras.get(CAMERA_ID)?.position;
+  const pose = eye === undefined ? null : poseOf(state, id, eye);
+  if (pose === null) {
+    throw new Error(`no ${id}`);
+  }
+  return pose;
+}
+
+/** What a slider of the inspector shows now. */
+function slider(m: Mounted, field: string): number {
+  const rail = m.root.querySelector(`[data-wsb="page.inspector.pose#${field}"]`);
+  const value = rail?.getAttribute('aria-valuenow');
+  if (value === null || value === undefined) {
+    throw new Error(`no ${field} slider`);
+  }
+  return Number(value);
+}
+
+/** What the gesture bar says. */
+const bar = (m: Mounted) =>
+  m.root.querySelector(`[aria-label="${ENGLISH['gesture.label']}"]`)?.textContent ?? '';
+
+const nextFrame = () => new Promise((resolve) => requestAnimationFrame(resolve));
+
+/**
+ * Drags from a point by steps, with modifiers held at the press, sampling after each step what
+ * `read` reads; released at the end.
+ */
+async function dragFrom<T>(
+  m: Mounted,
+  [x, y]: [number, number],
+  step: [number, number],
+  steps: number,
+  modifiers: readonly string[],
+  read: () => T,
+): Promise<T[]> {
+  const seen: T[] = [];
+  await commands.mouse('move', x, y);
+  await commands.mouse('down', x, y, modifiers);
+  for (let i = 1; i <= steps; i += 1) {
+    await commands.mouse('move', x + step[0] * i, y + step[1] * i);
+    await nextFrame();
+    await m.settle();
+    seen.push(read());
+  }
+  await commands.mouse('up', x + step[0] * steps, y + step[1] * steps);
+  await m.settle();
+  return seen;
+}
+
+/** Each value differs from the one before: the reading followed the pointer all the way. */
+const everyStepMoved = (values: readonly number[]) =>
+  values.slice(1).every((value, i) => Math.abs(value - (values[i] ?? value)) > 1e-9);
+
+describe('a window handled directly in the panorama', () => {
+  it('moves round the camera as it is dragged, shown all the way, and is one undo step when let go', async () => {
+    const m = await visit();
+    const { app } = m;
+    const before = app.workspace.getState();
+    const history = app.workspace.history().length;
+    const seen = await dragFrom(m, onFrame(m, app, 'window-01'), [12, 0], 6, [], () => ({
+      bar: bar(m),
+      shown: app.poseOf('window-01')?.heading ?? NaN,
+      slider: slider(m, 'heading'),
+      committed: app.workspace.history().length,
+      scene: poseIn(app.workspace.getState(), 'window-01').heading,
+    }));
+    // Selected by the drag, followed by the gesture bar and the inspector's slider at every step,
+    // and nothing committed until it was let go.
+    expect(seen.every((s) => s.bar.includes('Moving Tile 01'))).toBe(true);
+    expect(new Set(seen.map((s) => s.bar)).size).toBe(seen.length);
+    expect(everyStepMoved(seen.map((s) => s.shown))).toBe(true);
+    expect(seen.map((s) => s.slider)).toEqual(seen.map((s) => Math.round(s.shown)));
+    expect(seen.every((s) => s.committed === history)).toBe(true);
+    expect(seen.every((s) => s.scene === poseIn(before, 'window-01').heading)).toBe(true);
+    expect(m.model.selected?.id).toBe('window-01');
+    // One change, the last place shown, and the inspector reads the scene.
+    expect(app.workspace.history()).toHaveLength(history + 1);
+    const moved = poseIn(app.workspace.getState(), 'window-01').heading;
+    expect(moved).toBeCloseTo(seen.at(-1)?.shown ?? NaN, 9);
+    expect(slider(m, 'heading')).toBe(Math.round(moved));
+    expect(bar(m)).toContain('Moved Tile 01');
+    m.driver.act('page.gesture.undo', 'press');
+    await m.settle();
+    expect(app.workspace.getState().nodes.get('window-01')?.transform).toEqual(
+      before.nodes.get('window-01')?.transform,
+    );
+    expect(slider(m, 'heading')).toBe(Math.round(poseIn(before, 'window-01').heading));
+  });
+
+  it('comes nearer or goes farther with Shift held, down pulling it in and up pushing it away, as one change', async () => {
+    const m = await visit();
+    const { app } = m;
+    const before = app.workspace.getState();
+    const history = app.workspace.history().length;
+    const reach = () => app.poseOf('window-01')?.reach ?? NaN;
+    const start = reach();
+    const away = await dragFrom(m, onFrame(m, app, 'window-01'), [0, -10], 6, ['Shift'], () => ({
+      reach: reach(),
+      slider: slider(m, 'reach'),
+      bar: bar(m),
+    }));
+    expect(everyStepMoved(away.map((s) => s.reach))).toBe(true);
+    expect(away.every((s, i) => s.reach > (away[i - 1]?.reach ?? start))).toBe(true);
+    expect(away.map((s) => s.slider)).toEqual(away.map((s) => Number(s.reach.toFixed(1))));
+    expect(away.every((s) => s.bar.includes('units away'))).toBe(true);
+    expect(app.workspace.history()).toHaveLength(history + 1);
+    const farther = poseIn(app.workspace.getState(), 'window-01');
+    expect(farther.reach).toBeGreaterThan(start * 1.3);
+    // Its heading kept: the pointer went straight up.
+    expect(farther.heading).toBeCloseTo(poseIn(before, 'window-01').heading, 1);
+    // And back: down brings it nearer.
+    await dragFrom(m, onFrame(m, app, 'window-01'), [0, 10], 6, ['Shift'], reach);
+    expect(poseIn(app.workspace.getState(), 'window-01').reach).toBeLessThan(farther.reach);
+    expect(app.workspace.history()).toHaveLength(history + 2);
+    expect(await m.model.run('reference.history.undo', {})).toBe(true);
+    expect(await m.model.run('reference.history.undo', {})).toBe(true);
+    expect(app.workspace.getState().nodes.get('window-01')?.transform).toEqual(
+      before.nodes.get('window-01')?.transform,
+    );
+  });
+
+  it('turns about its own vertical with Ctrl held, shown as it turns, as one change', async () => {
+    const m = await visit();
+    const { app } = m;
+    const before = app.workspace.getState();
+    const history = app.workspace.history().length;
+    const turned = () => app.poseOf('window-01')?.turned ?? NaN;
+    const seen = await dragFrom(m, onFrame(m, app, 'window-01'), [10, 0], 6, ['Control'], () => ({
+      turned: turned(),
+      slider: slider(m, 'turned'),
+      bar: bar(m),
+      heading: app.poseOf('window-01')?.heading ?? NaN,
+    }));
+    expect(seen.every((s) => s.bar.includes('Turning Tile 01'))).toBe(true);
+    expect(everyStepMoved(seen.map((s) => s.turned))).toBe(true);
+    expect(seen.map((s) => s.slider)).toEqual(seen.map((s) => Math.round(s.turned)));
+    // Turned in place: where it stands is kept.
+    for (const s of seen) {
+      expect(s.heading).toBeCloseTo(poseIn(before, 'window-01').heading, 6);
+    }
+    expect(app.workspace.history()).toHaveLength(history + 1);
+    // Six steps of ten pixels, half a degree each: thirty degrees to the right.
+    expect(poseIn(app.workspace.getState(), 'window-01').turned).toBeCloseTo(
+      poseIn(before, 'window-01').turned + 30,
+      6,
+    );
+    expect(bar(m)).toContain('Turned Tile 01');
+    m.driver.act('page.gesture.undo', 'press');
+    await m.settle();
+    expect(app.workspace.getState().nodes.get('window-01')?.transform).toEqual(
+      before.nodes.get('window-01')?.transform,
+    );
+  });
+
+  it('resizes from its edge, shown as it grows, as one change', async () => {
+    const m = await visit();
+    const { app } = m;
+    const before = app.workspace.getState().nodes.get('window-01');
+    const history = app.workspace.history().length;
+    const width = before?.bounds[0] ?? 0;
+    // On its right edge, within the band that resizes.
+    const edge = onPage(m, app, 'window-01', [width / 2 - 0.01, 0, 0]);
+    const seen = await dragFrom(m, edge, [8, 0], 5, [], () => ({
+      width: app.workspace.getPresented().nodes.get('window-01')?.bounds[0] ?? NaN,
+      bar: bar(m),
+    }));
+    expect(seen.every((s) => s.bar.includes('Resizing Tile 01'))).toBe(true);
+    expect(everyStepMoved(seen.map((s) => s.width))).toBe(true);
+    expect(seen.every((s) => s.width > width)).toBe(true);
+    expect(app.workspace.history()).toHaveLength(history + 1);
+    expect(slider(m, 'width')).toBe(
+      Number(app.workspace.getState().nodes.get('window-01')?.bounds[0].toFixed(2)),
+    );
+    expect(await m.model.run('reference.history.undo', {})).toBe(true);
+    expect(app.workspace.getState().nodes.get('window-01')?.bounds).toEqual(before?.bounds);
+  });
+
+  it('selects with a click, selects more with Ctrl and click, and groups the selected in one change', async () => {
+    const m = await visit();
+    const { app, driver, settle } = m;
+    // Both windows in view: Tile 01 at 15° left, Note 02 at 67° right.
+    expect(await m.model.run('reference.view.heading', { degrees: 25 })).toBe(true);
+    await settle();
+    const tap = async (id: string, modifiers: readonly string[] = []) => {
+      const [x, y] = onFrame(m, app, id);
+      await commands.mouse('move', x, y);
+      await commands.mouse('down', x, y, modifiers);
+      await commands.mouse('up', x, y, modifiers);
+      await settle();
+    };
+    await tap('window-01');
+    expect(app.workspace.getState().selection).toEqual(['window-01']);
+    await tap('window-02', ['Control']);
+    expect(app.workspace.getState().selection).toEqual(['window-02', 'window-01']);
+    // The inspector shows the one added last, and offers to group them.
+    expect(m.model.selected?.id).toBe('window-02');
+    expect(driver.has('page.inspector.together')).toBe(true);
+    // Ctrl and click again takes one out; a plain click selects one alone.
+    await tap('window-01', ['Control']);
+    expect(app.workspace.getState().selection).toEqual(['window-02']);
+    expect(driver.has('page.inspector.together')).toBe(false);
+    await tap('window-01', ['Control']);
+    const was = {
+      a: worldMatrix(app.workspace.getState().nodes, 'window-01'),
+      b: worldMatrix(app.workspace.getState().nodes, 'window-02'),
+    };
+    const history = app.workspace.history().length;
+    driver.act('page.inspector.together.name', 'type', 'Pair');
+    await settle();
+    driver.act('page.inspector.together.group', 'press');
+    await settle();
+    const state = app.workspace.getState();
+    const groupId = state.nodes.get('window-01')?.parentId ?? '';
+    expect(state.nodes.get(groupId)).toMatchObject({ kind: 'group', label: 'Pair' });
+    expect(state.nodes.get('window-02')?.parentId).toBe(groupId);
+    expect(app.workspace.history()).toHaveLength(history + 1);
+    // Each stays where it stood.
+    expect(same(worldMatrix(state.nodes, 'window-01'), was.a)).toBe(true);
+    expect(same(worldMatrix(state.nodes, 'window-02'), was.b)).toBe(true);
+    expect(await m.model.run('reference.history.undo', {})).toBe(true);
+    expect(app.workspace.getState().nodes.has(groupId)).toBe(false);
+  });
+
+  it('focuses the selected window from its actions, and removes the selected with Delete, offering undo', async () => {
+    const m = await visit();
+    const { app, driver, settle } = m;
+    await m.model.select('window-01');
+    await settle();
+    driver.act('page.inspector.window.focus#window-01', 'press');
+    await settle();
+    expect(app.workspace.getState().focusedId).toBe('window-01');
+    expect(await m.model.run('reference.focus.exit', {})).toBe(true);
+    expect(await m.model.run('reference.selection.toggle', { id: 'window-02' })).toBe(true);
+    await settle();
+    const history = app.workspace.history().length;
+    app.root.focus();
+    app.root.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Delete', bubbles: true, cancelable: true }),
+    );
+    await settle();
+    expect(app.workspace.getState().nodes.has('window-01')).toBe(false);
+    expect(app.workspace.getState().nodes.has('window-02')).toBe(false);
+    expect(app.workspace.history()).toHaveLength(history + 1);
+    driver.act('page.removed.undo', 'press');
+    await settle();
+    expect(app.workspace.getState().nodes.has('window-01')).toBe(true);
+    expect(app.workspace.getState().nodes.has('window-02')).toBe(true);
+  });
+});
+
+describe('the inspector’s sliders', () => {
+  it('moves the window as a slider is dragged, commits once when let go, and reads the scene', async () => {
+    const m = await visit();
+    const { app } = m;
+    await m.model.select('window-01');
+    await m.settle();
+    const before = app.workspace.getState();
+    const history = app.workspace.history().length;
+    const rail = m.root.querySelector('[data-wsb="page.inspector.pose#heading"]');
+    const box = rail?.getBoundingClientRect();
+    if (box === undefined) {
+      throw new Error('no angle slider');
+    }
+    // The thumb stands at the window's angle, from −180° to 180° along the rail.
+    const at = (degrees: number) => Math.round(box.left + ((degrees + 180) / 360) * box.width);
+    const y = Math.round(box.top + box.height / 2);
+    const from = poseIn(before, 'window-01').heading;
+    const seen = await dragFrom(m, [at(from), y], [6, 0], 6, [], () => ({
+      shown: app.poseOf('window-01')?.heading ?? NaN,
+      slider: slider(m, 'heading'),
+      committed: app.workspace.history().length,
+      scene: poseIn(app.workspace.getState(), 'window-01').heading,
+    }));
+    // The window moves in the panorama with the thumb; nothing is committed while it moves.
+    expect(everyStepMoved(seen.map((s) => s.shown))).toBe(true);
+    for (const s of seen) {
+      expect(s.shown).toBeCloseTo(s.slider, 6);
+      expect(s.committed).toBe(history);
+      expect(s.scene).toBe(from);
+    }
+    expect(app.workspace.history()).toHaveLength(history + 1);
+    expect(poseIn(app.workspace.getState(), 'window-01').heading).toBeCloseTo(
+      seen.at(-1)?.slider ?? NaN,
+      6,
+    );
+    // A key is a step, a typed number an exact place: one change each.
+    m.driver.act('page.inspector.pose#reach', 'key', 'ArrowRight');
+    await m.settle();
+    expect(app.workspace.history()).toHaveLength(history + 2);
+    m.driver.act('page.inspector.pose.number#y', 'set', '1.5');
+    await m.settle();
+    expect(poseIn(app.workspace.getState(), 'window-01').position[1]).toBeCloseTo(1.5, 9);
+    expect(app.workspace.history()).toHaveLength(history + 3);
+    // Changed by another route, the sliders show the scene; undone, they show it again.
+    expect(await m.model.run('reference.window.sendBehind', { id: 'window-01' })).toBe(true);
+    await m.settle();
+    expect(slider(m, 'heading')).toBe(
+      Math.round(poseIn(app.workspace.getState(), 'window-01').heading),
+    );
+    for (let i = 0; i < 4; i += 1) {
+      expect(await m.model.run('reference.history.undo', {})).toBe(true);
+    }
+    await m.settle();
+    expect(app.workspace.getState().nodes.get('window-01')?.transform).toEqual(
+      before.nodes.get('window-01')?.transform,
+    );
+    expect(slider(m, 'heading')).toBe(Math.round(from));
+    expect(slider(m, 'y')).toBe(Number(poseIn(before, 'window-01').position[1].toFixed(1)));
+  });
+
+  it('shows in front or behind, and offers no slider a window’s host or its lock forbids', async () => {
+    const m = await visit();
+    const { app, driver } = m;
+    await m.model.select('window-01');
+    await m.settle();
+    const facts = () => m.root.querySelector('[aria-label="Selected window"]')?.textContent ?? '';
+    expect(facts()).toContain(ENGLISH['inspector.side.front']);
+    expect(await m.model.run('reference.window.sendBehind', { id: 'window-01' })).toBe(true);
+    await m.settle();
+    expect(facts()).toContain(ENGLISH['inspector.side.behind']);
+    driver.act('page.inspector.lock', 'toggle');
+    await m.settle();
+    for (const field of ['heading', 'reach', 'y', 'turned', 'width', 'height']) {
+      expect(
+        m.root
+          .querySelector(`[data-wsb="page.inspector.pose#${field}"]`)
+          ?.getAttribute('aria-disabled'),
+        field,
+      ).toBe('true');
+    }
+    expect(app.workspace.getState().nodes.get('window-01')?.flags.locked).toBe(true);
+  });
+});

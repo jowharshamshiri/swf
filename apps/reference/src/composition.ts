@@ -8,7 +8,7 @@ import { models } from '@swf/models';
  * Multi-surface composition (FR-126, WF-06, AC-016): the surfaces a host supplied, rearranged
  * among windows. A surface can be detached into a window of its own, moved into another window,
  * or a window's surfaces merged into another's; a window can be moved into another group, or a
- * new one. Each step is decided from the committed scene alone by the Lean model
+ * new one, and several windows gathered into a new group together. Each step is decided from the committed scene alone by the Lean model
  * `Swf.AppComposition` (models/Swf/AppComposition.lean), where it is proved that no surface is
  * lost and that a new node's ID is free; this module lays the windows out round their surfaces
  * and turns the decision into the scene commands of one undoable transaction. Only associations
@@ -229,6 +229,19 @@ function commandsOf(state: SceneState, plan: Lean.CompPlan, window?: NewWindow):
           : [{ type: 'node.delete', id: plan.removed, mode: 'rejectIfChildren' } as const]),
       ]);
     }
+    case 'group':
+      return planned([
+        {
+          type: 'node.group',
+          nodeIds: [...plan.windows],
+          group: { id: plan.id, label: plan.label, parentId: plan.parentId },
+        },
+        ...plan.removed.map((id): SceneCommand => ({
+          type: 'node.delete',
+          id,
+          mode: 'rejectIfChildren',
+        })),
+      ]);
   }
 }
 
@@ -309,6 +322,26 @@ export function regroupWindow(
       target.kind === 'group'
         ? { kind: 'group', id: target.id }
         : { kind: 'fresh', id: target.id, label: target.label },
+  });
+  return commandsOf(state, plan);
+}
+
+/**
+ * Gathers windows into a new group together, each keeping its place in the world: the group is made
+ * in the group they all share, or at the root when they share none, and a group they leave empty is
+ * removed with them, unless it is the group workspace orbit turns. At least two windows are named,
+ * each once; a window inside another window moves with it and is not grouped on its own.
+ */
+export function groupWindows(
+  state: SceneState,
+  windowIds: readonly unknown[],
+  group: { readonly id: Id; readonly label: string },
+): CompositionPlan {
+  const plan = models.compositionPlan(sceneOf(state), {
+    kind: 'group',
+    windows: windowIds.map(refOf),
+    id: group.id,
+    label: group.label,
   });
   return commandsOf(state, plan);
 }

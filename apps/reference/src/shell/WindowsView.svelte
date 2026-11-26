@@ -96,7 +96,7 @@
   {@const result = resultAt(index)}
   {@const where = whereOf(result.id)}
   {#snippet actions()}
-    <WindowActions {model} id={result.id} handle="page.windows.row" />
+    <WindowActions {model} id={result.id} handle="page.windows.row" toggle />
   {/snippet}
   <ListItem
     handle={keyed('page.windows.window', result.id)}

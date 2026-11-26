@@ -1,6 +1,8 @@
 <script lang="ts">
-  // WHAT IS SELECTED: the window's identity and where it is around the camera, in degrees and
-  // world units, formatted for the reader's locale (the scene keeps its own numbers); the surfaces
+  // WHAT IS SELECTED: the window's identity, whether it is in front of the camera or behind it,
+  // and where it stands, formatted for the reader's locale (the scene keeps its own numbers); the
+  // kit's sliders that move it round the camera, out and up, turn it and size it, each previewing
+  // as it is dragged and one undoable change when let go; the surfaces
   // the host supplied for it, each detached into a window of its own or moved into another window
   // whole, never split (FR-126, AC-016); merging it into another window and moving it into a group;
   // and removing it from the workspace, which says it does not delete or stop its content (UX-011).
@@ -18,14 +20,15 @@
     Notice,
     Panel,
     Section,
+    SectionLabel,
     Select,
+    Slider,
     Stack,
     Text,
   } from '@wsb/uikit/components';
   import { handleOf, keyed } from '@wsb/uikit/handles';
   import type { MessageId } from '../messages.js';
   import { contentOf } from '../presets.js';
-  import type { AppCommandId } from '../commands.js';
   import type { ShellModel } from './model.svelte.js';
   import WindowActions from './WindowActions.svelte';
 
@@ -49,26 +52,15 @@
             ? []
             : [{ term: t('inspector.content'), value: t(`content.${selected.content}`) }]),
           {
-            term: t('inspector.heading'),
-            value: t('inspector.degrees', { value: round(selected.heading, 1) }),
+            term: t('inspector.side'),
+            value: t(selected.side === 'front' ? 'inspector.side.front' : 'inspector.side.behind'),
           },
           {
-            term: t('inspector.elevation'),
-            value: t('inspector.degrees', { value: round(selected.elevation, 1) }),
-          },
-          {
-            term: t('inspector.distance'),
-            value: t('inspector.units', { value: round(selected.distance, 2) }),
-          },
-          {
-            term: t('inspector.turned'),
-            value: t('inspector.degrees', { value: round(selected.turned, 1) }),
-          },
-          {
-            term: t('inspector.size'),
-            value: t('inspector.size.value', {
-              width: round(selected.width, 2),
-              height: round(selected.height, 2),
+            term: t('inspector.position'),
+            value: t('inspector.position.value', {
+              x: round(selected.position[0], 2),
+              y: round(selected.position[1], 2),
+              z: round(selected.position[2], 2),
             }),
           },
           {
@@ -123,6 +115,17 @@
     return { surfaces, windows, groups };
   });
 
+  // The windows selected together, the inspected one first, and the name a group of them is given.
+  const together = $derived.by(() => {
+    void model.revision;
+    const state = model.app?.workspace.getState();
+    return model.selection.flatMap((id) => {
+      const node = state?.nodes.get(id);
+      return node === undefined ? [] : [{ id, label: node.label ?? id }];
+    });
+  });
+  let togetherLabel = $state('');
+
   // What each composition control has chosen, until it acts.
   let moving = $state('');
   let movingTo = $state('');
@@ -145,10 +148,10 @@
     model.refusal !== null && model.isInspectorRefusal(model.refusal) ? model.refusal : null,
   );
 
-  // PLACING IT (UX-006, UX-012, UX-014): every drag, resize handle and wheel or pinch has its
-  // control here, so neither a pointer's precision nor a device's gestures are needed. A step is
-  // coarse enough to see; the exact entries take any value.
-  const STEP = Object.freeze({ move: 0.25, depth: 0.25, degrees: 15, size: 0.1 });
+  // PLACING IT (UX-006, UX-012, UX-014): every drag, resize handle, turn and wheel or pinch has
+  // its control here, so neither a pointer's precision nor a device's gestures are needed. Each is
+  // the kit's slider: dragged, the window moves as it goes (a preview) and letting go commits it
+  // once; a key moves it a step and a typed number puts it exactly there, each one change.
   const held = $derived(
     model.policies?.gesture?.operation === 'gesture.grab' &&
       model.policies.gesture.nodeId === selected?.id,
@@ -171,25 +174,30 @@
   const canTurn = $derived(selected !== null && selected.rotatable && !selected.locked);
   const canSize = $derived(selected !== null && selected.resizable && !selected.locked);
 
-  type Exact = 'x' | 'y' | 'z' | 'turned' | 'width' | 'height';
-  const EXACT: readonly Exact[] = ['x', 'y', 'z', 'turned', 'width', 'height'];
-  /** What is typed in each exact entry, until it is applied; none shows the value now. */
-  let drafts = $state<Partial<Record<Exact, string>>>({});
-  $effect(() => {
-    void selected?.id;
-    drafts = {};
-  });
-  const current = (field: Exact): number => {
+  type PoseField = 'heading' | 'reach' | 'y' | 'turned' | 'width' | 'height';
+  /**
+   * Each slider's range and step. Distances, heights and sizes reach past their usual range when
+   * the window already stands beyond it, to the step past where it is, so it can always be shown.
+   */
+  const SCALE: Readonly<Record<PoseField, { min: number; max: number; step: number; degrees: boolean }>> = {
+    heading: { min: -180, max: 180, step: 1, degrees: true },
+    reach: { min: 0.5, max: 20, step: 0.1, degrees: false },
+    y: { min: -5, max: 5, step: 0.1, degrees: false },
+    turned: { min: -180, max: 180, step: 1, degrees: true },
+    width: { min: 0.1, max: 8, step: 0.05, degrees: false },
+    height: { min: 0.1, max: 8, step: 0.05, degrees: false },
+  };
+  const valueOf = (field: PoseField): number => {
     if (selected === null) {
       return 0;
     }
     switch (field) {
-      case 'x':
-        return selected.position[0];
+      case 'heading':
+        return selected.heading;
+      case 'reach':
+        return selected.reach;
       case 'y':
         return selected.position[1];
-      case 'z':
-        return selected.position[2];
       case 'turned':
         return selected.turned;
       case 'width':
@@ -198,70 +206,47 @@
         return selected.height;
     }
   };
-  const shown = (field: Exact) => drafts[field] ?? String(round(current(field), 3));
-  const typed = (field: Exact): number | undefined => {
-    const draft = drafts[field];
-    return draft === undefined ? undefined : draft.trim() === '' ? Number.NaN : Number(draft);
+  /** A slider's range, held on its step's grid, reaching the value wherever it is. */
+  const rangeOf = (field: PoseField): { min: number; max: number } => {
+    const { min, max, step } = SCALE[field];
+    const value = valueOf(field);
+    const decimals = String(step).split('.')[1]?.length ?? 0;
+    const grid = (n: number) => Number((n * step).toFixed(decimals));
+    return {
+      min: Math.min(min, grid(Math.floor(value / step))),
+      max: Math.max(max, grid(Math.ceil(value / step))),
+    };
   };
-  /** The commands an exact entry's refusal belongs to, by the field it names. */
-  const EXACT_COMMANDS: Readonly<Record<Exact, AppCommandId>> = {
-    x: 'reference.window.place',
-    y: 'reference.window.place',
-    z: 'reference.window.place',
-    turned: 'reference.window.face',
-    width: 'reference.window.size',
-    height: 'reference.window.size',
-  };
-  const REFUSED_FIELD: Readonly<Record<string, Exact>> = { degrees: 'turned' };
-  const messageOf = (field: Exact): string | undefined =>
-    refusal !== null &&
-    refusal.command === EXACT_COMMANDS[field] &&
-    (REFUSED_FIELD[refusal.field] ?? refusal.field) === field
-      ? refusal.message
-      : undefined;
+  const enabledFor = (field: PoseField): boolean =>
+    field === 'turned' ? canTurn : field === 'width' || field === 'height' ? canSize : canMove;
 
-  /**
-   * A refusal of an exact entry is said by its field, as an alert under the entry it names; it is
-   * not said again over the inspector.
-   */
-  const exactRefused = $derived(EXACT.some((field) => messageOf(field) !== undefined));
-
-  /** Places the window as the exact entries say: each changed entry, one change apiece. */
-  async function applyExact(id: string): Promise<void> {
-    const [x, y, z] = [typed('x'), typed('y'), typed('z')];
-    if (x !== undefined || y !== undefined || z !== undefined) {
-      // A place on the ground is given whole: the entry not changed keeps its value.
-      const ground = x !== undefined || z !== undefined;
-      const done = await model.run('reference.window.place', {
-        id,
-        ...(ground ? { x: x ?? current('x'), z: z ?? current('z') } : {}),
-        ...(y === undefined ? {} : { y }),
-      });
-      if (!done) {
-        return;
-      }
-    }
-    const turned = typed('turned');
-    if (turned !== undefined && !(await model.run('reference.window.face', { id, degrees: turned }))) {
-      return;
-    }
-    const [width, height] = [typed('width'), typed('height')];
-    if (
-      (width !== undefined || height !== undefined) &&
-      !(await model.run('reference.window.size', {
-        id,
-        width: width ?? current('width'),
-        height: height ?? current('height'),
-      }))
-    ) {
-      return;
-    }
-    drafts = {};
+  /** Poses the selected window by one slider: shown while it moves, committed once when let go. */
+  function pose(id: string, field: PoseField, value: number, preview: boolean): void {
+    void model.run('reference.window.pose', { id, [field]: value, preview });
   }
+  const PLACE_FIELDS: readonly PoseField[] = ['heading', 'reach', 'y'];
+  const STAND_FIELDS: readonly PoseField[] = ['turned', 'width', 'height'];
 </script>
 
-{#snippet step(handle: string, label: string, enabled: boolean, command: () => void)}
-  <Button handle={keyed('page.inspector.step', handle)} {label} size="small" disabled={!enabled} onpress={command} />
+{#snippet poseSlider(id: string, field: PoseField)}
+  {@const range = rangeOf(field)}
+  <Slider
+    handle={keyed('page.inspector.pose', field)}
+    label={t(`inspector.place.${field}`)}
+    value={valueOf(field)}
+    min={range.min}
+    max={range.max}
+    step={SCALE[field].step}
+    unit={SCALE[field].degrees ? '°' : t('inspector.place.units')}
+    field
+    disabled={!enabledFor(field)}
+    oninput={(value) => {
+      pose(id, field, value, true);
+    }}
+    onchange={(value) => {
+      pose(id, field, value, false);
+    }}
+  />
 {/snippet}
 
 <Panel title={t('inspector.title')} titled={false} handle={handleOf`page.inspector`}>
@@ -273,7 +258,7 @@
       <ButtonGroup ariaLabel={t('inspector.actions')}>
         <WindowActions {model} id={selected.id} handle="page.inspector.window" inspect={false} />
       </ButtonGroup>
-      {#if refusal !== null && !exactRefused}
+      {#if refusal !== null}
         <Notice tone="danger" title={model.refusalText(refusal)} handle={handleOf`page.inspector.refusal`} />
       {/if}
       <Section title={t('inspector.place')} detail={t('inspector.place.detail')} handle={handleOf`page.inspector.place`}>
@@ -281,44 +266,16 @@
           {#each fixed as reason (reason)}
             <Text quiet>{reason}</Text>
           {/each}
-          <ButtonGroup ariaLabel={t('inspector.place.steps')}>
-            {@render step('left', t('inspector.place.left'), canMove, () => {
-              void model.run('reference.window.nudge', { id: selected.id, right: -STEP.move });
-            })}
-            {@render step('right', t('inspector.place.right'), canMove, () => {
-              void model.run('reference.window.nudge', { id: selected.id, right: STEP.move });
-            })}
-            {@render step('up', t('inspector.place.up'), canMove, () => {
-              void model.run('reference.window.nudge', { id: selected.id, up: STEP.move });
-            })}
-            {@render step('down', t('inspector.place.down'), canMove, () => {
-              void model.run('reference.window.nudge', { id: selected.id, up: -STEP.move });
-            })}
-            {@render step('nearer', t('inspector.place.nearer'), canMove, () => {
-              void model.run('reference.window.nudge', { id: selected.id, depth: -STEP.depth });
-            })}
-            {@render step('farther', t('inspector.place.farther'), canMove, () => {
-              void model.run('reference.window.nudge', { id: selected.id, depth: STEP.depth });
-            })}
-            {@render step('turn-left', t('inspector.place.turnLeft'), canTurn, () => {
-              void model.run('reference.window.turn', { id: selected.id, degrees: -STEP.degrees });
-            })}
-            {@render step('turn-right', t('inspector.place.turnRight'), canTurn, () => {
-              void model.run('reference.window.turn', { id: selected.id, degrees: STEP.degrees });
-            })}
-            {@render step('narrower', t('inspector.place.narrower'), canSize, () => {
-              void model.run('reference.window.resize', { id: selected.id, width: -STEP.size });
-            })}
-            {@render step('wider', t('inspector.place.wider'), canSize, () => {
-              void model.run('reference.window.resize', { id: selected.id, width: STEP.size });
-            })}
-            {@render step('shorter', t('inspector.place.shorter'), canSize, () => {
-              void model.run('reference.window.resize', { id: selected.id, height: -STEP.size });
-            })}
-            {@render step('taller', t('inspector.place.taller'), canSize, () => {
-              void model.run('reference.window.resize', { id: selected.id, height: STEP.size });
-            })}
-          </ButtonGroup>
+          <SectionLabel text={t('inspector.place.where')} />
+          {#each PLACE_FIELDS as field (field)}
+            {@render poseSlider(selected.id, field)}
+          {/each}
+          <Text quiet>{t('inspector.place.where.hint')}</Text>
+          <SectionLabel text={t('inspector.place.how')} />
+          {#each STAND_FIELDS as field (field)}
+            {@render poseSlider(selected.id, field)}
+          {/each}
+          <Text quiet>{t('inspector.place.how.hint')}</Text>
           <Stack direction="row" gap="small" wrap>
             {#if held}
               <Button
@@ -349,44 +306,6 @@
                 }}
               />
             {/if}
-          </Stack>
-          {#each EXACT as field (field)}
-            {#snippet exactControl()}
-              <Input
-                handle={keyed('page.inspector.exact', field)}
-                id={`reference-exact-${field}`}
-                type="text"
-                value={shown(field)}
-                disabled={field === 'turned' ? !canTurn : field === 'width' || field === 'height' ? !canSize : !canMove}
-                oninput={(value) => {
-                  drafts = { ...drafts, [field]: value };
-                }}
-                onkeydown={(event) => {
-                  if (event.key === 'Enter') {
-                    void applyExact(selected.id);
-                  }
-                }}
-              />
-            {/snippet}
-            <Field
-              label={t(`inspector.place.${field === 'turned' ? 'turned' : field}`)}
-              for={`reference-exact-${field}`}
-              control={exactControl}
-              hint={field === 'y' ? t('inspector.place.position.hint') : field === 'turned' ? t('inspector.place.turned.hint') : field === 'height' ? t('inspector.place.size.hint') : undefined}
-              message={messageOf(field)}
-              messageTone="danger"
-            />
-          {/each}
-          <Stack direction="row">
-            <Button
-              handle={handleOf`page.inspector.exact.apply`}
-              label={t('inspector.place.apply')}
-              size="small"
-              disabled={Object.keys(drafts).length === 0}
-              onpress={() => {
-                void applyExact(selected.id);
-              }}
-            />
           </Stack>
           <Checkbox
             handle={handleOf`page.inspector.lock`}
@@ -549,6 +468,47 @@
           </Stack>
         </Section>
       {/if}
+      {#if together.length > 1}
+        {#snippet togetherName()}
+          <Input
+            handle={handleOf`page.inspector.together.name`}
+            id="reference-together-name"
+            value={togetherLabel}
+            oninput={(value) => {
+              togetherLabel = value;
+            }}
+          />
+        {/snippet}
+        <Section
+          title={t('inspector.together')}
+          detail={t('inspector.together.detail', { count: together.length, names: together.map((w) => w.label).join(', ') })}
+          handle={handleOf`page.inspector.together`}
+        >
+          <Stack gap="small">
+            <Field label={t('inspector.together.name')} for="reference-together-name" control={togetherName} />
+            <Stack direction="row">
+              <Button
+                handle={handleOf`page.inspector.together.group`}
+                label={t('inspector.together.group')}
+                size="small"
+                disabled={togetherLabel.trim() === ''}
+                onpress={() => {
+                  void model
+                    .run('reference.window.group', {
+                      windowIds: together.map((w) => w.id),
+                      label: togetherLabel,
+                    })
+                    .then((done) => {
+                      if (done) {
+                        togetherLabel = '';
+                      }
+                    });
+                }}
+              />
+            </Stack>
+          </Stack>
+        </Section>
+      {/if}
       <Section title={t('inspector.remove')} detail={t('inspector.remove.detail')} handle={handleOf`page.inspector.removal`}>
         <Stack direction="row">
           <Button
@@ -556,7 +516,7 @@
             label={t('inspector.remove')}
             icon="delete"
             onpress={() => {
-              void model.removeWindow(selected.id);
+              void model.removeWindows([selected.id]);
             }}
           />
         </Stack>

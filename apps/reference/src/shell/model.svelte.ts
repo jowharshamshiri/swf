@@ -8,6 +8,7 @@ import { APP_COMMAND_NAMES } from '../commands.js';
 import type { AppConfig } from '../config.js';
 import { ConfigError } from '../config.js';
 import type { MessageId, Messages } from '../messages.js';
+import { cameraHeading } from '../orbit.js';
 import type { Pose } from '../pose.js';
 import type { PolicyStatus } from '../policies.js';
 import type { NamedWorkspace, SnapshotPreview, WorkspacesStatus } from '../workspaces.js';
@@ -28,7 +29,8 @@ export type PendingReplace =
 
 /** A window removed from the workspace, said until dismissed or undone (UX-011). */
 export interface Removal {
-  readonly id: string;
+  readonly ids: readonly string[];
+  /** The window's name, or how many windows went. */
   readonly label: string;
   /** The transaction that removed it: undo is offered while it is the last undoable one. */
   readonly transactionId: string;
@@ -58,6 +60,8 @@ export interface SelectedWindow extends Pose {
   readonly presentation: 'live' | 'proxy';
   /** How the view represents it (by semantic depth), or null while it is not shown. */
   readonly representation: Representation | null;
+  /** In front of the camera's heading, or behind it. */
+  readonly side: 'front' | 'behind';
 }
 
 /** A command that was refused, as the shell says it. */
@@ -98,12 +102,7 @@ const OPERATION_NAMES: Readonly<Record<string, MessageId>> = Object.freeze({
 /** The commands that move a window, and what is said once each is done. */
 const PLACING: Readonly<Partial<Record<AppCommandId, 'moved' | 'turned' | 'resized'>>> =
   Object.freeze({
-    'reference.window.nudge': 'moved',
     'reference.window.place': 'moved',
-    'reference.window.turn': 'turned',
-    'reference.window.face': 'turned',
-    'reference.window.resize': 'resized',
-    'reference.window.size': 'resized',
     'reference.window.bringFront': 'moved',
     'reference.window.sendBehind': 'moved',
   });
@@ -148,12 +147,7 @@ const SCENARIO_COMMANDS: readonly AppCommandId[] = Object.freeze([
 
 /** The commands the inspector runs: their refusals are said there. */
 const INSPECTOR_COMMANDS: readonly AppCommandId[] = Object.freeze([
-  'reference.window.nudge',
-  'reference.window.place',
-  'reference.window.turn',
-  'reference.window.face',
-  'reference.window.resize',
-  'reference.window.size',
+  'reference.window.pose',
   'reference.window.lock',
   'reference.gesture.grab',
   'reference.gesture.drop',
@@ -162,6 +156,7 @@ const INSPECTOR_COMMANDS: readonly AppCommandId[] = Object.freeze([
   'reference.surface.move',
   'reference.window.merge',
   'reference.window.regroup',
+  'reference.window.group',
   'reference.window.bringFront',
   'reference.window.sendBehind',
 ]);
@@ -180,6 +175,8 @@ export class ShellModel {
   /** What the application shows, once it has started. */
   status = $state<AppStatus | null>(null);
   selected = $state<SelectedWindow | null>(null);
+  /** Every window selected, the one inspected first. */
+  selection = $state<readonly string[]>([]);
   frame = $state<FrameMetrics | null>(null);
   fallbacks = $state(0);
   /** The last command refused, until the next one runs. */
@@ -515,6 +512,24 @@ export class ShellModel {
       return;
     }
     switch (id) {
+      case 'reference.window.pose': {
+        // A pose shown while a control moves is said by the control; the change made, once.
+        const pose = params as AppCommandSpecs['reference.window.pose'];
+        if (pose.preview === true) {
+          return;
+        }
+        this.#say(
+          this.#held !== null
+            ? 'announce.preview'
+            : pose.heading !== undefined || pose.reach !== undefined || pose.y !== undefined
+              ? 'announce.moved'
+              : pose.turned !== undefined
+                ? 'announce.turned'
+                : 'announce.resized',
+          windowId,
+        );
+        return;
+      }
       case 'reference.window.lock':
         this.announce(
           this.messages.format(
@@ -616,15 +631,19 @@ export class ShellModel {
   }
 
   /**
-   * Removes a window from the workspace (UX-011): one undoable change, said with an undo until
-   * it is dismissed or something else changes.
+   * Removes windows from the workspace (UX-011): one undoable change, said with an undo until it
+   * is dismissed or something else changes.
    */
-  async removeWindow(id: string): Promise<boolean> {
-    const label = this.#app?.workspace.getState().nodes.get(id)?.label ?? id;
-    const done = await this.run('reference.window.remove', { id });
+  async removeWindows(ids: readonly string[]): Promise<boolean> {
+    const only = ids.length === 1 ? ids[0] : undefined;
+    const label =
+      only === undefined
+        ? this.messages.format('removed.windows', { count: ids.length })
+        : (this.#app?.workspace.getState().nodes.get(only)?.label ?? only);
+    const done = await this.run('reference.window.remove', { ids });
     if (done) {
       const last = this.#app?.workspace.history().at(-1);
-      this.removal = last === undefined ? null : { id, label, transactionId: last.transactionId };
+      this.removal = last === undefined ? null : { ids, label, transactionId: last.transactionId };
     }
     return done;
   }
@@ -817,6 +836,12 @@ export class ShellModel {
       return;
     }
     const state = app.workspace.getState();
+    if (
+      state.selection.length !== this.selection.length ||
+      state.selection.some((id, i) => id !== this.selection[i])
+    ) {
+      this.selection = state.selection;
+    }
     const id = state.selection[0];
     const node = id === undefined ? undefined : state.nodes.get(id);
     if (node === undefined) {
@@ -839,6 +864,12 @@ export class ShellModel {
       content: tag ?? null,
       presentation: surfaceId === undefined ? 'proxy' : app.viewport.presentation(surfaceId),
       representation: app.policies.representationOf(node.id),
+      side:
+        Math.cos(
+          pose.heading * (Math.PI / 180) - cameraHeading(app.workspace.getPresented(), VIEWPORT_ID),
+        ) >= 0
+          ? 'front'
+          : 'behind',
     };
     const last = this.selected;
     if (

@@ -4,7 +4,8 @@ import Std.Data.String.ToNat
 /-!
 The reference application's multi-surface composition: the surfaces a host supplied, rearranged
 among windows. A surface can be detached into a window of its own, moved into another window, or
-a window's surfaces merged into another's; a window can be moved into another group, or a new one.
+a window's surfaces merged into another's; a window can be moved into another group, or a new one;
+and several windows can be gathered into a new group together.
 This model decides each step from the committed scene: whether it can be done (or which field is
 at fault and why), which windows hold which surfaces after it, what is created and what is
 removed. The application turns the plan into the scene commands of one undoable transaction,
@@ -73,6 +74,9 @@ inductive CompStep where
   | merge (window : CompRef) (target : CompRef)
   /-- Moves a window into another group, keeping its place in the world. -/
   | regroup (window : CompRef) (target : CompTarget)
+  /-- Gathers several windows into a new group with ID `id`, labelled `label`, each keeping its
+  place in the world. -/
+  | group (windows : Array CompRef) (id : String) (label : String)
 
 /-- Where a regrouped window goes. -/
 inductive CompInto where
@@ -84,7 +88,7 @@ inductive CompInto where
 /-- The plan of a composition step: what changes, or why it cannot be done. -/
 inductive CompPlan where
   /-- The step cannot be done and nothing changes: `field` names the argument at fault
-  (`surfaceId`, `windowId`, `targetId` or `groupId`), `reason` says why, in English. -/
+  (`surfaceId`, `windowId`, `targetId`, `groupId` or `windowIds`), `reason` says why, in English. -/
   | refused (field : String) (reason : String)
   /-- `surface` leaves `window` (laid out again round `kept`) for a new window `created`, named
   `label`, in the same group (`parentId`), beside the window it left. -/
@@ -98,6 +102,11 @@ inductive CompPlan where
   | merge (source target : String) (moved laidOut : Array String)
   /-- `window` moves; `removed` is the group it left empty, when that group goes with it. -/
   | regroup (window : String) (into : CompInto) (removed : Option String)
+  /-- `windows` go together into a new group `id`, named `label`, made under `parentId` (the
+  parent they all share, or the root when they share none); `removed` are the groups they leave
+  empty, which go with them. -/
+  | group (windows : Array String) (id label : String) (parentId : Option String)
+      (removed : Array String)
 
 def CompScene.node? (s : CompScene) (id : String) : Option CompNode := s.nodes.find? (·.id == id)
 
@@ -265,6 +274,58 @@ def compRegroup (s : CompScene) (r : CompRef) (target : CompTarget) : CompPlan :
         else .refused "groupId" s!"no group \"{id}\""
       | none => .refused "groupId" s!"no group \"{id}\""
 
+/-- A window named to be grouped: an active window not inside another window, which it moves
+with. -/
+def groupable (s : CompScene) (r : CompRef) : Except (String × String) CompNode :=
+  match s.window? r.id with
+  | none => .error ("windowIds", s!"no window \"{r.shown}\"")
+  | some n =>
+    match n.parentId.bind s.node? with
+    | some p =>
+      if p.kind = "window" then
+        .error ("windowIds", s!"{nameOf n.id n.label} moves with {nameOf p.id p.label}, the window it is in")
+      else .ok n
+    | none => .ok n
+
+/-- The windows a group step names, after `acc`, in the order given and each named once; or the
+refusal of the first that cannot be grouped. -/
+def groupWindows (s : CompScene) : List CompRef → List CompNode → Except (String × String) (List CompNode)
+  | [], acc => .ok acc
+  | r :: rest, acc =>
+    match groupable s r with
+    | .error e => .error e
+    | .ok n =>
+      if acc.any (·.id == n.id) then .error ("windowIds", s!"{nameOf n.id n.label} is named twice")
+      else groupWindows s rest (acc ++ [n])
+
+/-- The parent the windows share, where their group is made: the root when they share none. -/
+def sharedParent : List CompNode → Option String
+  | [] => none
+  | w :: rest => if rest.all (·.parentId == w.parentId) then w.parentId else none
+
+/-- Whether the windows leave a group they came from empty, so it goes with them: a group that holds
+no surface and no child but these windows, is not the group workspace orbit turns, and is not the
+one their new group is made in. -/
+def leftEmpty (s : CompScene) (ws : List CompNode) (parentId : Option String) (g : String) : Bool :=
+  match s.node? g with
+  | some left =>
+    left.kind == "group" && s.orbitRootId != some g && left.surfaceIds.size == 0 &&
+      left.childIds.all (fun c => ws.any (·.id == c)) && parentId != some g
+  | none => false
+
+/-- The groups the windows leave empty, each once. -/
+def emptiedGroups (s : CompScene) (ws : List CompNode) (parentId : Option String) : List String :=
+  (ws.filterMap (·.parentId)).eraseDups.filter (leftEmpty s ws parentId)
+
+def compGroup (s : CompScene) (rs : Array CompRef) (id label : String) : CompPlan :=
+  match groupWindows s rs.toList [] with
+  | .error e => .refused e.1 e.2
+  | .ok ws =>
+    if ws.length < 2 then .refused "windowIds" "name at least two windows to group"
+    else if s.ids.contains id then .refused "groupId" s!"the ID \"{id}\" is taken"
+    else .group (ws.map (·.id)).toArray id label (sharedParent ws)
+      (emptiedGroups s ws (sharedParent ws)).toArray
+
 /-- The plan of a composition step, from the committed scene alone. -/
 def compositionPlan (s : CompScene) (step : CompStep) : CompPlan :=
   match step with
@@ -272,6 +333,7 @@ def compositionPlan (s : CompScene) (step : CompStep) : CompPlan :=
   | .move r t => compMove s r t
   | .merge r t => compMerge s r t
   | .regroup r t => compRegroup s r t
+  | .group rs id label => compGroup s rs id label
 
 /-! ## Invariants -/
 
@@ -526,5 +588,119 @@ theorem emptied_group_removed_only (s : CompScene) (r : CompRef) (t : CompTarget
           exact ⟨n, left, hn, hl, rfl, hc.1, hc.2.1, hc.2.2.1, hc.2.2.2, id, rfl⟩
         · cases hr
       · cases hr
+
+theorem groupable_window {s : CompScene} {r : CompRef} {n : CompNode}
+    (h : groupable s r = .ok n) : s.window? (some n.id) = some n := by
+  unfold groupable at h
+  split at h
+  · cases h
+  · rename_i m hm
+    split at h
+    · split at h
+      · cases h
+      · cases h
+        exact (window?_some hm).2
+    · cases h
+      exact (window?_some hm).2
+
+theorem groupWindows_spec (s : CompScene) :
+    ∀ (rs : List CompRef) (acc ws : List CompNode),
+      (∀ n ∈ acc, s.window? (some n.id) = some n) → (acc.map (·.id)).Nodup →
+      groupWindows s rs acc = .ok ws →
+      (∀ n ∈ ws, s.window? (some n.id) = some n) ∧ (ws.map (·.id)).Nodup
+  | [], acc, ws, ha, hd, h => by
+    simp only [groupWindows, Except.ok.injEq] at h
+    subst h
+    exact ⟨ha, hd⟩
+  | r :: rest, acc, ws, ha, hd, h => by
+    simp only [groupWindows] at h
+    split at h
+    · cases h
+    · rename_i n hn
+      split at h
+      · cases h
+      · rename_i hnot
+        refine groupWindows_spec s rest (acc ++ [n]) ws ?_ ?_ h
+        · intro m hm
+          simp only [List.mem_append, List.mem_singleton] at hm
+          rcases hm with hm | hm
+          · exact ha m hm
+          · subst hm
+            exact groupable_window hn
+        · rw [List.map_append, List.nodup_append]
+          refine ⟨hd, by simp, ?_⟩
+          intro a ha' b hb heq
+          simp only [List.map_cons, List.map_nil, List.mem_singleton] at hb
+          subst hb heq
+          apply hnot
+          simp only [List.mem_map] at ha'
+          obtain ⟨m, hm, hmid⟩ := ha'
+          simp only [List.any_eq_true, beq_iff_eq]
+          exact ⟨m, hm, hmid⟩
+
+/-- Windows are gathered into a group only when at least two are named, each an active window
+named once, and the new group's ID is the one asked for, which no node or surface holds. -/
+@[lungo_claim "lungo.law" subject compositionPlan]
+theorem group_gathers_named_windows (s : CompScene) (rs : Array CompRef) (id label gid glabel : String)
+    (ws : Array String) (parentId : Option String) (removed : Array String)
+    (h : compositionPlan s (.group rs id label) = .group ws gid glabel parentId removed) :
+    2 ≤ ws.size ∧ ws.toList.Nodup ∧ (∀ w ∈ ws, ∃ n, s.window? (some w) = some n) ∧ gid = id ∧
+      glabel = label ∧ gid ∉ s.ids := by
+  simp only [compositionPlan, compGroup] at h
+  split at h
+  · cases h
+  · rename_i nodes hn
+    have spec := groupWindows_spec s rs.toList [] nodes (by simp) (by simp) hn
+    split at h
+    · cases h
+    · rename_i hlen
+      split at h
+      · cases h
+      · rename_i hid
+        simp only [CompPlan.group.injEq] at h
+        obtain ⟨hws, hgid, hlabel, -, -⟩ := h
+        subst hws hgid hlabel
+        refine ⟨by simp; omega, by simpa using spec.2, ?_, rfl, rfl, by simpa using hid⟩
+        intro w hw
+        simp only [List.mem_toArray, List.mem_map] at hw
+        obtain ⟨n, hn', rfl⟩ := hw
+        exact ⟨n, spec.1 n hn'⟩
+
+/-- A group is removed with the windows gathered only when it is a group they came from that holds
+no surface and no child but them, is not the group workspace orbit turns, and is not the one their
+new group is made in. -/
+@[lungo_claim "lungo.law" subject compositionPlan]
+theorem group_removes_only_emptied (s : CompScene) (rs : Array CompRef) (id label gid glabel : String)
+    (ws : Array String) (parentId : Option String) (removed : Array String)
+    (h : compositionPlan s (.group rs id label) = .group ws gid glabel parentId removed) :
+    ∀ g ∈ removed, ∃ left, s.node? g = some left ∧ left.kind = "group" ∧ s.orbitRootId ≠ some g ∧
+      left.surfaceIds.size = 0 ∧ (∀ c ∈ left.childIds, c ∈ ws) ∧ parentId ≠ some g := by
+  simp only [compositionPlan, compGroup] at h
+  split at h
+  · cases h
+  · rename_i nodes _
+    split at h
+    · cases h
+    · split at h
+      · cases h
+      · simp only [CompPlan.group.injEq] at h
+        obtain ⟨hws, -, -, hp, hr⟩ := h
+        subst hws hp hr
+        intro g hg
+        simp only [emptiedGroups, List.mem_toArray, List.mem_filter] at hg
+        obtain ⟨-, hsel⟩ := hg
+        unfold leftEmpty at hsel
+        split at hsel
+        · rename_i left hl
+          simp only [Bool.and_eq_true, beq_iff_eq, bne_iff_ne, ne_eq] at hsel
+          obtain ⟨⟨⟨⟨hk, horbit⟩, hsurf⟩, hkids⟩, hparent⟩ := hsel
+          refine ⟨left, hl, hk, horbit, hsurf, ?_, hparent⟩
+          intro c hc
+          have hc' := Array.all_eq_true_iff_forall_mem.mp hkids c hc
+          simp only [List.any_eq_true, beq_iff_eq] at hc'
+          obtain ⟨n, hn, hid⟩ := hc'
+          simp only [List.mem_toArray, List.mem_map]
+          exact ⟨n, hn, hid⟩
+        · cases hsel
 
 end Swf.AppComposition

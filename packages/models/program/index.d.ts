@@ -126,6 +126,19 @@ export type CompStep =
       /** The field `target` of Lean's Swf.AppComposition.CompStep.regroup. */
       readonly target: CompTarget;
     }
+  | {
+      /**
+       * Gathers several windows into a new group with ID `id`, labelled `label`, each keeping its
+       * place in the world.
+       */
+      readonly kind: "group";
+      /** The field `windows` of Lean's Swf.AppComposition.CompStep.group. */
+      readonly windows: Array<CompRef>;
+      /** The field `id` of Lean's Swf.AppComposition.CompStep.group. */
+      readonly id: string;
+      /** The field `label` of Lean's Swf.AppComposition.CompStep.group. */
+      readonly label: string;
+    }
 ;
 /** The descriptor of Swf.AppComposition.CompStep: how its values cross the boundary. */
 export function compStepType(): L.Type<CompStep>;
@@ -135,7 +148,7 @@ export type CompPlan =
   | {
       /**
        * The step cannot be done and nothing changes: `field` names the argument at fault
-       * (`surfaceId`, `windowId`, `targetId` or `groupId`), `reason` says why, in English.
+       * (`surfaceId`, `windowId`, `targetId`, `groupId` or `windowIds`), `reason` says why, in English.
        */
       readonly kind: "refused";
       /** The field `field` of Lean's Swf.AppComposition.CompPlan.refused. */
@@ -204,6 +217,24 @@ export type CompPlan =
       readonly into: CompInto;
       /** The field `removed` of Lean's Swf.AppComposition.CompPlan.regroup. */
       readonly removed: L.Option<string>;
+    }
+  | {
+      /**
+       * `windows` go together into a new group `id`, named `label`, made under `parentId` (the
+       * parent they all share, or the root when they share none); `removed` are the groups they leave
+       * empty, which go with them.
+       */
+      readonly kind: "group";
+      /** The field `windows` of Lean's Swf.AppComposition.CompPlan.group. */
+      readonly windows: Array<string>;
+      /** The field `id` of Lean's Swf.AppComposition.CompPlan.group. */
+      readonly id: string;
+      /** The field `label` of Lean's Swf.AppComposition.CompPlan.group. */
+      readonly label: string;
+      /** The field `parentId` of Lean's Swf.AppComposition.CompPlan.group. */
+      readonly parentId: L.Option<string>;
+      /** The field `removed` of Lean's Swf.AppComposition.CompPlan.group. */
+      readonly removed: Array<string>;
     }
 ;
 /** The descriptor of Swf.AppComposition.CompPlan: how its values cross the boundary. */
