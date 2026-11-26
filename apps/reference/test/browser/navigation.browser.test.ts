@@ -266,8 +266,9 @@ describe('the panorama’s guides', () => {
       const horizon = layout.heights.find((l) => l.degrees === 0)?.runs[0]?.find(([x]) => x > 20);
       const fifteen = layout.heights.find((l) => l.degrees === 15)?.runs[0]?.find(([x]) => x > 20);
       const box = a.root.getBoundingClientRect();
+      // The pixel a point of a line lies in: a line at y = 216.5 is drawn in row 216.
       const alphaAt = (p: readonly number[] | undefined) =>
-        pixel(ours, box.left + (p?.[0] ?? 0), box.top + Math.round(p?.[1] ?? 0))[3];
+        pixel(ours, box.left + (p?.[0] ?? 0), box.top + Math.floor(p?.[1] ?? 0))[3];
       expect(alphaAt(horizon)).toBeGreaterThan(alphaAt(fifteen));
       expect(alphaAt(fifteen)).toBeGreaterThan(0);
     } finally {
