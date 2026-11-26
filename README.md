@@ -889,12 +889,23 @@ The address picks the scene: `?preset=seam&seed=7&backend=geometry`. An address 
 preset and no seed restores the workspace this browser saved last (see Workspaces), or loads the
 default scene when there is none or it cannot be restored, which is said over the panorama.
 
-- `preset`: `sparse` (six windows all the way round, the default), `dense` (250 windows in five
-  rings, the benchmark's count), `seam` (windows across the seam behind the camera, behind it on
-  both sides and near the pole above it), `composed` (a board of three supplied surfaces side by
-  side in one window, and a window of its own to either side) or `empty`.
+- `preset`: `studio` (the default: thirteen named windows all the way round and at every depth),
+  `sparse` (six windows all the way round), `dense` (250 windows in five rings, the benchmark's
+  count), `seam` (windows across the seam behind the camera, behind it on both sides and near the
+  pole above it), `composed` (a board of three supplied surfaces side by side in one window, and a
+  window of its own to either side) or `empty`.
 - `seed`: an integer from 0 to 4294967295; each preset has its own default.
 - `backend`: `dom` (the default) or `geometry`; each is the other's fallback.
+
+The studio is the workspace a first visit opens on. A board of three surfaces (Plan, Timeline and
+Sources) stands straight ahead; round it stand twelve more windows (Writing Desk, Build Status,
+Messages, Metrics, Calendar, Code Review, Reading List, Tasks, Sketches, Signal Monitor, Media
+Notes and Archive), eight of them behind the camera, some high and some low, at distances in each
+of semantic depth's bands: the near ones show their content, the middle ones a compact preview and
+the far ones their labels. Each window shows a category, a headline figure and a line about what
+it holds, in a colour of its own, and its category is exposed to search beside its colour
+(`host.reference.category`). The near windows are native notes, which both backends present live;
+the far ones are drawn tiles. A seed moves each window a few degrees, never across a band.
 
 An unknown or invalid setting is said in the page, naming it, and nothing starts. A preset plans the same windows from the
 same seed on every run, browser and release; the plans of the default seeds are a committed
@@ -921,9 +932,12 @@ pack is given, and each action is a command with a stable ID (`reference.preset.
 `reference.history.undo`, `reference.history.redo`, `reference.gesture.cancel`,
 `reference.feature.combine`, `reference.window.remove`, `reference.surface.detach`,
 `reference.surface.move`, `reference.window.merge`, `reference.window.regroup`,
+`reference.window.add`,
 `reference.workspace.save`, `reference.workspace.open`, `reference.workspace.delete`,
 `reference.workspace.deleteAll`, `reference.workspace.export`, `reference.workspace.import`,
-`reference.workspace.saveNow`). Undo and redo are also across the top of the centre.
+`reference.workspace.saveNow`, `reference.scenario.start`, `reference.scenario.stop`,
+`reference.challenge.start`, `reference.challenge.cancel`, `reference.challenge.clear`). Undo and
+redo are also across the top of the centre.
 
 Every preset's windows are in one group, Workspace, which stands unturned at the camera's place and
 is designated as the group workspace orbit turns.
@@ -1098,6 +1112,14 @@ so neither its last surface moves out nor is it merged. Only associations and pl
 surface is always moved whole, its binding and content untouched, and a window's only surface
 offers nothing to detach, since a surface's own content is never split.
 
+### Adding a window
+
+**Add a window**, at the top of the Windows view (and in the command list, and offered by an empty
+workspace), adds a blank native note to the workspace straight ahead of the camera, three units
+away and facing it, wherever the camera or the workspace is turned, and selects it: one undoable
+step. Each added window has a number and a colour of its own, and its content is known by its key
+alone (`added/note/<number>`), so a saved layout holding it binds it again in another visit.
+
 ### Removing a window
 
 **Remove from workspace** takes the selected window out of the workspace as one undoable step. A
@@ -1116,11 +1138,52 @@ workspace, exports the workspace to a `.json` file and imports one. Opening or i
 says what the snapshot holds (its windows, groups, surfaces and viewports, when it was made, its
 format and the host state it carries) and replaces the workspace only when that is confirmed, as
 one undoable step; a file that is not a workspace snapshot is refused, saying the line or path at
-fault, and nothing changes. Reset to demo loads the demo scene, leaving saved workspaces as they
+fault, and nothing changes. Reset to demo loads the studio, leaving saved workspaces as they
 are. Delete all saved removes every layout the application saved in this browser, and says that it
 touches neither what windows show nor anything the host keeps elsewhere. Only layout is stored: the
 scene, the policies' parameters and the scene's source (the host's own state, under
 `host.reference.scene`), never content.
+
+### Scenarios
+
+The Scenarios view on the left walks through the framework's principal behaviours, one scenario
+at a time, in the studio. Starting a scenario loads the studio as it is planned, with the features
+the scenario shows turned on and the panorama shown: one undoable step, so undo brings back the
+workspace it replaced. The view lists the scenario's steps; the step due says the ways the
+application offers to do it, and is ticked off as soon as it is done, by any of them: the panorama,
+the keyboard, the inspector, the map, the Windows view or the command list. **Show me** does the
+step due as the application's own controls would. Start again begins the scenario afresh; Stop
+leaves it.
+
+- **Put a window behind you**: select the Writing Desk, move it behind the camera, and see it on the
+  map.
+- **Reach a window you cannot see**: select Tasks, high up behind the camera, without turning round;
+  turn to face it; read it in focus.
+- **Change a window's depth**: select Media Notes, far enough away that only its label shows; bring
+  it nearer than semantic depth's full band, where its content shows; push it back beyond the
+  compact band.
+- **Switch focus between windows**: focus a window, focus one of its neighbours, leave focus.
+- **Compose surfaces**: detach Sources from the Project Board, move it into the Writing Desk, and put
+  it back on the board.
+- **Save and restore a layout**: save the studio as “Studio layout”, change it, and open the saved
+  layout again, every window going back where it was saved.
+
+A step that waits for a change (a neighbour focused, the layout changed, the saved layout opened)
+counts only a change made after it became due. A step whose window has been removed cannot be done
+or shown, and says so: undo, or start the scenario again.
+
+### Finding a window, timed
+
+Under the scenarios, **Find a window** is an optional timed task for comparing ways of navigating:
+turning the camera, turning the workspace, the map, the overview, or searching by name. Pick one
+and press Start: the view the way navigates in is shown, and the task names a window to find,
+behind the camera whenever one is and never the window already selected. It counts every press and
+key made anywhere in the page, and the run ends the moment that window is selected, by any route,
+recording the window, the way, the time in milliseconds and the presses and keys. The runs of the
+visit are listed, latest first, and summed up by way (runs, best and average time, average presses
+and keys); Clear the runs forgets them. A run whose window is removed ends unfinished, saying so;
+Give up ends one without a record. A way whose feature is off (the workspace orbit, the map) cannot
+be picked.
 
 ### Developer panel
 
@@ -1155,7 +1218,8 @@ looks into a surface's content.
 ### Search
 
 The Windows view finds windows by their workspace metadata only: ID, label, tags, the descriptive
-metadata the host exposes (the demo host exposes each window's colour, `host.reference.colour`)
+metadata the host exposes (the demo host exposes each window's colour, `host.reference.colour`,
+and the studio's windows' categories, `host.reference.category`)
 and the labels of the groups they are in. It never looks at what a window shows. Matching is the
 kernel's `findNodes` (Unicode-normalized NFKC, case-insensitive substrings), run once typing has
 paused for 100 ms. Filters, which compose, narrow by group (at any depth), effective visibility,
@@ -1200,6 +1264,8 @@ attachments); the model decides each state it passes through and each request it
 | `Swf.AppDepth`       | The semantic-depth band of every window of a frame at once, farther never showing more                                                                                                                |
 | `Swf.AppComposition` | Composition plans (detaching, moving and merging surfaces, regrouping windows) and the IDs of new windows                                                                                             |
 | `Swf.AppWorkspaces`  | Named workspaces: valid names, autosave, saving now, restoring the newest visit, the stale visits, save times and which files import                                                                  |
+| `Swf.AppScenarios`   | How a guided scenario advances: from its first step, one step at a time and in order, each only once its condition holds while it is due, never undone                                                |
+| `Swf.AppChallenge`   | The timed window-finding task: which window a run names (never the selected one, behind the camera when any is), what it counts, when it ends and the records it keeps                                |
 
 `lungo.toml` names the exports and requires a proved claim of every one (`require-claims`); a claim
 proved with `sorry` fails the build. Read what was proved of an export with

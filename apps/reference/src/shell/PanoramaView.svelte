@@ -6,6 +6,7 @@
   import { Button, EmptyState, IconButton, Notice, ScaledView, Stack, Text, Toolbar } from '@wsb/uikit/components';
   import { handleOf, keyed } from '@wsb/uikit/handles';
   import { onMount } from 'svelte';
+  import { DEFAULT_CONFIG } from '../config.js';
   import { FOCUS_ID } from '../focus.js';
   import type { Neighbour } from '../focus.js';
   import type { SnapConstraint } from '../magnetic.js';
@@ -368,14 +369,24 @@
   {#if model.status !== null && model.status.windows === 0}
     <EmptyState title={t('empty.title')} detail={t('empty.body')} icon="add">
       {#snippet action()}
-        <Button
-          handle={handleOf`page.panorama.load`}
-          label={t('empty.action')}
-          variant="primary"
-          onpress={() => {
-            void model.run('reference.preset.load', { preset: 'sparse' });
-          }}
-        />
+        <Stack direction="row" gap="small" justify="center" wrap>
+          <Button
+            handle={handleOf`page.panorama.load`}
+            label={t('empty.action')}
+            variant="primary"
+            onpress={() => {
+              void model.run('reference.preset.load', { preset: DEFAULT_CONFIG.preset });
+            }}
+          />
+          <Button
+            handle={handleOf`page.panorama.add`}
+            label={t('command.window.add')}
+            icon="add"
+            onpress={() => {
+              void model.run('reference.window.add', {});
+            }}
+          />
+        </Stack>
       {/snippet}
     </EmptyState>
   {/if}

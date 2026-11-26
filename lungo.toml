@@ -78,6 +78,9 @@ exports = [
   "Swf.AppWorkspaces.workspacesStale",
   "Swf.AppWorkspaces.workspacesSavedAt",
   "Swf.AppWorkspaces.workspacesImportIssue",
+  "Swf.AppScenarios.guideStep",
+  "Swf.AppChallenge.challengeTarget",
+  "Swf.AppChallenge.challengeStep",
 ]
 
 [assurance]

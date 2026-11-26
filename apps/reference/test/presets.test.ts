@@ -12,10 +12,12 @@ import {
 import { describe, expect, it } from 'vitest';
 import type { PresetId } from '../src/presets.js';
 import {
+  addedWindow,
   CAMERA_ID,
   composites,
   planPreset,
   PRESET_IDS,
+  plannedByKey,
   PRESETS,
   presetCommands,
 } from '../src/presets.js';
@@ -54,8 +56,9 @@ function seeded(preset: PresetId, seed: number) {
 }
 
 describe('demo presets (FR-131, MIG-005, AN-010)', () => {
-  it('offers sparse, dense, seam/behind-camera and composed scenes besides the empty one', () => {
-    expect(PRESET_IDS).toEqual(['empty', 'sparse', 'dense', 'seam', 'composed']);
+  it('offers the studio, sparse, dense, seam/behind-camera and composed scenes besides the empty one', () => {
+    expect(PRESET_IDS).toEqual(['studio', 'empty', 'sparse', 'dense', 'seam', 'composed']);
+    expect(planPreset('studio', 1)).toHaveLength(15);
     expect(planPreset('composed', 1)).toHaveLength(5);
     expect(planPreset('empty', 1)).toEqual([]);
     expect(planPreset('sparse', 1)).toHaveLength(6);
@@ -66,6 +69,8 @@ describe('demo presets (FR-131, MIG-005, AN-010)', () => {
 
   it('plans exactly the committed scenes, so a change in seeding is a deliberate one', async () => {
     const plans = {
+      'studio@1': planPreset('studio', 1),
+      'studio@42': planPreset('studio', 42),
       'empty@1': planPreset('empty', 1),
       'sparse@1': planPreset('sparse', 1),
       'sparse@42': planPreset('sparse', 42),
@@ -103,7 +108,11 @@ describe('demo presets (FR-131, MIG-005, AN-010)', () => {
       expect(new Set(plan.map((w) => w.id)).size).toBe(plan.length);
       expect(new Set(plan.map((w) => w.bindingKey)).size).toBe(plan.length);
       plan.forEach((w, i) => {
-        expect(Number(w.id.replace('window-', ''))).toBe(i + 1);
+        // The studio's windows are known by name; the generated scenes' by number.
+        if (id !== 'studio') {
+          expect(Number(w.id.replace('window-', ''))).toBe(i + 1);
+        }
+        expect(Number(w.bindingKey.split('/').at(-1))).toBe(i + 1);
         expect(w.heading).toBeGreaterThan(-180);
         expect(w.heading).toBeLessThanOrEqual(180);
       });
@@ -136,6 +145,94 @@ describe('demo presets (FR-131, MIG-005, AN-010)', () => {
         expect(dot(front, normalize(scale(centre, -1)))).toBeCloseTo(1, 9);
       }
     }
+  });
+});
+
+describe('the studio, the default scene', () => {
+  /** The bands semantic depth shows by default: full nearer than 4, compact to 5.5, label beyond. */
+  const band = (distance: number) => (distance < 4 ? 'full' : distance < 5.5 ? 'compact' : 'label');
+
+  it('stands named, distinguishable windows all the way round the camera and at every depth', () => {
+    for (const seed of [0, 1, 7, 1234, MAX_SEED]) {
+      const made = composites(planPreset('studio', seed));
+      expect(made).toHaveLength(13);
+      const places = made.map((w) => w.place);
+      // Every name and colour its own, every window described.
+      expect(new Set(made.map((w) => w.label)).size).toBe(13);
+      expect(new Set(places.map((p) => p.hue)).size).toBe(13);
+      for (const part of planPreset('studio', seed)) {
+        expect(part.detail?.category).toBeTruthy();
+        expect(part.detail?.metric).toBeTruthy();
+        expect(part.detail?.description).toBeTruthy();
+      }
+      // All the way round: each quarter of the circle holds windows, and eight are behind.
+      for (const [from, to] of [
+        [-180, -90],
+        [-90, 0],
+        [0, 90],
+        [90, 180],
+      ] as const) {
+        expect(places.some((p) => p.heading >= from && p.heading <= to)).toBe(true);
+      }
+      expect(places.filter((p) => Math.abs(p.heading) > 90)).toHaveLength(8);
+      // Above and below the horizon.
+      expect(places.some((p) => p.elevation > 20)).toBe(true);
+      expect(places.some((p) => p.elevation < -20)).toBe(true);
+      // Each depth band holds several windows.
+      for (const which of ['full', 'compact', 'label']) {
+        expect(places.filter((p) => band(p.distance) === which).length).toBeGreaterThanOrEqual(3);
+      }
+    }
+  });
+
+  it('holds one board of three surfaces straight ahead, to break apart and put back', () => {
+    const board = composites(planPreset('studio', 1)).find((w) => w.parts.length > 1);
+    expect(board?.id).toBe('board');
+    expect(board?.label).toBe('Project Board');
+    expect(board?.parts.map((p) => p.label)).toEqual(['Plan', 'Timeline', 'Sources']);
+    expect(board?.place.heading).toBe(0);
+    expect(composites(planPreset('studio', 1)).filter((w) => w.parts.length > 1)).toHaveLength(1);
+  });
+
+  it('keeps each window in its depth band and near its place whatever the seed', () => {
+    const base = planPreset('studio', 1);
+    for (const seed of [0, 7, 1234, MAX_SEED]) {
+      planPreset('studio', seed).forEach((w, i) => {
+        const planned = base[i];
+        expect(w.id).toBe(planned?.id);
+        expect(band(w.distance)).toBe(band(planned?.distance ?? NaN));
+        const turned = Math.abs(((w.heading - (planned?.heading ?? NaN) + 540) % 360) - 180);
+        expect(turned).toBeLessThanOrEqual(6);
+      });
+    }
+  });
+
+  it('shows every window that is not far live in both backends: only far ones are drawn', () => {
+    const plan = planPreset('studio', 1);
+    for (const w of plan.filter((p) => band(p.distance) !== 'label')) {
+      expect(w.content).toBe('note');
+    }
+    expect(plan.some((w) => w.content === 'tile')).toBe(true);
+  });
+});
+
+describe('windows added from the controls', () => {
+  it('are blank notes the host knows by key alone, each in a hue of its own', () => {
+    const first = addedWindow(1);
+    expect(first).toMatchObject({
+      bindingKey: 'added/note/1',
+      content: 'note',
+      label: 'New window 1',
+    });
+    expect(first.detail).toBeUndefined();
+    expect(plannedByKey('added/note/1')).toEqual(first);
+    expect(plannedByKey('added/note/12')?.label).toBe('New window 12');
+    const hues = Array.from({ length: 8 }, (_, i) => addedWindow(i + 1).hue);
+    expect(new Set(hues).size).toBe(8);
+    for (const key of ['added/note/0', 'added/note/01', 'added/tile/1', 'added/note/x']) {
+      expect(plannedByKey(key), key).toBeNull();
+    }
+    expect(() => addedWindow(0)).toThrow('numbered from 1');
   });
 });
 

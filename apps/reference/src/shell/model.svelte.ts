@@ -12,6 +12,9 @@ import type { Pose } from '../pose.js';
 import type { PolicyStatus } from '../policies.js';
 import type { NamedWorkspace, SnapshotPreview, WorkspacesStatus } from '../workspaces.js';
 import { WorkspaceRefusal } from '../workspaces.js';
+import type { ScenarioStatus } from '../scenarios.js';
+import { ScenarioRefusal } from '../scenarios.js';
+import type { ChallengeStatus } from '../challenge.js';
 
 /** A replacement of the workspace waiting for the operator to confirm it (FR-201, UX-016). */
 export type PendingReplace =
@@ -134,6 +137,15 @@ const WORKSPACE_COMMANDS: readonly AppCommandId[] = Object.freeze([
   'reference.workspace.import',
 ]);
 
+/** The commands the scenarios view runs: their refusals are said there. */
+const SCENARIO_COMMANDS: readonly AppCommandId[] = Object.freeze([
+  'reference.scenario.start',
+  'reference.scenario.stop',
+  'reference.challenge.start',
+  'reference.challenge.cancel',
+  'reference.challenge.clear',
+]);
+
 /** The commands the inspector runs: their refusals are said there. */
 const INSPECTOR_COMMANDS: readonly AppCommandId[] = Object.freeze([
   'reference.window.nudge',
@@ -202,6 +214,14 @@ export class ShellModel {
   keyRefusal = $state<string | null>(null);
   /** Whether the panorama itself has the keyboard (not a window's content in it). */
   panoramaFocused = $state(false);
+  /** Rises each time a scenario is started: the shell shows its steps. */
+  scenarioStarts = $state(0);
+  /** The guided scenario under way, and how far it has come. */
+  scenario = $state<ScenarioStatus | null>(null);
+  /** Why the step due could not be shown, until the next is asked for or the scenario changes. */
+  scenarioProblem = $state<string | null>(null);
+  /** The timed task: the run under way and the runs recorded. */
+  challenge = $state<ChallengeStatus | null>(null);
 
   readonly messages: Messages;
   readonly #config: AppConfig | ConfigError;
@@ -266,8 +286,17 @@ export class ShellModel {
     this.#readSelection();
     this.#readHistory();
     this.workspaces = app.workspaces.status();
+    this.scenario = app.scenarios.status();
+    this.challenge = app.challenge.status();
     void this.refreshNamed();
     this.#stops.push(
+      app.scenarios.subscribe(() => {
+        this.scenario = app.scenarios.status();
+        this.scenarioProblem = null;
+      }),
+      app.challenge.subscribe(() => {
+        this.challenge = app.challenge.status();
+      }),
       app.policies.subscribe(() => {
         this.policies = app.policies.status();
       }),
@@ -382,6 +411,7 @@ export class ShellModel {
   #say(
     id:
       | 'announce.selected'
+      | 'announce.added'
       | 'announce.moved'
       | 'announce.turned'
       | 'announce.resized'
@@ -498,6 +528,12 @@ export class ShellModel {
       case 'reference.workspace.saveNow':
         this.announce(this.messages.format('announce.saved'));
         return;
+      case 'reference.scenario.start':
+        this.scenarioStarts += 1;
+        return;
+      case 'reference.window.add':
+        this.#say('announce.added', this.#app?.workspace.getState().selection[0] ?? null);
+        return;
       case 'reference.history.undo':
         this.announce(this.messages.format('announce.undone'));
         return;
@@ -522,6 +558,48 @@ export class ShellModel {
   /** Whether a refusal is of a command the view's controls run, said there. */
   isViewRefusal(refusal: Refusal): boolean {
     return VIEW_COMMANDS.includes(refusal.command);
+  }
+
+  /** Whether a refusal is of a scenario's or the timed task's command, said in their view. */
+  isScenarioRefusal(refusal: Refusal): boolean {
+    return SCENARIO_COMMANDS.includes(refusal.command);
+  }
+
+  /**
+   * Does the step due of the scenario under way, as the application's own controls would: runs its
+   * command, shows its window on the map, or asks to open the workspace it names. A step that
+   * cannot be shown says why.
+   */
+  async showStep(): Promise<boolean> {
+    const app = this.#app;
+    if (app === null) {
+      return false;
+    }
+    this.scenarioProblem = null;
+    let shown;
+    try {
+      shown = await app.scenarios.demonstration();
+    } catch (error) {
+      if (error instanceof ScenarioRefusal) {
+        this.scenarioProblem = error.message;
+        return false;
+      }
+      throw error;
+    }
+    if (shown === null) {
+      return false;
+    }
+    switch (shown.kind) {
+      case 'command': {
+        const { id, params } = shown.command;
+        return this.run(id, params);
+      }
+      case 'map':
+        return this.showInMap(shown.id);
+      case 'open':
+        await this.beginOpen(shown.name);
+        return this.pendingReplace !== null;
+    }
   }
 
   /** Whether a refusal is of a command the inspector runs, said there. */

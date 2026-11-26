@@ -175,7 +175,9 @@ describe('importing a workspace (FR-201, UX-016)', () => {
       expectedRevision: null,
     });
     const { model, root } = await start('', { store });
-    expect(model.status?.windows).toBe(6);
+    // The demo: the studio and its thirteen windows.
+    expect(model.status?.scene.preset).toBe('studio');
+    expect(model.status?.windows).toBe(13);
     expect(root.textContent).toContain('Restore failed:');
     expect(root.textContent).toContain('The workspace on screen is unchanged.');
   });

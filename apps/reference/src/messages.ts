@@ -15,6 +15,7 @@ export const ENGLISH = Object.freeze({
   'backend.label': 'Presentation backend',
   'backend.dom': 'DOM',
   'backend.geometry': 'Geometry',
+  'preset.studio': 'Studio',
   'preset.empty': 'Empty',
   'preset.sparse': 'Sparse',
   'preset.dense': 'Dense',
@@ -134,7 +135,7 @@ export const ENGLISH = Object.freeze({
   'overview.shown': '{shown} of {count} windows',
   'overview.more': 'Show {count} more',
   'search.label': 'Search windows',
-  'search.placeholder': 'Labels, tags, colours and groups',
+  'search.placeholder': 'Labels, tags, colours, categories and groups',
   'search.count': '{count} windows',
   'search.pending': 'Searching…',
   'search.results': 'Windows found',
@@ -213,6 +214,7 @@ export const ENGLISH = Object.freeze({
   'where.down': 'down',
   'announce.selected': '{label} selected: {where}.',
   'announce.moved': '{label} moved: {where}.',
+  'announce.added': '{label} added and selected: {where}.',
   'announce.turned': '{label} turned {degrees}° from facing the camera.',
   'announce.resized': '{label} is now {width} by {height} units.',
   'announce.held':
@@ -242,8 +244,8 @@ export const ENGLISH = Object.freeze({
   'operation.other': 'The key',
   'empty.title': 'No windows yet',
   'empty.body':
-    'Windows are placed around you in the panorama. Load a preset to add demo windows, or attach a surface through the workspace API.',
-  'empty.action': 'Load the sparse scene',
+    'Windows are placed around you in the panorama. Load the studio, add a window straight ahead, or attach a surface through the workspace API.',
+  'empty.action': 'Load the studio scene',
   'inspector.title': 'Selection',
   'side.right': 'Radar and selection',
   'inspector.none': 'Nothing selected',
@@ -441,6 +443,7 @@ export const ENGLISH = Object.freeze({
   'persistence.enabled': 'Save and open workspaces',
   'persistence.off': 'Changes are not saved while this is off; what is saved stays as it is.',
   'command.window.remove': 'Remove a window from the workspace',
+  'command.window.add': 'Add a window',
   'command.window.remove.named': 'Remove {label} from the workspace',
   'command.surface.detach': 'Detach a surface into a window of its own',
   'command.surface.move': 'Move a surface into another window',
@@ -636,6 +639,124 @@ export const ENGLISH = Object.freeze({
   'dev.disclose.hostData': 'Include the host’s tags and metadata',
   'dev.disclose.messages': 'Include error messages',
   'dev.disclose.timings': 'Include timings',
+  'scenarios.title': 'Scenarios',
+  'scenarios.detail':
+    'Each scenario starts from the studio scene and walks through one behaviour, a step at a time. Do each step any way you like; it is ticked off once it is done. Starting one replaces the scene: undo brings yours back.',
+  'scenarios.list': 'Guided scenarios',
+  'scenarios.steps': 'Steps',
+  'scenarios.progress': 'Step {step} of {steps}',
+  'scenarios.finished': 'Every step is done.',
+  'scenarios.step.done': 'Done',
+  'scenarios.step.due': 'To do now',
+  'scenarios.step.later': 'Later',
+  'scenarios.show': 'Show me',
+  'scenarios.again': 'Start again',
+  'scenarios.stop': 'Stop',
+  'scenarios.cannot': 'This step cannot be shown: {reason}',
+  'scenario.behind': 'Put a window behind you',
+  'scenario.behind.summary':
+    'Move a window from in front of the camera to behind it, then find it there on the map.',
+  'scenario.behind.select': 'Select the Writing Desk.',
+  'scenario.behind.select.hint':
+    'Press it in the panorama, its row in the Windows view, or its name in the command list (Ctrl+Shift+P).',
+  'scenario.behind.move': 'Move it behind the camera.',
+  'scenario.behind.move.hint':
+    'Press Send behind the camera among its actions, drag it round the camera on the radar or the map, drag its title bar past either edge of the panorama, or give it a place behind the camera (a positive Z) in the inspector.',
+  'scenario.behind.map': 'See it on the map.',
+  'scenario.behind.map.hint':
+    'Switch the view mode to Map, or press Show in map for it in the Windows view: it stands in the shaded half behind the camera.',
+  'scenario.hidden': 'Reach a window you cannot see',
+  'scenario.hidden.summary':
+    'Tasks hangs high up behind the camera. Find it without looking round, bring it in front of you and read it.',
+  'scenario.hidden.find': 'Select Tasks without turning round.',
+  'scenario.hidden.find.hint':
+    'Type its name in the Windows view’s search or in the command list, or press it on the radar, the map or in the overview.',
+  'scenario.hidden.face': 'Turn to face it.',
+  'scenario.hidden.face.hint':
+    'Press Centre the view on it among its actions, pick it in the command list, or drag the panorama’s background until it is in front of you.',
+  'scenario.hidden.read': 'Read it in focus.',
+  'scenario.hidden.read.hint':
+    'Switch the view mode to Focus with Tasks selected, or press Focus on its row in the Windows view.',
+  'scenario.depth': 'Change a window’s depth',
+  'scenario.depth.summary':
+    'Media Notes is far away, so only its label shows. Bring it near to see its content, then push it back.',
+  'scenario.depth.select': 'Select Media Notes.',
+  'scenario.depth.select.hint': 'Press its label in the panorama, or its row in the Windows view.',
+  'scenario.depth.near': 'Bring it nearer than {full} units.',
+  'scenario.depth.near.hint':
+    'Hold Shift and scroll down over it, press Move nearer in the inspector, or drag it towards the camera on the map. Nearer than {full} units it shows its content in full.',
+  'scenario.depth.far': 'Push it back beyond {compact} units.',
+  'scenario.depth.far.hint':
+    'Hold Shift and scroll up over it, or press Move farther in the inspector. From {full} units it shows a compact preview; beyond {compact}, its label alone.',
+  'scenario.focus': 'Switch focus between windows',
+  'scenario.focus.summary':
+    'Read one window full size with the rest of the room a press away, move to its neighbour, then step back out.',
+  'scenario.focus.enter': 'Focus a window.',
+  'scenario.focus.enter.hint':
+    'Select a window and switch the view mode to Focus, or press Focus on a row of the Windows view.',
+  'scenario.focus.switch': 'Focus one of its neighbours.',
+  'scenario.focus.switch.hint':
+    'Press a window in the row under the focused one, or use Focus the next window to the right in the command list.',
+  'scenario.focus.leave': 'Leave focus.',
+  'scenario.focus.leave.hint':
+    'Press Escape, or the close button on the focus bar: the view goes back to where it was.',
+  'scenario.compose': 'Compose surfaces',
+  'scenario.compose.summary':
+    'The Project Board holds three surfaces side by side. Take one out, put it in another window, then put it back.',
+  'scenario.compose.detach': 'Detach Sources from the Project Board.',
+  'scenario.compose.detach.hint':
+    'Select the Project Board and, under Surfaces in the inspector, press Detach into its own window for Sources.',
+  'scenario.compose.move': 'Move Sources into the Writing Desk.',
+  'scenario.compose.move.hint':
+    'With Sources selected, choose the Writing Desk under Move to window in the inspector.',
+  'scenario.compose.back': 'Put Sources back on the Project Board.',
+  'scenario.compose.back.hint':
+    'Select the Writing Desk, choose Sources, and move it to the Project Board from the inspector.',
+  'scenario.restore': 'Save and restore a layout',
+  'scenario.restore.summary':
+    'Save the studio under a name, change it, then open the saved layout to put every window back.',
+  'scenario.restore.save': 'Save the layout as “{name}”.',
+  'scenario.restore.save.hint': 'In the Workspaces view, type the name and press Save.',
+  'scenario.restore.change': 'Change the layout.',
+  'scenario.restore.change.hint': 'Move, turn or remove any window.',
+  'scenario.restore.open': 'Open “{name}” again.',
+  'scenario.restore.open.hint':
+    'In the Workspaces view, open it and confirm: every window goes back where it was when you saved it.',
+  'command.scenario.start': 'Start a scenario',
+  'command.scenario.start.named': 'Start the scenario: {scenario}',
+  'command.scenario.stop': 'Stop the scenario',
+  'challenge.title': 'Find a window',
+  'challenge.detail':
+    'A timed task: it names a window, behind you whenever one is, and times you until you select it. Pick a way to navigate for each run and compare them.',
+  'challenge.method': 'Navigate by',
+  'challenge.method.camera': 'Turning the camera',
+  'challenge.method.orbit': 'Turning the workspace',
+  'challenge.method.map': 'The map',
+  'challenge.method.overview': 'The overview',
+  'challenge.method.search': 'Searching by name',
+  'challenge.start': 'Start',
+  'challenge.again': 'Run again',
+  'challenge.cancel': 'Give up',
+  'challenge.clear': 'Clear the runs',
+  'challenge.find': 'Find and select',
+  'challenge.time': 'Time',
+  'challenge.actions': 'Presses and keys',
+  'challenge.seconds': '{seconds}\u00a0s',
+  'challenge.found': 'Found {label} in {seconds} s, after {actions} presses and keys.',
+  'challenge.summary.detail': 'Runs: {runs}. Presses and keys, on average: {actions}',
+  'challenge.removed': 'The window to find was removed: the run ended unfinished.',
+  'challenge.runs': 'Runs',
+  'challenge.runs.none': 'No runs yet.',
+  'challenge.by.method': 'By way of navigating',
+  'challenge.column.method': 'Navigated by',
+  'challenge.column.time': 'Time (s)',
+  'challenge.column.actions': 'Presses',
+  'challenge.column.best': 'Best (s)',
+  'challenge.column.mean': 'Average (s)',
+  'command.challenge.start': 'Start the find-a-window task',
+  'command.challenge.start.named': 'Find a window: {method}',
+  'command.challenge.cancel': 'Give up the find-a-window run',
+  'command.challenge.clear': 'Clear the find-a-window runs',
 } as const);
 
 export type MessageId = keyof typeof ENGLISH;

@@ -194,7 +194,8 @@ describe('the empty state (UX-009)', () => {
     expect(root.textContent).toContain(ENGLISH['empty.body']);
     driver.act('page.panorama.load', 'press');
     await settle();
-    expect(model.status?.windows).toBe(6);
+    expect(model.status?.scene.preset).toBe('studio');
+    expect(model.status?.windows).toBe(13);
     expect(driver.has('page.panorama.load')).toBe(false);
   });
 });

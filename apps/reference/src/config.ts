@@ -19,8 +19,8 @@ export interface AppConfig {
 }
 
 export const DEFAULT_CONFIG: AppConfig = Object.freeze({
-  preset: 'sparse',
-  seed: PRESETS.sparse.defaultSeed,
+  preset: 'studio',
+  seed: PRESETS.studio.defaultSeed,
   backend: 'dom',
   restore: true,
 });

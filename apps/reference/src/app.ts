@@ -53,6 +53,7 @@ import type { CompositionPlan, GroupTarget } from './composition.js';
 import {
   CompositionRefusal,
   detachSurface,
+  freeId,
   mergeWindow,
   moveSurface,
   regroupWindow,
@@ -74,15 +75,21 @@ import type { Policies } from './policies.js';
 import { createPolicies } from './policies.js';
 import type { PresetId } from './presets.js';
 import {
+  ADDED_KEY,
+  addedWindow,
   CAMERA_ID,
+  CATEGORY_KEY,
   COLOUR_KEY,
   colourName,
+  composites,
   contentOf,
   planPreset,
   presetIssue,
   PRESETS,
   SEARCHABLE_METADATA,
   presetCommands,
+  windowCommands,
+  WORKSPACE_GROUP_ID,
 } from './presets.js';
 import type { Attachment, Search } from './search.js';
 import { createSearch } from './search.js';
@@ -91,6 +98,11 @@ import type { Pose } from './pose.js';
 import { poseOf } from './pose.js';
 import type { Workspaces } from './workspaces.js';
 import { createWorkspaces, hostExtension } from './workspaces.js';
+import type { Scenarios, ScenarioId, ScenarioWorld } from './scenarios.js';
+import { BEHIND, createScenarios, offCamera, SCENARIOS } from './scenarios.js';
+import type { Challenge, ChallengeRun, MethodId } from './challenge.js';
+import { ChallengeRefusal, createChallenge } from './challenge.js';
+import { cameraHeading, nodeHeading } from './orbit.js';
 
 /** The viewport the application presents. */
 export const VIEWPORT_ID = 'main';
@@ -272,6 +284,10 @@ export interface ReferenceApp {
   readonly policies: Policies;
   /** The workspaces in local storage: saved as it changes, named, exported and imported. */
   readonly workspaces: Workspaces;
+  /** The guided scenarios: the one under way, and how far it has come. */
+  readonly scenarios: Scenarios;
+  /** The timed window-finding task: the run under way, and the runs recorded. */
+  readonly challenge: Challenge;
   status(): AppStatus;
   subscribe(listener: (status: AppStatus) => void): () => void;
   /**
@@ -281,6 +297,19 @@ export interface ReferenceApp {
   loadPreset(preset: PresetId, seed?: number): TxResult;
   /** Loads the current scene's preset and seed again. */
   reset(): TxResult;
+  /**
+   * Makes the studio a scenario starts from, as it is planned, with the features the scenario
+   * shows turned on and the panorama shown: one undoable change of the scene. The caller starts
+   * the scenario once it is committed. Throws {@link FeatureError} when a feature cannot be turned on.
+   */
+  prepareScenario(id: ScenarioId): TxResult;
+  /**
+   * Starts a run of the timed task navigated by a method: shows the view the method navigates
+   * in, then names a window to find. Throws {@link ChallengeRefusal} when the method's feature is
+   * off or there is no window to name, {@link ModeRefusal} or {@link PolicyRefusal} when the view
+   * cannot be shown.
+   */
+  startChallenge(method: MethodId): ChallengeRun;
   /** Loads the current preset from another seed: the next one unless one is given. */
   reseed(seed?: number): TxResult;
   /** Presents the viewport with the other backend, handing its live content over. */
@@ -292,6 +321,12 @@ export interface ReferenceApp {
   revealWindow(id: string): TxResult;
   /** Selects a window and shows the map. */
   showInMap(id: string): TxResult;
+  /**
+   * Adds a new window to the workspace, a blank native note straight ahead of the camera, and
+   * selects it: one undoable change. Throws {@link CompositionRefusal} when the workspace group it
+   * goes into is gone or no longer stands at the camera.
+   */
+  addWindow(): TxResult;
   /**
    * Puts a window at a world position (each coordinate left out stays as it is), turning it about
    * the vertical as it moves round the camera so it keeps facing it: one undoable commit.
@@ -798,9 +833,85 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
     const planned = surface?.bindingKey == null ? null : content.find(surface.bindingKey);
     return {
       tags: kind === null ? [] : [kind],
-      metadata: planned === null ? {} : { [COLOUR_KEY]: colourName(planned.hue) },
+      metadata:
+        planned === null
+          ? {}
+          : {
+              [COLOUR_KEY]: colourName(planned.hue),
+              ...(planned.detail === undefined ? {} : { [CATEGORY_KEY]: planned.detail.category }),
+            },
     };
   };
+
+  const DEGREES = 180 / Math.PI;
+  /** The application as a scenario's step reads it: the named workspaces first, then the rest. */
+  const scenarioWorld = async (): Promise<ScenarioWorld> => {
+    const named = await workspaces.named();
+    const state = workspace.getState();
+    const camera = state.cameras.get(CAMERA_ID);
+    if (camera === undefined) {
+      throw new Error(`no camera "${CAMERA_ID}"`);
+    }
+    return Object.freeze({
+      scene: state,
+      mode: modes.current(),
+      cameraHeading: cameraHeading(state, VIEWPORT_ID) * DEGREES,
+      pose: (id: string) =>
+        state.nodes.get(id)?.status === 'active' ? poseOf(state, id, camera.position) : null,
+      depth: policies.status().features.depth,
+      named,
+      restores: workspaces.measures().restores,
+    });
+  };
+  const scenarios = createScenarios({ world: scenarioWorld });
+  // A step is looked at again whenever anything it reads may have changed.
+  const looks = [
+    workspace.subscribe((event) => {
+      if (event.type === 'transaction.committed') {
+        void scenarios.observe();
+      }
+    }),
+    workspaces.subscribe(() => {
+      void scenarios.observe();
+    }),
+    policies.subscribe(() => {
+      void scenarios.observe();
+    }),
+  ];
+
+  const challenge = createChallenge({ now: timer, random: () => Math.random() });
+  // The run counts every press and key the operator makes anywhere in the page, and ends when
+  // the window it names is selected; a run whose window is removed ends unfinished.
+  const acted = (event: Event) => {
+    if (!(event instanceof KeyboardEvent && event.repeat)) {
+      challenge.act();
+    }
+  };
+  document.addEventListener('pointerdown', acted, { capture: true });
+  document.addEventListener('keydown', acted, { capture: true });
+  const unwatchChallenge = workspace.subscribe((event) => {
+    const run = challenge.status().run;
+    if (event.type !== 'transaction.committed' || run === null) {
+      return;
+    }
+    const state = workspace.getState();
+    if (state.nodes.get(run.target)?.status !== 'active') {
+      challenge.removed();
+      return;
+    }
+    const selected = state.selection[0];
+    if (selected !== undefined) {
+      challenge.selected(selected);
+    }
+  });
+  /** The features each way of navigating needs. */
+  const METHOD_FEATURES = Object.freeze({
+    camera: null,
+    orbit: 'orbit',
+    map: 'map',
+    overview: null,
+    search: null,
+  } as const);
 
   const app: ReferenceApp = {
     root,
@@ -818,6 +929,8 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
     search,
     policies,
     workspaces,
+    scenarios,
+    challenge,
     status,
     subscribe(listener) {
       listeners.add(listener);
@@ -827,6 +940,68 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
     },
     loadPreset,
     reset: () => loadPreset(scene.preset, scene.seed),
+    prepareScenario(id) {
+      const enabled = Object.fromEntries(SCENARIOS[id].features.map((f) => [f, true]));
+      policies.configure({ enabled });
+      const loaded = loadPreset('studio');
+      if (loaded.status === 'committed' && modes.current() !== PANORAMA.id) {
+        // Loading leaves focus; the map or the overview is left for the panorama.
+        return modes.switchTo(PANORAMA.id);
+      }
+      return loaded;
+    },
+    startChallenge(method) {
+      const feature = METHOD_FEATURES[method];
+      if (feature !== null && !policies.status().features.enabled[feature]) {
+        throw new ChallengeRefusal(
+          'method',
+          `navigating by ${method} needs the ${feature} feature, which is turned off`,
+        );
+      }
+      // The view the method navigates in; the panorama for the others, with what drags turn.
+      const viewFor: Readonly<Record<MethodId, string>> = {
+        camera: PANORAMA.id,
+        orbit: PANORAMA.id,
+        map: MAP.id,
+        overview: OVERVIEW.id,
+        search: PANORAMA.id,
+      };
+      if (modes.current() !== viewFor[method]) {
+        modes.switchTo(viewFor[method]);
+      }
+      if (policies.status().features.enabled.orbit) {
+        policies.navigate(method === 'orbit' ? 'orbit' : 'camera');
+      }
+      const state = workspace.getState();
+      const camera = state.cameras.get(CAMERA_ID);
+      if (camera === undefined) {
+        throw new Error(`no camera "${CAMERA_ID}"`);
+      }
+      const world = { cameraHeading: cameraHeading(state, VIEWPORT_ID) * DEGREES };
+      const candidates = [...state.nodes.values()].flatMap((node) => {
+        const pose =
+          node.kind === 'window' && node.status === 'active'
+            ? poseOf(state, node.id, camera.position)
+            : null;
+        return pose === null
+          ? []
+          : [
+              {
+                id: node.id,
+                label: node.label ?? node.id,
+                behind: offCamera(world, pose) > BEHIND,
+              },
+            ];
+      });
+      const run = challenge.start(method, candidates, state.selection[0] ?? null);
+      if (run === null) {
+        throw new ChallengeRefusal(
+          'windows',
+          'there is no window to find: the task needs a window besides the one selected',
+        );
+      }
+      return run;
+    },
     reseed: (seed?: number) =>
       loadPreset(scene.preset, seed ?? (scene.seed === MAX_SEED ? 0 : scene.seed + 1)),
     async switchBackend(backend) {
@@ -854,6 +1029,49 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
           { type: 'focus.set', id },
           { type: 'camera.patch', id: CAMERA_ID, rotation: cameraRotation(Math.atan2(x, -z), 0) },
         ],
+        { source: 'user' },
+      );
+    },
+    addWindow() {
+      const state = workspace.getState();
+      const camera = state.cameras.get(CAMERA_ID);
+      const group = state.nodes.get(WORKSPACE_GROUP_ID);
+      const placed = worldMatrix(state.nodes, WORKSPACE_GROUP_ID);
+      if (camera === undefined) {
+        throw new Error(`no camera "${CAMERA_ID}"`);
+      }
+      if (group?.status !== 'active' || placed === undefined) {
+        throw new CompositionRefusal(
+          'group',
+          'the workspace group is gone: load a scene to add windows to it',
+        );
+      }
+      const off = Math.hypot(
+        placed[12] - camera.position[0],
+        placed[13] - camera.position[1],
+        placed[14] - camera.position[2],
+      );
+      if (off > 1e-9) {
+        throw new CompositionRefusal('group', 'the workspace group no longer stands at the camera');
+      }
+      // The next number no added window has had in this scene.
+      const numbers = [...state.surfaces.values()].flatMap((s) => {
+        const key = s.bindingKey ?? '';
+        return key.startsWith(ADDED_KEY) ? [Number(key.slice(ADDED_KEY.length))] : [];
+      });
+      const planned = addedWindow(Math.max(0, ...numbers) + 1);
+      const id = freeId(state, planned.id);
+      // Straight ahead of the camera, in the group's own turn.
+      const heading =
+        cameraHeading(state, VIEWPORT_ID) - (nodeHeading(state, WORKSPACE_GROUP_ID) ?? 0);
+      const window = composites([
+        { ...planned, id, heading: (heading * 180) / Math.PI, elevation: 0 },
+      ])[0];
+      if (window === undefined) {
+        throw new Error('an added window was planned as no window');
+      }
+      return workspace.transaction(
+        [...windowCommands(window, WORKSPACE_GROUP_ID), { type: 'selection.set', ids: [id] }],
         { source: 'user' },
       );
     },
@@ -1002,6 +1220,14 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
         download(document, name, text);
       }),
     async dispose() {
+      for (const stop of looks) {
+        stop();
+      }
+      scenarios.dispose();
+      unwatchChallenge();
+      document.removeEventListener('pointerdown', acted, { capture: true });
+      document.removeEventListener('keydown', acted, { capture: true });
+      challenge.dispose();
       stopPersistence();
       workspaces.dispose();
       inputs.clear();

@@ -43,9 +43,22 @@ export interface PlannedWindow {
    * where the first of them is planned. Absent for a window of its own.
    */
   readonly composedInto?: { readonly id: string; readonly label: string };
+  /**
+   * What the window is about, as a real application's window would show it: a category, a
+   * headline figure and a line describing it. Absent for the plain demo windows of the test scenes.
+   */
+  readonly detail?: WindowDetail;
 }
 
-export const PRESET_IDS = ['empty', 'sparse', 'dense', 'seam', 'composed'] as const;
+/** The host's description of a window's content, shown in it and exposed to search. */
+export interface WindowDetail {
+  readonly category: string;
+  /** The headline figure the content shows large. */
+  readonly metric: string;
+  readonly description: string;
+}
+
+export const PRESET_IDS = ['studio', 'empty', 'sparse', 'dense', 'seam', 'composed'] as const;
 export type PresetId = (typeof PRESET_IDS)[number];
 
 export interface Preset {
@@ -216,7 +229,275 @@ const composed: Preset = {
   },
 };
 
+/** A window of the studio, as it is laid out before the seed's jitter. */
+interface StudioWindow {
+  readonly key: string;
+  readonly label: string;
+  readonly content: ContentKind;
+  readonly heading: number;
+  readonly elevation: number;
+  readonly distance: number;
+  readonly width: number;
+  readonly height: number;
+  readonly hue: number;
+  readonly detail: WindowDetail;
+}
+
+/** The board's parts: three surfaces of one window straight ahead, to break apart and put back. */
+const STUDIO_BOARD = Object.freeze({ id: 'board', label: 'Project Board' });
+
+/**
+ * The studio's windows. The board stands straight ahead; around it, windows in every direction,
+ * eight of them behind the camera, at distances in each of semantic depth's bands by default
+ * (full nearer than 4 units, a compact preview to 5.5, the label alone beyond), above and below
+ * the horizon. Each has a hue of its own, so no two look alike. The near ones are native notes,
+ * which both backends present live; the drawn tiles are the far ones, shown by their labels.
+ */
+const STUDIO: readonly StudioWindow[] = Object.freeze([
+  {
+    key: 'plan',
+    label: 'Plan',
+    content: 'note',
+    heading: 0,
+    elevation: 0,
+    distance: 3.4,
+    width: 1.6,
+    height: 1.4,
+    hue: 210,
+    detail: {
+      category: 'Planning',
+      metric: 'Week 48',
+      description: 'Goals and the order to reach them',
+    },
+  },
+  {
+    key: 'timeline',
+    label: 'Timeline',
+    content: 'note',
+    heading: 0,
+    elevation: 0,
+    distance: 3.4,
+    width: 1.6,
+    height: 1.4,
+    hue: 45,
+    detail: {
+      category: 'Planning',
+      metric: '12 events',
+      description: 'Milestones across projects',
+    },
+  },
+  {
+    key: 'sources',
+    label: 'Sources',
+    content: 'note',
+    heading: 0,
+    elevation: 0,
+    distance: 3.4,
+    width: 1.6,
+    height: 1.4,
+    hue: 275,
+    detail: { category: 'Research', metric: '18 sources', description: 'References and citations' },
+  },
+  {
+    key: 'desk',
+    label: 'Writing Desk',
+    content: 'note',
+    heading: -62,
+    elevation: 6,
+    distance: 3,
+    width: 2.2,
+    height: 1.5,
+    hue: 30,
+    detail: {
+      category: 'Writing',
+      metric: 'Draft 4',
+      description: 'The current draft and its outline',
+    },
+  },
+  {
+    key: 'builds',
+    label: 'Build Status',
+    content: 'note',
+    heading: 62,
+    elevation: -6,
+    distance: 3.2,
+    width: 2.2,
+    height: 1.5,
+    hue: 150,
+    detail: { category: 'Build', metric: '3 running', description: 'Builds of the main branch' },
+  },
+  {
+    key: 'messages',
+    label: 'Messages',
+    content: 'note',
+    heading: -102,
+    elevation: 4,
+    distance: 4.6,
+    width: 2.6,
+    height: 1.7,
+    hue: 345,
+    detail: {
+      category: 'Team',
+      metric: '7 unread',
+      description: 'Replies and mentions from the team',
+    },
+  },
+  {
+    key: 'metrics',
+    label: 'Metrics',
+    content: 'note',
+    heading: 102,
+    elevation: 10,
+    distance: 4.8,
+    width: 2.6,
+    height: 1.7,
+    hue: 190,
+    detail: { category: 'Data', metric: '86.4k', description: 'Visits this week' },
+  },
+  {
+    key: 'calendar',
+    label: 'Calendar',
+    content: 'note',
+    heading: -138,
+    elevation: -8,
+    distance: 3.4,
+    width: 2.2,
+    height: 1.5,
+    hue: 95,
+    detail: { category: 'Planning', metric: '4 today', description: 'Meetings and deadlines' },
+  },
+  {
+    key: 'review',
+    label: 'Code Review',
+    content: 'note',
+    heading: 140,
+    elevation: -4,
+    distance: 5,
+    width: 2.6,
+    height: 1.7,
+    hue: 235,
+    detail: { category: 'Build', metric: '12 files', description: 'Changes waiting for review' },
+  },
+  {
+    key: 'reading',
+    label: 'Reading List',
+    content: 'tile',
+    heading: 180,
+    elevation: 6,
+    distance: 8.5,
+    width: 3.6,
+    height: 2.2,
+    hue: 15,
+    detail: { category: 'Research', metric: '26 saved', description: 'Articles grouped by topic' },
+  },
+  {
+    key: 'tasks',
+    label: 'Tasks',
+    content: 'note',
+    heading: -165,
+    elevation: 24,
+    distance: 4.4,
+    width: 2.4,
+    height: 1.6,
+    hue: 60,
+    detail: { category: 'Planning', metric: '8 open', description: 'What is next, and who has it' },
+  },
+  {
+    key: 'sketches',
+    label: 'Sketches',
+    content: 'tile',
+    heading: -25,
+    elevation: 32,
+    distance: 6.5,
+    width: 3.2,
+    height: 2,
+    hue: 300,
+    detail: {
+      category: 'Design',
+      metric: '12 frames',
+      description: 'Explorations of the new layout',
+    },
+  },
+  {
+    key: 'signals',
+    label: 'Signal Monitor',
+    content: 'tile',
+    heading: 25,
+    elevation: -28,
+    distance: 7.5,
+    width: 3.2,
+    height: 2,
+    hue: 170,
+    detail: { category: 'Data', metric: '+24%', description: 'Events streaming normally' },
+  },
+  {
+    key: 'media',
+    label: 'Media Notes',
+    content: 'note',
+    heading: 118,
+    elevation: 26,
+    distance: 9.5,
+    width: 3.6,
+    height: 2.2,
+    hue: 120,
+    detail: { category: 'Research', metric: '04:28', description: 'A transcript with annotations' },
+  },
+  {
+    key: 'archive',
+    label: 'Archive',
+    content: 'tile',
+    heading: -112,
+    elevation: -24,
+    distance: 10.5,
+    width: 3.8,
+    height: 2.4,
+    hue: 255,
+    detail: {
+      category: 'Research',
+      metric: '1,204 items',
+      description: 'Everything finished, by year',
+    },
+  },
+]);
+
+/** The studio's windows that are parts of the board, by key. */
+const STUDIO_BOARD_PARTS: readonly string[] = Object.freeze(['plan', 'timeline', 'sources']);
+
+/**
+ * The default scene: a studio of named windows all the way round the camera and at every depth,
+ * each looking like what it is, with a board of three surfaces straight ahead to break apart. The
+ * seed moves each window a few degrees, never across a depth band; the board's parts stay together.
+ */
+const studio: Preset = {
+  id: 'studio',
+  name: 'preset.studio',
+  defaultSeed: 1,
+  plan(random, seed) {
+    return STUDIO.map((spec, i): PlannedWindow => {
+      const part = STUDIO_BOARD_PARTS.includes(spec.key);
+      const jitter = part ? 0 : stepped(random, -3, 3, 10);
+      const lift = part ? 0 : stepped(random, -2, 2, 10);
+      const number = String(i + 1).padStart(2, '0');
+      return {
+        id: spec.key,
+        label: spec.label,
+        content: spec.content,
+        bindingKey: `studio/${spec.content}/${String(seed)}/${number}`,
+        heading: wrapHeading(spec.heading + jitter),
+        elevation: Math.round((spec.elevation + lift) * 10) / 10,
+        distance: spec.distance,
+        width: spec.width,
+        height: spec.height,
+        hue: spec.hue,
+        detail: spec.detail,
+        ...(part ? { composedInto: STUDIO_BOARD } : {}),
+      };
+    });
+  },
+};
+
 export const PRESETS: Readonly<Record<PresetId, Preset>> = Object.freeze({
+  studio,
   empty,
   sparse,
   dense,
@@ -238,12 +519,14 @@ export function planPreset(id: PresetId, seed: number): readonly PlannedWindow[]
 const RADIANS = Math.PI / 180;
 
 /**
- * The descriptive metadata the demo host exposes to search: each window's colour, by name. It is
- * the host's description of its content, as a real host would describe a document by its project
- * or owner; search reads it only because it is exposed, never the content itself.
+ * The descriptive metadata the demo host exposes to search: each window's colour, by name, and
+ * the category of what it shows where the host describes it. It is the host's description of its
+ * content, as a real host would describe a document by its project or owner; search reads it only
+ * because it is exposed, never the content itself.
  */
 export const COLOUR_KEY = 'host.reference.colour';
-export const SEARCHABLE_METADATA: readonly string[] = Object.freeze([COLOUR_KEY]);
+export const CATEGORY_KEY = 'host.reference.category';
+export const SEARCHABLE_METADATA: readonly string[] = Object.freeze([COLOUR_KEY, CATEGORY_KEY]);
 
 const COLOURS = [
   'Red',
@@ -364,7 +647,10 @@ export function windowCommands(window: PlannedComposite, parentId: string): Scen
         parentId,
         label: window.label,
         tags: [...new Set(parts.map((p) => p.content))],
-        metadata: { [COLOUR_KEY]: colourName(place.hue) },
+        metadata: {
+          [COLOUR_KEY]: colourName(place.hue),
+          ...(place.detail === undefined ? {} : { [CATEGORY_KEY]: place.detail.category }),
+        },
         bounds: layout.bounds,
         transform: {
           position: [
@@ -410,6 +696,36 @@ export function contentOf(adapterTypeId: string): ContentKind | null {
   return adapterTypeId === NOTE_ADAPTER ? 'note' : adapterTypeId === TILE_ADAPTER ? 'tile' : null;
 }
 
+/** What the binding keys of windows added from the controls start with. */
+export const ADDED_KEY = 'added/note/';
+
+/** How far from the camera a window added from the controls stands, in world units. */
+export const ADDED_DISTANCE = 3;
+
+/**
+ * The content of the `number`th window added from the controls (key `added/note/<number>`): a blank
+ * native note to type in, in a hue of its own. Where it stands is the scene's, not the key's: its
+ * plan stands it straight ahead.
+ */
+export function addedWindow(number: number): PlannedWindow {
+  if (!Number.isSafeInteger(number) || number < 1) {
+    throw new RangeError(`an added window is numbered from 1 (got ${String(number)})`);
+  }
+  return Object.freeze({
+    id: `new-window-${String(number)}`,
+    label: `New window ${String(number)}`,
+    content: 'note',
+    bindingKey: `${ADDED_KEY}${String(number)}`,
+    heading: 0,
+    elevation: 0,
+    distance: ADDED_DISTANCE,
+    width: 2.2,
+    height: 1.5,
+    // Golden-angle steps: each new window's hue far from the last ones'.
+    hue: (number * 137) % 360,
+  });
+}
+
 /**
  * The planned window a binding key names (`<preset>/<content>/<seed>/<number>`), planned again
  * from its preset and seed with `plan` (which may remember plans), or null when the key names no
@@ -420,6 +736,11 @@ export function plannedByKey(
   key: string,
   plan: (preset: PresetId, seed: number) => readonly PlannedWindow[] = planPreset,
 ): PlannedWindow | null {
+  const added = /^added\/note\/([1-9]\d*)$/.exec(key);
+  if (added !== null) {
+    const number = Number(added[1]);
+    return Number.isSafeInteger(number) ? addedWindow(number) : null;
+  }
   const match = /^([a-z]+)\/(note|tile)\/(\d+)\/(\d+)$/.exec(key);
   if (match === null) {
     return null;

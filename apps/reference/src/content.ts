@@ -1,7 +1,7 @@
 import type { SurfaceAdapter, SurfaceCapabilities } from '@swf/surfaces';
 import { ADAPTER_API_VERSION } from '@swf/surfaces';
 import type { Messages } from './messages.js';
-import type { PlannedWindow, PresetId } from './presets.js';
+import type { PlannedWindow, PresetId, WindowDetail } from './presets.js';
 import { NOTE_ADAPTER, planPreset, plannedByKey, TILE_ADAPTER } from './presets.js';
 
 /**
@@ -64,6 +64,38 @@ export interface TileHandle {
 /** Tiles are drawn at this many pixels per world unit. */
 const TILE_PIXELS = 240;
 
+/**
+ * A described window's tile: its category over its name, its headline figure large, and a row of
+ * bars under it, each bar's height made from the window's hue, so every tile draws the same way.
+ */
+function drawDetail(
+  ctx: CanvasRenderingContext2D,
+  window: PlannedWindow,
+  detail: WindowDetail,
+  width: number,
+  height: number,
+): void {
+  const line = (size: number, weight: string) =>
+    `${weight} ${String(Math.round(size))}px system-ui, sans-serif`;
+  ctx.textAlign = 'left';
+  const left = width * 0.06;
+  ctx.font = line(height / 11, '600');
+  ctx.fillText(detail.category.toUpperCase(), left, height * 0.12, width * 0.88);
+  ctx.font = line(height / 7, '600');
+  ctx.fillText(window.label, left, height * 0.27, width * 0.88);
+  ctx.font = line(height / 4, '700');
+  ctx.fillText(detail.metric, left, height * 0.5, width * 0.88);
+  const bars = 12;
+  const gap = width * 0.012;
+  const span = (width * 0.88 - gap * (bars - 1)) / bars;
+  ctx.fillStyle = `hsl(${String(window.hue)} 70% 78%)`;
+  for (let i = 0; i < bars; i++) {
+    const rise = (((window.hue * 7 + i * 37) % 61) + 25) / 100;
+    const barHeight = height * 0.24 * rise;
+    ctx.fillRect(left + i * (span + gap), height * 0.94 - barHeight, span, barHeight);
+  }
+}
+
 export interface DemoContent {
   readonly notes: SurfaceAdapter<NoteHandle>;
   readonly tiles: SurfaceAdapter<TileHandle>;
@@ -99,16 +131,37 @@ export function createDemoContent(document: Document, messages: Messages): DemoC
     element.style.setProperty('background', `hsl(${String(window.hue)} 45% 92%)`);
     element.style.setProperty('color', `hsl(${String(window.hue)} 40% 18%)`);
     element.style.setProperty('font', '18px/1.3 system-ui, sans-serif');
+    const detail = window.detail;
+    if (detail !== undefined) {
+      const category = document.createElement('p');
+      category.style.setProperty('margin', '0');
+      category.style.setProperty('font-size', '13px');
+      category.style.setProperty('font-weight', '600');
+      category.style.setProperty('letter-spacing', '0.06em');
+      category.style.setProperty('text-transform', 'uppercase');
+      category.style.setProperty('opacity', '0.7');
+      category.textContent = detail.category;
+      element.append(category);
+    }
     const title = document.createElement('h2');
     title.style.setProperty('margin', '0 0 6px');
     title.style.setProperty('font-size', '22px');
     title.textContent = window.label;
+    element.append(title);
+    if (detail !== undefined) {
+      const metric = document.createElement('p');
+      metric.style.setProperty('margin', '0 0 4px');
+      metric.style.setProperty('font-size', '30px');
+      metric.style.setProperty('font-weight', '700');
+      metric.textContent = detail.metric;
+      element.append(metric);
+    }
     const body = document.createElement('p');
     body.style.setProperty('margin', '0');
     body.contentEditable = 'plaintext-only';
     body.spellcheck = false;
-    body.textContent = messages.format('content.note.body');
-    element.append(title, body);
+    body.textContent = detail?.description ?? messages.format('content.note.body');
+    element.append(body);
     return { key: window.bindingKey, element };
   };
 
@@ -138,12 +191,22 @@ export function createDemoContent(document: Document, messages: Messages): DemoC
         ctx.stroke();
       }
       ctx.fillStyle = '#fff';
-      ctx.font = `600 ${String(Math.round(height / 5))}px system-ui, sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(window.label, width / 2, height / 2, width * 0.9);
-      ctx.font = `${String(Math.round(height / 10))}px system-ui, sans-serif`;
-      ctx.fillText(messages.format('content.tile.caption'), width / 2, height * 0.72, width * 0.9);
+      const detail = window.detail;
+      if (detail === undefined) {
+        ctx.font = `600 ${String(Math.round(height / 5))}px system-ui, sans-serif`;
+        ctx.fillText(window.label, width / 2, height / 2, width * 0.9);
+        ctx.font = `${String(Math.round(height / 10))}px system-ui, sans-serif`;
+        ctx.fillText(
+          messages.format('content.tile.caption'),
+          width / 2,
+          height * 0.72,
+          width * 0.9,
+        );
+      } else {
+        drawDetail(ctx, window, detail, width, height);
+      }
     }
     return { key: window.bindingKey, source, width, height, revision: 1 };
   };

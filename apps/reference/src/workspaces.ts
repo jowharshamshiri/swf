@@ -109,6 +109,7 @@ export interface WorkspacesStatus {
 export interface Workspaces {
   readonly persistence: Persistence;
   status(): WorkspacesStatus;
+  /** Calls `listener` whenever saving, a restore or the named workspaces change. */
   subscribe(listener: () => void): () => void;
   /** Saves the workspace as it changes (the persistence feature on), or stops (off). */
   setAutosave(on: boolean): void;
@@ -542,6 +543,7 @@ export function createWorkspaces(options: WorkspacesOptions): Workspaces {
       for (const entry of older) {
         await store.delete(entry.key);
       }
+      tell();
       return Object.freeze({ name, savedAt, bytes: ack.bytes });
     },
     async previewNamed(name: string) {

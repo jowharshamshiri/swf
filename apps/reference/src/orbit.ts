@@ -110,11 +110,19 @@ export function orbitKeymap(keymap: readonly KeyBinding[], enabled: boolean): Ke
  */
 export function orbitHeading(scene: SceneState): number | null {
   const rootId = scene.orbitRootId;
-  const world = rootId === null ? undefined : worldMatrix(scene.nodes, rootId);
+  return rootId === null ? null : nodeHeading(scene, rootId);
+}
+
+/**
+ * How far a node is turned about the vertical, in radians to the right of straight ahead; null when
+ * there is no such node.
+ */
+export function nodeHeading(scene: SceneState, nodeId: string): number | null {
+  const world = worldMatrix(scene.nodes, nodeId);
   if (world === undefined) {
     return null;
   }
-  // The root's -Z axis, seen from above: how far its "ahead" has turned.
+  // The node's -Z axis, seen from above: how far its "ahead" has turned.
   const x = -world[8];
   const z = -world[10];
   const heading = Math.hypot(x, z) === 0 ? 0 : Math.atan2(x, -z);

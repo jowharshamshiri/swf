@@ -18,3 +18,5 @@ import Swf.AppDepth
 import Swf.AppSnap
 import Swf.AppComposition
 import Swf.AppWorkspaces
+import Swf.AppScenarios
+import Swf.AppChallenge

@@ -10,6 +10,8 @@
   import { FOCUS_ID } from '../focus.js';
   import type { MessageId } from '../messages.js';
   import { PRESET_IDS, PRESETS } from '../presets.js';
+  import { SCENARIO_IDS, SCENARIOS } from '../scenarios.js';
+  import { METHOD_IDS, METHOD_NAMES } from '../challenge.js';
   import type { ShellModel } from './model.svelte.js';
 
   interface Props {
@@ -114,6 +116,7 @@
             { id: model.selected.id },
           ),
         ]),
+    command('window.add', t('command.window.add'), 'reference.window.add', {}),
     {
       value: 'panorama.focus',
       label: t('command.panorama.focus'),
@@ -176,6 +179,28 @@
               ]),
         ]
       : []),
+    ...SCENARIO_IDS.map((scenario) =>
+      command(
+        `scenario.${scenario}`,
+        t('command.scenario.start.named', { scenario: t(SCENARIOS[scenario].name) }),
+        'reference.scenario.start',
+        { scenario },
+      ),
+    ),
+    ...(model.scenario === null
+      ? []
+      : [command('scenario.stop', t('command.scenario.stop'), 'reference.scenario.stop', {})]),
+    ...METHOD_IDS.map((method) =>
+      command(
+        `challenge.${method}`,
+        t('command.challenge.start.named', { method: t(METHOD_NAMES[method]) }),
+        'reference.challenge.start',
+        { method },
+      ),
+    ),
+    ...(model.challenge?.run == null
+      ? []
+      : [command('challenge.cancel', t('command.challenge.cancel'), 'reference.challenge.cancel', {})]),
     ...BACKEND_IDS.map((backend) =>
       command(
         `backend.${backend}`,

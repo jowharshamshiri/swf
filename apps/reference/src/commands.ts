@@ -14,6 +14,10 @@ import { PRESET_IDS } from './presets.js';
 import { seedIssue } from '@swf/math';
 import { wrapDegrees } from './pose.js';
 import { WorkspaceRefusal } from './workspaces.js';
+import type { ScenarioId } from './scenarios.js';
+import { SCENARIO_IDS } from './scenarios.js';
+import type { MethodId } from './challenge.js';
+import { ChallengeRefusal, METHOD_IDS } from './challenge.js';
 
 /**
  * The application's own commands, by stable ID, each with the message that names it. Every
@@ -94,6 +98,8 @@ export interface AppCommandSpecs {
   'reference.gesture.grab': { readonly id: string };
   'reference.gesture.drop': Readonly<Record<string, never>>;
   'reference.window.remove': { readonly id: string };
+  /** Adds a blank note window straight ahead of the camera. */
+  'reference.window.add': Readonly<Record<string, never>>;
   'reference.surface.detach': { readonly surfaceId: string };
   'reference.surface.move': { readonly surfaceId: string; readonly windowId: string };
   'reference.window.merge': { readonly id: string; readonly targetId: string };
@@ -111,6 +117,13 @@ export interface AppCommandSpecs {
   'reference.workspace.import': { readonly fileName: string; readonly text: string };
   /** Saves the workspace as it is now, without waiting for the save that follows a change. */
   'reference.workspace.saveNow': Readonly<Record<string, never>>;
+  /** Starts a guided scenario from the studio as it is planned. */
+  'reference.scenario.start': { readonly scenario: ScenarioId };
+  'reference.scenario.stop': Readonly<Record<string, never>>;
+  /** Starts a run of the timed window-finding task, navigated by a method. */
+  'reference.challenge.start': { readonly method: MethodId };
+  'reference.challenge.cancel': Readonly<Record<string, never>>;
+  'reference.challenge.clear': Readonly<Record<string, never>>;
 }
 
 export type AppCommandId = keyof AppCommandSpecs;
@@ -155,6 +168,7 @@ export const APP_COMMAND_NAMES: Readonly<Record<AppCommandId, MessageId>> = Obje
   'reference.gesture.grab': 'command.gesture.grab',
   'reference.gesture.drop': 'command.gesture.drop',
   'reference.window.remove': 'command.window.remove',
+  'reference.window.add': 'command.window.add',
   'reference.surface.detach': 'command.surface.detach',
   'reference.surface.move': 'command.surface.move',
   'reference.window.merge': 'command.window.merge',
@@ -166,6 +180,11 @@ export const APP_COMMAND_NAMES: Readonly<Record<AppCommandId, MessageId>> = Obje
   'reference.workspace.export': 'command.workspace.export',
   'reference.workspace.import': 'command.workspace.import',
   'reference.workspace.saveNow': 'command.workspace.saveNow',
+  'reference.scenario.start': 'command.scenario.start',
+  'reference.scenario.stop': 'command.scenario.stop',
+  'reference.challenge.start': 'command.challenge.start',
+  'reference.challenge.cancel': 'command.challenge.cancel',
+  'reference.challenge.clear': 'command.challenge.clear',
 });
 
 /** What running a command did. */
@@ -207,7 +226,8 @@ async function viewChange(
       error instanceof ModeRefusal ||
       error instanceof PolicyRefusal ||
       error instanceof FeatureError ||
-      error instanceof CompositionRefusal
+      error instanceof CompositionRefusal ||
+      error instanceof ChallengeRefusal
     ) {
       return rejected(error.field, error.message);
     }
@@ -641,6 +661,7 @@ export function createAppCommands(app: () => ReferenceApp): AppCommands {
           throw new Error(`putting a window down ${outcome.status} instead`);
       }
     }),
+    'reference.window.add': () => viewChange(() => app().addWindow()),
     'reference.window.remove': async ({ id }) => {
       if (!isWindow(id)) {
         return rejected('id', `no window "${id}"`);
@@ -702,6 +723,43 @@ export function createAppCommands(app: () => ReferenceApp): AppCommands {
       stored(async () => {
         app().saveFile(exportName(new Date()), await app().workspaces.exportText());
       }),
+    'reference.scenario.start': async ({ scenario }) => {
+      if (!(SCENARIO_IDS as readonly string[]).includes(scenario)) {
+        return rejected('scenario', `a scenario is one of ${SCENARIO_IDS.join(', ')}`);
+      }
+      const prepared = await viewChange(() => app().prepareScenario(scenario));
+      if (prepared.status === 'done') {
+        app().scenarios.start(scenario);
+      }
+      return prepared;
+    },
+    'reference.scenario.stop': now(() => {
+      if (app().scenarios.status() === null) {
+        return rejected('scenario', 'no scenario is under way');
+      }
+      app().scenarios.stop();
+      return DONE;
+    }),
+    'reference.challenge.start': async ({ method }) => {
+      if (!(METHOD_IDS as readonly string[]).includes(method)) {
+        return rejected('method', `a method is one of ${METHOD_IDS.join(', ')}`);
+      }
+      return viewChange(() => {
+        app().startChallenge(method);
+        return null;
+      });
+    },
+    'reference.challenge.cancel': now(() => {
+      if (app().challenge.status().run === null) {
+        return rejected('run', 'no run is under way');
+      }
+      app().challenge.cancel();
+      return DONE;
+    }),
+    'reference.challenge.clear': now(() => {
+      app().challenge.clear();
+      return DONE;
+    }),
     'reference.workspace.saveNow': async () =>
       saving() ??
       stored(async () => {

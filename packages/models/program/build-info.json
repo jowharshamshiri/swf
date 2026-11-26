@@ -1,5 +1,5 @@
 {
-  "build_key": "f6143474f884b373ddbd8f21aea9bc44e94285d9a0507b74b09bb9c105de8440",
+  "build_key": "49791c446c2908daed61f8134d80a828ee0f4b68e53a3f13af74831fd335bb07",
   "lean_version": "4.35.0",
   "lean_githash": "eb6cafb7290e8bd5f2937522d8d804f58f02bafc",
   "bir_version": 3,
@@ -8,12 +8,14 @@
   "runtime_abi": 3,
   "worker_identity": "72c9b8a91fbad12998aaf7450234ae878b899b71569b19557121bfd28b049463",
   "input_digests": {
-    "Swf.lean": "06e00432c6a1416f3d881a21af61073e6ab18758dc09f6415e58e69052163b17",
+    "Swf.lean": "15b05add4734d5fbe59f5c6a194f1de00f374dce91c43b1903df094911974b54",
+    "Swf/AppChallenge.lean": "746c6675931e4af153a180187045200a7dccf311831f61dc0940952dcecf6501",
     "Swf/AppComposition.lean": "40ba23a169a985553b15cc567619f08ad933529b2529374d899984c26dea17df",
     "Swf/AppCursor.lean": "0dd3b5872225738d8c53e8833bf4b0395f0b808bebbbf5e532641172b2af802b",
     "Swf/AppDepth.lean": "25f2b92dc3e1f676b790e6dfccf260704a0769d9580435933de89c9eb9c10b5e",
     "Swf/AppFeatures.lean": "97994e88febf9e569659d48feddc888cbe531a7f318c21504eadfc92dddbe3dd",
     "Swf/AppOrbit.lean": "52a1d039613f00b068a595be34237b4382f3e54db3d678e425c0f4753d0c1aa0",
+    "Swf/AppScenarios.lean": "3df1fb42dd429ef2a8869e49beac97ae69f69227d90f46234578a2c4684f6948",
     "Swf/AppSnap.lean": "84a06501409c1a3b160e21efac2746f806d746e7021706d2addd76570515d1d6",
     "Swf/AppWorkspaces.lean": "44b79442c01be58764578405e8d63024e287c856db6d080c394be4652d859b18",
     "Swf/Arbitration.lean": "47ef2f12b3479a3ca4a066653f2c8f5010b5cea840dd1c0fa40d69bca01a8de0",
@@ -36,9 +38,9 @@
   "project": ".",
   "link_directives": [],
   "output_digests": {
-    "assurance.json": "28cdc6c17de2a55857a071a3105f4ee5efa9fa0cb16d2762edb22082364c2500",
-    "index.d.ts": "3473dac72371c403e7e2dbce1581dd7b414eeb65a706b22c6d1f3ff59e837766",
-    "index.js": "11e350154bd21c1d0dd20a33e579f5323f374fb4bc048b426e9d1c2e94875032"
+    "assurance.json": "fef90a657712332ec8bc5f02de7fb7c7cd95291dde4ffae77b52164863b3eb3a",
+    "index.d.ts": "9c003592ac5e854b8ae52fda2492307a427cbe71b3f16059d906327c36d99ae9",
+    "index.js": "5a1a9317b6c192ca1ec6da6f0e8a00ab71498a9fb12633cb8bdcf48b919c8fc0"
   },
   "platform_products": [
     "program.wasm"

@@ -17,6 +17,198 @@
   "assumptions": [],
   "claims": [
     {
+      "name": "Swf.AppChallenge.found_only_on_target",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppChallenge.challengeStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (task task' : Swf.AppChallenge.ChallengeTask) (id : String) (time : Nat) (r : Swf.AppChallenge.ChallengeRecord),\n  Swf.AppChallenge.challengeStep task (Swf.AppChallenge.ChallengeEvent.selected id time) =\n      Swf.AppChallenge.ChallengeAnswer.next task' (some r) →\n    ∃ run,\n      task.run = some run ∧\n        id = run.target ∧\n          run.startedAt ≤ time ∧\n            r = { target := run.target, method := run.method, ms := time - run.startedAt, actions := run.actions } ∧\n              task' = { run := none, records := task.records.push r }",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "2dae262dd5a4ba61b9c14b512ff6feded00abfdebcca28faac1063d9c7fa5258",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppChallenge.lean",
+        "start": {
+          "line": 193,
+          "column": 1
+        },
+        "end": {
+          "line": 215,
+          "column": 79
+        }
+      }
+    },
+    {
+      "name": "Swf.AppChallenge.names_one_when_any",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppChallenge.challengeTarget"
+      ],
+      "specifications": [],
+      "statement": "∀ (candidates : Array Swf.AppChallenge.ChallengeCandidate) (selected : Option String) (draw : Nat)\n  (c : Swf.AppChallenge.ChallengeCandidate),\n  c ∈ candidates → some c.id ≠ selected → (Swf.AppChallenge.challengeTarget candidates selected draw).isSome = true",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "8a483738c9e8ccdc44b6a888a499f11f15cc9b0c17756098dbc844c15b7c6a38",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppChallenge.lean",
+        "start": {
+          "line": 176,
+          "column": 1
+        },
+        "end": {
+          "line": 191,
+          "column": 32
+        }
+      }
+    },
+    {
+      "name": "Swf.AppChallenge.other_selection_changes_nothing",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppChallenge.challengeStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (task : Swf.AppChallenge.ChallengeTask) (id : String) (time : Nat),\n  (∀ (r : Swf.AppChallenge.ChallengeRun), task.run = some r → id ≠ r.target) →\n    Swf.AppChallenge.challengeStep task (Swf.AppChallenge.ChallengeEvent.selected id time) =\n      Swf.AppChallenge.ChallengeAnswer.next task none",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "edfe5323cceed75f953ba85dbbbc7f89de346f25808bdbde266c899789d0c10c",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppChallenge.lean",
+        "start": {
+          "line": 246,
+          "column": 1
+        },
+        "end": {
+          "line": 256,
+          "column": 16
+        }
+      }
+    },
+    {
+      "name": "Swf.AppChallenge.prefers_behind",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppChallenge.challengeTarget"
+      ],
+      "specifications": [],
+      "statement": "∀ (candidates : Array Swf.AppChallenge.ChallengeCandidate) (selected : Option String) (draw : Nat)\n  (b : Swf.AppChallenge.ChallengeCandidate),\n  b ∈ candidates →\n    b.behind = true →\n      some b.id ≠ selected →\n        ∃ c, c ∈ candidates ∧ Swf.AppChallenge.challengeTarget candidates selected draw = some c.id ∧ c.behind = true",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "98cfbf76b50c2918f027c52f5b564223a596ab2a2786f251941156c50c2ae090",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppChallenge.lean",
+        "start": {
+          "line": 152,
+          "column": 1
+        },
+        "end": {
+          "line": 174,
+          "column": 39
+        }
+      }
+    },
+    {
+      "name": "Swf.AppChallenge.records_only_grow",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppChallenge.challengeStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (task task' : Swf.AppChallenge.ChallengeTask) (e : Swf.AppChallenge.ChallengeEvent)\n  (found : Option Swf.AppChallenge.ChallengeRecord),\n  e ≠ Swf.AppChallenge.ChallengeEvent.clear →\n    ∀ (h : Swf.AppChallenge.challengeStep task e = Swf.AppChallenge.ChallengeAnswer.next task' found),\n      task'.records =\n        match found, h with\n        | none, h => task.records\n        | some r, h => task.records.push r",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "8e01e00396c91b141afef8fa98d4fc7506c5510efa73c6211c53754652a10aa5",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppChallenge.lean",
+        "start": {
+          "line": 217,
+          "column": 1
+        },
+        "end": {
+          "line": 244,
+          "column": 33
+        }
+      }
+    },
+    {
+      "name": "Swf.AppChallenge.target_is_an_unselected_candidate",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppChallenge.challengeTarget"
+      ],
+      "specifications": [],
+      "statement": "∀ (candidates : Array Swf.AppChallenge.ChallengeCandidate) (selected : Option String) (draw : Nat) (id : String),\n  Swf.AppChallenge.challengeTarget candidates selected draw = some id →\n    ∃ c, c ∈ candidates ∧ c.id = id ∧ some id ≠ selected",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "73607acd9c89cbbc64d86412de7be9f4abccb333c709a9b2e31ce14ec940d1dd",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppChallenge.lean",
+        "start": {
+          "line": 138,
+          "column": 1
+        },
+        "end": {
+          "line": 150,
+          "column": 12
+        }
+      }
+    },
+    {
       "name": "Swf.AppComposition.detach_needs_two_surfaces",
       "relation": "lungo.law",
       "subjects": [
@@ -1248,6 +1440,224 @@
         },
         "end": {
           "line": 174,
+          "column": 19
+        }
+      }
+    },
+    {
+      "name": "Swf.AppScenarios.done_within_steps",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppScenarios.guideStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (g g' : Swf.AppScenarios.Guide) (holds : Bool),\n  g.done ≤ g.steps →\n    Swf.AppScenarios.guideStep (some g) (Swf.AppScenarios.GuideEvent.observe holds) =\n        Swf.AppScenarios.GuideAnswer.next (some g') →\n      g'.done ≤ g'.steps",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "9ac1135b77319adc8f5fce5b5817284241416b7565b393798235df24c9fac850",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppScenarios.lean",
+        "start": {
+          "line": 104,
+          "column": 1
+        },
+        "end": {
+          "line": 118,
+          "column": 13
+        }
+      }
+    },
+    {
+      "name": "Swf.AppScenarios.finished_stays",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppScenarios.guideStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (g : Swf.AppScenarios.Guide) (holds : Bool),\n  g.finished = true →\n    Swf.AppScenarios.guideStep (some g) (Swf.AppScenarios.GuideEvent.observe holds) =\n      Swf.AppScenarios.GuideAnswer.next (some g)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "0a62904fa15b9c9aec76484cf33dbdb2497e84edb30dcbb0b753e31d196912d8",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppScenarios.lean",
+        "start": {
+          "line": 120,
+          "column": 1
+        },
+        "end": {
+          "line": 125,
+          "column": 38
+        }
+      }
+    },
+    {
+      "name": "Swf.AppScenarios.holding_does_the_step",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppScenarios.guideStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (g : Swf.AppScenarios.Guide),\n  g.done < g.steps →\n    Swf.AppScenarios.guideStep (some g) (Swf.AppScenarios.GuideEvent.observe true) =\n      Swf.AppScenarios.GuideAnswer.next (some { scenario := g.scenario, steps := g.steps, done := g.done + 1 })",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "acd63d0450304fe6cee73cb4f055500239371593c56ec73533cd9385e900b97f",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppScenarios.lean",
+        "start": {
+          "line": 98,
+          "column": 1
+        },
+        "end": {
+          "line": 102,
+          "column": 23
+        }
+      }
+    },
+    {
+      "name": "Swf.AppScenarios.observe_advances_by_at_most_one",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppScenarios.guideStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (g g' : Swf.AppScenarios.Guide) (holds : Bool),\n  Swf.AppScenarios.guideStep (some g) (Swf.AppScenarios.GuideEvent.observe holds) =\n      Swf.AppScenarios.GuideAnswer.next (some g') →\n    g'.scenario = g.scenario ∧ g'.steps = g.steps ∧ g.done ≤ g'.done ∧ g'.done ≤ g.done + 1",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "b3886978e9fe3271c9e1fb62ccd5cb68976b7346d8927b32e0f00c8100b09135",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppScenarios.lean",
+        "start": {
+          "line": 75,
+          "column": 1
+        },
+        "end": {
+          "line": 82,
+          "column": 97
+        }
+      }
+    },
+    {
+      "name": "Swf.AppScenarios.starts_at_first_step",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppScenarios.guideStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (current : Option Swf.AppScenarios.Guide) (scenario : String) (steps : Nat) (g : Swf.AppScenarios.Guide),\n  Swf.AppScenarios.guideStep current (Swf.AppScenarios.GuideEvent.start scenario steps) =\n      Swf.AppScenarios.GuideAnswer.next (some g) →\n    g.scenario = scenario ∧ g.steps = steps ∧ g.done = 0 ∧ 0 < g.steps",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "aacad3432a2bca3519c6754306adf437fffb165925b00dcae0cbf37ac8266386",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppScenarios.lean",
+        "start": {
+          "line": 62,
+          "column": 1
+        },
+        "end": {
+          "line": 73,
+          "column": 49
+        }
+      }
+    },
+    {
+      "name": "Swf.AppScenarios.step_done_only_when_it_holds",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppScenarios.guideStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (g g' : Swf.AppScenarios.Guide) (holds : Bool),\n  Swf.AppScenarios.guideStep (some g) (Swf.AppScenarios.GuideEvent.observe holds) =\n      Swf.AppScenarios.GuideAnswer.next (some g') →\n    g.done < g'.done → holds = true ∧ g.done < g.steps",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "404adfe821ca8fc38ec8df2bf7f0567833396536ea1611d7ab5c3b4dd137d301",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppScenarios.lean",
+        "start": {
+          "line": 84,
+          "column": 1
+        },
+        "end": {
+          "line": 96,
+          "column": 38
+        }
+      }
+    },
+    {
+      "name": "Swf.AppScenarios.stop_ends_and_idle_refuses",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppScenarios.guideStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (g : Swf.AppScenarios.Guide) (holds : Bool),\n  Swf.AppScenarios.guideStep (some g) Swf.AppScenarios.GuideEvent.stop = Swf.AppScenarios.GuideAnswer.next none ∧\n    Swf.AppScenarios.guideStep none Swf.AppScenarios.GuideEvent.stop = Swf.AppScenarios.GuideAnswer.notRunning ∧\n      Swf.AppScenarios.guideStep none (Swf.AppScenarios.GuideEvent.observe holds) =\n        Swf.AppScenarios.GuideAnswer.notRunning",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "d2d632357d7e19ac7ecde34c02a8ad424d62e947095fecf85f86383014546c6e",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppScenarios.lean",
+        "start": {
+          "line": 127,
+          "column": 1
+        },
+        "end": {
+          "line": 132,
           "column": 19
         }
       }
@@ -4992,6 +5402,93 @@
   "roles": [],
   "exports": [
     {
+      "name": "Swf.AppChallenge.challengeStep",
+      "module": "Swf.AppChallenge",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_array_push",
+          "lean_mk_empty_array_with_capacity",
+          "lean_nat_add",
+          "lean_nat_dec_lt",
+          "lean_nat_sub",
+          "lean_string_dec_eq"
+        ]
+      },
+      "claims": [
+        "Swf.AppChallenge.found_only_on_target",
+        "Swf.AppChallenge.other_selection_changes_nothing",
+        "Swf.AppChallenge.records_only_grow"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppChallenge.lean",
+        "start": {
+          "line": 89,
+          "column": 1
+        },
+        "end": {
+          "line": 112,
+          "column": 54
+        }
+      }
+    },
+    {
+      "name": "Swf.AppChallenge.challengeTarget",
+      "module": "Swf.AppChallenge",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [
+          "_private.Init.Data.Array.Basic.0.Array.foldlMUnsafe.fold"
+        ],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_array_fget",
+          "lean_array_get_size",
+          "lean_array_push",
+          "lean_array_uget_borrowed",
+          "lean_mk_empty_array_with_capacity",
+          "lean_nat_dec_eq",
+          "lean_nat_dec_le",
+          "lean_nat_dec_lt",
+          "lean_nat_mod",
+          "lean_string_dec_eq",
+          "lean_usize_add",
+          "lean_usize_dec_eq",
+          "lean_usize_of_nat"
+        ]
+      },
+      "claims": [
+        "Swf.AppChallenge.names_one_when_any",
+        "Swf.AppChallenge.prefers_behind",
+        "Swf.AppChallenge.target_is_an_unselected_candidate"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppChallenge.lean",
+        "start": {
+          "line": 34,
+          "column": 1
+        },
+        "end": {
+          "line": 39,
+          "column": 88
+        }
+      }
+    },
+    {
       "name": "Swf.AppComposition.compositionFreeId",
       "module": "Swf.AppComposition",
       "async": false,
@@ -5532,6 +6029,46 @@
         "end": {
           "line": 105,
           "column": 84
+        }
+      }
+    },
+    {
+      "name": "Swf.AppScenarios.guideStep",
+      "module": "Swf.AppScenarios",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_nat_add",
+          "lean_nat_dec_eq",
+          "lean_nat_dec_lt"
+        ]
+      },
+      "claims": [
+        "Swf.AppScenarios.done_within_steps",
+        "Swf.AppScenarios.finished_stays",
+        "Swf.AppScenarios.holding_does_the_step",
+        "Swf.AppScenarios.observe_advances_by_at_most_one",
+        "Swf.AppScenarios.starts_at_first_step",
+        "Swf.AppScenarios.step_done_only_when_it_holds",
+        "Swf.AppScenarios.stop_ends_and_idle_refuses"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppScenarios.lean",
+        "start": {
+          "line": 47,
+          "column": 1
+        },
+        "end": {
+          "line": 58,
+          "column": 27
         }
       }
     },

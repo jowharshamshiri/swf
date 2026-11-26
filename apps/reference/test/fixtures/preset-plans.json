@@ -1,4 +1,542 @@
 {
+  "studio@1": [
+    {
+      "id": "plan",
+      "label": "Plan",
+      "content": "note",
+      "bindingKey": "studio/note/1/01",
+      "heading": 0,
+      "elevation": 0,
+      "distance": 3.4,
+      "width": 1.6,
+      "height": 1.4,
+      "hue": 210,
+      "detail": {
+        "category": "Planning",
+        "metric": "Week 48",
+        "description": "Goals and the order to reach them"
+      },
+      "composedInto": {
+        "id": "board",
+        "label": "Project Board"
+      }
+    },
+    {
+      "id": "timeline",
+      "label": "Timeline",
+      "content": "note",
+      "bindingKey": "studio/note/1/02",
+      "heading": 0,
+      "elevation": 0,
+      "distance": 3.4,
+      "width": 1.6,
+      "height": 1.4,
+      "hue": 45,
+      "detail": {
+        "category": "Planning",
+        "metric": "12 events",
+        "description": "Milestones across projects"
+      },
+      "composedInto": {
+        "id": "board",
+        "label": "Project Board"
+      }
+    },
+    {
+      "id": "sources",
+      "label": "Sources",
+      "content": "note",
+      "bindingKey": "studio/note/1/03",
+      "heading": 0,
+      "elevation": 0,
+      "distance": 3.4,
+      "width": 1.6,
+      "height": 1.4,
+      "hue": 275,
+      "detail": {
+        "category": "Research",
+        "metric": "18 sources",
+        "description": "References and citations"
+      },
+      "composedInto": {
+        "id": "board",
+        "label": "Project Board"
+      }
+    },
+    {
+      "id": "desk",
+      "label": "Writing Desk",
+      "content": "note",
+      "bindingKey": "studio/note/1/04",
+      "heading": -61.2,
+      "elevation": 4,
+      "distance": 3,
+      "width": 2.2,
+      "height": 1.5,
+      "hue": 30,
+      "detail": {
+        "category": "Writing",
+        "metric": "Draft 4",
+        "description": "The current draft and its outline"
+      }
+    },
+    {
+      "id": "builds",
+      "label": "Build Status",
+      "content": "note",
+      "bindingKey": "studio/note/1/05",
+      "heading": 62.2,
+      "elevation": -4,
+      "distance": 3.2,
+      "width": 2.2,
+      "height": 1.5,
+      "hue": 150,
+      "detail": {
+        "category": "Build",
+        "metric": "3 running",
+        "description": "Builds of the main branch"
+      }
+    },
+    {
+      "id": "messages",
+      "label": "Messages",
+      "content": "note",
+      "bindingKey": "studio/note/1/06",
+      "heading": -99.1,
+      "elevation": 3.1,
+      "distance": 4.6,
+      "width": 2.6,
+      "height": 1.7,
+      "hue": 345,
+      "detail": {
+        "category": "Team",
+        "metric": "7 unread",
+        "description": "Replies and mentions from the team"
+      }
+    },
+    {
+      "id": "metrics",
+      "label": "Metrics",
+      "content": "note",
+      "bindingKey": "studio/note/1/07",
+      "heading": 102.7,
+      "elevation": 10.9,
+      "distance": 4.8,
+      "width": 2.6,
+      "height": 1.7,
+      "hue": 190,
+      "detail": {
+        "category": "Data",
+        "metric": "86.4k",
+        "description": "Visits this week"
+      }
+    },
+    {
+      "id": "calendar",
+      "label": "Calendar",
+      "content": "note",
+      "bindingKey": "studio/note/1/08",
+      "heading": -138.5,
+      "elevation": -6,
+      "distance": 3.4,
+      "width": 2.2,
+      "height": 1.5,
+      "hue": 95,
+      "detail": {
+        "category": "Planning",
+        "metric": "4 today",
+        "description": "Meetings and deadlines"
+      }
+    },
+    {
+      "id": "review",
+      "label": "Code Review",
+      "content": "note",
+      "bindingKey": "studio/note/1/09",
+      "heading": 139.7,
+      "elevation": -4,
+      "distance": 5,
+      "width": 2.6,
+      "height": 1.7,
+      "hue": 235,
+      "detail": {
+        "category": "Build",
+        "metric": "12 files",
+        "description": "Changes waiting for review"
+      }
+    },
+    {
+      "id": "reading",
+      "label": "Reading List",
+      "content": "tile",
+      "bindingKey": "studio/tile/1/10",
+      "heading": 177.8,
+      "elevation": 5.6,
+      "distance": 8.5,
+      "width": 3.6,
+      "height": 2.2,
+      "hue": 15,
+      "detail": {
+        "category": "Research",
+        "metric": "26 saved",
+        "description": "Articles grouped by topic"
+      }
+    },
+    {
+      "id": "tasks",
+      "label": "Tasks",
+      "content": "note",
+      "bindingKey": "studio/note/1/11",
+      "heading": -166.5,
+      "elevation": 22.6,
+      "distance": 4.4,
+      "width": 2.4,
+      "height": 1.6,
+      "hue": 60,
+      "detail": {
+        "category": "Planning",
+        "metric": "8 open",
+        "description": "What is next, and who has it"
+      }
+    },
+    {
+      "id": "sketches",
+      "label": "Sketches",
+      "content": "tile",
+      "bindingKey": "studio/tile/1/12",
+      "heading": -25.1,
+      "elevation": 30.2,
+      "distance": 6.5,
+      "width": 3.2,
+      "height": 2,
+      "hue": 300,
+      "detail": {
+        "category": "Design",
+        "metric": "12 frames",
+        "description": "Explorations of the new layout"
+      }
+    },
+    {
+      "id": "signals",
+      "label": "Signal Monitor",
+      "content": "tile",
+      "bindingKey": "studio/tile/1/13",
+      "heading": 24.4,
+      "elevation": -26.9,
+      "distance": 7.5,
+      "width": 3.2,
+      "height": 2,
+      "hue": 170,
+      "detail": {
+        "category": "Data",
+        "metric": "+24%",
+        "description": "Events streaming normally"
+      }
+    },
+    {
+      "id": "media",
+      "label": "Media Notes",
+      "content": "note",
+      "bindingKey": "studio/note/1/14",
+      "heading": 116.7,
+      "elevation": 24.7,
+      "distance": 9.5,
+      "width": 3.6,
+      "height": 2.2,
+      "hue": 120,
+      "detail": {
+        "category": "Research",
+        "metric": "04:28",
+        "description": "A transcript with annotations"
+      }
+    },
+    {
+      "id": "archive",
+      "label": "Archive",
+      "content": "tile",
+      "bindingKey": "studio/tile/1/15",
+      "heading": -114.8,
+      "elevation": -24.3,
+      "distance": 10.5,
+      "width": 3.8,
+      "height": 2.4,
+      "hue": 255,
+      "detail": {
+        "category": "Research",
+        "metric": "1,204 items",
+        "description": "Everything finished, by year"
+      }
+    }
+  ],
+  "studio@42": [
+    {
+      "id": "plan",
+      "label": "Plan",
+      "content": "note",
+      "bindingKey": "studio/note/42/01",
+      "heading": 0,
+      "elevation": 0,
+      "distance": 3.4,
+      "width": 1.6,
+      "height": 1.4,
+      "hue": 210,
+      "detail": {
+        "category": "Planning",
+        "metric": "Week 48",
+        "description": "Goals and the order to reach them"
+      },
+      "composedInto": {
+        "id": "board",
+        "label": "Project Board"
+      }
+    },
+    {
+      "id": "timeline",
+      "label": "Timeline",
+      "content": "note",
+      "bindingKey": "studio/note/42/02",
+      "heading": 0,
+      "elevation": 0,
+      "distance": 3.4,
+      "width": 1.6,
+      "height": 1.4,
+      "hue": 45,
+      "detail": {
+        "category": "Planning",
+        "metric": "12 events",
+        "description": "Milestones across projects"
+      },
+      "composedInto": {
+        "id": "board",
+        "label": "Project Board"
+      }
+    },
+    {
+      "id": "sources",
+      "label": "Sources",
+      "content": "note",
+      "bindingKey": "studio/note/42/03",
+      "heading": 0,
+      "elevation": 0,
+      "distance": 3.4,
+      "width": 1.6,
+      "height": 1.4,
+      "hue": 275,
+      "detail": {
+        "category": "Research",
+        "metric": "18 sources",
+        "description": "References and citations"
+      },
+      "composedInto": {
+        "id": "board",
+        "label": "Project Board"
+      }
+    },
+    {
+      "id": "desk",
+      "label": "Writing Desk",
+      "content": "note",
+      "bindingKey": "studio/note/42/04",
+      "heading": -61.4,
+      "elevation": 5.8,
+      "distance": 3,
+      "width": 2.2,
+      "height": 1.5,
+      "hue": 30,
+      "detail": {
+        "category": "Writing",
+        "metric": "Draft 4",
+        "description": "The current draft and its outline"
+      }
+    },
+    {
+      "id": "builds",
+      "label": "Build Status",
+      "content": "note",
+      "bindingKey": "studio/note/42/05",
+      "heading": 64.2,
+      "elevation": -5.3,
+      "distance": 3.2,
+      "width": 2.2,
+      "height": 1.5,
+      "hue": 150,
+      "detail": {
+        "category": "Build",
+        "metric": "3 running",
+        "description": "Builds of the main branch"
+      }
+    },
+    {
+      "id": "messages",
+      "label": "Messages",
+      "content": "note",
+      "bindingKey": "studio/note/42/06",
+      "heading": -104,
+      "elevation": 4.1,
+      "distance": 4.6,
+      "width": 2.6,
+      "height": 1.7,
+      "hue": 345,
+      "detail": {
+        "category": "Team",
+        "metric": "7 unread",
+        "description": "Replies and mentions from the team"
+      }
+    },
+    {
+      "id": "metrics",
+      "label": "Metrics",
+      "content": "note",
+      "bindingKey": "studio/note/42/07",
+      "heading": 100.6,
+      "elevation": 10.5,
+      "distance": 4.8,
+      "width": 2.6,
+      "height": 1.7,
+      "hue": 190,
+      "detail": {
+        "category": "Data",
+        "metric": "86.4k",
+        "description": "Visits this week"
+      }
+    },
+    {
+      "id": "calendar",
+      "label": "Calendar",
+      "content": "note",
+      "bindingKey": "studio/note/42/08",
+      "heading": -135.8,
+      "elevation": -8.1,
+      "distance": 3.4,
+      "width": 2.2,
+      "height": 1.5,
+      "hue": 95,
+      "detail": {
+        "category": "Planning",
+        "metric": "4 today",
+        "description": "Meetings and deadlines"
+      }
+    },
+    {
+      "id": "review",
+      "label": "Code Review",
+      "content": "note",
+      "bindingKey": "studio/note/42/09",
+      "heading": 138.5,
+      "elevation": -2.4,
+      "distance": 5,
+      "width": 2.6,
+      "height": 1.7,
+      "hue": 235,
+      "detail": {
+        "category": "Build",
+        "metric": "12 files",
+        "description": "Changes waiting for review"
+      }
+    },
+    {
+      "id": "reading",
+      "label": "Reading List",
+      "content": "tile",
+      "bindingKey": "studio/tile/42/10",
+      "heading": -178.5,
+      "elevation": 5.2,
+      "distance": 8.5,
+      "width": 3.6,
+      "height": 2.2,
+      "hue": 15,
+      "detail": {
+        "category": "Research",
+        "metric": "26 saved",
+        "description": "Articles grouped by topic"
+      }
+    },
+    {
+      "id": "tasks",
+      "label": "Tasks",
+      "content": "note",
+      "bindingKey": "studio/note/42/11",
+      "heading": -166.8,
+      "elevation": 24,
+      "distance": 4.4,
+      "width": 2.4,
+      "height": 1.6,
+      "hue": 60,
+      "detail": {
+        "category": "Planning",
+        "metric": "8 open",
+        "description": "What is next, and who has it"
+      }
+    },
+    {
+      "id": "sketches",
+      "label": "Sketches",
+      "content": "tile",
+      "bindingKey": "studio/tile/42/12",
+      "heading": -23.9,
+      "elevation": 32.5,
+      "distance": 6.5,
+      "width": 3.2,
+      "height": 2,
+      "hue": 300,
+      "detail": {
+        "category": "Design",
+        "metric": "12 frames",
+        "description": "Explorations of the new layout"
+      }
+    },
+    {
+      "id": "signals",
+      "label": "Signal Monitor",
+      "content": "tile",
+      "bindingKey": "studio/tile/42/13",
+      "heading": 22,
+      "elevation": -28.1,
+      "distance": 7.5,
+      "width": 3.2,
+      "height": 2,
+      "hue": 170,
+      "detail": {
+        "category": "Data",
+        "metric": "+24%",
+        "description": "Events streaming normally"
+      }
+    },
+    {
+      "id": "media",
+      "label": "Media Notes",
+      "content": "note",
+      "bindingKey": "studio/note/42/14",
+      "heading": 120.1,
+      "elevation": 24.2,
+      "distance": 9.5,
+      "width": 3.6,
+      "height": 2.2,
+      "hue": 120,
+      "detail": {
+        "category": "Research",
+        "metric": "04:28",
+        "description": "A transcript with annotations"
+      }
+    },
+    {
+      "id": "archive",
+      "label": "Archive",
+      "content": "tile",
+      "bindingKey": "studio/tile/42/15",
+      "heading": -111.4,
+      "elevation": -25.9,
+      "distance": 10.5,
+      "width": 3.8,
+      "height": 2.4,
+      "hue": 255,
+      "detail": {
+        "category": "Research",
+        "metric": "1,204 items",
+        "description": "Everything finished, by year"
+      }
+    }
+  ],
   "empty@1": [],
   "sparse@1": [
     {

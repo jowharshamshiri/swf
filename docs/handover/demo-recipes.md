@@ -11,6 +11,29 @@ npm run dev                          # the development server, with the Develope
 The address picks the scene (`?preset=…&seed=…&backend=…`). Every action below is also a command
 in the command list (Ctrl+Shift+P or F1).
 
+## The studio
+
+1. Open the page with nothing in the address (or `?preset=studio`). Thirteen named windows stand
+   all the way round the camera: a board of three surfaces straight ahead, eight windows behind
+   the camera, some high, some low, near ones showing their content, middle ones a compact preview
+   and far ones their labels.
+2. Search the Windows view for a category (Research, Planning, Data): windows are found by the
+   category the host exposes, as by their colour.
+
+## Guided scenarios
+
+1. Open Scenarios on the left and start one: Put a window behind you, Reach a window you cannot
+   see, Change a window's depth, Switch focus between windows, Compose surfaces, or Save and
+   restore a layout. It loads the studio; undo brings back the scene it replaced.
+2. Do the step due any way you like: it is ticked off once done. Show me does it for you.
+
+## Timing how you find a window
+
+1. Under Find a window in Scenarios, pick a way to navigate and press Start: the task names a
+   window, behind you whenever one is.
+2. Select it, by the way you picked: the time and your presses and keys are recorded. Run again
+   with another way; the runs are summed up by way so they compare.
+
 ## A 360° panorama of host content
 
 1. Open `?preset=sparse`. Six windows stand all the way round the camera.

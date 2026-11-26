@@ -4,6 +4,7 @@
   import { handleOf } from '@wsb/uikit/handles';
   import type { MessageId } from '../messages.js';
   import type { PresetId } from '../presets.js';
+  import { DEFAULT_CONFIG } from '../config.js';
   import { PRESET_IDS, PRESETS } from '../presets.js';
   import { seedIssue } from '@swf/math';
   import type { ShellModel } from './model.svelte.js';
@@ -42,7 +43,7 @@
     handle={handleOf`page.scene.preset`}
     id="reference-preset"
     options={presets}
-    value={status?.scene.preset ?? 'sparse'}
+    value={status?.scene.preset ?? DEFAULT_CONFIG.preset}
     disabled={status === null}
     onchange={(value) => {
       void model.run('reference.preset.load', { preset: value as PresetId });

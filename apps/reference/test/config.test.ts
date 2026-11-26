@@ -3,9 +3,9 @@ import { ConfigError, DEFAULT_CONFIG, parseConfig } from '../src/config.js';
 import { createMessages, ENGLISH } from '../src/messages.js';
 
 describe('configuration from the address (ENV-005)', () => {
-  it('defaults to the sparse scene from its own seed, on the DOM backend, restoring what was saved', () => {
+  it('defaults to the studio scene from its own seed, on the DOM backend, restoring what was saved', () => {
     expect(parseConfig('')).toEqual(DEFAULT_CONFIG);
-    expect(DEFAULT_CONFIG).toEqual({ preset: 'sparse', seed: 1, backend: 'dom', restore: true });
+    expect(DEFAULT_CONFIG).toEqual({ preset: 'studio', seed: 1, backend: 'dom', restore: true });
   });
 
   it('loads the scene an address names, and restores the saved workspace otherwise (UX-016)', () => {

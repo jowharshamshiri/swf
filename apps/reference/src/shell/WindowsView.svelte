@@ -249,7 +249,27 @@
   {/if}
 {/snippet}
 
-<Pane title={t('windows.title')} handle={handleOf`page.windows`} fill={view !== null && view.ids.length > 0} {filter}>
+{#snippet paneActions()}
+  <!-- As a file explorer's New File: a new window, straight ahead of the camera. -->
+  <IconButton
+    handle={handleOf`page.windows.add`}
+    icon="add"
+    label={t('command.window.add')}
+    size="small"
+    disabled={model.app === null}
+    onpress={() => {
+      void model.run('reference.window.add', {});
+    }}
+  />
+{/snippet}
+
+<Pane
+  title={t('windows.title')}
+  handle={handleOf`page.windows`}
+  fill={view !== null && view.ids.length > 0}
+  {filter}
+  actions={paneActions}
+>
   {#if view !== null && view.ids.length === 0 && model.status !== null && model.status.windows > 0}
     <EmptyState icon="search" title={t('search.empty')} detail={t('search.empty.detail')}>
       {#snippet action()}

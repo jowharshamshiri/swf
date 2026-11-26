@@ -32,6 +32,7 @@
   import { FOCUS_ID } from '../focus.js';
   import { MAP, OVERVIEW } from '../modes.js';
   import SceneView from './SceneView.svelte';
+  import ScenariosView from './ScenariosView.svelte';
   import StatusBody from './StatusBody.svelte';
   import WindowsView from './WindowsView.svelte';
   import WorkspacesView from './WorkspacesView.svelte';
@@ -174,6 +175,12 @@
       rightView = 'inspector';
     }
   });
+  // A scenario started from anywhere (the command list among them) shows its steps.
+  $effect(() => {
+    if (model.scenarioStarts > 0) {
+      leftView = 'scenarios';
+    }
+  });
 
   const persisting = $derived(model.policies?.features.enabled.persistence ?? false);
   const saveStatus = $derived.by(() => {
@@ -191,13 +198,14 @@
   const sideViews = (
     views: {
       id: string;
-      icon: 'plans' | 'list' | 'info' | 'statistics' | 'settings' | 'folder' | 'tool';
+      icon: 'plans' | 'list' | 'info' | 'statistics' | 'settings' | 'folder' | 'tool' | 'resume';
       label: string;
     }[],
   ) => views;
   const leftViews = $derived(
     sideViews([
       { id: 'scene', icon: 'plans', label: t('scene.title') },
+      { id: 'scenarios', icon: 'resume', label: t('scenarios.title') },
       { id: 'windows', icon: 'list', label: t('windows.title') },
       // Saving and opening workspaces is a feature: off, its view is taken away with it.
       ...(persisting ? [{ id: 'workspaces', icon: 'folder' as const, label: t('workspaces.title') }] : []),
@@ -255,6 +263,8 @@
 {#snippet leftContent(view: string)}
   {#if view === 'scene'}
     <SceneView {model} />
+  {:else if view === 'scenarios'}
+    <ScenariosView {model} />
   {:else if view === 'windows'}
     <WindowsView {model} />
   {:else if view === 'features'}
