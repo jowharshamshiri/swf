@@ -1508,9 +1508,15 @@ It exits non-zero when a test failed or a scenario has no test.
 The performance benchmark runs one browser at a time on a 1920×1080 page:
 `npm run bench -- --out <folder>` writes what each browser measured on the standard and stress
 fixtures as JSON, and `benchmark.md` with every measure's median, 95th percentile and maximum
-over five trials, the environment and the method, and a verdict for each budget on the standard
-fixture (the stress fixture records how far it degrades, held only to sub-quadratic growth). A
-trial first records the control, then times cold creation (NFR-007), the retained heap (NFR-006),
+over five trials, the environment and the method, and a verdict for each budget. The standard
+fixture is held to the budgets; the stress fixture records how far it degrades, held to
+sub-quadratic growth and to its engine's pacing floors in `bench-budgets.json`: the median over
+trials of the share of frame intervals one 60 Hz frame, turning the camera and dragging a window,
+in whole percent. A floor is the engine's measured median on its verdict machine
+([Quality reports](docs/handover/quality-reports.md)) less 5 points, rounded down, set by hand in
+the commit that changes it, whose message gives the run it was read from, so a change that costs
+the stress fixture frames fails the run. A trial first records
+the control, then times cold creation (NFR-007), the retained heap (NFR-006),
 hit queries (NFR-003), and 60
 seconds after a warm-up each of turning the camera by its background and dragging a window by
 its frame with the real mouse (NFR-001, NFR-004), and one window's move at 125 to 1000 windows

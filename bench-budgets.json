@@ -1,0 +1,7 @@
+{
+  "stress": {
+    "chromium": { "cameraTurn": 95, "windowDrag": 95 },
+    "firefox": { "cameraTurn": 57, "windowDrag": 90 },
+    "webkit": { "cameraTurn": 45, "windowDrag": 73 }
+  }
+}

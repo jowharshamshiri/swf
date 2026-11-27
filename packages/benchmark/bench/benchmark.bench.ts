@@ -43,6 +43,14 @@ declare module 'vitest' {
       readonly warmupMs: number;
       readonly trialMs: number;
       readonly seed: number;
+      /**
+       * The stress fixture's pacing floors by engine, from `bench-budgets.json`: the least share
+       * of frame intervals one display frame, in whole percent, the median over trials must keep
+       * while turning the camera and while dragging a window.
+       */
+      readonly pacing: Readonly<
+        Record<string, { readonly cameraTurn: number; readonly windowDrag: number }>
+      >;
     };
   }
 }
@@ -233,6 +241,28 @@ function growthAt(size: FixtureSize): Fixture {
   return planFixture(size, settings.seed);
 }
 
+/**
+ * The stress fixture's pacing against the engine's floors in `bench-budgets.json`: the median over
+ * trials of the share of frame intervals one display frame, turning the camera and dragging a
+ * window, each at least its floor. An engine with no floors is an error, naming it.
+ */
+function pacingVerdict(
+  engine: string,
+  rotation: readonly ScenarioTrial[],
+  drag: readonly ScenarioTrial[],
+): { target: string; pass: boolean } {
+  const floors = settings.pacing[engine];
+  if (floors === undefined) {
+    throw new Error(`bench-budgets.json gives no stress pacing floors for the engine "${engine}"`);
+  }
+  const median = (trials: readonly ScenarioTrial[]) =>
+    100 * summarize(trials.map((t) => t.frames.withinBudget)).median;
+  return {
+    target: `the median over trials of frame intervals one 60 Hz frame at least ${String(floors.cameraTurn)}% turning the camera and ${String(floors.windowDrag)}% dragging a window, this engine’s floors (bench-budgets.json)`,
+    pass: median(rotation) >= floors.cameraTurn && median(drag) >= floors.windowDrag,
+  };
+}
+
 async function measure(name: 'standard' | 'stress', size: FixtureSize) {
   const fixture = planFixture(size, settings.seed);
   const environment: Record<string, unknown> = {
@@ -337,14 +367,16 @@ async function measure(name: 'standard' | 'stress', size: FixtureSize) {
     frame: growthExponent(growth.frame),
   };
   // The standard fixture is held to the budgets; the stress fixture records how far it degrades
-  // (§26.1), held only to bounded, sub-quadratic growth (NFR-008).
+  // (§26.1), held to bounded, sub-quadratic growth (NFR-008) and to the engine's pacing floors, so
+  // a change that costs it frames fails the run.
   const growthVerdict = {
     target: 'one window’s move grows less than quadratically with the scene (exponent under 1.5)',
     pass: exponents.transaction < 1.5 && exponents.frame < 1.5,
   };
+  const engine = String((environment['browser'] as { engine?: string } | undefined)?.engine);
   const verdicts =
     name === 'stress'
-      ? { 'NFR-008': growthVerdict }
+      ? { 'NFR-008': growthVerdict, pacing: pacingVerdict(engine, rotation, drag) }
       : {
           'NFR-001': {
             target:
@@ -411,7 +443,6 @@ async function measure(name: 'standard' | 'stress', size: FixtureSize) {
     },
     verdicts,
   };
-  const engine = String((environment['browser'] as { engine?: string } | undefined)?.engine);
   await commands.record(`${engine}-${name}.json`, `${JSON.stringify(result, null, 2)}\n`);
   return result;
 }
