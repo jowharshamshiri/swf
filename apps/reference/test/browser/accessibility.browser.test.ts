@@ -464,7 +464,7 @@ describe('the reference controls (QA-009, UX-013, NFR-024)', () => {
     await settle();
     const refused = root.querySelector('[data-wsb="page.inspector.refusal"]');
     expect(refused?.getAttribute('role')).toBe('alert');
-    expect(refused?.textContent).toMatch(/reach must be at least/);
+    expect(refused?.textContent).toMatch(/reach must be within the room, 2 to 13.5 world units/);
     expect(root.querySelectorAll('[role="alert"]')).toHaveLength(1);
     // Another refusal takes its place, said once.
     const asked: unknown = 'yes';
@@ -493,10 +493,8 @@ describe('a control for every gesture, for touch, pen and keyboard (UX-014, UX-0
       'swf.window-resize/1',
     ]);
     expect(app.router.policyIds().filter((id) => id.startsWith('swf.navigation.'))).toEqual([
-      'swf.navigation.depth-drag/1',
       'swf.navigation.magnetic-move/1',
       'swf.navigation.select-toggle/1',
-      'swf.navigation.turn-drag/1',
     ]);
     const pose = () =>
       app.poseOf(FIRST.id) ??
@@ -524,7 +522,7 @@ describe('a control for every gesture, for touch, pen and keyboard (UX-014, UX-0
     await settle();
     expect(pose().heading).toBeGreaterThan(before.heading);
     expect(pose().position[1]).toBeGreaterThan(before.position[1]);
-    // Shift and drag, the wheel with Shift, and a pinch: nearer and farther.
+    // Shift and drag, the wheel with Shift, and a pinch: nearer and farther along the floor.
     before = pose();
     driver.act('page.inspector.pose#reach', 'key', 'ArrowRight');
     await settle();
@@ -541,10 +539,6 @@ describe('a control for every gesture, for touch, pen and keyboard (UX-014, UX-0
     driver.act('page.inspector.pose.number#width', 'set', '2');
     await settle();
     expect(pose().width).toBeCloseTo(2, 6);
-    // Ctrl and drag: turning a window.
-    driver.act('page.inspector.pose#turned', 'key', 'ArrowRight');
-    await settle();
-    expect(pose().turned).toBeGreaterThan(before.turned);
     // A background drag turns the camera: the window's Reveal turns it to the window.
     await model.run('swf.window.reveal', { id: SPARSE[2]?.id ?? '' });
     driver.act(`page.inspector.window.reveal#${SPARSE[2]?.id ?? ''}`, 'press');

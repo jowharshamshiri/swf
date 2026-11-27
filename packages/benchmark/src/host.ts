@@ -25,9 +25,6 @@ import { ADAPTER_API_VERSION, createSurfaceRuntime } from '@swf/surfaces';
 import type { Fixture, FixtureViewport } from './fixture.js';
 import { DRAWN_ADAPTER, LIVE_ADAPTER } from './fixture.js';
 
-/** CSS pixels a live element lays out per world unit. */
-const PIXELS_PER_UNIT = 160;
-
 const LIVE_CAPABILITIES: SurfaceCapabilities = Object.freeze({
   attachStrategy: 'native-dom',
   nativeInteraction: 'full',
@@ -274,9 +271,7 @@ export async function createBenchmarkHost(options: BenchmarkHostOptions): Promis
     const content = adapters(document);
     runtime.registerAdapter(content.live);
     runtime.registerAdapter(content.drawn);
-    registry.registerRenderer(
-      new DomRenderer({ document, pixelsPerUnit: PIXELS_PER_UNIT, chrome: { projections } }),
-    );
+    registry.registerRenderer(new DomRenderer({ document, chrome: {} }));
     registry.registerCompositor(new DomCompositor());
     const presenter = createPresenter({
       workspace,

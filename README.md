@@ -37,16 +37,16 @@ holds small hosts, each run by the tests.
   to a presented frame; and the presenter, which runs those stages frame by frame within a budget,
   delivers advisory hints, and hands viewports between backends transactionally. It depends on no
   concrete renderer or compositor.
-- `@swf/projections`: the projection contract (forward and inverse mapping, placing surfaces as
-  fragments, visibility, interaction rays), registration that validates a projection before use,
-  and the equirectangular reference projection with seam-continuous inverse mapping.
+- `@swf/projections`: the projection contract (forward and inverse mapping, placing each window's
+  card at its projected centre, interaction rays), registration that validates a projection before
+  use, and the equirectangular reference projection with seam-continuous inverse mapping.
 - `@swf/interaction`: device-neutral input. Pointer, wheel, keyboard and programmatic intents;
-  picking through the projection's inverse and a spatial index; input regions that keep content
-  input native; a gesture arena with pointer capture; drags that preview and commit once;
+  picking on the cards each view draws; input regions that keep content input native; a gesture
+  arena with pointer capture; drags that move windows round the room and preview and commit once;
   explicit cancellation; and a named command for every spatial operation.
 - `@swf/backend-dom`: a browser-native presentation backend. Live DOM content stays
-  browser-owned and natively interactive: it is placed by its projected corners with its fidelity
-  declared, clipped, stacked explicitly and never mounted twice; window chrome sits in layers of
+  browser-owned and natively interactive: it is placed flat on its window's card by a translation
+  and a scale, its fidelity declared, clipped, stacked explicitly and never mounted twice; window chrome sits in layers of
   its own and labels are text. It also draws a virtual cursor for input policies that move where
   input acts without moving the platform's pointer.
 - `@swf/backend-geometry`: a drawing presentation backend, written independently of the DOM one.
@@ -314,17 +314,18 @@ describes, and a round trip through a probe view. The scene then accepts viewpor
 checking each configuration with the projection's own rules, and the host can project them.
 
 The equirectangular projection maps longitude across and latitude down. It covers 360° across,
-wrapping at a seam behind the camera, and 120° up and down by default (up to 180°, which reaches
-the poles); narrower angles are configurable. A direction on the seam has two images; a pole is a
+wrapping at a seam behind the camera, and 120° up and down by default with the horizon in the
+middle; narrower angles, and a horizon higher or lower in the view (`horizon`, a share of its
+height from the top), are configurable, as long as neither pole is passed. A direction on the seam has two images; a pole is a
 whole edge row. Within `EQUIRECTANGULAR_POLE_BAND` (2⁻²⁶ radians) of a pole, where rounding
 through the camera loses a direction's longitude, a direction is the pole, imaged at the centre of
-its row, and a point unprojects to the pole whatever its column. A surface crossing the seam yields
-one fragment on each side, both referring to the same surface, and surfaces behind the camera are
-kept, not dropped. Its inverse is exact. A surface whose bounding sphere lies wholly above, below
-or (short of the full circle) beside the view is ruled out from its bounds alone, without sampling
-its outline (NFR-017).
-`pickAt` returns every selectable surface under a point, nearest first; given the previous
-longitude of a drag, the longitude is unwrapped so it stays continuous across the seam.
+its row, and a point unprojects to the pole whatever its column. Its inverse is exact.
+`projectorOf` turns a projection module into what a view draws by: each shown surface on its
+window's card, centred where `placeDirection` places the window's centre. A card across the seam is
+drawn at both edges, both copies referring to the same surface, its widest part the native owner;
+short of the full circle, a card whose centre is past the view's edge still shows the part of it
+inside. The interaction router picks on these cards (`router.pick`); given the previous longitude
+of a drag, the ray's longitude is unwrapped so it stays continuous across the seam.
 
 Renderers, compositors and projectors register by versioned ID with
 `createPresentationRegistry()`. Each module can be handed only the scope it needs:
@@ -376,16 +377,21 @@ pointer moves past the slop, or to a tap when they lift before that. Two pointer
 window go to two-pointer gestures; a pointer pressed on a window already in a gesture is refused
 rather than starting a second one.
 
-A window drag keeps the grabbed point under the pointer on a plane facing the camera (or on a world
-plane, or around the camera at a constant distance), with depth changed only by the wheel during the
-drag. The wheel with the depth modifier held, during a drag or over a window, reads its turn one way
-on every platform (`wheelTurn`): from `deltaY`, or from `deltaX` when `deltaY` is zero, since
-browsers on Windows and Linux, and macOS itself, turn a wheel with Shift held into a sideways scroll
-that keeps its sign. Turned up (away from the user) takes the window farther from the camera, turned
-down brings it nearer, `wheelDepthPerPixel` world units per pixel; a scroll with a vertical part, a
-trackpad's diagonal included, is read by that part alone. While a press is held in a viewport, every
+Every window stands in one room round the viewport's camera: its heading, its distance along the
+floor and its height (`RoomPlace`, decided by the Lean model `Swf.Room`, kept within `ROOM_LIMITS`:
+2 to 13.5 units out, 3 below the camera's level to 4 above). A window drag turns its heading by the
+pointer's motion across (the view's angle a pixel, so a full turn of the pointer brings it back
+where it began) and raises or lowers it a 68th of a unit a pixel, the same at any distance; with
+Shift held it moves along the floor instead, a 27th of a unit a pixel (down is farther). Pressing
+or letting go of Shift, or turning the wheel, mid-drag goes on from where the window stands
+(`RoomMotion`). The wheel with the depth modifier held, during a drag or over a window, reads its
+turn one way on every platform (`wheelTurn`): from `deltaY`, or from `deltaX` when `deltaY` is zero,
+since browsers on Windows and Linux, and macOS itself, turn a wheel with Shift held into a sideways
+scroll that keeps its sign. Turned down it takes the window farther along the floor, turned up
+nearer, by a factor e^(0.0012) a pixel (`ROOM_PACE`); a scroll with a vertical part, a trackpad's
+diagonal included, is read by that part alone. While a press is held in a viewport, every
 wheel there is its gesture's (`Swf.Gesture.wheelRoute`), whatever is under it and whatever modifier
-is held: a drag takes it as depth, and a gesture with no use for it (a resize, a turn, a pinch, or a
+is held: a drag takes it as depth, and a gesture with no use for it (a resize, a view's turn, a pinch, or a
 press not yet past the slop) takes it as nothing, so no other change is committed in the middle of a
 gesture and the gesture stays one undo step. A policy's gesture takes the wheel with its handler's
 `wheel`; without one, the wheel does nothing while it runs. A drag previews on every move, keeps its
@@ -395,19 +401,20 @@ an invalidated preview and workspace disposal each end it without a change, rele
 (`capture.released`) and report the reason (`gesture.ended`). Background drags turn the camera or
 the orbit root, as the viewport's `navigation` setting says.
 
-Every operation a gesture performs is also a command (`node.move`, `node.resize`,
-`node.rotate`, `camera.turn`, `orbit.turn`, `selection.set`, `focus.set` and more), and a policy
-is registered only if its operations are. A command honours the flags its gesture does: a window
-that is not draggable, rotatable or resizable is left as it is, saying why, and a locked one is
-refused by the scene. `configure` changes the keymap and the other settings, validating every
+Every operation a gesture performs is also a command (`node.move` in heading, height and along the
+floor, `node.resize`, `camera.turn`, `orbit.turn`, `selection.set`, `focus.set` and more), and a
+policy is registered only if its operations are. Turning a window is not an operation: a window
+carries no rotation of its own in the room, and the camera stays level. A command honours the flags
+its gesture does: a window that is not draggable or resizable is left as it is, saying why, and a
+locked one is refused by the scene. `configure` changes the keymap and the other settings, validating every
 field, and announces each change as a `settings.changed` event so a host can save the settings
 with the layout. A keymap must bind only commands the router has, given at creation or configured
-later. Other step sizes for the keyboard come as a keymap: `defaultKeymap({ move: 0.2 })` builds
+later. Other step sizes for the keyboard come as a keymap: `defaultKeymap({ heading: 0.1 })` builds
 the default bindings with those steps, to configure as `keymap`.
 
-The default keymap acts on the selected window while the view has the keyboard: the arrows move
-it along the camera's right and up (with Shift, five times as far), Page Up and Page Down change
-its depth, `[` and `]` turn it, `+` and `-` resize it; Alt with the arrows turns the camera, and
+The default keymap acts on the selected window while the view has the keyboard: Left and Right turn
+it round the room and Up and Down raise and lower it (with Shift, five times as far), Page Up and
+Page Down move it out and in along the floor, `+` and `-` resize it; Alt with the arrows turns the camera, and
 Alt+Shift with Left and Right the orbit root; N and P select the next and previous window, Enter
 focuses the selected one, and Ctrl or Cmd with Z, Shift+Z or Y undo and redo. Tab is never bound,
 so the keyboard can always leave the view. A sign is matched however it is typed: `+` is Shift
@@ -416,7 +423,7 @@ it; a letter's case is Shift's to say.
 
 Space picks the selected window up (`gesture.grab`, or the command with a `nodeId`): a keyboard
 gesture reported like a pointer's (`gesture.started` with `KEYBOARD_HOLD_ID` and no pointers).
-While it is held, every `node.move`, `node.rotate` and `node.resize` of it, from a key or a
+While it is held, every `node.move` and `node.resize` of it, from a key or a
 program, previews instead of committing; Enter or Space (`gesture.drop`) puts it down as one
 commit that one undo takes back, and Escape, `gesture.cancel`, the window's removal or the view's
 disposal cancel it with nothing changed. A locked window is refused when it is picked up, and a
@@ -516,7 +523,8 @@ detachment; otherwise it stays attached, hidden.
 
 `view.setRepresentation(policy)` gives a viewport a representation policy: for each surface in
 each frame, `representationOf({ scene, view, surfaceId, nodeId })` answers `full`, `compact` or
-`label` (semantic depth answers by distance from the camera, say). A `full` surface is negotiated
+`label` (semantic depth answers by distance from the camera along the floor, say), and it may give a
+card's scale outright with `scaleOf` (focus scales its window's card to read). A `full` surface is negotiated
 as usual; a `compact` or `label` one only among the modes that stand for it without its content (a
 proxy, or a placeholder where no proxy is possible), so its content is not mounted there. That is
 a choice of presentation only: the endpoint stays bound and attached (hidden), nothing is released,
@@ -549,14 +557,21 @@ same, its old pair released, and the failure is kept in `presenter.getDiagnostic
 `BACKGROUND_FAILED`; a function `showDegraded` returned that throws is kept there as
 `HOST_THREW`.
 
-Each live surface gets a slot of its own in each view, laid out at the surface's size
-(`pixelsPerUnit` CSS pixels per world unit, 400 by default) and mapped onto its projected corners
-with a CSS perspective transform, inside a clip box at the part of it that is visible. The slot
-never moves to another parent, so content such as a frame or a video is never reloaded; layers
+Every view draws each window as a card: a flat, upright rectangle centred where its projection
+places the window's centre, the window's own size at `CARD_PIXELS_PER_UNIT` (80 CSS pixels a world
+unit) times a scale (`cardScale`). Where the viewport represents windows by distance, a card keeps
+nearly one size and distance changes what it shows (in full `0.91 + (6 − r) × 0.012` within 0.75 to
+1.08, r its distance along the floor; a compact preview 0.9 of 138/176 by 61/126 of the card; a
+label alone 112 by 31 pixels); otherwise every window is in full at `7.1 / r × 200 / (fov + 50)`
+within 0.36 to 1.5. A card's size does not follow the view's size, so a window stays readable in a
+small view ([ADR 0015](docs/adr/0015-one-room-with-windows-drawn-as-flat-cards.md)). Each live
+surface gets a slot of its own in each view, laid out at its size on the card before the card's
+scale and placed by a translation and that scale, inside a clip box at its place on the card. The
+slot never moves to another parent, so content such as a frame or a video is never reloaded; layers
 are stacked by `z-index` in the planned order. Every live slot declares how it is placed
-(`data-swf-mode`, `data-swf-anchor`, `data-swf-shape`, `data-swf-placement`): a panorama bends a
-planar element, so there it is placed exactly by its corners and its shape is declared
-approximate, and a slot that cannot follow its corners is never declared exact.
+(`data-swf-mode`, `data-swf-anchor`, `data-swf-shape`): a card is never bent, so a live element is
+placed exactly in a panorama too; a window or surface carrying a rotation of its own is drawn
+upright, and its placement is declared approximate.
 
 A surface whose endpoint has a single owner is live in one view only, and in one fragment of it:
 another view, or the other side of a seam, shows a proxy with the surface's label instead. If two
@@ -608,13 +623,12 @@ const compositor = new LayerCompositor();
 ```
 
 The geometry renderer draws: content a `drawable` adapter supplies (an image source with its
-size), warped by a mesh that follows the view's projection point by point and clipped to each
-fragment, so a surface split by the panorama seam is drawn on both sides; proxies and placeholders,
-each on a ground of its own, saying why they stand in; window frames along each window's projected
-frame; every window's name; and markers at the edge of a narrow view pointing to windows outside
+size), drawn into its surface's rectangle on its window's card and clipped to the view, so a card
+across the panorama seam is drawn at both edges; proxies and placeholders,
+each on a ground of its own, saying why they stand in; window frames round each window's card; every window's name; and markers at the edge of a narrow view pointing to windows outside
 it, each ringed in the ground ink so it reads over a window reaching that edge, and each with its
 window's name. Names are placed as the DOM renderer places them (`placeNames`): wholly inside the
-view, over no other window's frame (as drawn, curved, its stroke and handles included) or mark and
+view, over no other window's frame (as drawn, its stroke and handles included) or mark and
 over no other name; a marker's name goes inward of it, else as near it along the edge as there is
 room, and the markers at an edge whose names find no room there are counted at its end instead
 ("+3"). `windowFrames` gives each window's frame as the renderer draws it, with the box it is drawn
@@ -622,8 +636,8 @@ in, for a host drawing over the view to keep clear of. Frames, the selection, th
 names and markers are drawn in `inks`, a function the renderer reads every frame so a host's change
 of appearance is drawn at the next one; a canvas takes no custom property, so the host gives
 resolved colours, and names are written in `typeface`, read the same way. Names are measured by an
-`OffscreenCanvas`, or by `measureText` where there is none. Drawn content is warped piecewise, so it
-is declared approximate, never exact. On its own it shows live surfaces as proxies; paired with a
+`OffscreenCanvas`, or by `measureText` where there is none. Drawn content is drawn exactly on its
+card, by 2D affine transforms alone. On its own it shows live surfaces as proxies; paired with a
 native renderer by `LayeredRenderer`, live content comes from that renderer and everything else
 from the geometry renderer, merged in plan order.
 
@@ -825,9 +839,9 @@ of another document opened in the workspace's place is restored with `{ history:
 instead: the history starts afresh with it, leaving nothing to undo or redo, so no undo ever
 brings the replaced scene back into it.
 
-A snapshot document adds the format (`swf.workspace/1`), the engine that wrote it, when it was
+A snapshot document adds the format (`swf.workspace/2`), the engine that wrote it, when it was
 taken, the policies' parameters and the extensions' state. Its JSON Schema is published with the
-package (`@swf/persistence/schema/swf.workspace-1.schema.json`, also `SNAPSHOT_SCHEMA`), and the
+package (`@swf/persistence/schema/swf.workspace-2.schema.json`, also `SNAPSHOT_SCHEMA`), and the
 validator enforces everything the schema says, plus what a schema cannot: unit rotations, a
 camera's far beyond its near, unique IDs, references that hold, a hierarchy without cycles, data
 nested at most 64 levels deep, and the size limits. Reading a snapshot checks its size before
@@ -865,10 +879,11 @@ was in, every migration step with its warnings, and anything kept for an absent 
 
 Snapshot formats move forward by migration steps (`SchemaMigration`), each reading one format and
 writing the next on a copy of its own; `migrateDocument` follows them to the current format and
-validates the result. `swf.workspace/1` is the first published format, so the built-in list
-(`SNAPSHOT_MIGRATIONS`) is empty: every later format adds its step, and the fixtures in
-`packages/persistence/fixtures` of each format still read must restore and write back byte for
-byte. A host can add steps of its own with `migrations`, such as a converter of its earlier layout
+validates the result. The built-in list (`SNAPSHOT_MIGRATIONS`) holds one step, from
+`swf.workspace/1` to `swf.workspace/2`, which stands every window and surface upright (every window
+is drawn as a flat card in the room) and names each one it stood upright in a warning; every later
+format adds its step. The fixtures in `packages/persistence/fixtures` of each format still read must
+restore as the current format's fixtures, and those write back byte for byte. A host can add steps of its own with `migrations`, such as a converter of its earlier layout
 format.
 
 A store is the host's: `load`, `save`, `list` and `delete`, declaring whether its saves are atomic
@@ -1029,8 +1044,8 @@ Loading a preset, resetting it and reseeding it each replace every window in one
 turn the camera straight ahead. Notes are native page elements, live and editable; what the
 operator writes in one is the host's, kept in this browser by the note's binding key (never in the
 layout), so the note shows it whenever that key is bound again, in a later visit too. Tiles are
-drawn on canvases, warped into the panorama by the geometry backend and shown as labelled proxies
-by the DOM one.
+drawn on canvases, on their cards by the geometry backend, and shown as labelled proxies by the DOM
+one.
 
 Every string the application shows is a message with a stable ID, in English unless a translation
 pack is given, and each action is a command with a stable ID (`reference.preset.load`,
@@ -1081,8 +1096,9 @@ gesture, saving and restoring.
   window held from the keyboard) or else closes focus, and Ctrl+Shift+P or F1 opens the command
   list, which also goes to the panorama, picks the selected window up, and locks or unlocks it.
 - **The inspector's Place** moves the selected window a step at a time (left, right, up, down,
-  nearer, farther), turns it (15°), resizes it (0.1 units), picks it up and puts it down, takes its
-  exact place, turn (0 faces the camera) and size, and locks it. Each is one undoable change; a
+  nearer, farther), resizes it (0.1 units), picks it up and puts it down, takes its exact place
+  (its angle round the camera, its distance along the floor and its height) and size, and locks
+  it. Each is one undoable change; a
   locked window's controls are disabled, saying why. These are also what touch and pen use for
   every gesture: a drag, a resize handle, the wheel with Shift and a pinch each have their
   control, a background drag has each window's Reveal and the experiment panel's turns, and a tap has the
@@ -1158,9 +1174,10 @@ content is attached or detached by a switch.
   Pressing a window selects it; dragging it (past the same slop as the panorama's) moves it on the
   ground as far as the pointer moves, the point it was grabbed by staying under the pointer,
   previewed in every view as it goes (the panorama below the map shows it move) and committed once
-  when let go; Escape puts it back. A press that does not drag moves nothing. A window moved round
-  the camera turns with it, so it keeps facing the camera, and with magnetic positioning on it
-  snaps to the windows beside it as a move in the panorama does. Dragging the ground pans, the wheel and
+  when let go; Escape puts it back. A press that does not drag moves nothing. A window keeps its height
+  and stands upright wherever it is moved, and with magnetic positioning on it snaps to the windows
+  beside it as a move in the panorama does. The map starts holding the whole room (14 units out)
+  and keeps doing so as it is resized, until it is panned or zoomed. Dragging the ground pans, the wheel and
   the zoom buttons zoom, and the fields beside the map place the selected window exactly, its
   height (which a map from above cannot show) included.
 - **Overview**: every window at once, as a card on a board that is the whole sphere round the
@@ -1257,9 +1274,10 @@ experiments and the switches while the panel is there.
   either way (as do Alt+Shift+Left and Right), and shows the camera's heading beside the
   workspace's turn to compare the two; the slider above the panorama turns it to any heading. Off, drags turn the camera and the keys that turn the group
   are taken out of the keymap; the group stays designated.
-- **Semantic depth** represents each window by its distance from the camera: nearer than the first
+- **Semantic depth** represents each window by its distance from the camera along the floor: nearer
+  than the first
   band it shows its content, then a compact preview stands for it, and beyond the second band its
-  label alone (4 and 5.5 world units by default). The window focus presents is always shown in full.
+  label alone (6.7 and 9.3 world units along the floor by default). The window focus presents is always shown in full.
   It is the viewport's representation policy, so content is never detached, paused or
   reconfigured: a window brought nearer shows the same live content again. The inspector says how
   the selected window is shown.
@@ -1267,8 +1285,12 @@ experiments and the switches while the panel is there.
   units) of a neighbour's facing edge, short of it or over it, goes to that edge with the padding
   (0.04) between them, and the window's centre lines up with a neighbour's heading or elevation, or
   the horizon, within the line-up angle (2°). Only windows side by side snap, those whose distance
-  from the camera is within a quarter of the moving one's. A snap turns the window about the
-  camera, so it keeps its distance and facing. Each place is previewed snapped, a line above the
+  from the camera is within a quarter of the moving one's. Its heading also snaps to a spoke round
+  the camera (every 15°) and its distance to a ring (3.8, 6.3, 9.2 and 12 units along the floor),
+  each within reach. A window let go on a spoke where another stands nearer than 1.8 units along
+  the floor goes on to the first clear spoke beside it, one to the left, one to the right, and so on
+  (`Swf.AppSpacing`); where none is clear it stays. That happens when it is let go, never while it
+  moves, so a window being dragged stays under the pointer. Each place is previewed snapped, a line above the
   panorama says what it snapped to and offers Cancel (as Escape does), and releasing commits the
   snapped place once, after which the line says how it ended and offers Undo.
 - **The wrapped cursor** carries a pointer the framework took (a window being moved, the view being
@@ -1280,9 +1302,8 @@ experiments and the switches while the panel is there.
   goes on by the mouse's motion, round the circle as far as the mouse goes, kept within the view's
   height. The motion the browser reports as the lock takes hold is its own (Chromium's to the page's
   corner, Firefox's to a centre it moves the pointer to) and moves nothing: the drag goes on from
-  where it reached the edge. The view turns round without end; a window moved in the camera's
-  plane, the framework's default drag, follows the pointer until it is a quarter turn from where
-  the window was taken, where that plane runs out. The lock lives only as long as the drag: releasing lets it go, as does the framework
+  where it reached the edge. The view turns round without end, and so does a window carried round
+  the room. The lock lives only as long as the drag: releasing lets it go, as does the framework
   ending the gesture; Escape cancels the drag and lets it go, and a lock the browser takes away
   cancels the drag as a lost pointer does. Where the browser offers no lock or refuses it, the drag
   wraps as far as the platform's pointer goes and stops at the screen's edge, as the experiment panel
@@ -1296,7 +1317,7 @@ experiments and the switches while the panel is there.
 
 A window can hold several surfaces a host supplied, side by side within its frame. The inspector
 lists the selected window's surfaces and rearranges them, each change one undoable step:
-**detach** a surface into a window of its own, standing beside the one it left and turned as it is,
+**detach** a surface into a window of its own, standing beside the one it left,
 while that window closes up round the rest; **move** a surface into another window, after its own
 surfaces; **merge** a window's surfaces into another window; or move the window into another group,
 or a new one, keeping its place in the world. A window left with no surface is removed with the
@@ -1308,8 +1329,8 @@ offers nothing to detach, since a surface's own content is never split.
 ### Adding a window
 
 **Add a window**, at the top of the Windows view (and in the command list, and offered by an empty
-workspace), adds a blank native note to the workspace straight ahead of the camera, three units
-away and facing it, wherever the camera or the workspace is turned, and selects it: one undoable
+workspace), adds a blank native note to the workspace straight ahead of the camera, 4.4 units out
+along the floor and upright, wherever the camera or the workspace is turned, and selects it: one undoable
 step. Each added window has a number and a colour of its own, and its content is known by its key
 alone (`added/note/<number>`), so a saved layout holding it binds it again in another visit.
 
@@ -1551,21 +1572,21 @@ release` builds a versioned release from a commit ([Release the packages](docs/h
 A budget is raised only deliberately, by hand, to the package's measured gzip size rounded up to the
 next 256 bytes, so it leaves no room for growth nobody looked at; the measured sizes are recorded
 with `npm run size -- --record` in the same commit, whose message gives the old and the new budget.
-`@swf/models` is at 61184 bytes: it is the compiled program of every proved decision model the
-framework and the reference application run, so it grows with each model (60938 bytes
-measured, the named spaces model, the restore that starts the history afresh and the wrapped
-cursor's pointer lock included).
-`@swf/persistence` is at 13312 bytes (13255 measured): snapshots, stores and the saver, with named
-spaces (`createSpaces`).
-`@swf/backend-dom` is at 7680 bytes (7568 measured), the DOM input's pointer lock included.
+`@swf/models` is at 64000 bytes: it is the compiled program of every proved decision model the
+framework and the reference application run, so it grows with each model (63864 bytes
+measured, the room (`Swf.Room`) and the spacing after a snap (`Swf.AppSpacing`) included).
+`@swf/persistence` is at 13568 bytes (13513 measured): snapshots, stores and the saver, with named
+spaces (`createSpaces`) and the step that brings `swf.workspace/1` layouts into the room.
+`@swf/backend-dom` is at 7680 bytes (7055 measured), the DOM input's pointer lock included.
 `@swf/navigation-ui` starts at 40704 bytes, 10% over its measured size (36801) rounded up to
 the next 256: the navigation controls compiled as a host's build compiles them, with Svelte, the kit
 and the framework's packages left out; it is measured only where the kit is.
 `@swf/navigation` starts at 29440 bytes, 10% over its measured size (26635) rounded up to the
 next 256: the composition of the framework into the navigation experience and its capabilities.
-`@swf/presentation` (14592) and `@swf/backend-geometry` (8704) are where placing every window's name
-over a view takes them: `placeNames` and `windowNames`, and the geometry renderer's names, frames
-and edge marks.
+`@swf/presentation` is at 15104 bytes (14915 measured): placing every window's name over a view
+(`placeNames`, `windowNames`) and the cards windows are drawn on (`cardScale`, `windowCard`).
+`@swf/backend-geometry` (8704) is where the geometry renderer's names, frames and edge marks take
+it.
 
 Tests run against each package's TypeScript source, so they need no build first.
 

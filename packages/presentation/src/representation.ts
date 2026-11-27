@@ -45,6 +45,13 @@ export interface RepresentationPolicy {
    * `INVALID_INPUT`, and what it throws propagates.
    */
   representationOf(context: RepresentationContext): Representation;
+  /**
+   * The scale of the card the surface's window is drawn on, given the one the card rules give it
+   * (`natural`, from `cardScale`): to show one window larger than the rules would (the one focus
+   * shows, say). Without it, every card takes the rules' scale. An answer that is not a finite
+   * number above zero fails the frame with `INVALID_INPUT`, and what it throws propagates.
+   */
+  scaleOf?(context: RepresentationContext, natural: number): number;
 }
 
 /**
@@ -62,6 +69,9 @@ export function representationPolicyIssue(value: unknown): string | null {
   }
   if (typeof policy.representationOf !== 'function') {
     return `representation policy "${policy.id}" must implement representationOf()`;
+  }
+  if (policy.scaleOf !== undefined && typeof policy.scaleOf !== 'function') {
+    return `representation policy "${policy.id}" has a scaleOf that is not a function`;
   }
   return null;
 }
@@ -86,6 +96,33 @@ export function representationFor(
     );
   }
   return answer as Representation;
+}
+
+/**
+ * The scale a policy gives the card of a surface's window, holding it to its contract: `natural`
+ * when it gives none. Throws {@link SwfFailure} (`INVALID_INPUT`, naming the surface) when it
+ * answers something that is not a finite number above zero; what the policy itself throws
+ * propagates unchanged.
+ */
+export function cardScaleFor(
+  policy: RepresentationPolicy,
+  context: RepresentationContext,
+  natural: number,
+): number {
+  if (policy.scaleOf === undefined) {
+    return natural;
+  }
+  const answer: unknown = policy.scaleOf(context, natural);
+  if (typeof answer !== 'number' || !Number.isFinite(answer) || answer <= 0) {
+    throw new SwfFailure(
+      makeError(
+        'INVALID_INPUT',
+        `representation policy "${policy.id}" gave card scale ${JSON.stringify(answer)} for surface "${context.surfaceId}"; a scale is a finite number above zero`,
+        { entityId: context.surfaceId },
+      ),
+    );
+  }
+  return answer;
 }
 
 /**

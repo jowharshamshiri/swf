@@ -10,9 +10,8 @@ import { projectorOf } from './projector.js';
 const PROJECTION_METHODS = [
   'describeDomain',
   'projectDirection',
+  'placeDirection',
   'unprojectPoint',
-  'projectGeometry',
-  'clipVisibility',
   'interactionRay',
 ] as const;
 
@@ -122,7 +121,7 @@ function fail(code: SwfErrorCode, message: string): never {
 /**
  * Checks that a projection module is complete and behaves as it declares: its shape and contract
  * version, its profile, a projection created from its default configuration, that projection's
- * domain, and a round trip through the centre of a probe view. Throws {@link SwfFailure} naming
+ * domain, and a round trip through the centre of a probe view, a card for it placed there too. Throws {@link SwfFailure} naming
  * the first problem.
  */
 export function validateProjectionModule(module: ProjectionModule): void {
@@ -218,6 +217,12 @@ export function validateProjectionModule(module: ProjectionModule): void {
     if (!images.some(([x, y]) => Math.hypot(x - 200, y - 100) <= tolerance)) {
       throw new Error(
         `the centre's ray projects to ${JSON.stringify(images)}, not back to (200, 100)`,
+      );
+    }
+    const placed = created.placeDirection(ray.ray.direction, view);
+    if (Math.hypot(placed[0] - 200, placed[1] - 100) > tolerance) {
+      throw new Error(
+        `the centre's ray places a card for it at ${JSON.stringify(placed)}, not at (200, 100)`,
       );
     }
   });

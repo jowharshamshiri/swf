@@ -113,7 +113,7 @@ describe('the host page', () => {
 
     // Interactive as the page's own: typed in, ticked, pressed and scrolled by real input.
     await userEvent.click(notes);
-    await userEvent.keyboard('{End} typed by hand');
+    await userEvent.keyboard('{Control>}{End}{/Control} typed by hand');
     // A task ticked by a press on its words, as a label's press ticks its box.
     await userEvent.click(box.closest('label') ?? box);
     await userEvent.click(go);
@@ -155,7 +155,7 @@ describe('the host page', () => {
     await run(host, 'swf.window.place', { id: 'notes', x: -1.6, y: 0.1, z: -2.5 });
     await settle();
     expect(document.activeElement).toBe(notes);
-    await userEvent.keyboard('{End}.');
+    await userEvent.keyboard('{Control>}{End}{/Control}.');
     expected = `${typed}.`;
     expect(notes.value).toBe(expected);
     // Movement out of view and back: the window behind the camera and in front again, the view
@@ -214,7 +214,7 @@ describe('the host page', () => {
     await userEvent.click(go);
     expect(said.textContent).toBe('Ran build (2)');
     await userEvent.click(notes);
-    await userEvent.keyboard('{End}!');
+    await userEvent.keyboard('{Control>}{End}{/Control}!');
     expect(notes.value).toBe(`${expected}!`);
   });
 

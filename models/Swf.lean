@@ -17,6 +17,7 @@ import Swf.AppCursor
 import Swf.AppFeatures
 import Swf.AppDepth
 import Swf.AppSnap
+import Swf.AppSpacing
 import Swf.AppComposition
 import Swf.AppWorkspaces
 import Swf.AppScenarios
@@ -26,3 +27,4 @@ import Swf.Names
 import Swf.AppOverview
 import Swf.AppFocus
 import Swf.AppExperiments
+import Swf.Room

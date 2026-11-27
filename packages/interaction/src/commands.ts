@@ -12,10 +12,11 @@ import type {
 } from '@swf/core';
 import { effectiveState, makeError, SwfFailure } from '@swf/core';
 import type { Transform3D, Vec3 } from '@swf/math';
-import { add, scale, sub } from '@swf/math';
 import type { ViewGeometry } from '@swf/presentation';
 import { cameraRotation, headingPitchOf } from '@swf/projections';
-import { placementOf, translatedBy, turnedAbout, withDepth, worldOrigin } from './drag.js';
+import { placementOf, turnedAbout } from './placement.js';
+import { models } from '@swf/models';
+import { ROOM_LIMITS, roomPlaceOf, standingInRoom } from './room.js';
 import type { InteractionSettings } from './settings.js';
 
 /**
@@ -218,26 +219,6 @@ const PARENT_SINGULAR = {
   reason: 'the node’s parent placement cannot be inverted',
 } as const;
 
-/**
- * The world translation for moving `right` and `up` along the camera's axes and `depth` along
- * the line from the camera to `point`, never bringing it nearer than `minDistance`. All in world
- * units: `right` and `up` follow the camera's +X and +Y, and a positive `depth` moves away from
- * the camera.
- */
-export function cameraRelativeDelta(
-  view: ViewGeometry,
-  point: Vec3,
-  right: number,
-  up: number,
-  depth: number,
-  minDistance: number,
-): Vec3 {
-  const c = view.camera;
-  const lateral = add(scale([c[0], c[1], c[2]], right), scale([c[4], c[5], c[6]], up));
-  const moved = add(point, lateral);
-  return sub(depth === 0 ? moved : withDepth(eyeOf(view), moved, depth, minDistance), point);
-}
-
 function selectable(scene: SceneState): Id[] {
   const order: Id[] = [];
   const visit = (id: Id) => {
@@ -315,47 +296,32 @@ const requireNode = (scene: SceneState, nodeId: Id): NodeRecord => {
 };
 
 const NODE_OPERATIONS = {
-  // Moves a node along the camera's right and up axes and in depth along the line from the
-  // camera: what a window drag and a depth gesture do, without a pointer.
+  // Moves a node round the room (`Swf.Room`): turns it by `heading` radians to the right, raises
+  // it by `height` and moves it out along the floor by `floor` world units, inside the room: what
+  // a window drag and the wheel do, without a pointer.
   'node.move': {
-    allowed: ['nodeId', 'viewportId', 'right', 'up', 'depth'],
+    allowed: ['nodeId', 'viewportId', 'heading', 'height', 'floor'],
     parse: (a: Args) => ({
       viewportId: a.requiredId('viewportId'),
-      right: a.number('right', 0),
-      up: a.number('up', 0),
-      depth: a.number('depth', 0),
+      heading: a.number('heading', 0),
+      height: a.number('height', 0),
+      floor: a.number('floor', 0),
     }),
     propose(p, scene, node, ctx) {
       if (!node.flags.draggable) {
         return { status: 'unchanged', reason: `node "${node.id}" cannot be moved` };
       }
-      const view = ctx.view(p.viewportId);
-      const start = placementOf(scene, node.id);
-      const delta = cameraRelativeDelta(
-        view,
-        worldOrigin(start),
-        p.right,
-        p.up,
-        p.depth,
-        ctx.settings.minDistance,
-      );
-      const transform = translatedBy(start, delta);
+      const eye = eyeOf(ctx.view(p.viewportId));
+      const at = roomPlaceOf(scene, node.id, eye);
+      const place = models.keepInRoom(ROOM_LIMITS, {
+        heading: at.heading + p.heading,
+        height: at.height + p.height,
+        floor: at.floor + p.floor,
+      });
+      const transform = standingInRoom(scene, node.id, eye, place);
       return transform === null ? PARENT_SINGULAR : { transform };
     },
-  } satisfies NodeOperation<{ viewportId: Id; right: number; up: number; depth: number }>,
-  // Turns a node about the world vertical through its origin.
-  'node.rotate': {
-    allowed: ['nodeId', 'yaw'],
-    parse: (a: Args) => a.number('yaw', 0),
-    propose(yaw, scene, node) {
-      if (!node.flags.rotatable) {
-        return { status: 'unchanged', reason: `node "${node.id}" cannot be rotated` };
-      }
-      const start = placementOf(scene, node.id);
-      const transform = turnedAbout(start, worldOrigin(start), yaw);
-      return transform === null ? PARENT_SINGULAR : { transform };
-    },
-  } satisfies NodeOperation<number>,
+  } satisfies NodeOperation<{ viewportId: Id; heading: number; height: number; floor: number }>,
   // Changes a node's width and height, keeping its centre.
   'node.resize': {
     allowed: ['nodeId', 'width', 'height'],
@@ -425,16 +391,15 @@ export function heldChange(
 
 /**
  * The commands every router offers; frozen. Each acts as the operator (source `user`) and commits
- * at once, except that moving, turning and resizing a held node previews it:
+ * at once, except that moving and resizing a held node previews it:
  * - `selection.set` `{ ids }`; `selection.next` and `selection.previous` `{}`, cycling through
  *   the selectable nodes in tree order;
  * - `focus.set` `{ nodeId }` (an ID or null); `focus.selected` `{}`;
- * - `node.move` `{ nodeId?, viewportId, right?, up?, depth? }`, along the viewport camera's axes
- *   and the line from it, in world units;
- * - `node.rotate` `{ nodeId?, yaw? }`, radians about the world vertical through the node's origin,
- *   positive turning clockwise seen from above;
+ * - `node.move` `{ nodeId?, viewportId, heading?, height?, floor? }`, round the room centred on
+ *   the viewport's camera: `heading` radians to the right, `height` world units up and `floor`
+ *   world units out along the floor, kept inside the room (`ROOM_LIMITS`);
  * - `node.resize` `{ nodeId?, width?, height? }`, changes in world units, never below `minSize`;
- * - `camera.turn` `{ viewportId, heading?, pitch? }`, radians, the pitch kept within ±π/2 (view
+ * - `camera.turn` `{ viewportId, heading? }`, radians to the right, the camera kept level (view
  *   state, not undoable); `orbit.turn` `{ viewportId, angle? }`, radians, the orbit root about the
  *   vertical through the camera (undoable);
  * - `history.undo` and `history.redo` `{}`;
@@ -474,13 +439,13 @@ export const BUILT_IN_COMMANDS: readonly InteractionCommand[] = Object.freeze([
     },
   },
   nodeCommand('node.move'),
-  nodeCommand('node.rotate'),
   nodeCommand('node.resize'),
   {
-    // Turns a viewport's camera: what a background drag does in camera navigation.
+    // Turns a viewport's camera by `heading` radians to the right, keeping it level: what a
+    // background drag does in camera navigation.
     id: 'camera.turn',
     run(args, ctx) {
-      const a = new Args(this.id, args, ['viewportId', 'heading', 'pitch']);
+      const a = new Args(this.id, args, ['viewportId', 'heading']);
       const scene = ctx.workspace.getState();
       const viewport = scene.viewports.get(a.requiredId('viewportId'));
       const camera = viewport === undefined ? undefined : scene.cameras.get(viewport.cameraId);
@@ -491,15 +456,14 @@ export const BUILT_IN_COMMANDS: readonly InteractionCommand[] = Object.freeze([
           }),
         );
       }
-      const { heading, pitch } = headingPitchOf(camera.rotation);
-      const nextPitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, pitch + a.number('pitch', 0)));
+      const { heading } = headingPitchOf(camera.rotation);
       return settle(
         ctx.workspace.transaction(
           [
             {
               type: 'camera.patch',
               id: camera.id,
-              rotation: cameraRotation(heading + a.number('heading', 0), nextPitch),
+              rotation: cameraRotation(heading + a.number('heading', 0), 0),
             },
           ],
           user,

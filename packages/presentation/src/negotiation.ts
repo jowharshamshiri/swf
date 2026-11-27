@@ -26,10 +26,11 @@ import type {
 
 /**
  * How a surface is presented in one viewport, best first:
- * - `exact`: drawn content following the projection exactly, interior included;
+ * - `exact`: drawn content, drawn exactly on its window's card, interior included;
  * - `native`: the live element, placed exactly, interaction native;
- * - `approximated`: live content whose anchor is placed exactly but whose shape only approximates
- *   the projection (a planar element in a panorama);
+ * - `approximated`: content shown where its card stands, but only approximating the surface's place
+ *   or shape (a window carrying a rotation of its own, drawn upright; a shape drawn as its
+ *   rectangle);
  * - `proxy`: a representation of the surface instead of its live content;
  * - `placeholder`: the surface's identity and geometry only.
  */
@@ -124,8 +125,8 @@ export interface NegotiationInput {
     readonly capabilities: CompositorCapabilities;
   };
   /**
-   * The profile of the viewport's projection: a `nonlinear` mapping rules out `native`, and
-   * `exact` without a renderer's `mesh` transforms.
+   * The profile of the viewport's projection. It only places each window's card, which it never
+   * bends, so its shape rules nothing out; its ID is carried into diagnostics.
    */
   readonly projection: ProjectionProfile;
   /** The surface geometry: its kind, whether its provider is registered, and its fidelity. */
@@ -206,9 +207,9 @@ export interface FallbackDiagnostic {
 
 /**
  * The outcome of negotiation. Geometric fidelity is reported in two parts, the anchor (where the
- * surface is placed) and the shape (whether its interior follows the projection), separately from
- * content fidelity: a live element can be placed exactly while its shape is approximated, and the
- * result says so.
+ * surface is placed) and the shape (whether its interior is exactly the surface, where its card
+ * places it), separately from content fidelity: a live element can be shown while its place or
+ * shape is approximated, and the result says so.
  */
 export interface Negotiation {
   /** The surface negotiated for. */
@@ -220,8 +221,8 @@ export interface Negotiation {
   /** Whether the surface's placement is exact: the projected anchor's fidelity, as given. */
   readonly anchorFidelity: 'exact' | 'approximate';
   /**
-   * Whether the presented interior follows the projection: `exact` for `exact` and `native`,
-   * `approximate` for `approximated` and `proxy`, `none` for a placeholder.
+   * Whether the presented interior is exactly the surface, where its card places it: `exact` for
+   * `exact` and `native`, `approximate` for `approximated` and `proxy`, `none` for a placeholder.
    */
   readonly shapeFidelity: 'exact' | 'approximate' | 'none';
   /**
@@ -312,7 +313,6 @@ export function negotiateFragments(
         clipping: { kind: backends.compositor.capabilities.clipping },
         transparency: backends.compositor.capabilities.transparency,
       },
-      nonlinear: backends.projection.mapping === 'nonlinear',
     },
     fragments.map((fragment) => ({
       handle:

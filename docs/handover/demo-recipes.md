@@ -44,24 +44,25 @@ in the command list (Ctrl+Shift+P or F1).
 
 ## Handling windows directly
 
-1. Open the studio. Drag a window by its frame: it moves round you, and the bar above the
-   panorama says where it would be as it goes (its angle, height and distance). The inspector's
-   sliders follow it. Let go: one change, which Undo in that bar puts back.
-2. Hold Shift and drag a window up or down: it goes farther or comes nearer, and round you as the
-   pointer goes across. Hold Shift and turn the wheel over it: the same, the burst of turns one
-   change once the wheel rests.
-3. Hold Ctrl (⌘ on a Mac) and drag a window across: it turns about its own vertical. Drag its
-   edge: it resizes.
+1. Open the studio. Drag a window by its frame: it moves round you and up or down, the same
+   height a pixel however far it is, and the bar above the panorama says where it would be as it
+   goes (its angle, distance and height). The inspector's sliders follow it. Let go: one change,
+   which Undo in that bar puts back. Drag it all the way round: it comes back where it began.
+2. Hold Shift and drag a window down or up: it goes farther or comes nearer along the floor, and
+   round you as the pointer goes across. Hold Shift and turn the wheel over it: down is farther,
+   the burst of turns one change once the wheel rests.
+3. Drag a window's edge: it resizes, keeping its centre.
 4. Ctrl-click (⌘-click) a second window: both are selected, and the inspector offers to group
    them under a name, as one change. Delete removes what is selected, with an undo offered.
-5. In the inspector, drag the Angle, Distance, Height, Turned and frame size sliders: the window
+5. In the inspector, drag the Angle, Distance, Height and frame size sliders: the window
    moves in the panorama as the thumb moves, and letting go is one change. Arrow keys step them;
    a typed number places it exactly.
 6. Select the Project Board and press Break into parts: its other two surfaces become windows of
    their own beside it, linked to it by dashed lines in the panorama, on the radar and on the map.
    Recombine parts, from the board or a part, puts them back as one change.
-7. With magnetic placement on, drag a window near a spoke (every 15° round you) or a ring (where
-   Arrange round lays windows): it snaps there, and the bar says to what.
+7. With magnetic placement on, drag a window near a spoke (every 15° round you) or a ring (3.8,
+   6.3, 9.2 or 12 units out): it snaps there, and the bar says to what. Drop it on a spoke beside
+   another window: it moves on to the nearest clear spoke.
 
 ## The seam behind the camera
 
@@ -118,8 +119,9 @@ in the command list (Ctrl+Shift+P or F1).
 
 ## Keyboard only
 
-1. Tab to the panorama (its focus ring shows). N and P select windows; arrows move the selected
-   one, Page Up and Page Down change its depth, `[` and `]` turn it, `+` and `-` resize it.
+1. Tab to the panorama (its focus ring shows). N and P select windows; Left and Right turn the
+   selected one round you and Up and Down raise and lower it, Page Up and Page Down move it out and
+   in along the floor, `+` and `-` resize it.
 2. Space picks it up; arrows preview the move; Enter puts it down as one undoable change.
 3. Ctrl+Z and Ctrl+Shift+Z undo and redo. Tab leaves the panorama.
 

@@ -4,16 +4,18 @@ import type { Navigation } from '@swf/navigation';
 import type { MapScene, MapView } from '@swf/navigation';
 import {
   MAP_SCALE,
+  roomMapView,
   MarkerDrag,
   VIEWPORT_ID,
   fieldOfViewOf,
   inView,
   mapScene,
   markerAt,
-  radarReach,
+  MAP_REACH,
   radarView,
   ringStep,
-  ringsOf,
+  cardMeasureOf,
+  SNAP_RINGS,
   toGround,
   toMap,
   zoomed,
@@ -168,6 +170,8 @@ export class MapDrawer {
     marker: MarkerDrag | null;
   } | null = null;
   #pan: { readonly pointer: number; x: number; y: number } | null = null;
+  /** The map still holds the whole room as it started: the reader has not panned or zoomed it. */
+  #fitted = true;
   #frame: number | null = null;
   readonly #stops: (() => void)[] = [];
   /** Each name's size as the stage writes it, by its text, until the appearance changes. */
@@ -177,7 +181,7 @@ export class MapDrawer {
     this.#options = options;
     this.#kind = options.kind ?? 'map';
     const box = options.viewport.getBoundingClientRect();
-    this.#view = { centre: [0, 0], scale: MAP_SCALE.initial, width: box.width, height: box.height };
+    this.#view = roomMapView(box.width, box.height);
     this.#inks = this.#readInks();
     const { viewport, app } = options;
     const document = viewport.ownerDocument;
@@ -188,7 +192,12 @@ export class MapDrawer {
 
     const resize = new ResizeObserver(() => {
       const next = viewport.getBoundingClientRect();
-      this.#setView({ ...this.#view, width: next.width, height: next.height });
+      // Until the reader pans or zooms it, the map holds the whole room at any size.
+      this.#setView(
+        this.#fitted
+          ? roomMapView(next.width, next.height)
+          : { ...this.#view, width: next.width, height: next.height },
+      );
     });
     resize.observe(viewport);
     this.#stops.push(() => {
@@ -265,6 +274,7 @@ export class MapDrawer {
         }
         event.preventDefault();
         const [x, y] = this.#local(event);
+        this.#fitted = false;
         this.#setView(zoomed(this.#view, Math.pow(MAP_SCALE.step, -event.deltaY / 100), x, y));
       },
       { passive: false },
@@ -289,11 +299,13 @@ export class MapDrawer {
 
   /** Zooms about the map's centre. */
   zoomBy(factor: number): void {
+    this.#fitted = false;
     this.#setView(zoomed(this.#view, factor, this.#view.width / 2, this.#view.height / 2));
   }
 
   /** Centres the map on a ground point. */
   centreOn(x: number, z: number): void {
+    this.#fitted = false;
     this.#setView({ ...this.#view, centre: [x, z] });
   }
 
@@ -415,7 +427,15 @@ export class MapDrawer {
           () => {
             const features = policies.status().features;
             return features.enabled.snap
-              ? { settings: features.snap, rings: ringsOf(features.depth) }
+              ? {
+                  settings: features.snap,
+                  rings: SNAP_RINGS,
+                  measure: cardMeasureOf(
+                    this.#options.app.workspace.getState(),
+                    VIEWPORT_ID,
+                    features.enabled.depth ? features.depth : null,
+                  ),
+                }
               : null;
           },
         );
@@ -429,6 +449,7 @@ export class MapDrawer {
       const dx = (x - this.#pan.x) / scale;
       const dz = (y - this.#pan.y) / scale;
       this.#pan = { ...this.#pan, x, y };
+      this.#fitted = false;
       this.#setView({ ...this.#view, centre: [centre[0] - dx, centre[1] - dz] });
     }
   }
@@ -471,7 +492,15 @@ export class MapDrawer {
     const presented = app.workspace.getPresented();
     const shown = new Set(
       scene.markers
-        .filter((marker) => inView(presented, VIEWPORT_ID, app.projections, marker.id))
+        .filter((marker) =>
+          inView(
+            presented,
+            VIEWPORT_ID,
+            app.projections,
+            (id) => app.workspace.presentedGeometry(id),
+            marker.id,
+          ),
+        )
         .map((marker) => marker.id),
     );
     const projection = presented.viewports.get(VIEWPORT_ID)?.projection;
@@ -484,7 +513,7 @@ export class MapDrawer {
       // The radar is a disc: nothing it draws reaches past its rim.
       const [rx, ry] = toMap(view, scene.camera.x, scene.camera.z);
       g.beginPath();
-      g.arc(rx, ry, radarReach(scene) * view.scale + 1, 0, 2 * Math.PI);
+      g.arc(rx, ry, MAP_REACH * view.scale + 1, 0, 2 * Math.PI);
       g.clip();
     }
 
@@ -537,7 +566,7 @@ export class MapDrawer {
 
     // Rings round the camera: a world unit apart as far as the map shows, or the radar's own.
     if (this.#kind === 'radar') {
-      const reach = radarReach(scene);
+      const reach = MAP_REACH;
       const step = ringStep(reach);
       for (let r = step; r <= reach + 1e-9; r += step) {
         g.beginPath();
@@ -731,7 +760,7 @@ export class MapDrawer {
       // straight ahead and behind outside the rim; the sides just inside it, above their ticks,
       // where a reading fits however narrow the radar is.
       const readings: Label[] = [];
-      const reach = radarReach(scene);
+      const reach = MAP_REACH;
       const step = ringStep(reach);
       for (let r = step; r <= reach + 1e-9; r += step) {
         const value = Number(r.toFixed(2));

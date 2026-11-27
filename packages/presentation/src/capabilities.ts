@@ -7,7 +7,8 @@ export type ClipSupport = 'none' | 'rect' | 'path';
 
 /**
  * The most general transform a renderer can apply to presented content: translation only, 2D
- * affine, 3D perspective (planar content), or arbitrary mesh warps (nonlinear deformation).
+ * affine, 3D perspective (planar content), or arbitrary mesh warps (nonlinear deformation). A
+ * window's card is scaled, so presenting content exactly or natively takes `affine-2d` or more.
  */
 export type TransformMode = 'translate' | 'affine-2d' | 'perspective-3d' | 'mesh';
 
@@ -24,9 +25,9 @@ export interface RendererCapabilities {
   /**
    * Each handle kind (attach strategy) the renderer presents, with the best transform fidelity it
    * achieves for it; a kind left out is not presented, and at least one must be named. A
-   * `native-dom` kind needs a DOM layer and is `exact` only with `mesh` transforms; a `drawable`
-   * kind needs a raster layer; only `native-dom` content can be `native`, and `proxy-only` content
-   * is at best `proxy`.
+   * `native-dom` kind needs a DOM layer; a `drawable` kind needs a raster layer; a kind is `exact`
+   * only with transforms that scale a card (`affine-2d` or more); only `native-dom` content can be
+   * `native`, and `proxy-only` content is at best `proxy`.
    */
   readonly handleKinds: Readonly<Partial<Record<AttachStrategy, Fidelity>>>;
   /** The most general transform it applies to presented content. */
@@ -108,18 +109,13 @@ export interface CompositorCapabilities {
 export type Occlusion = 'depth' | 'layer-order';
 
 /**
- * What negotiation needs to know of a projection: whether it maps planar geometry to the screen
- * affinely (a perspective camera) or nonlinearly (a panorama bends straight edges), whether it
- * wraps at a seam, and whether its inverse is exact.
+ * What presentation needs to know of a projection: whether it wraps at a seam, and whether its
+ * inverse is exact. A projection only places each window's card, a flat, upright rectangle it never
+ * bends, so how it maps the sphere to the screen is its own.
  */
 export interface ProjectionProfile {
   /** A versioned ID, `<name>/<version>`. */
   readonly id: string;
-  /**
-   * `affine`: planar geometry stays planar on screen (a perspective camera); `nonlinear`: straight
-   * edges bend (a panorama), so live planar content can only approximate its shape.
-   */
-  readonly mapping: 'affine' | 'nonlinear';
   /** Whether the image's edges meet at a seam, so a surface can show as several fragments. */
   readonly seamWrapping: boolean;
   /** Whether every screen point maps back to its exact ray. */
@@ -237,8 +233,9 @@ export function rendererCapabilitiesIssue(value: unknown): string | null {
   if (c.handleKinds.drawable !== undefined && c.layering === 'dom') {
     return `${what}: drawable handles need a raster layer, but layering is dom`;
   }
-  if (c.handleKinds['native-dom'] === 'exact' && c.transformMode !== 'mesh') {
-    return `${what}: native-dom content cannot be exact without mesh warping`;
+  const exact = Object.entries(c.handleKinds).find(([, fidelity]) => fidelity === 'exact');
+  if (exact !== undefined && c.transformMode === 'translate') {
+    return `${what}: ${exact[0]} content cannot be exact with translate transforms, which cannot scale a card`;
   }
   if (c.handleKinds.drawable === 'native' || c.handleKinds['proxy-only'] === 'native') {
     return `${what}: only native-dom content can have native fidelity`;
@@ -329,17 +326,14 @@ export function compositorCapabilitiesIssue(value: unknown): string | null {
  */
 export function projectionProfileIssue(value: unknown): string | null {
   const what = 'projection profile';
-  const record = fields(value, ['id', 'mapping', 'seamWrapping', 'exactInverse'], what);
+  const record = fields(value, ['id', 'seamWrapping', 'exactInverse'], what);
   if (typeof record === 'string') {
     return record;
   }
   if (typeof record['id'] !== 'string' || !VERSIONED_ID.test(record['id'])) {
     return `${what}.id must be a versioned ID "<name>/<version>" (got ${JSON.stringify(record['id'])})`;
   }
-  return (
-    oneOf(record, 'mapping', ['affine', 'nonlinear'], what) ??
-    bools(record, ['seamWrapping', 'exactInverse'], what)
-  );
+  return bools(record, ['seamWrapping', 'exactInverse'], what);
 }
 
 export function isVersionedId(value: unknown): value is string {

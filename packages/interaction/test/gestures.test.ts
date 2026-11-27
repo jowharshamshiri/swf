@@ -1,13 +1,11 @@
 import type { CancelReason, Constraint, Workspace } from '@swf/core';
 import { SwfFailure } from '@swf/core';
-import type { Vec3 } from '@swf/math';
-import { length, quatSameRotation, sub } from '@swf/math';
 import { headingPitchOf } from '@swf/projections';
 import { describe, expect, it } from 'vitest';
 import type { InteractionEvent, InteractionPolicy } from '../src/index.js';
-import { INTERACTION_API_VERSION } from '../src/index.js';
+import { INTERACTION_API_VERSION, ROOM_LIMITS, roomPlaceOf } from '../src/index.js';
 import type { World } from './fixtures.js';
-import { contentOf, H, onWindow, screenOf, titleBar, W, world } from './fixtures.js';
+import { cardOf, contentOf, H, onCard, titleBar, W, world } from './fixtures.js';
 
 const ahead = { id: 'a', heading: 0, distance: 3 } as const;
 
@@ -29,23 +27,21 @@ function story(events: readonly InteractionEvent[]): string[] {
 }
 
 const transformOf = (ws: Workspace, id: string) => ws.getState().nodes.get(id)?.transform;
-const anchorOf = (ws: Workspace) => onWindow(ws, 'a', [0, 0.45, 0]);
-
-function expectUnder(ws: Workspace, point: Vec3, x: number, y: number) {
-  const [px, py] = screenOf(ws, point);
-  expect(Math.hypot(px - x, py - y)).toBeLessThan(1e-6);
-}
+/** Where a window stands in the room, seen from the camera at the centre. */
+const placeOf = (ws: Workspace, id: string) => roomPlaceOf(ws.getState(), id, [0, 0, 0]);
+/** Radians of heading a pointer moves a window by for each pixel across the 360° view. */
+const PER_PIXEL = (2 * Math.PI) / W;
 
 /** Starts dragging window `a` by its title bar and moves it by (dx, dy). */
-function drag(w: World, dx: number, dy: number) {
+function drag(w: World, dx: number, dy: number, modifiers: { shift?: boolean } = {}) {
   const [x, y] = titleBar(w.ws, 'a');
-  expect(w.input.pointer('down', 'v', x, y)).toMatchObject({
+  expect(w.input.pointer('down', 'v', x, y, { modifiers })).toMatchObject({
     consumed: true,
     route: 'gesture',
     gestureId: null,
     region: 'chrome',
   });
-  const moved = w.input.pointer('move', 'v', x + dx, y + dy);
+  const moved = w.input.pointer('move', 'v', x + dx, y + dy, { modifiers });
   expect(moved.gestureId).not.toBeNull();
   return { x, y, gestureId: moved.gestureId ?? '' };
 }
@@ -75,8 +71,12 @@ describe('window drags (§13.3, FR-105, BR-004)', () => {
     expect(up.operation).toMatchObject({ name: 'node.move', outcome: { outcome: 'committed' } });
     expect(ws.history()).toHaveLength(history + 1);
     expect(ws.getPreview(`interaction:${gestureId}`)).toBeUndefined();
-    // The grabbed point ends under the pointer, on the plane facing the camera.
-    expectUnder(ws, anchorOf(ws), x + 60, y + 15);
+    // Across in heading by the view's angle a pixel, down in height by a 68th of a unit a pixel,
+    // as far out along the floor as it was.
+    const place = placeOf(ws, 'a');
+    expect(place.heading).toBeCloseTo(60 * PER_PIXEL, 12);
+    expect(place.height).toBeCloseTo(-15 / 68, 12);
+    expect(place.floor).toBeCloseTo(3, 12);
     expect(story(events)).toEqual(['start node.move', 'end committed']);
     expect(events.filter((e) => e.type === 'capture.released')).toHaveLength(1);
     expect(router.captures()).toEqual([]);
@@ -85,82 +85,63 @@ describe('window drags (§13.3, FR-105, BR-004)', () => {
     expect(ws.history()).toHaveLength(history + 1);
   });
 
-  it('keep the grabbed point on the camera-facing plane through it', () => {
-    const w = world([{ id: 'a', heading: 0.4, distance: 3 }]);
-    const anchor = anchorOf(w.ws);
-    const rotation = transformOf(w.ws, 'a')?.rotation;
-    const { x, y } = drag(w, -70, 30);
-    w.input.pointer('up', 'v', x - 70, y + 30);
-    const moved = anchorOf(w.ws);
-    expectUnder(w.ws, moved, x - 70, y + 30);
-    const normal = sub(anchor, [0, 0, 0]);
-    const along = sub(moved, anchor);
-    expect(
-      Math.abs(along[0] * normal[0] + along[1] * normal[1] + along[2] * normal[2]),
-    ).toBeLessThan(1e-9);
-    // A planar drag only translates (the scene renormalizes rotations, so compare as rotations).
-    expect(
-      quatSameRotation(
-        transformOf(w.ws, 'a')?.rotation ?? [0, 0, 0, 1],
-        rotation ?? [1, 0, 0, 0],
-        1e-12,
-      ),
-    ).toBe(true);
+  it('raise a window as far for a pixel whatever its distance, keeping it upright', () => {
+    const raised = (distance: number) => {
+      const w = world([{ id: 'a', heading: 0.4, distance }]);
+      const rotation = transformOf(w.ws, 'a')?.rotation;
+      const { x, y } = drag(w, -20, -34);
+      w.input.pointer('up', 'v', x - 20, y - 34);
+      expect(transformOf(w.ws, 'a')?.rotation).toEqual(rotation);
+      return placeOf(w.ws, 'a');
+    };
+    for (const place of [raised(2.5), raised(9)]) {
+      expect(place.height).toBeCloseTo(0.5, 12);
+      expect(place.heading).toBeCloseTo(0.4 - 20 * PER_PIXEL, 12);
+    }
+    expect(raised(2.5).floor).toBeCloseTo(2.5, 12);
+    expect(raised(9).floor).toBeCloseTo(9, 12);
   });
 
-  it('hold the last position when the pointer points away from the drag plane', () => {
+  it('move a window along the floor with Shift, keeping its height, from where it stands when Shift changes', () => {
     const w = world([ahead]);
-    const { x, y, gestureId } = drag(w, 30, 0);
-    const held = w.ws.getPreview(`interaction:${gestureId}`)?.nodes.get('a')?.transform;
-    // 120° to the right the ray runs away from the plane facing the camera through the window.
-    w.input.pointer('move', 'v', W / 2 + (120 / 360) * W, y);
-    expect(w.ws.getPreview(`interaction:${gestureId}`)?.nodes.get('a')?.transform).toBe(held);
-    w.input.pointer('move', 'v', x + 50, y);
-    w.input.pointer('up', 'v', x + 50, y);
-    expectUnder(w.ws, anchorOf(w.ws), x + 50, y);
+    const { x, y } = drag(w, 0, 27, { shift: true });
+    // Down with Shift held: a 27th of a unit farther a pixel, the height kept.
+    w.input.pointer('move', 'v', x, y + 54, { modifiers: { shift: true } });
+    // Shift let go: the motion from here on raises and lowers it again.
+    w.input.pointer('move', 'v', x, y + 20);
+    w.input.pointer('up', 'v', x, y + 20);
+    const place = placeOf(w.ws, 'a');
+    expect(place.floor).toBeCloseTo(5, 12);
+    expect(place.height).toBeCloseTo(34 / 68, 12);
+    expect(place.heading).toBeCloseTo(0, 12);
   });
 
-  it('move on a world plane when configured, keeping the height', () => {
-    const w = world([ahead], { router: { settings: { dragMode: 'world-plane' } } });
-    const anchor = anchorOf(w.ws);
-    const { x, y } = drag(w, 50, 4);
-    w.input.pointer('up', 'v', x + 50, y + 4);
-    const moved = anchorOf(w.ws);
-    expect(moved[1]).toBeCloseTo(anchor[1], 9);
-    expectUnder(w.ws, moved, x + 50, y + 4);
-  });
-
-  it('move around the camera on an angular shell, turning the window with its heading', () => {
-    const w = world([ahead], { router: { settings: { dragMode: 'angular-shell' } } });
-    const anchor = anchorOf(w.ws);
-    const { x, y } = drag(w, 120, -20);
-    w.input.pointer('up', 'v', x + 120, y - 20);
-    const moved = anchorOf(w.ws);
-    expect(length(moved)).toBeCloseTo(length(anchor), 9);
-    expectUnder(w.ws, moved, x + 120, y - 20);
-    // The window turned by the change in heading, so it still faces the camera's vertical axis.
-    const rotation = transformOf(w.ws, 'a')?.rotation ?? [0, 0, 0, 1];
-    const turned = headingPitchOf(rotation).heading;
-    const heading = Math.atan2(moved[0], -moved[2]);
-    expect(turned).toBeCloseTo(heading, 9);
-  });
-
-  it('change depth only through the separate depth control, keeping the direction', () => {
+  it('keep a window inside the room however far it is dragged', () => {
     const w = world([ahead]);
-    const anchor = anchorOf(w.ws);
+    const { x, y } = drag(w, 0, 1000);
+    w.input.pointer('up', 'v', x, y + 1000);
+    expect(placeOf(w.ws, 'a')).toMatchObject({ height: ROOM_LIMITS.lowest });
+    const near = world([ahead]);
+    const at = drag(near, 0, -1000, { shift: true });
+    near.input.pointer('up', 'v', at.x, at.y - 1000, { modifiers: { shift: true } });
+    expect(placeOf(near.ws, 'a')).toMatchObject({ floor: ROOM_LIMITS.nearest, height: 0 });
+  });
+
+  it('move a window along the floor by the wheel mid-drag, the drag carrying on from there', () => {
+    const w = world([ahead]);
     const { x, y } = drag(w, 30, 0);
-    // A wheel during the drag moves the window away along the line from the camera.
+    // A wheel during the drag: down is farther, by e^(0.0012 a pixel); up nearer.
     expect(w.input.wheel('v', x + 30, y, -100)).toMatchObject({ consumed: true, route: 'gesture' });
-    w.input.pointer('up', 'v', x + 30, y);
-    const moved = anchorOf(w.ws);
-    expectUnder(w.ws, moved, x + 30, y);
-    const lateral = length(sub([anchor[0], anchor[1], anchor[2]], [0, 0, 0]));
-    // Moved on the camera plane first, then 0.2 farther along its own line of sight.
-    expect(length(moved)).toBeGreaterThan(lateral + 0.19);
+    w.input.pointer('move', 'v', x + 40, y);
+    w.input.pointer('up', 'v', x + 40, y);
+    const place = placeOf(w.ws, 'a');
+    expect(place.floor).toBeCloseTo(3 * Math.exp(-0.12), 12);
+    expect(place.heading).toBeCloseTo(40 * PER_PIXEL, 12);
+    expect(place.height).toBeCloseTo(0, 12);
   });
 
-  it('change depth as far from a wheel turned sideways as from one turned upright', () => {
-    /** Where a drag 30 px across leaves the window after one wheel scroll with Shift held. */
+  it('move a window as far by a wheel turned sideways as by one turned upright', () => {
+    /** How far out a drag 30 px across leaves the window after one wheel scroll with Shift held. */
     const after = (deltaX: number, deltaY: number) => {
       const w = world([ahead]);
       const { x, y } = drag(w, 30, 0);
@@ -168,17 +149,16 @@ describe('window drags (§13.3, FR-105, BR-004)', () => {
         w.input.wheel('v', x + 30, y, deltaY, { deltaX, modifiers: { shift: true } }),
       ).toMatchObject({ consumed: true, route: 'gesture' });
       w.input.pointer('up', 'v', x + 30, y);
-      return length(anchorOf(w.ws));
+      return placeOf(w.ws, 'a').floor;
     };
-    const still = after(0, 0);
-    const upright = after(0, -100);
-    // 100 px turned up: 0.2 farther, whether in deltaY or, as browsers on Windows and Linux turn
+    const upright = after(0, 100);
+    // 100 px turned down: farther, whether in deltaY or, as browsers on Windows and Linux turn
     // a wheel with Shift held, in deltaX with deltaY zero (or minus zero).
-    expect(upright).toBeGreaterThan(still + 0.19);
-    expect(after(-100, 0)).toBeCloseTo(upright, 9);
-    expect(after(-100, -0)).toBeCloseTo(upright, 9);
+    expect(upright).toBeCloseTo(3 * Math.exp(0.12), 12);
+    expect(after(100, 0)).toBeCloseTo(upright, 12);
+    expect(after(100, -0)).toBeCloseTo(upright, 12);
     // A scroll with a vertical part is read by that part alone.
-    expect(after(40, -100)).toBeCloseTo(upright, 9);
+    expect(after(-40, 100)).toBeCloseTo(upright, 12);
   });
 
   it('commit only what constraints allow, and cancel when the commit is refused', () => {
@@ -210,26 +190,20 @@ describe('window drags (§13.3, FR-105, BR-004)', () => {
 });
 
 describe('pointer capture (FR-104, BR-009, AC-003)', () => {
-  it('holds the window while the pointer is outside the viewport, and resumes after', () => {
+  it('keeps the window moving with the pointer outside the viewport', () => {
     const w = world([ahead]);
     const { x, y } = drag(w, 20, 0);
-    const preview = () =>
-      w.ws.getPreview(
-        `interaction:${w.events[0]?.type === 'gesture.started' ? w.events[0].gestureId : ''}`,
-      );
-    const held = preview()?.nodes.get('a')?.transform;
     expect(w.input.pointer('move', 'v', W + 50, y)).toMatchObject({
       consumed: true,
       route: 'gesture',
     });
-    expect(preview()?.nodes.get('a')?.transform).toBe(held);
     w.input.pointer('move', 'v', x + 70, y);
     w.input.pointer('up', 'v', x + 70, y);
-    expectUnder(w.ws, anchorOf(w.ws), x + 70, y);
+    expect(placeOf(w.ws, 'a').heading).toBeCloseTo(70 * PER_PIXEL, 12);
   });
 
   it('keeps its target over other windows and across a viewport resize', () => {
-    const w = world([ahead, { id: 'b', heading: 0.5, distance: 2.5 }]);
+    const w = world([ahead, { id: 'b', heading: 1.2, distance: 2.5 }]);
     const { x, y } = drag(w, 10, 0);
     const [bx, by] = contentOf(w.ws, 'b');
     expect(w.input.pointer('move', 'v', bx, by).gestureId).not.toBeNull();
@@ -240,26 +214,21 @@ describe('pointer capture (FR-104, BR-009, AC-003)', () => {
         size: { width: W / 2, height: H / 2, devicePixelRatio: 1 },
       }).status,
     ).toBe('committed');
-    // Positions are now in the smaller viewport.
-    const [nx, ny] = [(x + 60) / 2, y / 2];
-    w.input.pointer('move', 'v', nx, ny);
-    w.input.pointer('up', 'v', nx, ny);
+    w.input.pointer('move', 'v', (x + 60) / 2, y / 2);
+    w.input.pointer('up', 'v', (x + 60) / 2, y / 2);
     expect(story(w.events)).toEqual(['start node.move', 'end committed']);
-    expectUnder(w.ws, anchorOf(w.ws), nx, ny);
+    expect(placeOf(w.ws, 'a').heading).not.toBeCloseTo(0, 3);
     expect(w.ws.getState().nodes.get('b')?.transform.position).toEqual([
-      2.5 * Math.sin(0.5),
+      2.5 * Math.sin(1.2),
       0,
-      -2.5 * Math.cos(0.5),
+      -2.5 * Math.cos(1.2),
     ]);
   });
 
   it('drags a surface across the seam continuously, as one Surface ID (AC-003)', () => {
-    const w = world([{ id: 'a', heading: Math.PI - 0.2, distance: 3 }], {
-      router: { settings: { dragMode: 'angular-shell' } },
-    });
+    const w = world([{ id: 'a', heading: Math.PI - 0.05, distance: 3 }]);
     // Grab the left end of the title bar, so the window's centre lies right of the pointer.
-    const [x, y] = screenOf(w.ws, onWindow(w.ws, 'a', [-0.85, 0.45, 0]));
-    expect(x).toBeGreaterThan(W - 80);
+    const [x, y] = onCard(w.ws, 'a', [-0.85, 0.5]);
     w.input.pointer('down', 'v', x, y);
     const headings: number[] = [];
     for (let px = x + 5; px <= W - 1; px += 5) {
@@ -280,7 +249,7 @@ describe('pointer capture (FR-104, BR-009, AC-003)', () => {
       expect(step).toBeGreaterThan(0);
       expect(step).toBeLessThan(0.05);
     }
-    // Both fragments now pick as the same surface.
+    // Both copies of its card now pick as the same window.
     const left = w.router.pick('v', 2, y);
     const right = w.router.pick('v', W - 2, y);
     expect(left.kind === 'hit' && left.target.nodeId).toBe('a');
@@ -448,7 +417,7 @@ describe('native content and takeover (FR-103, FR-108, FR-110)', () => {
     expect(w.ws.getState().focusedId).toBe('a');
   });
 
-  it('leaves the wheel with content, adjusting depth only with the depth modifier', () => {
+  it('leaves the wheel with content, moving the window along the floor only with the depth modifier', () => {
     const w = world([ahead]);
     const [x, y] = contentOf(w.ws, 'a');
     const before = transformOf(w.ws, 'a');
@@ -461,21 +430,22 @@ describe('native content and takeover (FR-103, FR-108, FR-110)', () => {
       route: 'command',
       operation: { name: 'node.move' },
     });
-    // 100 px of wheel at 0.002 per px: 0.2 farther, straight back from the camera.
-    expect(transformOf(w.ws, 'a')?.position[2]).toBeCloseTo(-3.2, 9);
+    // 100 px of wheel turned up: nearer along the floor by e^(−0.12), its heading and height kept.
+    expect(placeOf(w.ws, 'a')).toMatchObject({ heading: 0, height: 0 });
+    expect(placeOf(w.ws, 'a').floor).toBeCloseTo(3 * Math.exp(-0.12), 12);
   });
 
   it('moves a window as far by the wheel turned sideways with the depth modifier as upright', () => {
     const w = world([ahead]);
     const [x, y] = contentOf(w.ws, 'a');
     // Browsers on Windows and Linux deliver a wheel turned with Shift held sideways: deltaX, with
-    // deltaY zero. 100 px up, then 100 px down: 0.2 farther, then back.
+    // deltaY zero. 100 px up, then 100 px down: nearer, then back.
     expect(w.input.wheel('v', x, y, 0, { deltaX: -100, modifiers: { shift: true } })).toMatchObject(
       { consumed: true, route: 'command', operation: { name: 'node.move' } },
     );
-    expect(transformOf(w.ws, 'a')?.position[2]).toBeCloseTo(-3.2, 9);
+    expect(placeOf(w.ws, 'a').floor).toBeCloseTo(3 * Math.exp(-0.12), 12);
     w.input.wheel('v', x, y, 0, { deltaX: 100, modifiers: { shift: true } });
-    expect(transformOf(w.ws, 'a')?.position[2]).toBeCloseTo(-3, 9);
+    expect(placeOf(w.ws, 'a').floor).toBeCloseTo(3, 12);
   });
 
   it('stops presses outside an active modal', () => {
@@ -489,14 +459,12 @@ describe('native content and takeover (FR-103, FR-108, FR-110)', () => {
 
 describe('gesture arena (FR-113)', () => {
   it('gives two pointers pressed on one window to the two-pointer gesture', () => {
-    const w = world([ahead]);
+    const w = world([{ id: 'a', heading: 0.3, distance: 6, y: 0.5 }]);
     const [x, y] = titleBar(w.ws, 'a');
-    const grabbed = w.router.pick('v', x - 10, y);
-    const hitPoint = grabbed.kind === 'hit' ? grabbed.target.worldPoint : [0, 0, 0];
-    const before = transformOf(w.ws, 'a')?.position ?? [0, 0, 0];
     w.input.pointer('down', 'v', x - 10, y, { pointerId: 1, pointerType: 'touch' });
     w.input.pointer('down', 'v', x + 10, y, { pointerId: 2, pointerType: 'touch' });
-    // Spreading the fingers to twice the distance brings the window to half its distance.
+    // Spreading the fingers to twice the distance brings the window to half its distance along
+    // the floor.
     w.input.pointer('move', 'v', x - 20, y, { pointerId: 1, pointerType: 'touch' });
     w.input.pointer('move', 'v', x + 20, y, { pointerId: 2, pointerType: 'touch' });
     const up = w.input.pointer('up', 'v', x + 20, y, { pointerId: 2, pointerType: 'touch' });
@@ -505,11 +473,10 @@ describe('gesture arena (FR-113)', () => {
     expect(w.events.filter((e) => e.type === 'capture.released')).toHaveLength(2);
     const started = w.events.find((e) => e.type === 'gesture.started');
     expect(started?.type === 'gesture.started' && started.policyId).toBe('swf.pinch-depth/1');
-    // The grabbed point came halfway to the camera (at the origin); the window moved with it.
-    const after = transformOf(w.ws, 'a')?.position ?? [0, 0, 0];
-    after.forEach((v, i) => {
-      expect(v).toBeCloseTo((before[i] ?? 0) - (hitPoint[i] ?? 0) / 2, 9);
-    });
+    const place = placeOf(w.ws, 'a');
+    expect(place.floor).toBeCloseTo(3, 12);
+    expect(place.heading).toBeCloseTo(0.3, 12);
+    expect(place.height).toBeCloseTo(0.5, 12);
     // The other finger's release belongs to no gesture now.
     expect(
       w.input.pointer('up', 'v', x - 20, y, { pointerId: 1, pointerType: 'touch' }).route,
@@ -570,26 +537,27 @@ describe('gesture arena (FR-113)', () => {
     expect(transformOf(w.ws, 'a')).toBe(before);
   });
 
-  it('resizes from an edge, keeping the opposite edge in place', () => {
+  it('resizes from an edge by the pointer’s motion on both sides, keeping the centre in place', () => {
     const w = world([ahead]);
-    const west = onWindow(w.ws, 'a', [-1, 0, 0]);
-    const [x, y] = screenOf(w.ws, onWindow(w.ws, 'a', [0.99, 0, 0]));
+    const before = transformOf(w.ws, 'a');
+    const [, , cardWidth] = cardOf(w.ws, 'a');
+    const [x, y] = onCard(w.ws, 'a', [0.99, 0]);
     expect(w.input.pointer('down', 'v', x, y).region).toBe('resize-handle');
     w.input.pointer('move', 'v', x + 40, y);
     const up = w.input.pointer('up', 'v', x + 40, y);
     expect(up.operation?.name).toBe('node.resize');
     const node = w.ws.getState().nodes.get('a');
-    expect(node?.bounds[0]).toBeGreaterThan(2.3);
+    // The card's pixels a unit: 40 px is so many units on each side.
+    expect(node?.bounds[0]).toBeCloseTo(2 + (2 * 40) / (cardWidth / 2), 9);
     expect(node?.bounds[1]).toBe(1.2);
-    const westAfter = onWindow(w.ws, 'a', [-(node?.bounds[0] ?? 0) / 2, 0, 0]);
-    expect(length(sub(westAfter, west))).toBeLessThan(1e-9);
+    expect(node?.transform).toEqual(before);
   });
 
   it('keeps every wheel in a viewport for the press held there: a resize commits nothing else mid-gesture', () => {
     const w = world([ahead, { id: 'b', heading: 1, distance: 3 }]);
     const before = w.ws.getState();
     const history = w.ws.history().length;
-    const [x, y] = screenOf(w.ws, onWindow(w.ws, 'a', [0.99, 0, 0]));
+    const [x, y] = onCard(w.ws, 'a', [0.99, 0]);
     const [bx, by] = contentOf(w.ws, 'b');
     const [cx, cy] = contentOf(w.ws, 'a');
     /** Shift+wheel over the resized window and another, and the plain wheel over content. */

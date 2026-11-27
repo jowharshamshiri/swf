@@ -8,15 +8,20 @@ import {
 import type { SceneCommand, SwfError } from '@swf/core';
 import { createWorkspace, SwfFailure, surfaceEffectiveState } from '@swf/core';
 import type { ProjectedFragment, ViewProjector } from '@swf/presentation';
-import { createPresentationRegistry, createPresenter, fragmentId } from '@swf/presentation';
+import {
+  createPresentationRegistry,
+  createPresenter,
+  fragmentId,
+  representationFor,
+} from '@swf/presentation';
 import { createSurfaceRuntime } from '@swf/surfaces';
 import { describe, expect, it } from 'vitest';
 import { createDiagnostics } from '../src/index.js';
 
-/** A flat projection: a window at x shows as a 100×60 box, 100 px per unit from the centre. */
+/** A flat projection: a window at x shows as a 100×60 card, 100 px per unit from the centre. */
 const flat: ViewProjector = {
-  profile: { id: 'test.flat/1', mapping: 'affine', seamWrapping: false, exactInverse: true },
-  project(scene, view) {
+  profile: { id: 'test.flat/1', seamWrapping: false, exactInverse: true },
+  project(scene, view, _geometry, policy) {
     const out: ProjectedFragment[] = [];
     for (const surface of scene.surfaces.values()) {
       const node = scene.nodes.get(surface.ownerNodeId);
@@ -27,13 +32,16 @@ const flat: ViewProjector = {
       if (left + 100 <= 0 || left >= view.width) {
         continue;
       }
+      const context = { scene, view, surfaceId: surface.id, nodeId: node.id };
       out.push({
         id: fragmentId(view.viewportId, surface.id, 0),
         surfaceId: surface.id,
         viewportId: view.viewportId,
         ordinal: 0,
         bounds: [Math.max(0, left), 170, Math.min(view.width, left + 100) - Math.max(0, left), 60],
-        corners: null,
+        card: [left, 170, 100, 60],
+        scale: 1,
+        representation: policy === null ? 'full' : representationFor(policy, context),
         depth: 3,
         geometricFidelity: 'exact',
         nativeOwner: true,

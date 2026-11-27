@@ -2,42 +2,38 @@ import type { Id, SceneCommand, SceneState } from '@swf/core';
 import { effectiveState, worldTransform } from '@swf/core';
 import type { Vec3 } from '@swf/math';
 import { cameraRotation } from '@swf/projections';
+import { CARD_PIXELS_PER_UNIT } from '@swf/presentation';
 import type { ViewMode } from './modes.js';
 import { ModeRefusal, PANORAMA } from './modes.js';
 
 /**
  * Focus and context: one window shown large enough to read, centred, with the windows around it
  * still in view and reachable. It is a view of the panorama, not a placement: entering it turns
- * the viewport's camera to face the window and narrows the projection to frame it, and no window
- * moves. Leaving it puts the camera back.
+ * the viewport's camera to face the window, and its card is drawn large (the viewport's
+ * representation policy scales it, `focusScale`), and no window moves. Leaving it puts the camera
+ * back.
  */
 
 /** The focus mode's ID. */
 export const FOCUS_ID = 'focus';
 
-/** How focus frames a window. */
+/** How focus shows a window. */
 export interface FocusOptions {
-  /** Share of the viewport's width or height the focused window fills, whichever binds first. */
+  /** Share of the viewport's width or height the focused window's card fills, whichever binds first. */
   readonly fill: number;
   /**
-   * The most a window is magnified, against the size its content is laid out at
-   * (`pixelsPerUnit` per world unit): content larger than this reads no better.
+   * The largest scale its card takes, against the size its content is laid out at
+   * (`CARD_PIXELS_PER_UNIT` a world unit): content larger than this reads no better.
    */
   readonly maxMagnification: number;
-  /** CSS pixels the presentation lays a window's content out at per world unit. */
-  readonly pixelsPerUnit: number;
 }
 
-/** How the viewport frames a focused window. */
+/** How the viewport shows a focused window. */
 export interface FocusFrame {
-  /** The camera's heading and pitch to face the window, in radians. */
+  /** The camera's heading to face the window, in radians; the camera stays level. */
   readonly heading: number;
-  /** The camera's pitch, in radians. */
-  readonly pitch: number;
-  /** The equirectangular coverage that frames it, in degrees. */
-  readonly horizontal: number;
-  /** The vertical coverage, in degrees. */
-  readonly vertical: number;
+  /** The scale of the window's card. */
+  readonly scale: number;
 }
 
 const DEGREES = 180 / Math.PI;
@@ -67,10 +63,8 @@ function placed(state: SceneState, windowId: Id, eye: Vec3) {
 }
 
 /**
- * The frame that shows a window readably in a viewport of a size, seen from an eye: facing it,
- * with the coverage at which it fills `fill` of the viewport (no more than `maxMagnification` of
- * its content's own size), the same angle per pixel across and down so it is not stretched.
- * Coverage is rounded to hundredths of a degree.
+ * The frame that shows a window readably in a viewport of a size, seen from an eye: the camera
+ * facing it, and its card scaled to fill `fill` of the viewport, no more than `maxMagnification`.
  */
 export function focusFrame(
   state: SceneState,
@@ -79,22 +73,15 @@ export function focusFrame(
   size: { readonly width: number; readonly height: number },
   options: FocusOptions,
 ): FocusFrame {
-  const { offset, distance, width, height } = placed(state, windowId, eye);
-  const across = 2 * Math.atan(width / (2 * distance));
-  const down = 2 * Math.atan(height / (2 * distance));
-  // Radians per CSS pixel: as large as framing it needs, no smaller than the magnification allows.
-  let perPixel = Math.max(
-    across / (options.fill * size.width),
-    down / (options.fill * size.height),
-    across / (options.maxMagnification * options.pixelsPerUnit * width),
-  );
-  perPixel = Math.min(perPixel, (2 * Math.PI) / size.width, Math.PI / size.height);
-  const round = (radians: number) => Math.max(0.01, Math.round(radians * DEGREES * 100) / 100);
+  const { offset, width, height } = placed(state, windowId, eye);
+  const unit = CARD_PIXELS_PER_UNIT;
   return {
     heading: Math.atan2(offset[0], -offset[2]),
-    pitch: Math.atan2(offset[1], Math.hypot(offset[0], offset[2])),
-    horizontal: round(perPixel * size.width),
-    vertical: round(perPixel * size.height),
+    scale: Math.min(
+      (options.fill * size.width) / (width * unit),
+      (options.fill * size.height) / (height * unit),
+      options.maxMagnification,
+    ),
   };
 }
 
@@ -182,17 +169,7 @@ export function focusCommands(
     throw new Error(`viewport "${viewportId}" does not exist`);
   }
   const frame = focusFrame(state, windowId, eye, viewport.size, options);
-  return [
-    { type: 'camera.patch', id: cameraId, rotation: cameraRotation(frame.heading, frame.pitch) },
-    {
-      type: 'viewport.patch',
-      id: viewportId,
-      projection: {
-        id: PANORAMA.projection.id,
-        config: { horizontal: frame.horizontal, vertical: frame.vertical },
-      },
-    },
-  ];
+  return [{ type: 'camera.patch', id: cameraId, rotation: cameraRotation(frame.heading, 0) }];
 }
 
 /**

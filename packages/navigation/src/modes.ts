@@ -133,14 +133,30 @@ export const FIELD_OF_VIEW: {
   readonly max: number;
 } = Object.freeze({ min: 85, max: 360 });
 
-/** The panorama's vertical angle for each degree across: 120° down for the whole 360° across. */
-const VERTICAL_PER_HORIZONTAL = 120 / 360;
+/**
+ * The panorama's vertical angle and its horizon: 130° from the top row to the bottom whatever the
+ * field of view across, the horizon a little above the middle (0.49 of the height from the top).
+ * The vertical span does not follow the field of view: windows are drawn as cards that no span
+ * squeezes, and only their centres follow the projection, so a fixed span keeps every height in
+ * the room on screen at any field of view, as the room's limits want (its highest window, 4 units
+ * up at 2 out, looks 63° up).
+ */
+export const PANORAMA_VERTICAL: Readonly<{
+  /** The angle from the top row to the bottom, in degrees. */
+  span: number;
+  /** Where the horizon is, as a share of the height from the top. */
+  horizon: number;
+}> = Object.freeze({ span: 130, horizon: 0.49 });
 
 /** The projection the panorama is shown with at a horizontal field of view, in degrees. */
 export function panoramaProjection(horizontal: number): ProjectionSetting {
   return Object.freeze({
     id: 'equirectangular/1',
-    config: Object.freeze({ horizontal, vertical: horizontal * VERTICAL_PER_HORIZONTAL }),
+    config: Object.freeze({
+      horizontal,
+      vertical: PANORAMA_VERTICAL.span,
+      horizon: PANORAMA_VERTICAL.horizon,
+    }),
   });
 }
 

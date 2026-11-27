@@ -1,19 +1,12 @@
 import type { Id, SceneState } from '@swf/core';
-import {
-  effectiveState,
-  makeError,
-  nodeFrameGeometry,
-  SwfFailure,
-  surfaceWorldMatrix,
-} from '@swf/core';
+import { effectiveState, makeError, nodeFrameGeometry, SwfFailure } from '@swf/core';
 import type { Vec2, Vec3 } from '@swf/math';
-import { mat4TransformDirection, rectQuad, rectToQuad } from '@swf/math';
+import { mat4TransformDirection, rectQuad } from '@swf/math';
 import type {
   CompositionLayer,
   NameObstacle,
   NameRequest,
   PlannedFragment,
-  ProjectedFragment,
   RenderedFrame,
   RendererBackend,
   RendererCapabilities,
@@ -35,13 +28,12 @@ import {
 } from '@swf/presentation';
 import type { Projection, ProjectionModule } from '@swf/projections';
 import { projectionFor } from '@swf/projections';
-import type { Drawable, Mesh } from './drawing.js';
-import { drawableIssue, drawMesh, homographyMesh, outline } from './drawing.js';
+import type { Drawable } from './drawing.js';
+import { drawableIssue, outline } from './drawing.js';
 import type { WindowFrame } from './frames.js';
 import { FRAME_STROKE, windowFrames } from './frames.js';
 import type { GeometryLayer } from './layer.js';
 import { GEOMETRY_LAYER } from './layer.js';
-import { planeMesh } from './sampling.js';
 
 /** The geometry renderer's registered ID, as {@link GeometryRenderer} declares it. */
 export const GEOMETRY_RENDERER_ID = 'swf.geometry-renderer/1';
@@ -102,16 +94,13 @@ export interface GeometryRendererOptions {
    */
   readonly drawables?: (surfaceId: Id) => unknown;
   /**
-   * The projection modules views use. With them the renderer follows each view's projection
-   * point by point (mesh warping), and draws window chrome and indicators for windows out of
-   * view; without them it places drawn content by its projected corners only.
+   * The projection modules views use. With them the renderer draws indicators for windows out of
+   * a view that shows less than the whole circle; without them it draws none.
    */
   readonly projections?: {
     /** The projection module registered under `id`, or undefined when none is. */
     get(id: string): ProjectionModule | undefined;
   };
-  /** Cells per side of the mesh a drawable is warped with: a whole number, 1 to 128. Default 12. */
-  readonly meshCells?: number;
   /**
    * What a proxy or placeholder says when it stands in for content for a reason (FR-195), as text.
    * Default {@link STAND_IN_TEXT}, in English.
@@ -146,31 +135,20 @@ export class GeometryRenderer implements RendererBackend {
   /** The presentation API version it implements. */
   readonly apiVersion = PRESENTATION_API_VERSION;
   readonly #options: GeometryRendererOptions;
-  readonly #cells: number;
 
-  /**
-   * A renderer drawing from `options`, which it keeps as given.
-   *
-   * @throws `RangeError` for a `meshCells` that is not a whole number from 1 to 128.
-   */
+  /** A renderer drawing from `options`, which it keeps as given. */
   constructor(options: GeometryRendererOptions = {}) {
-    const cells = options.meshCells ?? 12;
-    if (!Number.isInteger(cells) || cells < 1 || cells > 128) {
-      throw new RangeError(`meshCells must be an integer from 1 to 128 (got ${String(cells)})`);
-    }
     this.#options = options;
-    this.#cells = cells;
   }
 
   /**
-   * Drawn content is warped by a mesh (piecewise affine): close to the projection, never claimed
-   * exact. With projection modules it follows nonlinear projections point by point; without, it
-   * follows the projected corners, as a planar perspective does.
+   * Drawn content is drawn flat and upright on its window's card, scaled to where it lies there:
+   * exactly as the card places it.
    */
   capabilities(): RendererCapabilities {
     return Object.freeze({
-      handleKinds: Object.freeze({ drawable: 'approximate', 'proxy-only': 'proxy' }),
-      transformMode: this.#options.projections === undefined ? 'perspective-3d' : 'mesh',
+      handleKinds: Object.freeze({ drawable: 'exact', 'proxy-only': 'proxy' }),
+      transformMode: 'affine-2d',
       clipping: 'path',
       hitMapping: false,
       layering: 'raster',
@@ -192,9 +170,7 @@ export class GeometryRenderer implements RendererBackend {
         ),
       );
     }
-    return Promise.resolve(
-      new GeometryRendererSession(this.id, view.viewportId, this.#options, this.#cells),
-    );
+    return Promise.resolve(new GeometryRendererSession(this.id, view.viewportId, this.#options));
   }
 }
 
@@ -209,7 +185,6 @@ export class GeometryRendererSession implements RendererSession {
   /** The viewport it renders. */
   readonly viewportId: Id;
   readonly #options: GeometryRendererOptions;
-  readonly #cells: number;
   /** Each layer of the last render, with the inputs it was drawn from. */
   readonly #kept = new Map<
     string,
@@ -223,18 +198,17 @@ export class GeometryRendererSession implements RendererSession {
   #measuring: OffscreenCanvasRenderingContext2D | null = null;
   #released = false;
 
-  /** A session as {@link GeometryRenderer.prepare} makes it, with `cells` mesh cells per side. */
-  constructor(rendererId: string, viewportId: Id, options: GeometryRendererOptions, cells: number) {
+  /** A session as {@link GeometryRenderer.prepare} makes it. */
+  constructor(rendererId: string, viewportId: Id, options: GeometryRendererOptions) {
     this.rendererId = rendererId;
     this.viewportId = viewportId;
     this.#options = options;
-    this.#cells = cells;
   }
 
   /**
    * Realizes a frame as drawn layers: drawn content, proxies and placeholders in plan order, each
    * window's chrome after its last fragment, then the windows' names, and the indicators of
-   * windows out of view on top (chrome and indicators only with projection modules). A layer whose
+   * windows out of view on top (indicators only with projection modules). A layer whose
    * inputs did not change is the same object as last frame.
    *
    * @throws {@link @swf/core!SwfFailure} `INVALID_TRANSITION` once released; `INVALID_INPUT`
@@ -282,9 +256,7 @@ export class GeometryRendererSession implements RendererSession {
         lastOfNode.set(nodeId, p.fragment.id);
       }
     }
-    // Window frames are drawn with projection modules only.
-    const frames =
-      projection === null ? new Map<Id, WindowFrame>() : windowFrames(frame, projection);
+    const frames = windowFrames(frame);
     for (const planned of frame.planned) {
       if (planned.negotiation.layer === 'content-native') {
         if (!elsewhere.has(planned.fragment.id)) {
@@ -297,7 +269,7 @@ export class GeometryRendererSession implements RendererSession {
           );
         }
       } else {
-        layers.push(this.#fragmentLayer(frame, planned, projection));
+        layers.push(this.#fragmentLayer(planned));
       }
       for (const [nodeId, last] of lastOfNode) {
         const drawn = frames.get(nodeId);
@@ -384,11 +356,7 @@ export class GeometryRendererSession implements RendererSession {
     return projectionFor(module, view);
   }
 
-  #fragmentLayer(
-    frame: RenderFrame,
-    planned: PlannedFragment,
-    projection: Projection | null,
-  ): CompositionLayer {
+  #fragmentLayer(planned: PlannedFragment): CompositionLayer {
     const { fragment, negotiation } = planned;
     const category = negotiation.layer;
     const reason = standInReason(planned);
@@ -398,23 +366,23 @@ export class GeometryRendererSession implements RendererSession {
     let signature: string | null;
     switch (category) {
       case 'content-raster': {
+        // Drawn flat and upright on its card: scaled to where it lies there.
         const drawable = this.#drawable(fragment.surfaceId);
-        const mesh = this.#mesh(frame, fragment, drawable, projection);
         signature =
           drawable.revision === undefined
             ? null
             : JSON.stringify([
                 'raster',
                 fragment.bounds,
-                mesh.points,
                 identity(drawable.source),
                 drawable.width,
                 drawable.height,
                 drawable.revision,
               ]);
         draw = (ctx) => {
+          const [x, y, w, h] = fragment.bounds;
           clipTo(ctx, fragment.bounds);
-          drawMesh(ctx, drawable, mesh);
+          ctx.drawImage(drawable.source, 0, 0, drawable.width, drawable.height, x, y, w, h);
         };
         break;
       }
@@ -433,10 +401,10 @@ export class GeometryRendererSession implements RendererSession {
           };
           break;
         }
-        signature = JSON.stringify(['proxy', fragment.bounds, fragment.corners, because]);
+        signature = JSON.stringify(['proxy', fragment.bounds, because]);
         draw = (ctx) => {
           clipTo(ctx, fragment.bounds);
-          outline(ctx, fragment.corners ?? rectQuad(fragment.bounds));
+          outline(ctx, rectQuad(fragment.bounds));
           ctx.fillStyle = STAND_IN.proxy.ground;
           ctx.fill();
           ctx.strokeStyle = STAND_IN.proxy.edge;
@@ -448,10 +416,10 @@ export class GeometryRendererSession implements RendererSession {
         };
         break;
       case 'placeholder':
-        signature = JSON.stringify(['placeholder', fragment.bounds, fragment.corners, because]);
+        signature = JSON.stringify(['placeholder', fragment.bounds, because]);
         draw = (ctx) => {
           clipTo(ctx, fragment.bounds);
-          outline(ctx, fragment.corners ?? rectQuad(fragment.bounds));
+          outline(ctx, rectQuad(fragment.bounds));
           ctx.fillStyle = STAND_IN.placeholder.ground;
           ctx.fill();
           ctx.setLineDash([4, 3]);
@@ -496,56 +464,12 @@ export class GeometryRendererSession implements RendererSession {
     return value as Drawable;
   }
 
-  /**
-   * The mesh a drawable is warped by: sampled through the projection where there is one (each
-   * point on the branch of its neighbours, starting in this fragment), else the projective map of
-   * the projected corners (or of the bounds, without usable corners).
-   */
-  #mesh(
-    frame: RenderFrame,
-    fragment: ProjectedFragment,
-    drawable: Drawable,
-    projection: Projection | null,
-  ): Mesh {
-    const n = this.#cells;
-    const surface = frame.scene.surfaces.get(fragment.surfaceId);
-    const world = surfaceWorldMatrix(frame.scene, fragment.surfaceId);
-    if (projection !== null && surface !== undefined && world !== undefined) {
-      const [w, h] = surface.bounds;
-      return planeMesh(
-        projection,
-        frame.view,
-        world,
-        { x0: -w / 2, x1: w / 2, y0: -h / 2, y1: h / 2 },
-        n,
-        n,
-        centreOf(fragment.bounds),
-      );
-    }
-    const m =
-      (fragment.corners === null
-        ? null
-        : rectToQuad(drawable.width, drawable.height, fragment.corners)) ??
-      rectToQuad(drawable.width, drawable.height, rectQuad(fragment.bounds));
-    if (m === null) {
-      // Empty bounds: nothing of the drawable is visible.
-      return {
-        columns: 1,
-        rows: 1,
-        points: [
-          [null, null],
-          [null, null],
-        ],
-      };
-    }
-    return homographyMesh(m, drawable.width, drawable.height, n, n);
-  }
-
-  /** A window's frame, drawn along its projected frame, stacked after `after`. */
+  /** A window's frame, drawn round its card, stacked after `after`. */
   #chrome(nodeId: Id, drawn: WindowFrame, after: string): CompositionLayer {
-    const { outline: points, corners, selected, focused, handles } = drawn;
+    const { card, selected, focused, handles } = drawn;
+    const corners = rectQuad(card);
     const inks = this.#inks;
-    const signature = JSON.stringify([points, selected, focused, handles, after, inks]);
+    const signature = JSON.stringify([card, selected, focused, handles, after, inks]);
     return Object.freeze({
       id: `chrome:${nodeId}`,
       category: 'chrome',
@@ -553,7 +477,7 @@ export class GeometryRendererSession implements RendererSession {
       surfaceId: null,
       content: this.#keep(`chrome:${nodeId}`, signature, () =>
         layer(after, (ctx) => {
-          outline(ctx, points);
+          outline(ctx, corners);
           ctx.strokeStyle = focused ? inks.focused : selected ? inks.selected : inks.frame;
           ctx.lineWidth = selected || focused ? FRAME_STROKE.emphasised : FRAME_STROKE.plain;
           ctx.stroke();

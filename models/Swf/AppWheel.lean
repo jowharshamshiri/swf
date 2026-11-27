@@ -2,25 +2,27 @@ import Lungo
 
 /-!
 The reference application's wheel bursts. With the depth modifier held, the wheel over a window
-brings it nearer or sends it farther; a burst of wheel ticks over one window is one gesture: it is
+brings it nearer along the floor or sends it farther; a burst of wheel ticks over one window is one
+gesture: it is
 shown as it goes and committed once, when the wheel rests, when other input comes, or when another
 window is wheeled; cancelling it leaves the window where it was. This model decides each step:
 the burst under way after it, and what the application does, in order (show the burst, commit it,
-discard it). The application measures how far each tick moves the window and keeps the timer.
+discard it). The application measures how far each tick turns the wheel, moves the window by the
+room's wheel pace for the burst's turn in all, and keeps the timer.
 -/
 namespace Swf.AppWheel
 
-/-- A burst under way: the window it moves, and how far in all, in world units away from the
-camera (negative: nearer). -/
+/-- A burst under way: the window it moves, and how far the wheel has turned over it in all, in
+pixels (turned down, positive: farther along the floor). -/
 structure Burst where
   /-- The window the burst moves. -/
   nodeId : String
-  /-- How far the ticks so far take it, away from the camera. -/
-  depth : Float
+  /-- How far the ticks so far have turned the wheel, in pixels (down positive). -/
+  turned : Float
 
 /-- What happens to a burst. -/
 inductive WheelEvent where
-  /-- A wheel tick over window `nodeId`, taking it `delta` world units away from the camera. -/
+  /-- A wheel tick over window `nodeId`, turning the wheel `delta` pixels (down positive). -/
   | tick (nodeId : String) (delta : Float)
   /-- The wheel rested, or other input came: the burst ends as it is. -/
   | settle
@@ -59,7 +61,7 @@ def wheelStep (current : Option Burst) (event : WheelEvent) : WheelOutcome :=
       match current with
       | none => .step ⟨some ⟨nodeId, delta⟩, [.show ⟨nodeId, delta⟩]⟩
       | some b =>
-        if b.nodeId = nodeId then .step ⟨some ⟨nodeId, b.depth + delta⟩, [.show ⟨nodeId, b.depth + delta⟩]⟩
+        if b.nodeId = nodeId then .step ⟨some ⟨nodeId, b.turned + delta⟩, [.show ⟨nodeId, b.turned + delta⟩]⟩
         else .step ⟨some ⟨nodeId, delta⟩, [.commit b, .show ⟨nodeId, delta⟩]⟩
   | .settle =>
     match current with
@@ -131,11 +133,11 @@ theorem commits_only_the_burst_under_way (current : Option Burst) (event : Wheel
     cases current <;> simp [wheelStep] at h <;> subst h <;> simp at hc
 
 /-- Ticks over the same window add up: the burst shown is the burst under way after the step, and
-its depth is what it was plus the tick's. -/
+its turn is what it was plus the tick's. -/
 @[lungo_claim "lungo.law" subject wheelStep]
 theorem ticks_add_up (b : Burst) (delta : Float) (s : WheelStep) (hf : delta.isFinite = true)
     (h : wheelStep (some b) (.tick b.nodeId delta) = .step s) :
-    s.burst = some ⟨b.nodeId, b.depth + delta⟩ ∧ s.actions = [.show ⟨b.nodeId, b.depth + delta⟩] := by
+    s.burst = some ⟨b.nodeId, b.turned + delta⟩ ∧ s.actions = [.show ⟨b.nodeId, b.turned + delta⟩] := by
   simp [wheelStep, hf] at h
   subst h
   exact ⟨rfl, rfl⟩

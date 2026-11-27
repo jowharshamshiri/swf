@@ -24,13 +24,11 @@ import {
 
 const PERSPECTIVE: ProjectionProfile = {
   id: 'test.perspective/1',
-  mapping: 'affine',
   seamWrapping: false,
   exactInverse: true,
 };
 const PANORAMA: ProjectionProfile = {
   id: 'test.panorama/1',
-  mapping: 'nonlinear',
   seamWrapping: true,
   exactInverse: true,
 };
@@ -82,13 +80,21 @@ describe('capability descriptors', () => {
     expect(rendererCapabilitiesIssue({ ...MOCK_RENDERER_CAPABILITIES, layering: 'dom' })).toMatch(
       /drawable handles need a raster layer/,
     );
+    // A card is scaled: exact presentation takes transforms that scale, no more.
+    expect(
+      rendererCapabilitiesIssue({
+        ...MOCK_RENDERER_CAPABILITIES,
+        handleKinds: { drawable: 'exact' },
+        transformMode: 'translate',
+      }),
+    ).toMatch(/drawable content cannot be exact with translate transforms/);
     expect(
       rendererCapabilitiesIssue({
         ...MOCK_RENDERER_CAPABILITIES,
         handleKinds: { 'native-dom': 'exact' },
-        transformMode: 'perspective-3d',
+        transformMode: 'affine-2d',
       }),
-    ).toMatch(/cannot be exact without mesh/);
+    ).toBeNull();
     expect(
       rendererCapabilitiesIssue({
         ...MOCK_RENDERER_CAPABILITIES,
@@ -130,11 +136,23 @@ describe('negotiation', () => {
     });
   });
 
-  it('approximates a live element in a panorama, saying its anchor is exact and its shape is not', () => {
-    const result = negotiate(input({ projection: PANORAMA }));
+  it('presents a live element natively in a panorama too: its card is never bent', () => {
+    expect(negotiate(input({ projection: PANORAMA }))).toMatchObject({
+      mode: 'native',
+      anchorFidelity: 'exact',
+      shapeFidelity: 'exact',
+      contentFidelity: 'native',
+      interaction: 'full',
+      layer: 'content-native',
+    });
+  });
+
+  it('approximates a window whose place the card only approximates, saying its anchor is not exact', () => {
+    // A window carrying a rotation of its own, drawn on an upright card.
+    const result = negotiate(input({ projection: PANORAMA, anchor: 'approximate' }));
     expect(result).toMatchObject({
       mode: 'approximated',
-      anchorFidelity: 'exact',
+      anchorFidelity: 'approximate',
       shapeFidelity: 'approximate',
       contentFidelity: 'native',
       interaction: 'full',
@@ -149,40 +167,46 @@ describe('negotiation', () => {
     expect(result.fallback?.gaps).toContainEqual({
       mode: 'native',
       requirement: 'projection',
-      detail: 'a nonlinear projection bends a planar element, which can only approximate it',
+      detail: 'the projected placement is approximate',
     });
-    expect(result.fallback?.gaps).toContainEqual(
-      expect.objectContaining({ mode: 'exact', requirement: 'surface' }),
-    );
     expect(result.fallback?.message).toMatch(/presented as approximated .* instead of exact/);
   });
 
-  it('warps drawable content exactly only with mesh warping, and approximates it otherwise', () => {
-    expect(negotiate(input({ surface: DRAWN, projection: PANORAMA }))).toMatchObject({
-      mode: 'exact',
-      shapeFidelity: 'exact',
-      contentFidelity: 'exact',
-      layer: 'content-raster',
-      interaction: 'none',
-      fallback: null,
-    });
-    const flat = negotiate(
+  it('draws drawable content exactly on its card with transforms that scale it, approximating it otherwise', () => {
+    for (const transformMode of ['affine-2d', 'perspective-3d', 'mesh'] as const) {
+      expect(
+        negotiate(
+          input({ surface: DRAWN, projection: PANORAMA, renderer: renderer({ transformMode }) }),
+        ),
+      ).toMatchObject({
+        mode: 'exact',
+        shapeFidelity: 'exact',
+        contentFidelity: 'exact',
+        layer: 'content-raster',
+        interaction: 'none',
+        fallback: null,
+      });
+    }
+    const moved = negotiate(
       input({
         surface: DRAWN,
         projection: PANORAMA,
-        renderer: renderer({ transformMode: 'perspective-3d' }),
+        renderer: renderer({
+          transformMode: 'translate',
+          handleKinds: { 'native-dom': 'native', drawable: 'approximate', 'proxy-only': 'proxy' },
+        }),
       }),
     );
-    expect(flat).toMatchObject({
+    expect(moved).toMatchObject({
       mode: 'approximated',
       shapeFidelity: 'approximate',
       contentFidelity: 'approximate',
       layer: 'content-raster',
     });
-    expect(flat.fallback?.gaps).toContainEqual({
+    expect(moved.fallback?.gaps).toContainEqual({
       mode: 'exact',
       requirement: 'renderer',
-      detail: 'a nonlinear projection needs mesh warping',
+      detail: 'its translate transforms cannot scale a card',
     });
   });
 
@@ -239,7 +263,7 @@ describe('negotiation', () => {
 
   it('follows a configured policy, which must end with placeholder', () => {
     const noApproximation = fallbackPolicy(['exact', 'native', 'proxy', 'placeholder']);
-    expect(negotiate(input({ projection: PANORAMA }), noApproximation).mode).toBe('proxy');
+    expect(negotiate(input({ anchor: 'approximate' }), noApproximation).mode).toBe('proxy');
     expect(negotiate(input(), fallbackPolicy(['proxy', 'placeholder']))).toMatchObject({
       mode: 'proxy',
       fallback: null,
@@ -253,8 +277,8 @@ describe('negotiation', () => {
   });
 
   it('groups identical fallbacks under one key', () => {
-    const a = negotiate(input({ surfaceId: 'a', projection: PANORAMA })).fallback;
-    const b = negotiate(input({ surfaceId: 'b', projection: PANORAMA })).fallback;
+    const a = negotiate(input({ surfaceId: 'a', anchor: 'approximate' })).fallback;
+    const b = negotiate(input({ surfaceId: 'b', anchor: 'approximate' })).fallback;
     const c = negotiate(input({ surfaceId: 'c', owner: false })).fallback;
     expect(a?.groupKey).toBe(b?.groupKey);
     expect(a?.groupKey).not.toBe(c?.groupKey);
@@ -295,7 +319,9 @@ describe('negotiation honesty', () => {
       },
       transformMode,
       clipping,
-    }));
+    }))
+    // Translation alone cannot draw anything exactly: such a renderer declares nothing exact.
+    .filter((r) => rendererCapabilitiesIssue(r) === null);
   const compositorCaps: fc.Arbitrary<CompositorCapabilities> = fc
     .record({
       direct: fc.boolean(),
@@ -357,8 +383,12 @@ describe('negotiation honesty', () => {
           if (result.contentFidelity === 'exact') {
             expect(result.mode).toBe('exact');
           }
+          if (result.mode === 'exact' || result.mode === 'native') {
+            // Whatever the projection: only the card's scale and place matter.
+            expect(r.transformMode).not.toBe('translate');
+            expect(anchor).toBe('exact');
+          }
           if (result.mode === 'native') {
-            expect(projection.mapping).toBe('affine');
             expect(s?.attachStrategy).toBe('native-dom');
             expect(c.directNative).toBe(true);
           }

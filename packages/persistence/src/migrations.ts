@@ -33,12 +33,60 @@ export interface SchemaMigration {
   };
 }
 
+/** A rotation that turns nothing. */
+const UPRIGHT = Object.freeze([0, 0, 0, 1]);
+
+/** Whether a JSON value is a rotation that turns nothing. */
+function upright(rotation: unknown): boolean {
+  return (
+    Array.isArray(rotation) &&
+    rotation.length === 4 &&
+    rotation[0] === 0 &&
+    rotation[1] === 0 &&
+    rotation[2] === 0 &&
+    (rotation[3] === 1 || rotation[3] === -1)
+  );
+}
+
 /**
- * The steps of the snapshot format, oldest first. `swf.workspace/1` is the first published
- * format, so there is no step yet: each later format adds the step from the one before, with
- * fixtures of every format still read.
+ * `swf.workspace/1` to `/2`, the room: every window is drawn as a card, flat, upright and facing
+ * the camera, so a node holding surfaces (a window) and each surface stand upright, their own
+ * rotation zeroed, each one zeroed named in a warning. Positions are the windows' places in the
+ * room already; groups keep their rotation, which turns the windows in them round the camera.
  */
-export const SNAPSHOT_MIGRATIONS: readonly SchemaMigration[] = Object.freeze([]);
+const ROOM: SchemaMigration = Object.freeze({
+  from: 'swf.workspace/1',
+  to: 'swf.workspace/2',
+  migrate(document: Record<string, unknown>) {
+    const warnings: string[] = [];
+    const stand = (records: unknown, what: (record: Record<string, unknown>) => boolean) => {
+      if (!Array.isArray(records)) {
+        return;
+      }
+      for (const record of records as Record<string, unknown>[]) {
+        const transform = record['transform'] as Record<string, unknown> | undefined;
+        if (what(record) && transform !== undefined && !upright(transform['rotation'])) {
+          transform['rotation'] = [...UPRIGHT];
+          warnings.push(
+            `${record['ownerNodeId'] === undefined ? 'window' : 'surface'} "${String(record['id'])}" was turned, which a card does not show: it stands upright now`,
+          );
+        }
+      }
+    };
+    stand(
+      document['nodes'],
+      (node) => Array.isArray(node['surfaceIds']) && node['surfaceIds'].length > 0,
+    );
+    stand(document['surfaces'], () => true);
+    return { document: { ...document, schema: 'swf.workspace/2' }, warnings };
+  },
+});
+
+/**
+ * The steps of the snapshot format, oldest first: each later format adds the step from the one
+ * before, with fixtures of every format still read. `swf.workspace/2` is the room's (`ROOM`).
+ */
+export const SNAPSHOT_MIGRATIONS: readonly SchemaMigration[] = Object.freeze([ROOM]);
 
 /** One migration step that ran, as a restore reports it. Frozen. */
 export interface MigrationStep {

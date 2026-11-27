@@ -1,5 +1,5 @@
 {
-  "build_key": "ff719e5f14b8a0db2418a44ca8052a60c577d606d55736beeb67b80f4f3375ea",
+  "build_key": "a7b79e471eadff7759fd8bcf9f54cd526223d022969e2861076a30a13eb321c7",
   "lean_version": "4.35.0",
   "lean_githash": "eb6cafb7290e8bd5f2937522d8d804f58f02bafc",
   "bir_version": 3,
@@ -8,22 +8,23 @@
   "runtime_abi": 3,
   "worker_identity": "72c9b8a91fbad12998aaf7450234ae878b899b71569b19557121bfd28b049463",
   "input_digests": {
-    "Swf.lean": "3ebf67104f3450601c7554aca6880120d2f8ea32e04461f12ccac7140df3278d",
+    "Swf.lean": "af552582d04d5f545114696737e5fe92f1811b79bc278451de80c122b8079e17",
     "Swf/AppChallenge.lean": "746c6675931e4af153a180187045200a7dccf311831f61dc0940952dcecf6501",
     "Swf/AppComposition.lean": "7a6a673922943cc4f59b08b897196736d7263797709ddad1740240cb667b22db",
     "Swf/AppCursor.lean": "e09b25539102e361da94e6f11592e530a7faa7131850034750c668d7420e6b8e",
     "Swf/AppDepth.lean": "25f2b92dc3e1f676b790e6dfccf260704a0769d9580435933de89c9eb9c10b5e",
     "Swf/AppExperiments.lean": "1122d1b5f0846631a6c3338125ea8a5d667c0c2f49883feb4a6ff06bfd929b6b",
-    "Swf/AppFeatures.lean": "3780f0b9e775065f44abb759d40d276e3b5438145d70aa44ceeb3a3be4cb66c4",
+    "Swf/AppFeatures.lean": "a30775604c3277dfda581ac89b0794772ab4688ed4e8a0a04531641d67321282",
     "Swf/AppFocus.lean": "c2c669684074486274cfaf9bcc37c8723e8bfff8ad4199223d26b6b5ff404f8a",
     "Swf/AppOrbit.lean": "52a1d039613f00b068a595be34237b4382f3e54db3d678e425c0f4753d0c1aa0",
     "Swf/AppOverview.lean": "380c039432403489d11fabd42bc534404504dd92f009da3730d5936b2e1d5f3c",
     "Swf/AppScenarios.lean": "3df1fb42dd429ef2a8869e49beac97ae69f69227d90f46234578a2c4684f6948",
     "Swf/AppSnap.lean": "830653c1678ea668fa06c7b45ce5faea62eac16354286f5686b9dbbfe1d940a6",
-    "Swf/AppWheel.lean": "f381f9f0675a089a50bc88c9d4981c3f811f6f1e176535ad0ab9f4ad200018e1",
+    "Swf/AppSpacing.lean": "3571be1f63c14c16e45d0ce29dc70cd5b3836023ba8cc859bd752720cbcd6df0",
+    "Swf/AppWheel.lean": "8a96448d11b145a6958353c061832f945412679d31949491a361516e915aa5b5",
     "Swf/AppWorkspaces.lean": "f5a80d6775fd91b054a3856aaae2c3538ae2f6ca90156fffe66791d74bbb69d5",
     "Swf/Arbitration.lean": "47ef2f12b3479a3ca4a066653f2c8f5010b5cea840dd1c0fa40d69bca01a8de0",
-    "Swf/Fallback.lean": "f277e41e454875b6f9e1a8eb2aa78ffdcfd31ad7e79dbef09d3e3654e20eeba9",
+    "Swf/Fallback.lean": "db0262b4bb6c56d827cab0345e38de7324f7124b0403286d1468a84e43129f7c",
     "Swf/Gesture.lean": "9816510b87f9262f409a297a1fc54b098ce3bd0a86d919dd41d75c99951e5595",
     "Swf/Handoff.lean": "36619e1132d6c8a9966e96c19b2850897a347505e70c955336d62e38031c34d1",
     "Swf/Hierarchy.lean": "7f30f759bfb333e8ed5fae95c977f7afbe907b1f054e782f5c9572ba6efc94ec",
@@ -33,6 +34,7 @@
     "Swf/Names.lean": "bd0519c15aab9b25beb80e2b3691fb0aff5d893445674d42c07ec1fc6ad65cc8",
     "Swf/Order.lean": "d65ee8fdfc534b32123a8c89e1ddf90e2bdc588e7a473762641a11d28c09311b",
     "Swf/Presenter.lean": "2cb636c9d1268450cd84cde787c2f827157dc79eaed929594ef42024cebdf790",
+    "Swf/Room.lean": "55e20e7ee29175e8455762acec84d9a0774cfa020d355ec7c436d94a6dedb19a",
     "Swf/Save.lean": "232b29c02db841a7675e740890576313a54c8d4c8e384d7065cd33795fc8af00",
     "Swf/Spaces.lean": "3fe23a7bd2ce9cf8cd3d97c3cb78809063f6a8b11a54e6aadc3f99ac8e4be59e",
     "Swf/Surface.lean": "d0989ad8f8807f4c035b196143887112cea53c25c324626e796d8aeb6683dee9",
@@ -44,9 +46,9 @@
   "project": ".",
   "link_directives": [],
   "output_digests": {
-    "assurance.json": "7cc0acbcacac905b2739243382ec55f42ddd8ef93d9c83701b1cb2627d174056",
-    "index.d.ts": "5c4883f9d5cb39c1d0672a0f747b1667ee47880a67da885f4c6c2a50cfe0ce6e",
-    "index.js": "e749b832e0f0bdf7257a564d49d1b1a023f4d684bfa8d204ff662c1993e174b7"
+    "assurance.json": "74871a361cb3af4fae0c262cbf8d1e1fcb8fd6adb9492139ed1c623123772972",
+    "index.d.ts": "bddffccb7626fa4423e05bf38a619d7239ffab55a7926d1dbb32366c0233e2e5",
+    "index.js": "0d73e58f033d0c5f42afc146e19de8d1021e10725a64565f5e44ca7cac26f768"
   },
   "platform_products": [
     "program.wasm"

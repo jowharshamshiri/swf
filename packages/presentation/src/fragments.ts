@@ -2,6 +2,8 @@ import type { Id, JsonValue, SceneState } from '@swf/core';
 import { makeError, SwfFailure } from '@swf/core';
 import type { Mat4 } from '@swf/math';
 import { mat4FromTransform } from '@swf/math';
+import type { Representation } from './representation.js';
+import { REPRESENTATIONS } from './representation.js';
 
 /**
  * [x, y, width, height] in viewport CSS pixels, from the top-left corner with y down; width and
@@ -40,9 +42,11 @@ export interface ViewGeometry {
 }
 
 /**
- * One visible piece of a surface in one viewport. A surface may show as several fragments (for
- * example on both sides of a panorama seam); all of them refer to the same Surface ID, which stays
- * the single target for focus, selection and undo.
+ * A surface as one viewport shows it: on its window's card, a flat, upright rectangle drawn at the
+ * window's projected centre, sized by the window's own size and its distance (the card rules,
+ * `CARD_PIXELS_PER_UNIT`). A surface may show as several fragments (a card across a panorama
+ * seam is drawn at both edges); all of them refer to the same Surface ID, which stays the single
+ * target for focus, selection and undo.
  */
 export interface ProjectedFragment {
   /** The presentation fragment ID, derived by {@link fragmentId}. */
@@ -53,17 +57,30 @@ export interface ProjectedFragment {
   readonly viewportId: Id;
   /** The fragment's number among its surface's fragments in this viewport, from 0. */
   readonly ordinal: number;
-  /** The visible part of the fragment, finite and never negative in size. */
-  readonly bounds: ScreenRect;
   /**
-   * The projected corners of the whole surface on this fragment's branch (top-left, top-right,
-   * bottom-right, bottom-left), possibly beyond the viewport, or null when the projection cannot
-   * give them; `bounds` is the visible part.
+   * Where the surface is drawn on its window's card: finite and never negative in size, possibly
+   * reaching past the viewport's edges, which clip it.
    */
-  readonly corners: readonly [ScreenPoint, ScreenPoint, ScreenPoint, ScreenPoint] | null;
+  readonly bounds: ScreenRect;
+  /** The window's whole card on this fragment's branch: what its frame and name stand by. */
+  readonly card: ScreenRect;
+  /**
+   * The card's scale: CSS pixels drawn for each CSS pixel the surface measures at
+   * `CARD_PIXELS_PER_UNIT`; finite and above zero.
+   */
+  readonly scale: number;
+  /**
+   * How the viewport's representation policy chose to show the surface: `full` unless one chose
+   * less. A card's size follows it.
+   */
+  readonly representation: Representation;
   /** Distance from the camera; larger is farther. */
   readonly depth: number;
-  /** Whether the fragment's placement follows the projection exactly or approximates it. */
+  /**
+   * Whether the card shows the surface as the scene places it: `exact`, or `approximate` when its
+   * window or the surface itself carries a rotation of its own, which a card (drawn upright,
+   * facing the camera) does not show.
+   */
   readonly geometricFidelity: 'exact' | 'approximate';
   /**
    * The fragment that owns native interaction for its surface. At most one fragment per surface
@@ -188,11 +205,14 @@ function fragmentIssue(f: ProjectedFragment, viewportId: Id): string | null {
   if (!f.bounds.every(Number.isFinite) || f.bounds[2] < 0 || f.bounds[3] < 0) {
     return `fragment "${f.id}" has invalid bounds`;
   }
-  if (
-    f.corners !== null &&
-    !f.corners.every((p) => Number.isFinite(p[0]) && Number.isFinite(p[1]))
-  ) {
-    return `fragment "${f.id}" has non-finite corners`;
+  if (!f.card.every(Number.isFinite) || f.card[2] < 0 || f.card[3] < 0) {
+    return `fragment "${f.id}" has an invalid card`;
+  }
+  if (!(Number.isFinite(f.scale) && f.scale > 0)) {
+    return `fragment "${f.id}" has scale ${String(f.scale)}, not a finite number above zero`;
+  }
+  if (!(REPRESENTATIONS as readonly unknown[]).includes(f.representation)) {
+    return `fragment "${f.id}" has representation ${JSON.stringify(f.representation)}, not one of ${REPRESENTATIONS.join(', ')}`;
   }
   if (!Number.isFinite(f.depth)) {
     return `fragment "${f.id}" has a non-finite depth`;

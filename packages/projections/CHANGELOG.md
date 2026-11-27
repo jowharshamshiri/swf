@@ -6,7 +6,7 @@ version never does; from 1.0.0, only a major version does.
 
 ## 0.1.0
 
-The first release. The projection contract (forward and inverse mapping, placing surfaces as fragments, visibility, interaction rays), registration that validates a projection before use, and the equirectangular reference projection with seam-continuous inverse mapping.
+The first release. The projection contract (forward and inverse mapping, placing each window's card at its projected centre, interaction rays), registration that validates a projection before use, and the equirectangular reference projection with seam-continuous inverse mapping.
 
 The equirectangular projection has a pole band, `EQUIRECTANGULAR_POLE_BAND` (2⁻²⁶ radians), shared
 by both directions of its mapping: a direction within it of straight up or down is `singular`,
@@ -16,3 +16,11 @@ pole only within about 10⁻¹² radians, and a point a hair from the top or bot
 from its own ray at another column. A view shows the poles when its vertical angle reaches the bands
 (at least π − 2 × the band). A direction lies on a side edge or the seam to within 10⁻¹² radians of
 arc rather than of longitude, so one near a pole keeps both its seam images.
+
+A projection places each window's card: `placeDirection` gives where a direction's card is centred,
+past the view's edges too, and registration probes it. `projectorOf` projects every shown surface
+onto its window's card, with the viewport's representation policy; a card across the seam is drawn
+at both edges, and a window or surface with a rotation of its own, or a surface not a `rect`, is
+placed `approximate`. `projectGeometry`, `clipVisibility`, `Visibility` and `pickAt` are gone: the
+interaction router picks on the cards. The equirectangular projection takes a `horizon` (a share of
+the view's height from the top) and refuses a configuration that passes a pole.

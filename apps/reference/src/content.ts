@@ -211,16 +211,16 @@ export function createDemoContent(
     element.style.setProperty('width', '100%');
     element.style.setProperty('height', '100%');
     element.style.setProperty('margin', '0');
-    element.style.setProperty('padding', '8px 12px');
+    element.style.setProperty('padding', '6px 8px');
     element.style.setProperty('overflow', 'hidden');
     element.style.setProperty('background', `hsl(${String(window.hue)} 45% 92%)`);
     element.style.setProperty('color', `hsl(${String(window.hue)} 40% 18%)`);
-    element.style.setProperty('font', '18px/1.3 system-ui, sans-serif');
+    element.style.setProperty('font', '11px/1.3 system-ui, sans-serif');
     const detail = window.detail;
     if (detail !== undefined) {
       const category = document.createElement('p');
       category.style.setProperty('margin', '0');
-      category.style.setProperty('font-size', '13px');
+      category.style.setProperty('font-size', '9px');
       category.style.setProperty('font-weight', '600');
       category.style.setProperty('letter-spacing', '0.06em');
       category.style.setProperty('text-transform', 'uppercase');
@@ -229,14 +229,14 @@ export function createDemoContent(
       element.append(category);
     }
     const title = document.createElement('h2');
-    title.style.setProperty('margin', '0 0 6px');
-    title.style.setProperty('font-size', '22px');
+    title.style.setProperty('margin', '0 0 3px');
+    title.style.setProperty('font-size', '13px');
     title.textContent = window.label;
     element.append(title);
     if (detail !== undefined) {
       const metric = document.createElement('p');
-      metric.style.setProperty('margin', '0 0 4px');
-      metric.style.setProperty('font-size', '30px');
+      metric.style.setProperty('margin', '0 0 2px');
+      metric.style.setProperty('font-size', '16px');
       metric.style.setProperty('font-weight', '700');
       metric.textContent = detail.metric;
       element.append(metric);

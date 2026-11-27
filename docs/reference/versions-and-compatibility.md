@@ -43,7 +43,7 @@ A registry refuses a module of a contract version it does not implement, naming 
 
 ## Snapshot formats
 
-A snapshot names its format, such as `swf.workspace/1`.
+A snapshot names its format, such as `swf.workspace/2`.
 
 - **Reading.** A release reads its current format and every older format it has a migration
   chain from ([Migrate](../how-to/migrate.md)). A format is read for as long as its fixtures in

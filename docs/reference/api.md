@@ -34,16 +34,16 @@ check here.
 
 Each package has one entry point, its name; nothing is imported from a package's internal paths.
 `@swf/persistence` also publishes its snapshot schema at
-`@swf/persistence/schema/swf.workspace-1.schema.json`.
+`@swf/persistence/schema/swf.workspace-2.schema.json`.
 
 | Package                 | Start with                                                                                               |
 | ----------------------- | -------------------------------------------------------------------------------------------------------- |
 | `@swf/math`             | `Vec3`, `Quat`, `Transform3D`, `mat4FromTransform`, `ray`, `createRandom`                                |
 | `@swf/core`             | `createWorkspace`, `Workspace`, `SceneCommand`, `TxResult`, `SwfError`, `SwfErrorCode`                   |
 | `@swf/surfaces`         | `createSurfaceRuntime`, `SurfaceAdapter`, `SurfaceCapabilities`                                          |
-| `@swf/presentation`     | `createPresenter`, `createPresentationRegistry`, `planFrame`, `RendererBackend`, `Compositor`            |
-| `@swf/projections`      | `createProjectionRegistry`, `equirectangular`, `ProjectionModule`, `pickAt`                              |
-| `@swf/interaction`      | `createInteractionRouter`, `InputIntent`, `InteractionPolicy`                                            |
+| `@swf/presentation`     | `createPresenter`, `createPresentationRegistry`, `planFrame`, `windowCard`, `CARD_PIXELS_PER_UNIT`       |
+| `@swf/projections`      | `createProjectionRegistry`, `equirectangular`, `ProjectionModule`, `projectorOf`                         |
+| `@swf/interaction`      | `createInteractionRouter`, `InputIntent`, `InteractionPolicy`, `roomPlaceOf`, `ROOM_LIMITS`              |
 | `@swf/backend-dom`      | `DomRenderer`, `DomCompositor`, `createDomInput`, `animationFrames`                                      |
 | `@swf/backend-geometry` | `GeometryRenderer`, `LayeredRenderer`, `LayerCompositor`                                                 |
 | `@swf/persistence`      | `createPersistence`, `createSaver`, `createMemoryStore`, `createWebStorageStore`, `createIndexedDbStore` |
@@ -52,3 +52,21 @@ Each package has one entry point, its name; nothing is imported from a package's
 | `@swf/conformance`      | `adapterConformance`, `backendConformance`, `handoffConformance`, `runConformance`                       |
 | `@swf/benchmark`        | `planFixture`, `createBenchmarkHost`, `recordFrames`, `summarize`                                        |
 | `@swf/models`           | `models` (used by the other packages; a host rarely calls it)                                            |
+
+## How windows are placed and drawn
+
+A window stands in one room round the viewport's camera: its heading, its distance along the
+floor and its height (`RoomPlace`, kept within `ROOM_LIMITS`), as
+[ADR 0015](../adr/0015-one-room-with-windows-drawn-as-flat-cards.md) decides. Each view draws every
+window as a card: a flat, upright rectangle centred where its projection places the window's
+centre, the window's own size at `CARD_PIXELS_PER_UNIT` times a scale that follows its distance
+along the floor (`cardScale`, `windowCard`). A projected fragment (`ProjectedFragment`) carries its
+card, its scale and how the window is represented, and its surface's rectangle on the card.
+
+A card shows no rotation. A window or surface that carries a rotation of its own (set by a host
+through `node.patch` or `surface.patch`), or a surface whose geometry is not a `rect`, is drawn
+upright as its rectangle, and the framework says so: the fragment's `geometricFidelity` is
+`approximate`, its negotiation is `approximated`, and the DOM backend writes it on the element
+(`data-swf-anchor`, `data-swf-shape`). A group's rotation moves the windows in it round the
+camera. Snapshots of format `swf.workspace/1` are migrated to `swf.workspace/2`, which stands every
+window and surface upright and names each in a warning.

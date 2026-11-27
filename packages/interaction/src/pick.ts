@@ -1,17 +1,11 @@
 import type { Id, ResolvedGeometry, SceneState } from '@swf/core';
-import {
-  ancestorIds,
-  effectiveState,
-  nodeFrameGeometry,
-  surfaceEffectiveState,
-  worldMatrix,
-} from '@swf/core';
-import type { Mat4, Ray, Vec3 } from '@swf/math';
+import { ancestorIds, effectiveState, surfaceEffectiveState, worldMatrix } from '@swf/core';
+import type { Ray, Vec3 } from '@swf/math';
+import { mat4TransformPoint } from '@swf/math';
 import type { HitRegion } from '@swf/models';
 import { models } from '@swf/models';
-import type { ViewGeometry } from '@swf/presentation';
+import type { ProjectedFragment, ScreenRect, ViewGeometry } from '@swf/presentation';
 import type { Continuity, Projection } from '@swf/projections';
-import type { SceneIndex } from './scene-index.js';
 
 /**
  * What part of the workspace a point is over:
@@ -56,6 +50,11 @@ export interface PickCandidate {
   readonly localPoint: Vec3;
   /** The surface UV, (0, 0) top-left; null for a node's frame. */
   readonly uv: readonly [number, number] | null;
+  /**
+   * The card's CSS pixels for each unit of the hit entity's own size, across and up: how far a
+   * pointer moves on screen for a unit of its width or height.
+   */
+  readonly pixelsPerUnit: readonly [number, number];
   /** The owner's plus the surface's presentation priority; higher picks first. */
   readonly priority: number;
   /** A nearer occluding candidate lies in front of this one. */
@@ -175,8 +174,11 @@ export interface PickContext {
   readonly view: ViewGeometry;
   /** The projection of `view`, whose inverse gives the world ray. */
   readonly projection: Projection;
-  /** An index brought up to date with `scene`. */
-  readonly index: SceneIndex;
+  /**
+   * The view's fragments of `scene`, each surface on its window's card, as the view draws them
+   * (`projectorOf` of `@swf/projections`, with the viewport's representation policy).
+   */
+  readonly cards: readonly ProjectedFragment[];
   /** Each surface's resolved geometry in `scene`, as the workspace places it. */
   readonly geometry: (surfaceId: Id) => ResolvedGeometry | undefined;
   /** How hits are decided. */
@@ -191,18 +193,18 @@ const HIT_REGIONS: Readonly<Record<PickCandidate['region'], HitRegion['kind']>> 
 });
 
 /**
- * Picks at a viewport point: the projection's inverse gives the world ray, the index the entries
- * it may reach, and exact geometry the hits. Hits are kept only for entities that are visible,
- * take pointer input and lie within the camera's depth range, then ordered by presentation
- * priority, occlusion and depth. A surface split by a seam is one entity in the world, so it is
- * picked as one Surface ID wherever its fragments are. Where the projection has no inverse the
- * point is reported unpickable, never guessed.
+ * Picks at a viewport point what the view draws there: each surface where it lies on its window's
+ * card, and each window's frame (its card), with a resize band `handlePx` wide along a resizable
+ * window's edges. Hits are kept only for entities that are visible and take pointer input, then
+ * ordered by presentation priority, occlusion and depth (the card's distance). A card drawn at
+ * both edges of a seam is one window, so it is picked as one Surface ID at either. The projection's
+ * inverse gives the ray the point looks along; where it has none the point is reported
+ * unpickable, never guessed.
  *
  * @param x Horizontal position in the viewport's CSS pixels, from its left edge.
  * @param y Vertical position in the viewport's CSS pixels, from its top edge.
  * @param continuity The previous longitude of a drag in progress, so a ray across a panorama's
  *   seam is unwrapped rather than jumping.
- * @throws Error when `context.index` was not brought up to date with `context.scene`.
  * @throws RangeError when `options.depthTolerance` is not finite and at least zero, or a hit's
  *   distance or presentation priority is not finite: the arbitration model orders only finite
  *   numbers.
@@ -214,9 +216,6 @@ export function pick(
   continuity?: Continuity,
 ): PickResult {
   const { scene, view, projection, options } = context;
-  if (context.index.state !== scene) {
-    throw new Error('the scene index is not up to date with the scene being picked');
-  }
   const result = projection.interactionRay(x, y, view, continuity);
   if (result.kind !== 'ray') {
     return result;
@@ -228,18 +227,27 @@ export function pick(
     confidence: result.error === 0 ? 'exact' : 'approximate',
     error: result.error,
   };
-  const far = view.far ?? Infinity;
-  // The angle one CSS pixel spans across the viewport, for sizing handles in the world.
-  const pixelAngle = projection.describeDomain().horizontalCoverage / view.width;
   const raw: Omit<PickCandidate, 'occluded'>[] = [];
-  for (const key of context.index.raycast(result.ray, far)) {
-    const separator = key.indexOf(':');
-    const id = key.slice(separator + 1);
-    const hit = key.startsWith('surface:')
-      ? surfaceHit(context, id, result.ray)
-      : nodeHit(scene, id, result.ray, options.handlePx * pixelAngle);
-    if (hit !== null && hit.distance >= view.near && hit.distance <= far) {
-      raw.push(hit);
+  // Each window's card is its frame once, at each place it is drawn.
+  const framed = new Set<string>();
+  for (const fragment of context.cards) {
+    const nodeId = scene.surfaces.get(fragment.surfaceId)?.ownerNodeId;
+    if (nodeId === undefined) {
+      continue;
+    }
+    if (inside(fragment.bounds, x, y)) {
+      const hit = surfaceHit(context, fragment, x, y);
+      if (hit !== null) {
+        raw.push(hit);
+      }
+    }
+    const copy = `${nodeId}\u0000${String(fragment.ordinal)}`;
+    if (!framed.has(copy) && inside(fragment.card, x, y)) {
+      framed.add(copy);
+      const hit = nodeHit(scene, nodeId, fragment, x, y, options.handlePx);
+      if (hit !== null) {
+        raw.push(hit);
+      }
     }
   }
   // The arbitration model (`Swf.Arbitration`) merges the hits (a window's frame counts inside it
@@ -306,23 +314,30 @@ export function pick(
   };
 }
 
-/** A hit on a surface that takes pointer input, or null. */
-function surfaceHit(ctx: PickContext, surfaceId: Id, ray: Ray) {
+/** Whether a point lies in a rect, its left and top edges included. */
+function inside([rx, ry, rw, rh]: ScreenRect, x: number, y: number): boolean {
+  return x >= rx && x < rx + rw && y >= ry && y < ry + rh;
+}
+
+/** A hit at (`x`, `y`) on a surface where it lies on its card, when it takes pointer input. */
+function surfaceHit(ctx: PickContext, fragment: ProjectedFragment, x: number, y: number) {
+  const { surfaceId } = fragment;
   const surface = ctx.scene.surfaces.get(surfaceId);
   const state = surfaceEffectiveState(ctx.scene, surfaceId);
+  const geometry = ctx.geometry(surfaceId);
   if (
     surface === undefined ||
+    geometry === undefined ||
     state?.visible !== true ||
     !surface.flags.pointerEnabled ||
     !takesPointer(ctx.scene, surface.ownerNodeId)
   ) {
     return null;
   }
-  const g = ctx.geometry(surfaceId);
-  const hit = g?.intersect(ray) ?? null;
-  if (hit === null) {
-    return null;
-  }
+  const [bx, by, bw, bh] = fragment.bounds;
+  const uv = [(x - bx) / bw, (y - by) / bh] as const;
+  const [w, h] = surface.bounds;
+  const localPoint: Vec3 = [(uv[0] - 0.5) * w, (0.5 - uv[1]) * h, 0];
   const owner = ctx.scene.nodes.get(surface.ownerNodeId);
   const proxy = ctx.options.presentation(surfaceId, ctx.view.viewportId) === 'proxy';
   return {
@@ -330,10 +345,11 @@ function surfaceHit(ctx: PickContext, surfaceId: Id, ray: Ray) {
     surfaceId,
     region: surface.interaction === 'content' ? ('content' as const) : ('chrome' as const),
     edge: null,
-    distance: hit.distance,
-    worldPoint: hit.point,
-    localPoint: hit.localPoint,
-    uv: hit.uv,
+    distance: fragment.depth,
+    worldPoint: mat4TransformPoint(geometry.world, localPoint),
+    localPoint,
+    uv,
+    pixelsPerUnit: [bw / w, bh / h] as const,
     priority: (owner?.flags.presentationPriority ?? 0) + surface.flags.presentationPriority,
     proxy,
   };
@@ -350,50 +366,43 @@ function takesPointer(scene: SceneState, nodeId: Id): boolean {
 }
 
 /**
- * A hit on a node's frame: its bounds rectangle in its local z = 0 plane, with a resize band of
- * `bandAngle` radians (as seen from the ray origin) along its edges.
+ * A hit at (`x`, `y`) on a window's frame, its card, with a resize band `handlePx` wide along its
+ * edges (never more than a quarter of the card, so a small window keeps its middle).
  */
-function nodeHit(scene: SceneState, nodeId: Id, ray: Ray, bandAngle: number) {
+function nodeHit(
+  scene: SceneState,
+  nodeId: Id,
+  fragment: ProjectedFragment,
+  x: number,
+  y: number,
+  handlePx: number,
+) {
   const node = scene.nodes.get(nodeId);
   const world = worldMatrix(scene.nodes, nodeId);
   if (node === undefined || world === undefined || !takesPointer(scene, nodeId)) {
     return null;
   }
-  // The frame is the same rectangle window chrome is drawn from.
-  const hit = nodeFrameGeometry(scene, nodeId)?.intersect(ray) ?? null;
-  if (hit === null) {
-    return null;
-  }
+  const [cx, cy, cw, ch] = fragment.card;
   const [w, h] = node.bounds;
-  const local = hit.localPoint;
-  const worldPoint = hit.point;
-  const distance = hit.distance;
-  const edge = edgeAt(local, w, h, distance * bandAngle, world);
+  const localPoint: Vec3 = [((x - cx) / cw - 0.5) * w, (0.5 - (y - cy) / ch) * h, 0];
+  const bx = Math.min(handlePx, cw / 4);
+  const by = Math.min(handlePx, ch / 4);
+  const vertical = y - cy <= by ? 'n' : cy + ch - y <= by ? 's' : '';
+  const horizontal = cx + cw - x <= bx ? 'e' : x - cx <= bx ? 'w' : '';
+  const edge = `${vertical}${horizontal}`;
+  const resize = edge === '' ? null : (edge as ResizeEdge);
   return {
     nodeId,
     surfaceId: null,
     region:
-      edge === null || !node.flags.resizable ? ('chrome' as const) : ('resize-handle' as const),
-    edge: node.flags.resizable ? edge : null,
-    distance,
-    worldPoint,
-    localPoint: local,
+      resize === null || !node.flags.resizable ? ('chrome' as const) : ('resize-handle' as const),
+    edge: node.flags.resizable ? resize : null,
+    distance: fragment.depth,
+    worldPoint: mat4TransformPoint(world, localPoint),
+    localPoint,
     uv: null,
+    pixelsPerUnit: [cw / w, ch / h] as const,
     priority: node.flags.presentationPriority,
     proxy: false,
   };
-}
-
-/** The edge or corner whose band contains the local point, or null for the interior. */
-function edgeAt(local: Vec3, w: number, h: number, band: number, world: Mat4): ResizeEdge | null {
-  // The band is a world width; in local units it shrinks with the node's scale, and it never
-  // takes more than a quarter of the window, so small windows keep their middle.
-  const scaleX = Math.hypot(world[0], world[1], world[2]);
-  const scaleY = Math.hypot(world[4], world[5], world[6]);
-  const bx = Math.min(band / scaleX, w / 4);
-  const by = Math.min(band / scaleY, h / 4);
-  const vertical = local[1] >= h / 2 - by ? 'n' : local[1] <= -h / 2 + by ? 's' : '';
-  const horizontal = local[0] >= w / 2 - bx ? 'e' : local[0] <= -w / 2 + bx ? 'w' : '';
-  const edge = `${vertical}${horizontal}`;
-  return edge === '' ? null : (edge as ResizeEdge);
 }

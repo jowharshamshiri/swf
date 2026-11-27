@@ -128,7 +128,7 @@ describe('the static build', () => {
     // Semantic depth shows a note's content only nearer than its full band; the rest are
     // represented, their content bound but not shown.
     const near = planPreset('dense', 1).filter(
-      (w) => w.content === 'note' && w.distance < DEFAULT_FEATURES.depth.full,
+      (w) => w.content === 'note' && w.reach < DEFAULT_FEATURES.depth.full,
     ).length;
     expect(near).toBeGreaterThan(0);
     expect(near).toBeLessThan(50);

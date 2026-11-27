@@ -11,8 +11,7 @@ import type { ProjectedFragment, ViewGeometry, ViewOutput } from './fragments.js
 import { viewGeometryIssue } from './fragments.js';
 import type { FallbackDiagnostic, FallbackPolicy } from './negotiation.js';
 import { DEFAULT_FALLBACK_POLICY, negotiateFragments } from './negotiation.js';
-import type { Representation, RepresentationPolicy } from './representation.js';
-import { representationFor } from './representation.js';
+import type { RepresentationPolicy } from './representation.js';
 
 /**
  * The stages that turn a scene change into a presented frame, in order, and the contract that
@@ -89,19 +88,9 @@ export const PRESENTATION_STAGES = Object.freeze([
 ] as const);
 
 /**
- * What a projector made for a view in the frame before: the scene it projected and the fragments
- * it gave, for the very same view geometry.
- */
-export interface PreviousProjection {
-  /** The scene the previous projection was made from. */
-  readonly scene: SceneState;
-  /** What it returned, unchanged. */
-  readonly fragments: readonly ProjectedFragment[];
-}
-
-/**
- * Stage 4: computes a viewport's visible fragments for a scene. A projector reads the scene and
- * surface geometry only; it never changes either.
+ * Stage 4: computes a viewport's visible fragments for a scene, each surface on its window's card
+ * (the card rules, `CARD_PIXELS_PER_UNIT`). A projector reads the scene, the surfaces'
+ * geometry and the representation policy only; it never changes any of them.
  */
 export interface ViewProjector {
   /**
@@ -110,16 +99,15 @@ export interface ViewProjector {
    */
   readonly profile: ProjectionProfile;
   /**
-   * The fragments of every visible surface, in the scene's surface order. With `previous` (given
-   * only when the view geometry is unchanged since that projection), a projector may keep the
-   * fragments of each surface whose placement did not change, projecting only the rest; what it
-   * returns must equal a projection made afresh (NFR-005, NFR-020).
+   * The fragments of every visible surface, in the scene's surface order. `representation` chooses
+   * how each surface is shown (asked once per surface), and with it the size of its card; with
+   * null, every surface is shown in full and its card scaled by its distance alone.
    */
   project(
     scene: SceneState,
     view: ViewGeometry,
     geometry: (surfaceId: Id) => ResolvedGeometry | undefined,
-    previous?: PreviousProjection,
+    representation: RepresentationPolicy | null,
   ): ProjectedFragment[];
 }
 
@@ -149,8 +137,6 @@ export interface FrameInput {
   readonly projection: ProjectionProfile;
   /** The fallback order; default {@link DEFAULT_FALLBACK_POLICY}. */
   readonly policy?: FallbackPolicy;
-  /** How each surface is represented here; with none, every surface is `full`. */
-  readonly representation?: RepresentationPolicy;
   /** Where each surface's binding stands; a bound one carries its handle's capabilities. */
   readonly condition: (surfaceId: Id) => SurfaceCondition;
   /**
@@ -168,8 +154,8 @@ export interface FrameInput {
  * proxies routing to the same surface. Drawable content that the adapter declares shareable can
  * be drawn in every fragment. Throws {@link SwfFailure} (`INVALID_INPUT`) when the inputs disagree:
  * an invalid view, an output of another viewport or revision, a view naming another projection,
- * or a fragment whose surface is not in the scene or has no geometry. The representation policy
- * is asked once per surface. The frame returned is frozen and refers to the inputs as given.
+ * or a fragment whose surface is not in the scene or has no geometry. Each fragment is represented
+ * as its projector chose. The frame returned is frozen and refers to the inputs as given.
  */
 export function planFrame(input: FrameInput): RenderFrame {
   const { scene, view, output } = input;
@@ -195,23 +181,6 @@ export function planFrame(input: FrameInput): RenderFrame {
   if (view.projectionId !== input.projection.id) {
     fail(`the view uses projection "${view.projectionId}", not "${input.projection.id}"`);
   }
-  // Every fragment of a surface is represented alike: the policy is asked once per surface.
-  const representations = new Map<Id, Representation>();
-  const representationOf = (surfaceId: Id): Representation => {
-    const known = representations.get(surfaceId);
-    if (known !== undefined) {
-      return known;
-    }
-    const policy = input.representation;
-    const nodeId = scene.surfaces.get(surfaceId)?.ownerNodeId;
-    if (nodeId === undefined) {
-      return fail(`surface "${surfaceId}" is not in the scene`);
-    }
-    const chosen =
-      policy === undefined ? 'full' : representationFor(policy, { scene, view, surfaceId, nodeId });
-    representations.set(surfaceId, chosen);
-    return chosen;
-  };
   const facts = output.fragments.map((fragment) => {
     const condition = input.condition(fragment.surfaceId);
     const geometry = input.geometry(fragment.surfaceId);
@@ -221,7 +190,7 @@ export function planFrame(input: FrameInput): RenderFrame {
     return {
       fragment,
       condition,
-      representation: representationOf(fragment.surfaceId),
+      representation: fragment.representation,
       negotiation: {
         surfaceId: fragment.surfaceId,
         surface: condition.kind === 'bound' ? condition.capabilities : null,

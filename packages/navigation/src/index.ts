@@ -54,14 +54,16 @@ export {
   DEFAULT_FEATURES,
   FEATURE_IDS,
   FeatureError,
-  ringsOf,
+  ARRANGE_RINGS,
+  SNAP_RINGS,
+  SNAP_SPACING,
   updateFeatures,
 } from './features.js';
 export type { FocusContext, FocusFrame, FocusOptions, Neighbour } from './focus.js';
 export { FOCUS_ID, createFocusMode, focusContext, focusFrame } from './focus.js';
 export { MAGNETIC_POLICY_ID } from './magnetic-policy.js';
-export type { Snap, SnapBox, SnapConstraint } from './magnetic.js';
-export { NO_SNAP, resolveSnap, snappedTransform, worldAt } from './magnetic.js';
+export type { CardMeasure, Snap, SnapBox, SnapConstraint, SnappedPlace } from './magnetic.js';
+export { cardMeasureOf, NO_SNAP, resolveSnap, snappedPlace, spacedPlace } from './magnetic.js';
 export type {
   AroundSide,
   MapCamera,
@@ -81,8 +83,9 @@ export {
   markerAt,
   partLinks,
   placedAt,
-  radarReach,
+  MAP_REACH,
   radarView,
+  roomMapView,
   ringStep,
   standingAt,
   toGround,
@@ -97,6 +100,7 @@ export {
   ModeRefusal,
   OVERVIEW,
   PANORAMA,
+  PANORAMA_VERTICAL,
   createModes,
   fieldOfViewOf,
   panoramaProjection,
@@ -116,7 +120,6 @@ export {
   BACKEND_IDS,
   CAMERA_ID,
   LAYERED_RENDERER_ID,
-  PIXELS_PER_UNIT,
   VIEWPORT_ID,
   createNavigation,
 } from './navigation.js';

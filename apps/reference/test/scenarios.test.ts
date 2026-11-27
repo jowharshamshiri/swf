@@ -181,10 +181,10 @@ describe('guided scenarios', () => {
     scenarios.start('hidden');
     await scenarios.observe();
     expect(scenarios.status()?.done).toBe(0);
-    // Going to Tasks selects it and turns the camera to it: two steps at once, not the third.
-    const tasks = s.world().pose('tasks');
-    s.change({ type: 'selection.set', ids: ['tasks'] });
-    s.face(tasks?.heading ?? NaN);
+    // Going to Messages selects it and turns the camera to it: two steps at once, not the third.
+    const messages = s.world().pose('messages');
+    s.change({ type: 'selection.set', ids: ['messages'] });
+    s.face(messages?.heading ?? NaN);
     await scenarios.observe();
     expect(scenarios.status()?.done).toBe(2);
   });

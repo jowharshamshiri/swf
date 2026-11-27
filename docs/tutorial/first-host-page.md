@@ -137,10 +137,10 @@ function windowAt(id, label, degrees) {
   return {
     id,
     kind: 'window',
-    bounds: [1.6, 1, 0.01],
+    bounds: [1.6, 1.3, 0.01],
     transform: {
       position: [3 * Math.sin(a), 0, -3 * Math.cos(a)],
-      rotation: cameraRotation(a, 0),
+      rotation: [0, 0, 0, 1],
       scale: [1, 1, 1],
     },
     label,
@@ -158,6 +158,7 @@ workspace.transaction([
       bindingKey: 'notes',
       adapterTypeId: 'tutorial.element/1',
       bounds: [1.6, 1, 0.01],
+      transform: { position: [0, -0.15, 0], rotation: [0, 0, 0, 1], scale: [1, 1, 1] },
     },
   },
   {
@@ -168,14 +169,17 @@ workspace.transaction([
       bindingKey: 'tips',
       adapterTypeId: 'tutorial.element/1',
       bounds: [1.6, 1, 0.01],
+      transform: { position: [0, -0.15, 0], rotation: [0, 0, 0, 1], scale: [1, 1, 1] },
     },
   },
 ]);
 ```
 
-Each window stands 3 units from the camera, 25° to either side, turned to face it. Each has a
-surface: a slot for content, which names its content only by a binding key (`notes`, `tips`) and
-the kind of adapter that understands that key.
+Each window stands 3 units out from the camera, 25° to either side, upright: the view draws it as a
+flat card facing you. Each has a surface: a slot for content, which names its content only by a
+binding key (`notes`, `tips`) and the kind of adapter that understands that key. The surface is
+0.3 units shorter than its window and stands 0.15 below the window's centre, so the window keeps a
+band across its top, clear of the content, to be dragged by.
 
 ## Present them
 
@@ -200,9 +204,7 @@ import { createSurfaceRuntime } from '@swf/surfaces';
 Then add at the end:
 
 ```js
-presentation.registerRenderer(
-  new DomRenderer({ document, pixelsPerUnit: 240, chrome: { projections } }),
-);
+presentation.registerRenderer(new DomRenderer({ document, chrome: {} }));
 presentation.registerCompositor(new DomCompositor());
 const surfaces = createSurfaceRuntime(workspace);
 const presenter = createPresenter({
@@ -233,11 +235,11 @@ right after `const surfaces = createSurfaceRuntime(workspace);`:
 const notes = document.createElement('textarea');
 notes.value = 'Type here.';
 notes.style.cssText =
-  'width:100%;height:100%;box-sizing:border-box;padding:1.75em 0.75em 0.75em;font:16px sans-serif';
+  'width:100%;height:100%;box-sizing:border-box;padding:0.75em;font:16px sans-serif';
 const tips = document.createElement('p');
-tips.textContent = 'Drag a window by its frame. Drag the background to turn.';
+tips.textContent = 'Drag a window by the band across its top. Drag the background to turn.';
 tips.style.cssText =
-  'margin:0;padding:1.75em 1em;height:100%;box-sizing:border-box;background:#fff;font:16px sans-serif';
+  'margin:0;padding:0.75em 1em;height:100%;box-sizing:border-box;background:#fff;font:16px sans-serif';
 const elements = new Map([
   ['notes', notes],
   ['tips', tips],
@@ -270,7 +272,7 @@ surfaces.registerAdapter({
 });
 ```
 
-Reload. The text box and the paragraph now fill their windows. Click into the text box and type:
+Reload. The text box and the paragraph now fill their windows below the band. Click into the text box and type:
 it is your page's own element, working as it always does.
 
 ## Move things
@@ -292,8 +294,10 @@ router.registerInputAdapter(
 );
 ```
 
-Reload. Drag a window by its frame: it follows the pointer and settles where you let go. Drag the
-empty background: the whole view turns, all the way round. Press Escape in the middle of a drag:
+Reload. Drag a window by the band across its top: it turns round you as the pointer moves across
+and rises or sinks as it moves up or down, the same height for a pixel however far out it stands,
+and settles where you let go. Hold Shift while dragging, or turn the wheel, to move it nearer or
+farther along the floor. Drag the empty background: the whole view turns, all the way round. Press Escape in the middle of a drag:
 the window goes back. Type in the text box again: input over content still goes to the content.
 
 ## What we built

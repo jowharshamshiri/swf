@@ -14,7 +14,7 @@ import {
   snapshotLimits,
   validateDocument,
 } from '../src/index.js';
-import schemaFile from '../src/schema/swf.workspace-1.schema.json?raw';
+import schemaFile from '../src/schema/swf.workspace-2.schema.json?raw';
 import { commit, edited, layout, persistenceOf, REMOVE, workspace } from './fixtures.js';
 
 const schemaAccepts = new Ajv2020({ strict: true, allowUnionTypes: true }).compile(SNAPSHOT_SCHEMA);
@@ -111,7 +111,7 @@ describe('the published schema and the validator (SEC-011, DATA-018)', () => {
   it('rejects, with the schema, every malformed field, naming the path', async () => {
     const document = await captured();
     const cases: [string, unknown, string][] = [
-      ['schema', 'swf.workspace/2', 'schema'],
+      ['schema', 'swf.workspace/3', 'schema'],
       ['engine', 'swf persistence', 'engine'],
       ['createdAt', -1, 'createdAt'],
       ['revision', 1.5, 'revision'],
@@ -253,7 +253,7 @@ describe('the published schema and the validator (SEC-011, DATA-018)', () => {
     expect(fail(polluted)).toMatchObject({ path: 'extensions.ext.x.data.__proto__' });
     expect(({} as Record<string, unknown>)['polluted']).toBeUndefined();
     expect(
-      fail(text.replace('"schema":"swf.workspace/1"', '"schema":"swf.workspace/0"')),
+      fail(text.replace('"schema":"swf.workspace/2"', '"schema":"swf.workspace/0"')),
     ).toMatchObject({
       path: 'schema',
       details: { sourceVersion: 'swf.workspace/0' },

@@ -49,3 +49,9 @@ its changes are given up. `workspacesMigration` decides which entries the refere
 stored before spaces become which spaces; the visit and named-save decisions it replaces
 (`workspacesNameIssue`, `workspacesNewest`, `workspacesStale`, `workspacesSavedAt` and the
 `restored` event of `workspacesStep`) are gone.
+
+`Swf.Room` decides where windows stand in the room: places and their limits, the drag, the wheel, a
+drop on the floor plan and the derived elevation. `Swf.AppSpacing` keeps a window put on a spoke
+clear of its neighbours. `Swf.Fallback` no longer weighs whether a projection is nonlinear: exact
+and native presentation need transforms that scale a card (`cards_need_scaling`). A wheel burst
+counts the wheel's turn in pixels (`Burst.turned`).

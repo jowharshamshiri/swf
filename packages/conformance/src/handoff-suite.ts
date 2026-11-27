@@ -54,7 +54,7 @@ const REFERENCE: BackendChoice = {
 
 /** Live content `a` in the middle, an unbound surface `b` beside it (always a placeholder). */
 const flat: ViewProjector = {
-  profile: { id: PROJECTION, mapping: 'affine', seamWrapping: false, exactInverse: true },
+  profile: { id: PROJECTION, seamWrapping: false, exactInverse: true },
   project(scene, view) {
     const out: ProjectedFragment[] = [];
     for (const surface of scene.surfaces.values()) {
@@ -70,12 +70,9 @@ const flat: ViewProjector = {
         viewportId: view.viewportId,
         ordinal: 0,
         bounds: [left, top, 160, 100],
-        corners: [
-          [left, top],
-          [left + 160, top],
-          [left + 160, top + 100],
-          [left, top + 100],
-        ],
+        card: [left, top, 160, 100],
+        scale: 1,
+        representation: 'full',
         depth: -node.transform.position[2],
         geometricFidelity: 'exact',
         nativeOwner: true,

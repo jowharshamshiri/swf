@@ -8,10 +8,10 @@ import type {
   PointerIntent,
 } from '@swf/interaction';
 import { NO_MODIFIERS } from '@swf/interaction';
-import type { Vec3 } from '@swf/math';
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_FEATURES, updateFeatures, wrappedInput } from '@swf/navigation';
-import { pointOn, policyWorld, screenOf, VIEWPORT, W } from './policy-world.js';
+import type { PolicyWorld } from './policy-world.js';
+import { onCard, policyWorld, VIEWPORT, W } from './policy-world.js';
 
 const sample = (
   phase: PointerIntent['phase'],
@@ -325,12 +325,18 @@ describe('the wrapped cursor (FR-107, FR-123)', () => {
 });
 
 describe('dragging across the seam (§33.2 scenario 2, FR-065, FR-104, FR-123)', () => {
+  /** Where a point of window-01's card is across the view, brought into it (0 to W). */
+  const across = (w: PolicyWorld, local: readonly [number, number]) => {
+    const [x, y] = onCard(w, 'window-01', local);
+    return [((x % W) + W) % W, y] as const;
+  };
+
   /** Presses window-01 (on the seam behind the camera) left of its centre and drags it right past the view's edge. */
   function seamDrag(features = updateFeatures(DEFAULT_FEATURES, { enabled: { snap: false } })) {
     const w = policyWorld('seam', features);
-    const grabbed: Vec3 = [-0.6, 0, 0];
-    const [x, y] = screenOf(w.ws, pointOn(w.ws, 'window-01', grabbed), W);
-    expect(x).toBeGreaterThan(W - 40);
+    const grabbed = [-0.6, 0] as const;
+    const [x, y] = across(w, grabbed);
+    expect(x).toBeGreaterThan(W - 100);
     const before = w.ws.getState();
     const history = w.ws.history().length;
     w.input.pointer('down', VIEWPORT, x, y, { modifiers: { alt: true } });
@@ -354,7 +360,7 @@ describe('dragging across the seam (§33.2 scenario 2, FR-065, FR-104, FR-123)',
         expect(after.nodes.get(node.id)).toBe(node);
       }
     }
-    const [ax, ay] = screenOf(w.ws, pointOn(w.ws, 'window-01', grabbed), 45);
+    const [ax, ay] = across(w, grabbed);
     expect(ax).toBeCloseTo(45, 6);
     expect(ay).toBeCloseTo(y, 6);
     expect(w.ws.history()).toHaveLength(history + 1);
@@ -366,19 +372,18 @@ describe('dragging across the seam (§33.2 scenario 2, FR-065, FR-104, FR-123)',
     expect(w.ws.history()).toHaveLength(history);
   });
 
-  it('holds the window at the edge without the wrapped cursor: a pointer past it has no place', () => {
+  it('carries the window on by the pointer’s motion without the wrapped cursor, which only keeps the pointer in view', () => {
     const { w, grabbed } = seamDrag(
       updateFeatures(DEFAULT_FEATURES, { enabled: { snap: false, cursor: false } }),
     );
-    const [ax] = screenOf(w.ws, pointOn(w.ws, 'window-01', grabbed), W);
-    // It got no further than the last place the pointer was in the view.
-    expect(ax).toBeGreaterThan(W - 2);
+    // The window went as far round as the pointer moved, past the edge and over the seam.
+    expect(across(w, grabbed)[0]).toBeCloseTo(45, 6);
   });
 
   it('keeps the target and undoes as one change with every policy on, snapping included', () => {
     const { w, grabbed, before, history } = seamDrag(DEFAULT_FEATURES);
     expect(w.events.filter((e) => e.type === 'gesture.started')).toHaveLength(1);
-    const [ax] = screenOf(w.ws, pointOn(w.ws, 'window-01', grabbed), 45);
+    const [ax] = across(w, grabbed);
     // A snap may turn it, by no more than the line-up angle (2°, under 5 px here).
     expect(Math.abs(ax - 45)).toBeLessThan(5);
     expect(w.ws.history()).toHaveLength(history + 1);

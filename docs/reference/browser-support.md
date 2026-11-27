@@ -16,18 +16,19 @@ names the versions it was checked in. A browser that fails a scenario is not rel
 for an engine's release ends when the engine's maker stops supporting it.
 
 The packages need ES2022, ES modules, `WebAssembly`, `AbortController`, Pointer Events,
-`requestAnimationFrame` and CSS 3D transforms. Persistence in the page uses `localStorage` or
+`requestAnimationFrame` and CSS 2D transforms. Persistence in the page uses `localStorage` or
 IndexedDB, as the host chooses. The packages without a DOM (`@swf/math`, `@swf/models`,
 `@swf/core`, `@swf/surfaces`, `@swf/presentation`, `@swf/projections`, `@swf/interaction`,
 `@swf/persistence` with its memory store, `@swf/diagnostics`) also run in Node.js 24 or later.
 
 ## What the browser platform rules out
 
-- **Live content is never warped exactly.** A browser cannot bend arbitrary live, interactive
-  DOM. The DOM backend places a live element by its projected corners with a CSS perspective
-  transform: exact at its corners, its shape declared approximate in a curved projection
-  (`data-swf-shape`). The geometry backend warps drawn content point by point, declared
-  approximate. Nothing approximate is labelled exact.
+- **Live content cannot be bent, so no window is.** A browser cannot bend arbitrary live,
+  interactive DOM. Every window is drawn as a flat, upright card at its projected centre: the DOM
+  backend places a live element on its card by a translation and a scale, and the geometry backend
+  draws drawn content into its rectangle on the card, both exactly. A window or surface carrying a
+  rotation of its own is drawn upright, its placement declared approximate (`data-swf-anchor`,
+  `data-swf-shape`). Nothing approximate is labelled exact.
 - **Occlusion between live and drawn content is by layers.** Live elements and canvases are
   stacked by `z-index`, each layer wholly in front of or behind another; there is no per-pixel
   depth between them, and every composed frame says so (`occlusion: 'layer-order'`).

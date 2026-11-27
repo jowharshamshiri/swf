@@ -1,8 +1,5 @@
 import type { JsonValue } from '@swf/core';
 import { jsonValue, makeError, SwfFailure } from '@swf/core';
-import type { Vec3 } from '@swf/math';
-import type { DragMode } from './drag.js';
-import { DRAG_MODES } from './drag.js';
 import type { ModifierKey } from './intents.js';
 
 /**
@@ -38,26 +35,29 @@ export interface KeyBinding {
  */
 export interface KeyboardSteps {
   /**
-   * How far an arrow key moves the selected window; Shift moves it five times as far. Default
-   * 0.05.
+   * How far the left and right arrows turn the selected window round the room, in radians; Shift
+   * turns it five times as far. Default π/72 (2.5°).
    */
-  readonly move: number;
-  /** How far Page Up and Page Down change its depth. Default 0.1. */
-  readonly depth: number;
+  readonly heading: number;
+  /**
+   * How far the up and down arrows raise and lower the selected window, in world units; Shift moves
+   * it five times as far. Default 0.1.
+   */
+  readonly height: number;
+  /** How far Page Up and Page Down move it along the floor, out and in. Default 0.25. */
+  readonly floor: number;
   /** How much `+` and `-` change its width and height. Default 0.05. */
   readonly resize: number;
-  /** How far `[` and `]` turn it about the world vertical through its origin. Default π/36 (5°). */
-  readonly rotate: number;
   /** How far Alt with an arrow key turns the camera, or orbits it with Shift. Default π/36 (5°). */
   readonly turn: number;
 }
 
 /** The step sizes {@link defaultKeymap} uses for those it is not given; frozen. */
 export const DEFAULT_KEYBOARD_STEPS: KeyboardSteps = Object.freeze({
-  move: 0.05,
-  depth: 0.1,
+  heading: Math.PI / 72,
+  height: 0.1,
+  floor: 0.25,
   resize: 0.05,
-  rotate: Math.PI / 36,
   turn: Math.PI / 36,
 });
 
@@ -83,28 +83,11 @@ export interface InteractionSettings {
    */
   readonly takeoverModifier: ModifierKey;
   /**
-   * Held during a wheel over a window, it adjusts the window's depth instead of scrolling. Must
-   * differ from `takeoverModifier`. Default `shift`.
+   * Held during a wheel over a window, it moves the window along the room's floor instead of
+   * scrolling (`ROOM_PACE`: turning down moves it farther). Must differ from `takeoverModifier`.
+   * Default `shift`.
    */
   readonly depthModifier: ModifierKey;
-  /** How window drags map pointer movement to the world. Default `camera-plane`. */
-  readonly dragMode: DragMode;
-  /**
-   * The plane normal for `world-plane` drags: finite and non-zero, any length. Default +Y (the
-   * floor).
-   */
-  readonly worldPlaneNormal: Vec3;
-  /**
-   * Depth change per CSS px the wheel turns (`wheelTurn`: `deltaY`, or `deltaX` when the
-   * platform turns the scroll sideways), in world units: positive. Turning up (negative) moves the
-   * window away from the camera, turning down brings it nearer. Default 0.002.
-   */
-  readonly wheelDepthPerPixel: number;
-  /**
-   * Nearest distance from the camera a drag may bring a window to, in world units: positive.
-   * Default 0.1.
-   */
-  readonly minDistance: number;
   /** Smallest window width or height a resize may make, in world units: positive. Default 0.05. */
   readonly minSize: number;
   /**
@@ -116,11 +99,12 @@ export interface InteractionSettings {
 }
 
 /**
- * The default keyboard bindings for the given steps: arrows move the selected window (Shift
- * coarser), Page Up/Down change its depth, `[`/`]` rotate it, `+`/`-` resize it, Alt+arrows turn
+ * The default keyboard bindings for the given steps: the left and right arrows turn the selected
+ * window round the room and the up and down arrows raise and lower it (Shift coarser), Page Up/Down
+ * move it out and in along the floor, `+`/`-` resize it, Alt with the left and right arrows turns
  * the camera, N and P select the next and previous window, Enter focuses, Space picks the selected
  * window up, and Ctrl or Cmd with Z/Y undo and redo. Tab is left to the page, so keyboard focus can
- * always leave the view. While a window is held its moves, turns and resizes preview, and Enter or
+ * always leave the view. While a window is held its moves and resizes preview, and Enter or
  * Space puts it down as one change; Escape cancels gestures and holds. Those need no binding.
  * Returns a fresh, unfrozen array of fresh bindings.
  *
@@ -141,27 +125,24 @@ export function defaultKeymap(given: Partial<KeyboardSteps> = {}): KeyBinding[] 
     [[], 1],
     [['shift'], 5],
   ] as const) {
-    const m = steps.move * factor;
+    const turn = steps.heading * factor;
+    const rise = steps.height * factor;
     moves.push(
-      b('ArrowLeft', [...modifiers], 'node.move', { right: -m }),
-      b('ArrowRight', [...modifiers], 'node.move', { right: m }),
-      b('ArrowUp', [...modifiers], 'node.move', { up: m }),
-      b('ArrowDown', [...modifiers], 'node.move', { up: -m }),
+      b('ArrowLeft', [...modifiers], 'node.move', { heading: -turn }),
+      b('ArrowRight', [...modifiers], 'node.move', { heading: turn }),
+      b('ArrowUp', [...modifiers], 'node.move', { height: rise }),
+      b('ArrowDown', [...modifiers], 'node.move', { height: -rise }),
     );
   }
   return [
     ...moves,
-    b('PageUp', [], 'node.move', { depth: steps.depth }),
-    b('PageDown', [], 'node.move', { depth: -steps.depth }),
-    b('[', [], 'node.rotate', { yaw: -steps.rotate }),
-    b(']', [], 'node.rotate', { yaw: steps.rotate }),
+    b('PageUp', [], 'node.move', { floor: steps.floor }),
+    b('PageDown', [], 'node.move', { floor: -steps.floor }),
     b('+', [], 'node.resize', { width: steps.resize, height: steps.resize }),
     b('=', [], 'node.resize', { width: steps.resize, height: steps.resize }),
     b('-', [], 'node.resize', { width: -steps.resize, height: -steps.resize }),
     b('ArrowLeft', ['alt'], 'camera.turn', { heading: -steps.turn }),
     b('ArrowRight', ['alt'], 'camera.turn', { heading: steps.turn }),
-    b('ArrowUp', ['alt'], 'camera.turn', { pitch: steps.turn }),
-    b('ArrowDown', ['alt'], 'camera.turn', { pitch: -steps.turn }),
     b('ArrowLeft', ['alt', 'shift'], 'orbit.turn', { angle: steps.turn }),
     b('ArrowRight', ['alt', 'shift'], 'orbit.turn', { angle: -steps.turn }),
     b('n', [], 'selection.next', {}),
@@ -186,10 +167,6 @@ export const DEFAULT_SETTINGS: InteractionSettings = Object.freeze({
   depthTolerance: 1e-6,
   takeoverModifier: 'alt',
   depthModifier: 'shift',
-  dragMode: 'camera-plane',
-  worldPlaneNormal: Object.freeze([0, 1, 0] as const),
-  wheelDepthPerPixel: 0.002,
-  minDistance: 0.1,
   minSize: 0.05,
   keymap: Object.freeze(defaultKeymap()),
 });
@@ -239,11 +216,9 @@ export function mergeSettings(current: InteractionSettings, patch: unknown): Int
     switch (key) {
       case 'slopPx':
       case 'handlePx':
-      case 'wheelDepthPerPixel':
         next[key] = positive(key, value, key === 'slopPx');
         break;
       case 'depthTolerance':
-      case 'minDistance':
       case 'minSize':
         next[key] = positive(key, value);
         break;
@@ -251,25 +226,6 @@ export function mergeSettings(current: InteractionSettings, patch: unknown): Int
       case 'depthModifier':
         next[key] = modifier(key, value);
         break;
-      case 'dragMode':
-        if (!DRAG_MODES.includes(value as DragMode)) {
-          fail(key, `must be one of ${DRAG_MODES.join(', ')}`);
-        }
-        next[key] = value;
-        break;
-      case 'worldPlaneNormal': {
-        const v = value as unknown[];
-        if (
-          !Array.isArray(v) ||
-          v.length !== 3 ||
-          !v.every((c) => typeof c === 'number' && Number.isFinite(c)) ||
-          Math.hypot(...(v as number[])) === 0
-        ) {
-          fail(key, 'must be a finite non-zero vector [x, y, z]');
-        }
-        next[key] = Object.freeze([...(v as number[])]);
-        break;
-      }
       case 'keymap':
         next[key] = keymapOf(value, fail);
         break;

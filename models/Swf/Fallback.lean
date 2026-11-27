@@ -32,7 +32,7 @@ inductive Requirement where
   | renderer
   /-- The compositor's layer categories, native layers, clipping or transparency. -/
   | compositor
-  /-- The projection: nonlinear, or placing the fragment only approximately. -/
+  /-- The projection: placing the fragment only approximately. -/
   | projection
   /-- The surface's geometry: no provider for its kind, or one that only approximates it. -/
   | geometry
@@ -182,15 +182,14 @@ structure CompositorCapabilities where
   /-- It blends translucent layers over what lies behind them. -/
   transparency : Bool
 
-/-- What every fragment of a frame shares: the backends and whether the projection is nonlinear. -/
+/-- What every fragment of a frame shares: the backends. Whatever the projection, it only places
+each window's card, a flat, upright rectangle it never bends, so the projection's own shape rules
+nothing out. -/
 structure NegotiationContext where
   /-- The viewport's renderer. -/
   renderer : RendererCapabilities
   /-- The viewport's compositor. -/
   compositor : CompositorCapabilities
-  /-- The projection bends straight edges (a panorama), so planar live content can only
-  approximate its shape. -/
-  nonlinear : Bool
 
 /-- What negotiation weighs for one fragment. -/
 structure FragmentFacts where
@@ -260,7 +259,7 @@ def gapsFor (c : NegotiationContext) (f : FragmentFacts) (m : Mode) : List Gap :
         live ++
         (if m = .exact then
           if h.strategy ≠ .drawable then
-            gap .surface "only drawable content can be warped exactly; live elements are never claimed exact"
+            gap .surface "only drawable content can be drawn exactly; live elements are never claimed exact"
           else
             (if h.transformFidelity.rank < Fidelity.exact.rank then
               gap .surface s!"the endpoint's transform fidelity is {h.transformFidelity.name}" else []) ++
@@ -271,14 +270,8 @@ def gapsFor (c : NegotiationContext) (f : FragmentFacts) (m : Mode) : List Gap :
         else []) ++
         (if m = .native && h.strategy ≠ .nativeDom then
           gap .surface "native presentation needs a native-dom endpoint" else []) ++
-        (if c.nonlinear then
-          if m = .native then
-            gap .projection "a nonlinear projection bends a planar element, which can only approximate it"
-          else if c.renderer.transformMode ≠ .mesh then
-            gap .renderer "a nonlinear projection needs mesh warping"
-          else []
-        else if c.renderer.transformMode.rank < TransformMode.perspective3d.rank then
-          gap .renderer s!"its {c.renderer.transformMode.name} transforms cannot follow a perspective projection"
+        (if c.renderer.transformMode.rank < TransformMode.affine2d.rank then
+          gap .renderer s!"its {c.renderer.transformMode.name} transforms cannot scale a card"
         else []) ++
         (if f.anchorExact then [] else gap .projection "the projected placement is approximate") ++
         (if !f.geometrySupported then gap .geometry s!"geometry kind \"{f.geometryKind}\" has no provider"
@@ -294,9 +287,10 @@ def gapsFor (c : NegotiationContext) (f : FragmentFacts) (m : Mode) : List Gap :
 
 /-- How a chosen mode presents the fragment. -/
 inductive ShapeFidelity where
-  /-- The presented interior follows the projection exactly: `exact` and `native`. -/
+  /-- The presented interior is exactly the surface, where its card places it: `exact` and
+  `native`. -/
   | exact
-  /-- It only approximates the projection: `approximated` and `proxy`. -/
+  /-- It only approximates the surface's place or shape: `approximated` and `proxy`. -/
   | approximate
   /-- Nothing of the content is presented: `placeholder`. -/
   | none
@@ -307,7 +301,7 @@ structure Negotiated where
   mode : Mode
   /-- Every better mode of the order and what ruled it out, in order. -/
   gaps : List Gap
-  /-- Whether the presented interior follows the projection. -/
+  /-- Whether the presented interior is exactly the surface, where its card places it. -/
   shape : ShapeFidelity
   /-- How faithful the content is: `native` for a live element, `exact` or `approximate` for drawn
   content, `proxy` for a proxy, `unsupported` for a placeholder. -/
@@ -493,6 +487,22 @@ theorem exact_only_drawable (c : NegotiationContext) (f : FragmentFacts) (r : Ne
   · intro hn
     revert hz
     cases hm : r.mode <;> simp [gapsFor, hn]
+
+/-- A card is drawn by scaling it: content is presented exactly or natively only by a renderer whose
+transforms scale (`affine-2d` or more), whatever the projection. -/
+@[lungo_claim "lungo.law" subject negotiateOne]
+theorem cards_need_scaling (c : NegotiationContext) (f : FragmentFacts) (r : Negotiated)
+    (h : negotiateOne c f = some r) (hm : r.mode = .exact ∨ r.mode = .native) :
+    TransformMode.affine2d.rank ≤ c.renderer.transformMode.rank := by
+  obtain ⟨_, _, _, hz, _, _⟩ := first_allowed_in_order c f r h
+  apply Classical.byContradiction
+  intro hlt
+  have hlt' : c.renderer.transformMode.rank < TransformMode.affine2d.rank := Nat.lt_of_not_le hlt
+  revert hz
+  cases hh : f.handle with
+  | none => rcases hm with hm | hm <;> simp [gapsFor, hh, hm]
+  | some hc =>
+    rcases hm with hm | hm <;> simp only [gapsFor, hh, hm] <;> split <;> simp_all
 
 /-- Every fragment of a frame is negotiated as it would be alone. -/
 @[lungo_claim "lungo.law" subject negotiateFrame]

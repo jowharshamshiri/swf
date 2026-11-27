@@ -13,14 +13,15 @@ import type {
   WorkspaceReader,
 } from '@swf/core';
 import { descendantIds, makeError, SwfFailure, VERSIONED_ID } from '@swf/core';
-import type { ViewGeometry } from '@swf/presentation';
+import type { ProjectedFragment, RepresentationPolicy, ViewGeometry } from '@swf/presentation';
 import { viewGeometryOf } from '@swf/presentation';
 import type { Continuity, Projection, ProjectionModule, RayResult } from '@swf/projections';
-import { projectionFor } from '@swf/projections';
+import { projectionFor, projectorOf } from '@swf/projections';
 import type { GestureEvent, GesturePhase, Region } from '@swf/models';
 import { models } from '@swf/models';
 import type { CommandContext, CommandOutcome, InteractionCommand, NodeChange } from './commands.js';
-import { BUILT_IN_COMMANDS, commandIssue, heldChange } from './commands.js';
+import { BUILT_IN_COMMANDS, commandIssue, eyeOf, heldChange } from './commands.js';
+import { ROOM_LIMITS, ROOM_PACE, roomPlaceOf } from './room.js';
 import type {
   CommandIntent,
   InputIntent,
@@ -47,7 +48,6 @@ import type {
   PressPick,
 } from './policies.js';
 import { BUILT_IN_POLICIES, INTERACTION_API_VERSION } from './policies.js';
-import { SceneIndex } from './scene-index.js';
 import type { InteractionSettings } from './settings.js';
 import { DEFAULT_SETTINGS, keyName, mergeSettings } from './settings.js';
 
@@ -218,6 +218,11 @@ export interface InteractionRouterOptions {
   };
   /** How each surface is presented per viewport. Default: every surface is live. */
   readonly presentation?: PresentationLookup;
+  /**
+   * The representation policy each viewport shows its surfaces by, as its presenter has it, so
+   * picking finds the cards the viewport draws. Default: none, every surface shown in full.
+   */
+  readonly representation?: (viewportId: Id) => RepresentationPolicy | null;
   /** Which hits hide what lies behind them. Default: all of them. */
   readonly occlusion?: OcclusionLookup;
   /**
@@ -358,6 +363,17 @@ export function createInteractionRouter(options: InteractionRouterOptions): Inte
 export class InteractionRouter {
   readonly #workspace: WorkspaceReader & WorkspaceMutator;
   readonly #projections: { get(id: string): ProjectionModule | undefined };
+  readonly #representation: (viewportId: Id) => RepresentationPolicy | null;
+  /** Each viewport's cards as last projected for picking, with what they were projected from. */
+  readonly #cardsKept = new Map<
+    Id,
+    {
+      readonly scene: SceneState;
+      readonly view: string;
+      readonly policy: RepresentationPolicy | null;
+      readonly cards: readonly ProjectedFragment[];
+    }
+  >();
   readonly #presentation: PresentationLookup;
   readonly #occlusion: OcclusionLookup;
   readonly #timer: () => number;
@@ -370,7 +386,6 @@ export class InteractionRouter {
   readonly #arenas = new Map<string, Arena>();
   readonly #pressed = new Map<string, Arena>();
   readonly #listeners = new Set<(event: InteractionEvent) => void>();
-  readonly #index = new SceneIndex();
   readonly #unsubscribe: () => void;
   #modal: readonly Id[] | null = null;
   #takeover = false;
@@ -383,6 +398,7 @@ export class InteractionRouter {
   constructor(options: InteractionRouterOptions) {
     this.#workspace = options.workspace;
     this.#projections = options.projections;
+    this.#representation = options.representation ?? (() => null);
     this.#presentation = options.presentation ?? (() => 'live');
     this.#occlusion = options.occlusion ?? (() => 'occluding');
     if (options.timer !== undefined && typeof options.timer !== 'function') {
@@ -1226,10 +1242,14 @@ export class InteractionRouter {
       case 'depthMove':
         break;
     }
+    // Along the floor by the room's wheel pace: turning down moves the window farther.
+    const eye = eyeOf(viewGeometryOf(scene, intent.viewportId));
+    const at = roomPlaceOf(scene, result.target.nodeId, eye);
+    const next = models.wheelOnFloor(ROOM_LIMITS, ROOM_PACE, at, wheelTurn(intent));
     const outcome = this.#run('node.move', {
       nodeId: result.target.nodeId,
       viewportId: intent.viewportId,
-      depth: -wheelTurn(intent) * this.#settings.wheelDepthPerPixel,
+      floor: next.floor - at.floor,
     });
     return {
       consumed: true,
@@ -1450,7 +1470,7 @@ export class InteractionRouter {
 
   // --- picking and workspace events -------------------------------------------------------
 
-  #projection(view: ViewGeometry): Projection {
+  #module(view: ViewGeometry): ProjectionModule {
     const module = this.#projections.get(view.projectionId);
     if (module === undefined) {
       throw failure(
@@ -1458,7 +1478,32 @@ export class InteractionRouter {
         `viewport "${view.viewportId}" uses projection "${view.projectionId}", which is not registered`,
       );
     }
-    return projectionFor(module, view);
+    return module;
+  }
+
+  #projection(view: ViewGeometry): Projection {
+    return projectionFor(this.#module(view), view);
+  }
+
+  /**
+   * The view's cards as the viewport draws them, with its representation policy; kept while the
+   * scene, the view and the policy are the same.
+   */
+  #cards(scene: SceneState, view: ViewGeometry): readonly ProjectedFragment[] {
+    const policy = this.#representation(view.viewportId);
+    const key = JSON.stringify(view);
+    const kept = this.#cardsKept.get(view.viewportId);
+    if (kept?.scene === scene && kept.view === key && kept.policy === policy) {
+      return kept.cards;
+    }
+    const cards = projectorOf(this.#module(view)).project(
+      scene,
+      view,
+      (id) => this.#workspace.surfaceGeometry(id),
+      policy,
+    );
+    this.#cardsKept.set(view.viewportId, { scene, view: key, policy, cards });
+    return cards;
   }
 
   #pickIn(
@@ -1469,7 +1514,6 @@ export class InteractionRouter {
     continuity?: Continuity,
   ): PickResult {
     const started = this.#timer();
-    this.#index.sync(scene, (id) => this.#workspace.surfaceGeometry(id));
     const modal =
       this.#modal === null
         ? null
@@ -1483,7 +1527,7 @@ export class InteractionRouter {
         scene,
         view,
         projection: this.#projection(view),
-        index: this.#index,
+        cards: this.#cards(scene, view),
         geometry: (id) => this.#workspace.surfaceGeometry(id),
         options: {
           handlePx: this.#settings.handlePx,

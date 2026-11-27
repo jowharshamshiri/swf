@@ -1,9 +1,5 @@
 import { worldMatrix } from '@swf/core';
-import type { Vec3 } from '@swf/math';
-import { IDENTITY_MAT4, mat4InvertAffine, mat4TransformPoint } from '@swf/math';
 import type { ViewportFrame } from '@swf/presentation';
-import { viewGeometryOf } from '@swf/presentation';
-import { equirectangular } from '@swf/projections';
 import { afterEach, describe, expect, it } from 'vitest';
 import { commands, server, userEvent } from 'vitest/browser';
 import type { ReferenceApp } from '../../src/app.js';
@@ -11,6 +7,7 @@ import { createReferenceApp } from '../../src/app.js';
 import type { AppConfig } from '../../src/config.js';
 import { VIEWPORT_ID, orbitHeading } from '@swf/navigation';
 import { planPreset, WORKSPACE_GROUP_ID } from '../../src/presets.js';
+import { cardPoint, framePoint } from './cards.js';
 
 declare module 'vitest/browser' {
   interface BrowserCommands {
@@ -76,28 +73,22 @@ async function frame(a: ReferenceApp): Promise<ViewportFrame> {
 
 const nextFrame = () => new Promise((resolve) => requestAnimationFrame(resolve));
 
-/** Where a point of a window, in its local frame, appears in the view: the image nearest `nearX`. */
+/**
+ * Where a point of a window's card, in its own units from its centre, appears in the view: on the
+ * copy of its card nearest `nearX`.
+ */
 function screenOf(
   a: ReferenceApp,
   nodeId: string,
-  local: Vec3,
+  local: readonly [number, number],
   nearX = W / 2,
   presented = false,
 ): [number, number] {
-  const state = presented ? a.workspace.getPresented() : a.workspace.getState();
-  const m = worldMatrix(state.nodes, nodeId);
-  if (m === undefined) {
-    throw new Error(`no ${nodeId}`);
-  }
-  const view = viewGeometryOf(state, VIEWPORT_ID);
-  const images = equirectangular
-    .create(view.projectionConfig)
-    .projectDirection(mat4TransformPoint(m, local), view).images;
-  const image = [...images].sort((p, q) => Math.abs(p[0] - nearX) - Math.abs(q[0] - nearX))[0];
-  if (image === undefined) {
+  const at = cardPoint(a, nodeId, local, presented, nearX);
+  if (at === null) {
     throw new Error(`${nodeId} is not in view`);
   }
-  return [image[0], image[1]];
+  return at;
 }
 
 /** The gestures the router ran, as `start <operation> <node>` and `end <outcome>`. */
@@ -224,9 +215,12 @@ function pointerIdOfNextPress(element: HTMLElement): () => number {
 }
 
 describe('the wrapped cursor across the seam (§33.2 scenario 2, FR-107, FR-123)', () => {
-  /** Presses window-01 left of the seam (the right edge), Alt held, and drags it to the edge. */
+  /**
+   * Presses window-01 left of the seam (the right edge) on its frame's title band, Alt held, and
+   * drags it to the edge.
+   */
   async function toTheEdge(a: ReferenceApp, grabbedX = -0.7) {
-    const [sx, sy] = screenOf(a, 'window-01', [grabbedX, 0, 0], W);
+    const [sx, sy] = framePoint(a, 'window-01', grabbedX, W);
     const x = Math.round(sx);
     const y = Math.round(sy);
     expect(x).toBeGreaterThan(W - 60);
@@ -234,13 +228,10 @@ describe('the wrapped cursor across the seam (§33.2 scenario 2, FR-107, FR-123)
     if (pick.kind !== 'hit' || pick.target.nodeId !== 'window-01') {
       throw new Error('the press does not land on window-01');
     }
-    const toLocal = mat4InvertAffine(
-      worldMatrix(a.workspace.getState().nodes, 'window-01') ?? IDENTITY_MAT4,
-    );
-    if (toLocal === null) {
-      throw new Error('window-01 has no placement');
-    }
-    const grabbed = mat4TransformPoint(toLocal, pick.target.worldPoint);
+    // The point of its card pressed, in its own units.
+    const perUnit =
+      (screenOf(a, 'window-01', [0, 1], W)[1] - screenOf(a, 'window-01', [0, 0], W)[1]) * -1;
+    const grabbed = [grabbedX, (screenOf(a, 'window-01', [0, 0], W)[1] - sy) / perUnit] as const;
     const pointerId = pointerIdOfNextPress(viewRoot());
     await commands.mouse('move', x, y);
     await commands.mouse('down', x, y, ['Alt']);
@@ -271,8 +262,7 @@ describe('the wrapped cursor across the seam (§33.2 scenario 2, FR-107, FR-123)
       // The virtual cursor starts where the drag reached the edge, whatever motion the platform
       // reports as the lock takes hold.
       expect(locked?.x).toBeCloseTo(W - 2, 0);
-      // Past the seam and on, in steps: a window dragged in the camera's plane follows the pointer
-      // to a quarter turn from where it was taken, as far as the plane reaches.
+      // Past the seam and on, in steps: the window turns round the room by the pointer's motion.
       let at = { x: locked?.x ?? 0, y: locked?.y ?? 0 };
       for (let i = 0; i < 5; i++) {
         lockedMotion(viewRoot(), pointerId, 30, 0);
@@ -375,7 +365,8 @@ describe('the wrapped cursor across the seam (§33.2 scenario 2, FR-107, FR-123)
     if (LOCKS) {
       await lockedAndWarped(root);
       const camera = a.workspace.getState().cameras.get('camera')?.rotation;
-      for (let i = 0; i < 10; i++) {
+      // 560 px of 800: most of the way round, not the whole of it, which would turn it back.
+      for (let i = 0; i < 7; i++) {
         lockedMotion(viewRoot(), pointerId(), 80, 0);
         await nextFrame();
       }
@@ -394,7 +385,7 @@ describe('the wrapped cursor across the seam (§33.2 scenario 2, FR-107, FR-123)
     const a = await start({ preset: 'seam' });
     a.policies.configure({ enabled: { snap: false, cursor: false } });
     await frame(a);
-    const grabbed: Vec3 = [-0.7, 0, 0];
+    const grabbed = [-0.7, 0] as const;
     const [sx, sy] = screenOf(a, 'window-01', grabbed, W);
     const x = Math.round(sx);
     const y = Math.round(sy);
@@ -471,14 +462,14 @@ describe('semantic depth on the DOM backend (FR-122, ARCH-025)', () => {
       const chosen = shown.get(`${w.id}-surface`);
       if (
         chosen !== undefined &&
-        Math.abs(w.distance - full) > 1e-6 &&
-        Math.abs(w.distance - compact) > 1e-6
+        Math.abs(w.reach - full) > 1e-6 &&
+        Math.abs(w.reach - compact) > 1e-6
       ) {
-        expect(chosen, w.id).toBe(bandOf(w.distance));
+        expect(chosen, w.id).toBe(bandOf(w.reach));
       }
     }
-    const far = planned.find((w) => w.content === 'note' && w.distance > compact + 0.05);
-    const near = planned.find((w) => w.content === 'note' && w.distance < full - 0.05);
+    const far = planned.find((w) => w.content === 'note' && w.reach > compact + 0.05);
+    const near = planned.find((w) => w.content === 'note' && w.reach < full - 0.05);
     if (far === undefined || near === undefined) {
       throw new Error('the dense scene has no far or near note');
     }
@@ -523,13 +514,15 @@ describe('magnetic positioning in the panorama (FR-125, UX-007)', () => {
   it('previews a move snapped level with the horizon, and commits the snapped place once', async () => {
     const a = await start({ preset: 'seam' });
     await frame(a);
-    // window-07 stands straight ahead on the horizon: lift it 1.5° (inside the 2° line-up angle).
+    // window-07 stands straight ahead on the horizon: raise it to look 1.5° up (inside the 2°
+    // line-up angle), a 68th of a unit of height a pixel.
     const id = 'window-07';
     const gestures = gesturesOf(a);
     const before = a.workspace.getState();
     const historyBefore = a.workspace.history().length;
-    const [x, y] = screenOf(a, id, [0, 0, 0]);
-    const lift = 1.5 / (120 / H);
+    const [x, y] = screenOf(a, id, [0, 0]);
+    const reach = a.poseOf(id)?.reach ?? NaN;
+    const lift = reach * Math.tan((1.5 * Math.PI) / 180) * 68;
     await commands.mouse('move', x, y);
     await commands.mouse('down', x, y, ['Alt']);
     for (let dy = 1; dy <= Math.ceil(lift) + 6; dy += 1) {

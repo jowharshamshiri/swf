@@ -27,3 +27,12 @@ A viewport's handoff state follows the handoff model through every candidate: wh
 fails, the viewport is back on the previous backend (`active`, or `presentation-degraded` when that
 no longer works) before `backend.failed` is sent and the next candidate is begun, where before it
 stayed in the stage that failed. A handoff is never begun while one is under way.
+
+Windows are drawn as cards: each surface lies on its window's card, a flat, upright rectangle at the
+window's projected centre (ADR 0015). A `ProjectedFragment` carries its `card`, its `scale` and its
+`representation`, and no corners; `cardScale`, `windowCard`, `CARD_PIXELS_PER_UNIT`, `COMPACT_CARD`
+and `LABEL_CARD` give the card rules. A `ViewProjector` projects with the viewport's representation
+policy, which may give a card's scale outright (`RepresentationPolicy.scaleOf`, `cardScaleFor`);
+`FrameInput` no longer takes the policy. A `ProjectionProfile` no longer declares a `mapping`: a card
+is never bent, so negotiation asks only for transforms that scale it (`affine-2d` or more) to present
+content exactly or natively, and a renderer declares a handle kind `exact` only with such transforms.

@@ -6,7 +6,7 @@ version never does; from 1.0.0, only a major version does.
 
 ## 0.1.0
 
-The first release. Device-neutral input. Pointer, wheel, keyboard and programmatic intents; picking through the projection's inverse and a spatial index; input regions that keep content input native; a gesture arena with pointer capture; drags that preview and commit once; explicit cancellation; and a named command for every spatial operation.
+The first release. Device-neutral input. Pointer, wheel, keyboard and programmatic intents; picking on the cards each view draws; input regions that keep content input native; a gesture arena with pointer capture; drags that preview and commit once; explicit cancellation; and a named command for every spatial operation.
 
 Keyboard step sizes are no longer a router setting, where changing them alone changed no binding:
 `defaultKeymap(steps)` takes the steps to build the default bindings from, any left out being
@@ -35,3 +35,16 @@ viewport each held pointer was pressed in (`viewportId`).
 A pointer intent may carry `movement`, the motion since the pointer's previous sample while the
 platform locks the pointer to the view, whose place then stays where the lock took it; each of its
 numbers must be finite, as the intent's validation checks.
+
+Every window stands in one room round the viewport's camera (`RoomPlace`, `ROOM_LIMITS`,
+`ROOM_PACE`, `roomPlaceOf`, `standingInRoom`, decided by the Lean model `Swf.Room`). A window drag
+turns its heading by the pointer's motion across and raises it a 68th of a unit a pixel at any
+distance; Shift and the wheel move it along the floor; pressing Shift or turning the wheel mid-drag
+goes on from where it stands (`RoomMotion`). `node.move` takes `heading`, `height` and `floor`;
+`node.rotate` and the keys that turned a window are gone, and `camera.turn` turns the heading only.
+The settings drop `dragMode`, `worldPlaneNormal`, `wheelDepthPerPixel` and `minDistance`;
+`KeyboardSteps` are `heading`, `height`, `floor`, `resize` and `turn`. Picking hits the cards each
+view draws, with the viewport's representation policy (the router's `representation` option), and
+a candidate says its card's `pixelsPerUnit`. The plane drags (`dragFrame`, `dragAnchor`,
+`withDepth`, `movedTransform`, `translatedBy`, `headingOf`, `DRAG_MODES`) and the scene index are
+gone; `placementOf`, `worldOrigin` and `turnedAbout` stay.

@@ -62,7 +62,7 @@ function scene(motion = true) {
   ).toBe('committed');
   const modes = createModes(ws, 'v');
   modes.register(PANORAMA);
-  modes.register(createFocusMode({ fill: 0.75, maxMagnification: 2.5, pixelsPerUnit: 160 }));
+  modes.register(createFocusMode({ fill: 0.75, maxMagnification: 2.5 }));
   const frames = new Frames();
   const clock = { now: 1000 };
   const transitions: ViewTransitions = createViewTransitions({
@@ -113,7 +113,8 @@ describe('the view moving into a focus, between focused windows and out of it', 
     clock.now += 500;
     frames.run();
     expect(shownHeading(ws)).toBeCloseTo(start, 9);
-    // Halfway through, the view is on its way, turned and zoomed part of the way.
+    // Halfway through, the view is on its way, turned part of the way; focus keeps the panorama's
+    // field of view, its card scaled instead.
     clock.now += TRANSITION_MS / 2;
     frames.run();
     const midway = shownHeading(ws);
@@ -123,7 +124,7 @@ describe('the view moving into a focus, between focused windows and out of it', 
       Math.abs(target - start),
       6,
     );
-    expect(shownHorizontal(ws)).toBeLessThan(360);
+    expect(shownHorizontal(ws)).toBe(360);
     // At its end, the preview is gone and the committed view is what is shown.
     clock.now += TRANSITION_MS;
     frames.run();

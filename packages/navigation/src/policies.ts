@@ -16,12 +16,14 @@ import { viewGeometryOf } from '@swf/presentation';
 import type { ProjectionRegistry } from '@swf/projections';
 import { projectionFor } from '@swf/projections';
 import type { FeaturePatch, FeatureSettings } from './features.js';
-import { DEFAULT_FEATURES, ringsOf, updateFeatures } from './features.js';
+import { DEFAULT_FEATURES, SNAP_RINGS, updateFeatures } from './features.js';
 import type { Snap } from './magnetic.js';
+import { cardMeasureOf } from './magnetic.js';
 import { MAGNETIC_POLICY_ID, magneticMovePolicy } from './magnetic-policy.js';
 import type { OrbitEvent, OrbitState } from './orbit.js';
 import { orbitHeading, orbitKeymap, orbitRepair, orbitStateOf, orbitTransition } from './orbit.js';
-import { semanticDepth } from './semantic-depth.js';
+import { focusCards, semanticDepth } from './semantic-depth.js';
+import type { FocusOptions } from './focus.js';
 import type { WrapFrame } from './wrapped-cursor.js';
 import { createWheelBursts } from './wheel-burst.js';
 import { wrappedInput } from './wrapped-cursor.js';
@@ -53,12 +55,8 @@ export class PolicyRefusal extends Error {
   }
 }
 
-/** The gestures that move, turn or resize a window: each selects the window it takes. */
-const WINDOW_GESTURES: readonly string[] = Object.freeze([
-  'node.move',
-  'node.rotate',
-  'node.resize',
-]);
+/** The gestures that move or resize a window: each selects the window it takes. */
+const WINDOW_GESTURES: readonly string[] = Object.freeze(['node.move', 'node.resize']);
 
 /** A gesture running: the framework's, or a burst of the wheel over a window. */
 export interface RunningGesture {
@@ -174,6 +172,8 @@ export interface PolicyOptions {
   readonly modes: Modes;
   /** The focus mode, registered while focus is on. */
   readonly focusMode: ViewMode;
+  /** How focus shows its window: its card is scaled to it, in focus. */
+  readonly focusOptions: FocusOptions;
   /** The map mode, registered while the map is on. */
   readonly mapMode: ViewMode;
   /** The mode a viewport goes back to when the mode it shows is turned off. */
@@ -189,6 +189,7 @@ export interface PolicyOptions {
 export function createPolicies(options: PolicyOptions): Policies {
   const { workspace, router, projections, viewportId, modes } = options;
   const focusModeId = options.focusMode.id;
+  const focusOptions = options.focusOptions;
   /** Each registered mode feature's unregistration. */
   const registered = new Map<string, () => void>();
   /** Registers a feature's mode, or leaves it (for the view it came from) and unregisters it. */
@@ -266,7 +267,13 @@ export function createPolicies(options: PolicyOptions): Policies {
       unregisterSnap = router.registerPolicy(
         magneticMovePolicy({
           settings: () => features.snap,
-          rings: () => ringsOf(features.depth),
+          rings: () => SNAP_RINGS,
+          measure: () =>
+            cardMeasureOf(
+              workspace.getState(),
+              viewportId,
+              features.enabled.depth ? features.depth : null,
+            ),
           report: ({ gestureId, snap }) => {
             if (gesture?.gestureId === gestureId) {
               gesture = Object.freeze({ ...gesture, snap });
@@ -284,7 +291,9 @@ export function createPolicies(options: PolicyOptions): Policies {
       (previous?.enabled.depth !== on.depth || previous.depth !== features.depth)
     ) {
       viewport.setRepresentation(
-        on.depth ? semanticDepth({ bands: features.depth, focusModeId }) : null,
+        on.depth
+          ? semanticDepth({ bands: features.depth, focusModeId, focus: focusOptions })
+          : focusCards({ focusModeId, focus: focusOptions }),
       );
     }
     if (!on.cursor) {
@@ -493,7 +502,9 @@ export function createPolicies(options: PolicyOptions): Policies {
       viewport = presented;
       cursor = createVirtualCursor({ container });
       viewport.setRepresentation(
-        features.enabled.depth ? semanticDepth({ bands: features.depth, focusModeId }) : null,
+        features.enabled.depth
+          ? semanticDepth({ bands: features.depth, focusModeId, focus: focusOptions })
+          : focusCards({ focusModeId, focus: focusOptions }),
       );
       return () => {
         cursor?.dispose();

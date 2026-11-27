@@ -47,8 +47,11 @@ export const LIVE_ADAPTER = 'swf.bench.live/1';
 /** The adapter type of drawn content, which the DOM backend shows as a proxy. */
 export const DRAWN_ADAPTER = 'swf.bench.drawn/1';
 
-/** The elevations of the rings windows stand in, in degrees above the horizon. */
-const RINGS = Object.freeze([-45, -22.5, 0, 22.5, 45]);
+/**
+ * The heights of the rows windows stand in round the room, in world units above the camera's
+ * level: the middle three in view, the outer two above and below it.
+ */
+const ROWS = Object.freeze([-2.8, -1.4, 0, 1.4, 2.8]);
 
 /** How far each nested group is turned within its parent, about the vertical, in degrees. */
 const GROUP_TURN = 3;
@@ -103,10 +106,10 @@ export interface FixtureWindow {
   readonly groupId: string;
   /** Degrees to the right of straight ahead, in (-180, 180], as seen in the world. */
   readonly heading: number;
-  /** Degrees above the horizon. */
-  readonly elevation: number;
-  /** World units from the camera. */
-  readonly distance: number;
+  /** World units out from the camera along the floor. */
+  readonly reach: number;
+  /** World units of its centre above the camera's level. */
+  readonly y: number;
   /** Its width, in world units: 0.5 to 0.9. */
   readonly width: number;
   /** Its height, in world units: 0.32 to 0.5. */
@@ -123,7 +126,7 @@ export interface Fixture {
   readonly seed: number;
   /** `group-1` (outermost) to `group-<groups>`, each nested in the one before. */
   readonly groupIds: readonly string[];
-  /** Every window, ring by ring from the lowest. */
+  /** Every window, row by row from the lowest. */
   readonly windows: readonly FixtureWindow[];
   /** The two viewports, `ahead` and `behind`, side by side on the {@link PAGE}. */
   readonly viewports: readonly FixtureViewport[];
@@ -133,7 +136,7 @@ export interface Fixture {
 
 /**
  * The fixture's two viewports, side by side on the 1920×1080 page: one looking ahead, the other
- * behind, each 64° across and 72° down (1/30° per pixel), which shows the middle three rings.
+ * behind, each 64° across and 72° down (1/15° per pixel), which shows the middle three rows.
  */
 const VIEWPORTS: readonly FixtureViewport[] = Object.freeze([
   Object.freeze({
@@ -163,8 +166,8 @@ const VIEWPORTS: readonly FixtureViewport[] = Object.freeze([
 /** Why a size cannot be planned, in words, or null when it can; see {@link FixtureSize}. */
 export function sizeIssue(size: FixtureSize): string | null {
   const whole = (n: unknown) => typeof n === 'number' && Number.isInteger(n) && n > 0;
-  if (!whole(size.windows) || size.windows % RINGS.length !== 0) {
-    return `windows must be a positive multiple of ${String(RINGS.length)} (got ${String(size.windows)})`;
+  if (!whole(size.windows) || size.windows % ROWS.length !== 0) {
+    return `windows must be a positive multiple of ${String(ROWS.length)} (got ${String(size.windows)})`;
   }
   if (!whole(size.surfaces) || size.surfaces < size.windows || size.surfaces > 2 * size.windows) {
     return `surfaces must be from windows to twice windows (got ${String(size.surfaces)})`;
@@ -187,12 +190,15 @@ function wrapHeading(degrees: number): number {
   return ((wrapped === 0 ? 3600 : wrapped) - 1800) / 10;
 }
 
-/** The surfaces' gap inside a window, and the frame round them, in world units. */
-const FRAME = Object.freeze({ side: 0.04, top: 0.08, bottom: 0.04, gap: 0.02 });
+/**
+ * The surfaces' gap inside a window, and the frame round them, in world units: a title band deep
+ * enough to be pressed clear of the resize band along a card's top edge.
+ */
+const FRAME = Object.freeze({ side: 0.04, top: 0.16, bottom: 0.04, gap: 0.02 });
 
 /**
- * Plans a fixture. Windows stand in five rings round the camera, evenly spaced with a little
- * jitter, alternate rings offset by half a step; every `windows / (surfaces - windows)`-th window
+ * Plans a fixture. Windows stand upright in five rows round the room, 2.5 to 3.2 units out along
+ * the floor, evenly spaced with a little jitter, alternate rows offset by half a step; every `windows / (surfaces - windows)`-th window
  * holds two surfaces side by side, the second drawn. Window `i` is in group `i mod groups`, so
  * every depth of nesting holds windows all the way round. The same size and seed give the same
  * fixture on every run and engine.
@@ -205,13 +211,13 @@ export function planFixture(size: FixtureSize, seed: number): Fixture {
     throw new RangeError(issue);
   }
   const random = createRandom(seed);
-  const perRing = size.windows / RINGS.length;
+  const perRow = size.windows / ROWS.length;
   const pairs = size.surfaces - size.windows;
   const groupIds = Array.from({ length: size.groups }, (_, g) => `group-${String(g + 1)}`);
   const digits = String(size.windows).length;
-  const windows = RINGS.flatMap((ring, r) =>
-    Array.from({ length: perRing }, (_, k): FixtureWindow => {
-      const index = r * perRing + k;
+  const windows = ROWS.flatMap((row, r) =>
+    Array.from({ length: perRow }, (_, k): FixtureWindow => {
+      const index = r * perRow + k;
       const number = String(index + 1).padStart(digits, '0');
       const id = `window-${number}`;
       const width = stepped(random, 0.5, 0.9, 100);
@@ -258,10 +264,10 @@ export function planFixture(size: FixtureSize, seed: number): Fixture {
         label: `Window ${number}`,
         groupId: groupIds[index % size.groups] ?? 'group-1',
         heading: wrapHeading(
-          k * (360 / perRing) + (r % 2) * (180 / perRing) + stepped(random, -1, 1, 10),
+          k * (360 / perRow) + (r % 2) * (180 / perRow) + stepped(random, -1, 1, 10),
         ),
-        elevation: Math.round((ring + stepped(random, -2, 2, 10)) * 10) / 10,
-        distance: stepped(random, 3.5, 6, 100),
+        reach: stepped(random, 2.5, 3.2, 100),
+        y: Math.round((row + stepped(random, -0.1, 0.1, 100)) * 100) / 100,
         width,
         height,
         surfaces: Object.freeze(surfaces.map((s) => Object.freeze(s))),
@@ -287,7 +293,7 @@ function fixtureCommands(
   groupIds: readonly string[],
   windows: readonly FixtureWindow[],
 ): SceneCommand[] {
-  const reach = windows.reduce((most, w) => Math.max(most, w.distance + w.width), 1);
+  const reach = windows.reduce((most, w) => Math.max(most, Math.hypot(w.reach, w.y) + w.width), 1);
   const groups = groupIds.map((id, g): SceneCommand => ({
     type: 'node.create',
     node: {
@@ -325,8 +331,6 @@ function fixtureCommands(
     const g = groupIds.indexOf(w.groupId);
     // The window's place in its group: its world heading less the group's own turn.
     const h = (w.heading - groupTurn(g)) * RADIANS;
-    const e = w.elevation * RADIANS;
-    const d = w.distance;
     return [
       {
         type: 'node.create',
@@ -337,13 +341,9 @@ function fixtureCommands(
           label: w.label,
           bounds: [w.width, w.height, 0.01],
           transform: {
-            position: [
-              d * Math.cos(e) * Math.sin(h),
-              d * Math.sin(e),
-              -d * Math.cos(e) * Math.cos(h),
-            ],
-            // It faces the camera: its front (+Z) looks back along the camera's line to it.
-            rotation: cameraRotation(h, e),
+            position: [w.reach * Math.sin(h), w.y, -w.reach * Math.cos(h)],
+            // Upright, carrying no rotation of its own: drawn as a card at its place.
+            rotation: [0, 0, 0, 1],
             scale: [1, 1, 1],
           },
         },

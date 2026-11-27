@@ -964,14 +964,27 @@ export type SnapOutcome =
 export function snapOutcomeType(): L.Type<SnapOutcome>;
 
 /**
- * A burst under way: the window it moves, and how far in all, in world units away from the
- * camera (negative: nearer).
+ * A point of the floor, relative to the camera: `x` to the right and `z` toward the viewer as
+ * the room starts (straight ahead is `-z`).
+ */
+export interface FloorPoint {
+  /** To the right, in world units. */
+  readonly x: number;
+  /** Toward the viewer, in world units. */
+  readonly z: number;
+}
+/** The descriptor of Swf.AppSpacing.FloorPoint: how its values cross the boundary. */
+export function floorPointType(): L.Type<FloorPoint>;
+
+/**
+ * A burst under way: the window it moves, and how far the wheel has turned over it in all, in
+ * pixels (turned down, positive: farther along the floor).
  */
 export interface Burst {
   /** The window the burst moves. */
   readonly nodeId: string;
-  /** How far the ticks so far take it, away from the camera. */
-  readonly depth: number;
+  /** How far the ticks so far have turned the wheel, in pixels (down positive). */
+  readonly turned: number;
 }
 /** The descriptor of Swf.AppWheel.Burst: how its values cross the boundary. */
 export function burstType(): L.Type<Burst>;
@@ -979,7 +992,7 @@ export function burstType(): L.Type<Burst>;
 /** What happens to a burst. */
 export type WheelEvent =
   | {
-      /** A wheel tick over window `nodeId`, taking it `delta` world units away from the camera. */
+      /** A wheel tick over window `nodeId`, turning the wheel `delta` pixels (down positive). */
       readonly kind: "tick";
       /** The field `nodeId` of Lean's Swf.AppWheel.WheelEvent.tick. */
       readonly nodeId: string;
@@ -1190,17 +1203,16 @@ export type PickOutcome =
 /** The descriptor of Swf.Arbitration.PickOutcome: how its values cross the boundary. */
 export function pickOutcomeType(): L.Type<PickOutcome>;
 
-/** What every fragment of a frame shares: the backends and whether the projection is nonlinear. */
+/**
+ * What every fragment of a frame shares: the backends. Whatever the projection, it only places
+ * each window's card, a flat, upright rectangle it never bends, so the projection's own shape rules
+ * nothing out.
+ */
 export interface NegotiationContext {
   /** The viewport's renderer. */
   readonly renderer: RendererCapabilities;
   /** The viewport's compositor. */
   readonly compositor: CompositorCapabilities;
-  /**
-   * The projection bends straight edges (a panorama), so planar live content can only
-   * approximate its shape.
-   */
-  readonly nonlinear: boolean;
 }
 /** The descriptor of Swf.Fallback.NegotiationContext: how its values cross the boundary. */
 export function negotiationContextType(): L.Type<NegotiationContext>;
@@ -1247,7 +1259,7 @@ export interface Negotiated {
   readonly mode: Mode;
   /** Every better mode of the order and what ruled it out, in order. */
   readonly gaps: Array<Gap>;
-  /** Whether the presented interior follows the projection. */
+  /** Whether the presented interior is exactly the surface, where its card places it. */
   readonly shape: ShapeFidelity;
   /**
    * How faithful the content is: `native` for a live element, `exact` or `approximate` for drawn
@@ -2054,6 +2066,81 @@ export type SlotEvent =
 /** The descriptor of Swf.Presenter.SlotEvent: how its values cross the boundary. */
 export function slotEventType(): L.Type<SlotEvent>;
 
+/** How far a window may stand from the centre and how high: inside these, in world units. */
+export interface RoomLimits {
+  /** The nearest distance along the floor. */
+  readonly nearest: number;
+  /** The farthest distance along the floor. */
+  readonly farthest: number;
+  /** The lowest height. */
+  readonly lowest: number;
+  /** The highest height. */
+  readonly highest: number;
+}
+/** The descriptor of Swf.Room.RoomLimits: how its values cross the boundary. */
+export function roomLimitsType(): L.Type<RoomLimits>;
+
+/** How a pointer's motion moves a window: per pixel, and per wheel notch. */
+export interface RoomPace {
+  /** World units of height for each pixel up or down. */
+  readonly heightPerPixel: number;
+  /** World units along the floor for each pixel up or down, Shift held. */
+  readonly floorPerPixel: number;
+  /** The wheel's factor on the floor distance for each pixel it scrolls, as an exponent. */
+  readonly floorPerWheel: number;
+}
+/** The descriptor of Swf.Room.RoomPace: how its values cross the boundary. */
+export function roomPaceType(): L.Type<RoomPace>;
+
+/**
+ * A pointer's motion over the view since a window was taken: across and down in pixels, the
+ * view's width in pixels and its horizontal field of view in radians, and whether Shift moves it
+ * along the floor.
+ */
+export interface RoomDrag {
+  /** Where the window stood when it was taken. */
+  readonly start: RoomPlace;
+  /** Pixels to the right since it was taken. */
+  readonly dx: number;
+  /** Pixels down since it was taken. */
+  readonly dy: number;
+  /** The view's width, in pixels. */
+  readonly width: number;
+  /** The view's horizontal field of view, in radians. */
+  readonly fieldOfView: number;
+  /** Shift is held: up and down move it along the floor. */
+  readonly alongFloor: boolean;
+}
+/** The descriptor of Swf.Room.RoomDrag: how its values cross the boundary. */
+export function roomDragType(): L.Type<RoomDrag>;
+
+/** A window's place in the room. */
+export interface RoomPlace {
+  /** Its heading round the room's centre, in radians, increasing to the right. */
+  readonly heading: number;
+  /** Its distance from the centre along the floor, in world units. */
+  readonly floor: number;
+  /** Its height above the camera's level, in world units. */
+  readonly height: number;
+}
+/** The descriptor of Swf.Room.RoomPlace: how its values cross the boundary. */
+export function roomPlaceType(): L.Type<RoomPlace>;
+
+/**
+ * A point of the room relative to its centre, in world units: `x` to the right, `y` up, `z`
+ * toward the viewer as the room starts (straight ahead is `-z`).
+ */
+export interface RoomPoint {
+  /** To the right. */
+  readonly x: number;
+  /** Up. */
+  readonly y: number;
+  /** Toward the viewer. */
+  readonly z: number;
+}
+/** The descriptor of Swf.Room.RoomPoint: how its values cross the boundary. */
+export function roomPointType(): L.Type<RoomPoint>;
+
 /**
  * Where saving is, what the store holds of this workspace (the revision it acknowledged and the
  * change count that snapshot reflects), and the workspace's change count now.
@@ -2762,8 +2849,9 @@ export type CursorAction =
 export function cursorActionType(): L.Type<CursorAction>;
 
 /**
- * Semantic depth's bands, in world units from the camera: a window nearer than `full` shows its
- * content, one nearer than `compact` a compact preview, and one farther its label alone.
+ * Semantic depth's bands, in world units from the camera along the floor: a window nearer than
+ * `full` shows its content, one nearer than `compact` a compact preview, and one farther its label
+ * alone.
  */
 export interface DepthBands {
   /** Where the full band ends, in world units; finite and above zero. */
@@ -3108,11 +3196,14 @@ export function gapType(): L.Type<Gap>;
 /** How a chosen mode presents the fragment. */
 export type ShapeFidelity =
   | {
-      /** The presented interior follows the projection exactly: `exact` and `native`. */
+      /**
+       * The presented interior is exactly the surface, where its card places it: `exact` and
+       * `native`.
+       */
       readonly kind: "exact";
     }
   | {
-      /** It only approximates the projection: `approximated` and `proxy`. */
+      /** It only approximates the surface's place or shape: `approximated` and `proxy`. */
       readonly kind: "approximate";
     }
   | {
@@ -3660,7 +3751,7 @@ export type Requirement =
       readonly kind: "compositor";
     }
   | {
-      /** The projection: nonlinear, or placing the fragment only approximately. */
+      /** The projection: placing the fragment only approximately. */
       readonly kind: "projection";
     }
   | {
@@ -3860,6 +3951,14 @@ export class SwfModels {
    * Lean's Swf.AppSnap.snapResolve : String →   Swf.AppSnap.SnapSeen →     Array Swf.AppSnap.SnapNeighbour → Swf.AppFeatures.SnapSettings → Array Float → Swf.AppSnap.SnapOutcome
    */
   snapResolve(movingId: string, m: SnapSeen, neighbours: Array<SnapNeighbour>, settings: SnapSettings, rings: Array<number>): SnapOutcome;
+  /**
+   * Where a window snapped to the spoke at `heading`, `floor` units out, goes to stand clear of
+   * `others`: the first of `candidates` nearer than `spacing` to none of them, or `heading`
+   * itself when none is.
+   *
+   * Lean's Swf.AppSpacing.spacedHeading : Float → Float → Array Swf.AppSpacing.FloorPoint → Float → Float → Float
+   */
+  spacedHeading(spacing: number, spoke: number, others: Array<FloorPoint>, floor: number, heading: number): number;
   /**
    * The step a wheel event takes from the burst under way.
    *
@@ -4223,6 +4322,55 @@ export class SwfModels {
    * Lean's Swf.Presenter.slotStep : Swf.Presenter.Slot → Swf.Presenter.SlotEvent → Option Swf.Presenter.Slot
    */
   slotStep(s: Slot, e: SlotEvent): L.Option<Slot>;
+  /**
+   * Where a drag puts a window: turned by the motion across; raised or lowered by the motion down
+   * (a fixed height a pixel), or, Shift held, moved along the floor by it; kept inside the room.
+   *
+   * Lean's Swf.Room.dragStep : Swf.Room.RoomLimits → Swf.Room.RoomPace → Swf.Room.RoomDrag → Swf.Room.RoomPlace
+   */
+  dragStep(l: RoomLimits, pace: RoomPace, d: RoomDrag): RoomPlace;
+  /**
+   * How high a place looks from the camera: its elevation above the horizon, in radians, from its
+   * height and its distance along the floor (a place at the centre looks level with the camera's
+   * up, never through it).
+   *
+   * Lean's Swf.Room.elevationOf : Swf.Room.RoomPlace → Float
+   */
+  elevationOf(p: RoomPlace): number;
+  /**
+   * Where a window dropped on the floor plan stands: at the point of the floor it was dropped on
+   * (`x` to the right, `z` toward the viewer), at its own height, inside the room.
+   *
+   * Lean's Swf.Room.floorDrop : Swf.Room.RoomLimits → Swf.Room.RoomPlace → Float → Float → Swf.Room.RoomPlace
+   */
+  floorDrop(l: RoomLimits, p: RoomPlace, x: number, z: number): RoomPlace;
+  /**
+   * A place kept inside the room: its floor distance and height within the limits, its heading
+   * wrapped.
+   *
+   * Lean's Swf.Room.keepInRoom : Swf.Room.RoomLimits → Swf.Room.RoomPlace → Swf.Room.RoomPlace
+   */
+  keepInRoom(l: RoomLimits, p: RoomPlace): RoomPlace;
+  /**
+   * The place of a point of the room, `x` to the right, `y` up and `z` toward the viewer as the
+   * room starts (straight ahead is `-z`), kept inside the room.
+   *
+   * Lean's Swf.Room.placeOf : Swf.Room.RoomLimits → Float → Float → Float → Swf.Room.RoomPlace
+   */
+  placeOf(l: RoomLimits, x: number, y: number, z: number): RoomPlace;
+  /**
+   * Where a place stands in the room.
+   *
+   * Lean's Swf.Room.pointOf : Swf.Room.RoomPlace → Swf.Room.RoomPoint
+   */
+  pointOf(p: RoomPlace): RoomPoint;
+  /**
+   * Where the wheel puts a window: nearer or farther along the floor by a factor for the pixels it
+   * scrolls (down is farther), its heading and height kept, inside the room.
+   *
+   * Lean's Swf.Room.wheelOnFloor : Swf.Room.RoomLimits → Swf.Room.RoomPace → Swf.Room.RoomPlace → Float → Swf.Room.RoomPlace
+   */
+  wheelOnFloor(l: RoomLimits, pace: RoomPace, p: RoomPlace, deltaY: number): RoomPlace;
   /**
    * A save asked for at change count `changes`: none when the store already holds what the workspace
    * shows (nothing to do), else the machine saving, which expects the store to hold `savedRevision`.

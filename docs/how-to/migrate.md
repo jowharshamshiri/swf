@@ -5,7 +5,8 @@ extension saves, and the packages a host is built on.
 
 ## Bring older layouts forward
 
-A snapshot names its format (`swf.workspace/1`). `@swf/persistence` reads every format it has
+A snapshot names its format (`swf.workspace/2` is the current one). `@swf/persistence` reads every
+format it has
 a migration chain from, and writes only the current one. `persistence.restore` and
 `persistence.import` migrate a snapshot on a copy, validate the result, and only then replace
 the scene. A format no chain leads from is refused with `SNAPSHOT_INVALID`, and a step that
@@ -34,7 +35,10 @@ without cycles. Saved layouts are rewritten in the current format the next time 
 keep the old text if the host may need to go back
 ([Release the packages](release.md#roll-a-release-back)).
 
-When the framework adds a snapshot format, its step joins `SNAPSHOT_MIGRATIONS`, and the fixtures
+The framework's own steps are in `SNAPSHOT_MIGRATIONS`: from `swf.workspace/1` to
+`swf.workspace/2`, which stands every window and surface upright (the room draws each window as a
+flat card) and names each one it stood upright in a warning. When the framework adds a snapshot
+format, its step joins them, and the fixtures
 of every older format it still reads (`packages/persistence/fixtures/`) must restore and write
 back unchanged; the release's compatibility matrix lists the formats each release reads.
 

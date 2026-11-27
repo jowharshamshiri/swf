@@ -1,6 +1,5 @@
 import type { Id, SceneCommand, Workspace } from '@swf/core';
 import { createWorkspace } from '@swf/core';
-import { quatFromAxisAngle } from '@swf/math';
 import type {
   CompositorCapabilities,
   RenderFrame,
@@ -120,7 +119,7 @@ export function scene(
               p.y ?? 0,
               -p.distance * Math.cos(p.heading),
             ],
-            rotation: quatFromAxisAngle([0, 1, 0], -p.heading),
+            rotation: [0, 0, 0, 1],
             scale: [1, 1, 1],
           },
         },
@@ -170,12 +169,11 @@ export function plan(
     output: createViewOutput(
       state,
       'v',
-      ordered(projectorOf(module).project(state, view, geometry), reverse),
+      ordered(projectorOf(module).project(state, view, geometry, representation ?? null), reverse),
     ),
     renderer,
     compositor,
     projection: module.profile,
-    ...(representation === undefined ? {} : { representation }),
     condition: (id) => conditionFor(capabilitiesOf(kinds.get(id) ?? 'unbound')),
     viewportOwns: () => true,
     geometry,

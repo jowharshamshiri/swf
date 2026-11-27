@@ -374,7 +374,7 @@ describe('the spaces in local storage (FR-127, FR-168, UX-016)', () => {
     expect(() => workspaces.previewImport('broken.json', broken)).toThrow(
       /at line 3, column 13, a value was expected/,
     );
-    const wrong = exported.replace('"swf.workspace/1"', '"swf.workspace/9"');
+    const wrong = exported.replace('"swf.workspace/2"', '"swf.workspace/9"');
     let caught: unknown;
     try {
       workspaces.previewImport('wrong.json', wrong);

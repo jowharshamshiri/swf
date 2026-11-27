@@ -1,6 +1,5 @@
-import type { JsonValue } from '@swf/core';
+import type { JsonValue, Workspace } from '@swf/core';
 import { SwfFailure } from '@swf/core';
-import { length, quatRotate, sub } from '@swf/math';
 import { cameraRotation, headingPitchOf } from '@swf/projections';
 import { describe, expect, it } from 'vitest';
 import type { InputAdapter, InteractionCommand, InteractionPolicy } from '../src/index.js';
@@ -12,8 +11,13 @@ import {
   DEFAULT_SETTINGS,
   defaultKeymap,
   INTERACTION_API_VERSION,
+  ROOM_LIMITS,
+  roomPlaceOf,
 } from '../src/index.js';
 import { titleBar, world } from './fixtures.js';
+
+/** Where a window stands in the room, seen from the camera at the centre. */
+const placeOf = (ws: Workspace, id: string) => roomPlaceOf(ws.getState(), id, [0, 0, 0]);
 
 const codeOf = (fn: () => unknown): string => {
   try {
@@ -67,48 +71,31 @@ describe('command equivalents (FR-109)', () => {
     expect(router.commandIds()).not.toContain('node.spin');
   });
 
-  it('move a window along the camera’s axes and in depth along its line of sight', () => {
+  it('move a window round the room: in heading, height and along the floor, kept inside it', () => {
     const { ws, input } = world(two, {
-      extra: [{ type: 'camera.patch', id: 'cam', rotation: cameraRotation(0.7, 0.2) }],
+      // Where the camera looks does not change where the room's places are.
+      extra: [{ type: 'camera.patch', id: 'cam', rotation: cameraRotation(0.7, 0) }],
     });
-    const before = ws.getState().nodes.get('a')?.transform.position ?? [0, 0, 0];
-    const camera = ws.getState().cameras.get('cam')?.rotation ?? [0, 0, 0, 1];
-    const right = quatRotate(camera, [1, 0, 0]);
-    const up = quatRotate(camera, [0, 1, 0]);
-    input.command('node.move', { nodeId: 'a', viewportId: 'v', right: 0.3, up: -0.2 });
-    const moved = ws.getState().nodes.get('a')?.transform.position ?? [0, 0, 0];
-    const delta = sub(moved, before);
-    expect(delta[0]).toBeCloseTo(0.3 * right[0] - 0.2 * up[0], 12);
-    expect(delta[1]).toBeCloseTo(0.3 * right[1] - 0.2 * up[1], 12);
-    expect(delta[2]).toBeCloseTo(0.3 * right[2] - 0.2 * up[2], 12);
-    input.command('node.move', { nodeId: 'a', viewportId: 'v', depth: 1 });
-    const farther = ws.getState().nodes.get('a')?.transform.position ?? [0, 0, 0];
-    expect(length(farther)).toBeCloseTo(length(moved) + 1, 12);
-    // Same direction from the camera.
-    expect(
-      length(
-        sub(
-          farther.map((v) => v / length(farther)) as never,
-          moved.map((v) => v / length(moved)) as never,
-        ),
-      ),
-    ).toBeLessThan(1e-12);
-    // Depth never brings a window nearer than the minimum distance.
-    input.command('node.move', { nodeId: 'a', viewportId: 'v', depth: -100 });
-    expect(length(ws.getState().nodes.get('a')?.transform.position ?? [0, 0, 0])).toBeCloseTo(
-      DEFAULT_SETTINGS.minDistance,
-      12,
-    );
+    const rotation = ws.getState().nodes.get('a')?.transform.rotation;
+    input.command('node.move', { nodeId: 'a', viewportId: 'v', heading: 0.3, height: -0.2 });
+    expect(placeOf(ws, 'a').heading).toBeCloseTo(0.3, 12);
+    expect(placeOf(ws, 'a').height).toBeCloseTo(-0.2, 12);
+    expect(placeOf(ws, 'a').floor).toBeCloseTo(3, 12);
+    input.command('node.move', { nodeId: 'a', viewportId: 'v', floor: 1 });
+    expect(placeOf(ws, 'a').floor).toBeCloseTo(4, 12);
+    expect(placeOf(ws, 'a').heading).toBeCloseTo(0.3, 12);
+    // Upright as it stood: a move changes only where it stands.
+    expect(ws.getState().nodes.get('a')?.transform.rotation).toEqual(rotation);
+    // Never nearer than the room's nearest, nor higher than its highest.
+    input.command('node.move', { nodeId: 'a', viewportId: 'v', floor: -100, height: 100 });
+    expect(placeOf(ws, 'a')).toMatchObject({
+      floor: ROOM_LIMITS.nearest,
+      height: ROOM_LIMITS.highest,
+    });
   });
 
-  it('rotate, resize, select, focus, undo and redo without a pointer', () => {
+  it('resize, select, focus, undo and redo without a pointer', () => {
     const { ws, input } = world(two);
-    const position = ws.getState().nodes.get('a')?.transform.position;
-    input.command('node.rotate', { nodeId: 'a', yaw: 0.5 });
-    expect(
-      headingPitchOf(ws.getState().nodes.get('a')?.transform.rotation ?? [0, 0, 0, 1]).heading,
-    ).toBeCloseTo(0.5, 12);
-    expect(ws.getState().nodes.get('a')?.transform.position).toEqual(position);
     input.command('node.resize', { nodeId: 'a', width: 0.5, height: -10 });
     expect(ws.getState().nodes.get('a')?.bounds).toEqual([2.5, DEFAULT_SETTINGS.minSize, 0.01]);
     expect(input.command('selection.next', {}).operation?.outcome).toMatchObject({
@@ -137,11 +124,11 @@ describe('command equivalents (FR-109)', () => {
       extra: [{ type: 'node.create', node: { id: 'root', kind: 'group', bounds: [1, 1, 1] } }],
     });
     const history = ws.history().length;
-    input.command('camera.turn', { viewportId: 'v', heading: 0.4, pitch: 3 });
+    input.command('camera.turn', { viewportId: 'v', heading: 0.4 });
     const turned = headingPitchOf(ws.getState().cameras.get('cam')?.rotation ?? [0, 0, 0, 1]);
     expect(turned.heading).toBeCloseTo(0.4, 9);
-    // Pitch stops at straight up.
-    expect(turned.pitch).toBeCloseTo(Math.PI / 2, 9);
+    // The camera stays level.
+    expect(turned.pitch).toBe(0);
     expect(ws.history()).toHaveLength(history);
     expect(input.command('orbit.turn', { viewportId: 'v', angle: 0.3 }).operation?.outcome).toEqual(
       {
@@ -171,15 +158,21 @@ describe('command equivalents (FR-109)', () => {
 
   it('report nothing to do without a selection, and name bad arguments', () => {
     const { input } = world(two);
-    expect(input.command('node.move', { viewportId: 'v', right: 1 }).operation?.outcome).toEqual({
+    expect(input.command('node.move', { viewportId: 'v', heading: 1 }).operation?.outcome).toEqual({
       status: 'unchanged',
       reason: 'no node is named or selected',
     });
     const bad = (command: string, args: JsonValue) => codeOf(() => input.command(command, args));
-    expect(bad('node.move', { viewportId: 'v', right: 'far' })).toMatch(
-      /^INVALID_INPUT: .*right must be a finite number/,
+    expect(bad('node.move', { viewportId: 'v', heading: 'far' })).toMatch(
+      /^INVALID_INPUT: .*heading must be a finite number/,
     );
-    expect(bad('node.move', { right: 1, nodeId: 'a' })).toMatch(/viewportId is required/);
+    expect(bad('node.move', { heading: 1, nodeId: 'a' })).toMatch(/viewportId is required/);
+    // A window no longer turns on its own, nor does the camera look up or down.
+    expect(bad('node.move', { nodeId: 'a', viewportId: 'v', right: 1 })).toMatch(
+      /right is not an argument/,
+    );
+    expect(bad('node.rotate', { nodeId: 'a', yaw: 1 })).toMatch(/no command "node.rotate"/);
+    expect(bad('camera.turn', { viewportId: 'v', pitch: 1 })).toMatch(/pitch is not an argument/);
     expect(bad('node.move', { nodeId: 'a', viewportId: 'v', speed: 1 })).toMatch(
       /speed is not an argument/,
     );
@@ -189,7 +182,9 @@ describe('command equivalents (FR-109)', () => {
     expect(bad('node.move', { nodeId: 'zz', viewportId: 'v' })).toMatch(/^UNKNOWN_ENTITY/);
     expect(bad('camera.turn', { viewportId: 'nope' })).toMatch(/^UNKNOWN_ENTITY/);
     // Arguments are checked even when there is nothing to act on.
-    expect(bad('node.rotate', { yaw: 'left' })).toMatch(/yaw must be a finite number/);
+    expect(bad('node.move', { viewportId: 'v', floor: 'out' })).toMatch(
+      /floor must be a finite number/,
+    );
     expect(bad('node.resize', { width: null })).toMatch(/width must be a finite number/);
     expect(bad('orbit.turn', { viewportId: 'v', angle: Infinity })).toMatch(/angle must be/);
   });
@@ -200,28 +195,22 @@ describe('keyboard (FR-109, UX-012)', () => {
     const { ws, input } = world(two);
     input.key('n', { viewportId: 'v' });
     expect(ws.getState().selection).toEqual(['a']);
-    const x = ws.getState().nodes.get('a')?.transform.position[0] ?? 0;
+    const step = DEFAULT_KEYBOARD_STEPS.heading;
     expect(input.key('ArrowRight', { viewportId: 'v' }).operation?.name).toBe('node.move');
-    expect(ws.getState().nodes.get('a')?.transform.position[0]).toBeCloseTo(
-      x + DEFAULT_KEYBOARD_STEPS.move,
-      12,
-    );
+    expect(placeOf(ws, 'a').heading).toBeCloseTo(step, 12);
     input.key('ArrowRight', { viewportId: 'v', modifiers: { shift: true }, repeat: true });
-    expect(ws.getState().nodes.get('a')?.transform.position[0]).toBeCloseTo(
-      x + 6 * DEFAULT_KEYBOARD_STEPS.move,
-      12,
-    );
+    expect(placeOf(ws, 'a').heading).toBeCloseTo(6 * step, 12);
+    input.key('ArrowUp', { viewportId: 'v' });
+    expect(placeOf(ws, 'a').height).toBeCloseTo(DEFAULT_KEYBOARD_STEPS.height, 12);
+    input.key('PageUp', { viewportId: 'v' });
+    expect(placeOf(ws, 'a').floor).toBeCloseTo(3 + DEFAULT_KEYBOARD_STEPS.floor, 12);
     input.key('z', { modifiers: { ctrl: true } });
-    expect(ws.getState().nodes.get('a')?.transform.position[0]).toBeCloseTo(
-      x + DEFAULT_KEYBOARD_STEPS.move,
-      12,
-    );
+    input.key('z', { modifiers: { ctrl: true } });
+    input.key('z', { modifiers: { ctrl: true } });
+    expect(placeOf(ws, 'a').heading).toBeCloseTo(step, 12);
     // Shift turns z into Z; letters match either way.
     input.key('Z', { modifiers: { ctrl: true, shift: true } });
-    expect(ws.getState().nodes.get('a')?.transform.position[0]).toBeCloseTo(
-      x + 6 * DEFAULT_KEYBOARD_STEPS.move,
-      12,
-    );
+    expect(placeOf(ws, 'a').heading).toBeCloseTo(6 * step, 12);
   });
 
   it('leaves keys in content, releases and unbound keys alone', () => {
@@ -292,17 +281,13 @@ describe('keyboard (FR-109, UX-012)', () => {
       ws.dispatch({
         type: 'node.patch',
         id: 'a',
-        flags: { draggable: false, rotatable: false, resizable: false },
+        flags: { draggable: false, resizable: false },
       }).status,
     ).toBe('committed');
     const before = ws.getState().nodes.get('a');
     expect(
-      input.command('node.move', { nodeId: 'a', viewportId: 'v', right: 1 }).operation?.outcome,
+      input.command('node.move', { nodeId: 'a', viewportId: 'v', heading: 1 }).operation?.outcome,
     ).toEqual({ status: 'unchanged', reason: 'node "a" cannot be moved' });
-    expect(input.command('node.rotate', { nodeId: 'a', yaw: 1 }).operation?.outcome).toEqual({
-      status: 'unchanged',
-      reason: 'node "a" cannot be rotated',
-    });
     expect(input.command('node.resize', { nodeId: 'a', width: 1 }).operation?.outcome).toEqual({
       status: 'unchanged',
       reason: 'node "a" cannot be resized',
@@ -312,9 +297,6 @@ describe('keyboard (FR-109, UX-012)', () => {
 });
 
 describe('holding a window from the keyboard (UX-012, UX-007, FR-112)', () => {
-  const position = (ws: ReturnType<typeof world>['ws'], id: string) =>
-    ws.getState().nodes.get(id)?.transform.position ?? [0, 0, 0];
-
   it('previews every key while held and commits once when put down', () => {
     const { ws, input, events } = world(two);
     input.command('selection.set', { ids: ['a'] });
@@ -332,18 +314,16 @@ describe('holding a window from the keyboard (UX-012, UX-007, FR-112)', () => {
     input.key('ArrowRight', { viewportId: 'v' });
     input.key('ArrowUp', { viewportId: 'v' });
     input.key('PageUp', { viewportId: 'v' });
-    input.key(']', { viewportId: 'v' });
     input.key('+', { viewportId: 'v' });
     // Nothing is committed while it is held; the view shows the preview.
     expect(ws.getState().nodes.get('a')).toBe(start);
     expect(ws.history()).toHaveLength(history);
     const shown = ws.getPresented().nodes.get('a');
-    expect(shown?.transform.position).not.toEqual(start?.transform.position);
+    const [sx, sy, sz] = shown?.transform.position ?? [0, 0, 0];
+    expect(Math.atan2(sx, -sz)).toBeCloseTo(DEFAULT_KEYBOARD_STEPS.heading, 12);
+    expect(sy).toBeCloseTo(DEFAULT_KEYBOARD_STEPS.height, 12);
+    expect(Math.hypot(sx, sz)).toBeCloseTo(3 + DEFAULT_KEYBOARD_STEPS.floor, 12);
     expect(shown?.bounds[0]).toBeCloseTo((start?.bounds[0] ?? 0) + DEFAULT_KEYBOARD_STEPS.resize);
-    expect(
-      headingPitchOf(shown?.transform.rotation ?? [0, 0, 0, 1]).heading -
-        headingPitchOf(start?.transform.rotation ?? [0, 0, 0, 1]).heading,
-    ).toBeCloseTo(DEFAULT_KEYBOARD_STEPS.rotate, 9);
     // Enter puts it down: one commit, exactly the previewed placement.
     const dropped = input.key('Enter', { viewportId: 'v' });
     expect(dropped.operation).toMatchObject({
@@ -418,9 +398,8 @@ describe('holding a window from the keyboard (UX-012, UX-007, FR-112)', () => {
     expect(router.captures()).toEqual([]);
     // Arrows move the selection again, at once, once nothing is held.
     input.command('selection.set', { ids: ['b'] });
-    const bx = position(ws, 'b')[0];
     input.key('ArrowRight', { viewportId: 'v' });
-    expect(position(ws, 'b')[0]).toBeCloseTo(bx + DEFAULT_KEYBOARD_STEPS.move, 12);
+    expect(placeOf(ws, 'b').heading).toBeCloseTo(1 + DEFAULT_KEYBOARD_STEPS.heading, 12);
   });
 
   it('refuses a locked window, a second hold, and a pointer on the held window', () => {
@@ -462,13 +441,12 @@ describe('holding a window from the keyboard (UX-012, UX-007, FR-112)', () => {
   it('moves a named window at once while another is held', () => {
     const { ws, input } = world(two);
     input.command('gesture.grab', { viewportId: 'v', nodeId: 'a' });
-    const bx = position(ws, 'b')[0];
     expect(
-      input.command('node.move', { nodeId: 'b', viewportId: 'v', right: 0.5 }).operation?.outcome,
+      input.command('node.move', { nodeId: 'b', viewportId: 'v', height: 0.5 }).operation?.outcome,
     ).toMatchObject({ status: 'committed' });
-    expect(position(ws, 'b')[0]).toBeCloseTo(bx + 0.5, 12);
+    expect(placeOf(ws, 'b').height).toBeCloseTo(0.5, 12);
     expect(
-      input.command('node.move', { nodeId: 'a', viewportId: 'v', right: 0.5 }).operation?.outcome,
+      input.command('node.move', { nodeId: 'a', viewportId: 'v', height: 0.5 }).operation?.outcome,
     ).toMatchObject({ status: 'previewed' });
   });
 });
@@ -480,12 +458,12 @@ describe('settings (FR-004, CFG-001)', () => {
     const bad = (patch: Record<string, unknown>) => codeOf(() => router.configure(patch));
     expect(bad({ slopPx: -1 })).toMatch(/^INVALID_INPUT: settings.slopPx/);
     expect(bad({ handlePx: 0 })).toMatch(/settings.handlePx/);
-    expect(bad({ dragMode: 'orbit' })).toMatch(/settings.dragMode/);
+    // A drag moves a window round the room: there is no other way to choose.
+    expect(bad({ dragMode: 'world-plane' })).toMatch(/settings.dragMode is not a setting/);
     expect(bad({ takeoverModifier: 'hyper' })).toMatch(/settings.takeoverModifier/);
     expect(bad({ depthModifier: 'alt' })).toMatch(/settings.depthModifier must differ/);
-    expect(bad({ worldPlaneNormal: [0, 0, 0] })).toMatch(/settings.worldPlaneNormal/);
     // Steps build a keymap (defaultKeymap); they are not a setting that would change none.
-    expect(bad({ steps: { move: 0.2 } })).toMatch(
+    expect(bad({ steps: { heading: 0.2 } })).toMatch(
       /^INVALID_INPUT: settings.steps is not a setting/,
     );
     expect(bad({ colour: 'red' })).toMatch(/settings.colour is not a setting/);
@@ -512,28 +490,28 @@ describe('settings (FR-004, CFG-001)', () => {
   });
 
   it('come with a default keymap built from step sizes, each checked by name', () => {
-    const coarse = defaultKeymap({ move: 0.2 });
+    const coarse = defaultKeymap({ heading: 0.2 });
     const left = (
       keymap: readonly { key: string; modifiers: readonly string[]; args: unknown }[],
     ) => keymap.find((b) => b.key === 'ArrowLeft' && b.modifiers.length === 0)?.args;
-    expect(left(coarse)).toEqual({ right: -0.2 });
+    expect(left(coarse)).toEqual({ heading: -0.2 });
     expect(coarse.find((b) => b.key === 'PageUp')?.args).toEqual({
-      depth: DEFAULT_KEYBOARD_STEPS.depth,
+      floor: DEFAULT_KEYBOARD_STEPS.floor,
     });
-    expect(left(DEFAULT_SETTINGS.keymap)).toEqual({ right: -DEFAULT_KEYBOARD_STEPS.move });
+    expect(left(DEFAULT_SETTINGS.keymap)).toEqual({ heading: -DEFAULT_KEYBOARD_STEPS.heading });
     const refused = (steps: Record<string, unknown>) => codeOf(() => defaultKeymap(steps));
-    expect(refused({ move: 0 })).toMatch(
-      /^INVALID_INPUT: steps.move must be a positive finite number/,
+    expect(refused({ heading: 0 })).toMatch(
+      /^INVALID_INPUT: steps.heading must be a positive finite number/,
     );
+    expect(refused({ move: 0.1 })).toMatch(/^INVALID_INPUT: steps.move is not a step/);
     expect(refused({ turn: Number.NaN })).toMatch(/^INVALID_INPUT: steps.turn/);
     expect(refused({ jump: 1 })).toMatch(/^INVALID_INPUT: steps.jump is not a step/);
     // A keymap built from steps takes effect once configured.
     const { ws, input, router } = world(two);
     router.configure({ keymap: coarse });
     input.key('n', { viewportId: 'v' });
-    const x = ws.getState().nodes.get('a')?.transform.position[0] ?? 0;
     input.key('ArrowRight', { viewportId: 'v' });
-    expect(ws.getState().nodes.get('a')?.transform.position[0]).toBeCloseTo(x + 0.2, 12);
+    expect(placeOf(ws, 'a').heading).toBeCloseTo(0.2, 12);
   });
 
   it('announce every change, so a host can save them (CFG-003), and only changes that hold', () => {
@@ -556,7 +534,7 @@ describe('settings (FR-004, CFG-001)', () => {
     const { ws, input, router } = world(two);
     router.configure({
       slopPx: 0,
-      keymap: [{ key: 'm', modifiers: [], command: 'node.move', args: { right: 1 } }],
+      keymap: [{ key: 'm', modifiers: [], command: 'node.move', args: { height: 1 } }],
     });
     const [x, y] = titleBar(ws, 'a');
     input.pointer('down', 'v', x, y);
@@ -566,9 +544,8 @@ describe('settings (FR-004, CFG-001)', () => {
     // The keymap given replaces the default one.
     expect(input.key('n', { viewportId: 'v' }).consumed).toBe(false);
     input.command('selection.set', { ids: ['b'] });
-    const bx = ws.getState().nodes.get('b')?.transform.position[0] ?? 0;
     input.key('m', { viewportId: 'v' });
-    expect(ws.getState().nodes.get('b')?.transform.position[0]).toBeCloseTo(bx + 1, 12);
+    expect(placeOf(ws, 'b').height).toBeCloseTo(1, 12);
   });
 });
 

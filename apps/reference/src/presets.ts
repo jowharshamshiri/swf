@@ -1,5 +1,4 @@
 import type { SceneCommand } from '@swf/core';
-import { cameraRotation } from '@swf/projections';
 import { WINDOW_FRAME, layoutSurfaces } from '@swf/navigation';
 import type { Random } from '@swf/math';
 import { createRandom, seedIssue } from '@swf/math';
@@ -28,10 +27,10 @@ export interface PlannedWindow {
   readonly bindingKey: string;
   /** Degrees to the right of straight ahead (-Z), in (-180, 180]. */
   readonly heading: number;
-  /** Degrees above the horizon. */
-  readonly elevation: number;
-  /** World units from the camera. */
-  readonly distance: number;
+  /** World units out from the camera along the room's floor. */
+  readonly reach: number;
+  /** World units of its centre above the camera's level. */
+  readonly y: number;
   /** World units. */
   readonly width: number;
   readonly height: number;
@@ -99,7 +98,7 @@ function windowAt(
   seed: number,
   index: number,
   content: ContentKind,
-  place: { heading: number; elevation: number; distance: number; width: number; height: number },
+  place: { heading: number; reach: number; y: number; width: number; height: number },
 ): PlannedWindow {
   const number = String(index + 1).padStart(index + 1 >= 100 ? 3 : 2, '0');
   return {
@@ -108,8 +107,8 @@ function windowAt(
     content,
     bindingKey: `${preset}/${content}/${String(seed)}/${number}`,
     heading: wrapHeading(place.heading),
-    elevation: Math.round(place.elevation * 10) / 10,
-    distance: Math.round(place.distance * 100) / 100,
+    reach: Math.round(place.reach * 100) / 100,
+    y: Math.round(place.y * 100) / 100,
     width: Math.round(place.width * 100) / 100,
     height: Math.round(place.height * 100) / 100,
     hue: random.integer(0, 359),
@@ -133,8 +132,8 @@ const sparse: Preset = {
     return Array.from({ length: 6 }, (_, i) =>
       windowAt(random, 'sparse', seed, i, (i % 2 === 0) === (first === 'note') ? 'note' : 'tile', {
         heading: i * 60 + stepped(random, -15, 15, 10),
-        elevation: stepped(random, -10, 15, 10),
-        distance: stepped(random, 2.6, 3.4, 100),
+        reach: stepped(random, 2.6, 3.4, 100),
+        y: stepped(random, -0.6, 0.9, 100),
         width: stepped(random, 1.4, 2, 100),
         height: stepped(random, 0.9, 1.3, 100),
       }),
@@ -143,23 +142,24 @@ const sparse: Preset = {
 };
 
 /**
- * 250 windows (the benchmark's count) in five rings above and below the horizon, all the way
- * round: mostly drawn tiles, every fifth a native note.
+ * 250 windows (the benchmark's count) in five rows above and below the horizon, all the way
+ * round and from near to far along the floor: mostly drawn tiles, every fifth a native note.
  */
 const dense: Preset = {
   id: 'dense',
   name: 'preset.dense',
   defaultSeed: 1,
   plan(random, seed) {
-    const rings = [-40, -20, 0, 20, 40];
+    const rows = [-2.4, -1.2, 0, 1.2, 2.4];
     const perRing = 50;
-    return rings.flatMap((ring, r) =>
+    return rows.flatMap((row, r) =>
       Array.from({ length: perRing }, (_, k) => {
         const index = r * perRing + k;
         return windowAt(random, 'dense', seed, index, index % 5 === 0 ? 'note' : 'tile', {
           heading: k * (360 / perRing) + (r % 2) * (180 / perRing) + stepped(random, -1.5, 1.5, 10),
-          elevation: ring + stepped(random, -3, 3, 10),
-          distance: stepped(random, 3.5, 6, 100),
+          // Near, middle and far: every band semantic depth draws.
+          reach: stepped(random, 3.5, 12.5, 100),
+          y: row + stepped(random, -0.2, 0.2, 100),
           width: stepped(random, 0.5, 0.9, 100),
           height: stepped(random, 0.32, 0.6, 100),
         });
@@ -170,7 +170,7 @@ const dense: Preset = {
 
 /**
  * Windows across the seam behind the camera (one exactly on it, whatever the seed), windows
- * behind the camera on either side, one near the pole above the seam, and one straight ahead for
+ * behind the camera on either side, one high above the seam, and one straight ahead for
  * reference.
  */
 const seam: Preset = {
@@ -180,13 +180,13 @@ const seam: Preset = {
   plan(random, seed) {
     const jitter = () => stepped(random, -4, 4, 10);
     const places: [ContentKind, Parameters<typeof windowAt>[5]][] = [
-      ['note', { heading: 180, elevation: 0, distance: 3, width: 2.4, height: 1.4 }],
-      ['tile', { heading: 168 + jitter(), elevation: -18, distance: 3.2, width: 1.8, height: 1 }],
-      ['note', { heading: -170 + jitter(), elevation: 20, distance: 3, width: 1.2, height: 0.8 }],
-      ['tile', { heading: 140 + jitter(), elevation: -2, distance: 3.4, width: 1.4, height: 1 }],
-      ['note', { heading: -135 + jitter(), elevation: 4, distance: 3.4, width: 1.4, height: 1 }],
-      ['tile', { heading: 180 + jitter(), elevation: 58, distance: 3.2, width: 1.6, height: 1 }],
-      ['note', { heading: jitter(), elevation: 0, distance: 3, width: 1.6, height: 1 }],
+      ['note', { heading: 180, reach: 3, y: 0, width: 2.4, height: 1.4 }],
+      ['tile', { heading: 168 + jitter(), reach: 3.04, y: -0.99, width: 1.8, height: 1 }],
+      ['note', { heading: -170 + jitter(), reach: 2.82, y: 1.03, width: 1.2, height: 0.8 }],
+      ['tile', { heading: 140 + jitter(), reach: 3.4, y: -0.12, width: 1.4, height: 1 }],
+      ['note', { heading: -135 + jitter(), reach: 3.39, y: 0.24, width: 1.4, height: 1 }],
+      ['tile', { heading: 180 + jitter(), reach: 2.2, y: 3.6, width: 1.6, height: 1 }],
+      ['note', { heading: jitter(), reach: 3, y: 0, width: 1.6, height: 1 }],
     ];
     return places.map(([content, place], i) => windowAt(random, 'seam', seed, i, content, place));
   },
@@ -206,8 +206,8 @@ const composed: Preset = {
     const part = (content: ContentKind, i: number): PlannedWindow => ({
       ...windowAt(random, 'composed', seed, i, content, {
         heading: 0,
-        elevation: 0,
-        distance: 3.2,
+        reach: 3.2,
+        y: 0,
         width: stepped(random, 1.1, 1.4, 100),
         height: stepped(random, 0.8, 1, 100),
       }),
@@ -219,15 +219,15 @@ const composed: Preset = {
       part('note', 2),
       windowAt(random, 'composed', seed, 3, 'note', {
         heading: -75 + stepped(random, -5, 5, 10),
-        elevation: stepped(random, -5, 5, 10),
-        distance: 3.2,
+        reach: 3.2,
+        y: stepped(random, -0.28, 0.28, 100),
         width: 1.4,
         height: 1,
       }),
       windowAt(random, 'composed', seed, 4, 'tile', {
         heading: 75 + stepped(random, -5, 5, 10),
-        elevation: stepped(random, -5, 5, 10),
-        distance: 3.2,
+        reach: 3.2,
+        y: stepped(random, -0.28, 0.28, 100),
         width: 1.4,
         height: 1,
       }),
@@ -241,8 +241,8 @@ interface StudioWindow {
   readonly label: string;
   readonly content: ContentKind;
   readonly heading: number;
-  readonly elevation: number;
-  readonly distance: number;
+  readonly reach: number;
+  readonly y: number;
   readonly width: number;
   readonly height: number;
   readonly hue: number;
@@ -253,10 +253,10 @@ interface StudioWindow {
 const STUDIO_BOARD = Object.freeze({ id: 'board', label: 'Project Board' });
 
 /**
- * The studio's windows. The board stands straight ahead; around it, windows in every direction,
- * eight of them behind the camera, at distances in each of semantic depth's bands by default
- * (full nearer than 4 units, a compact preview to 5.5, the label alone beyond), above and below
- * the horizon. Each has a hue of its own, so no two look alike. The near ones are native notes,
+ * The studio's windows, at the prototype room's places, distances and heights. The board stands
+ * straight ahead; around it, windows in every direction, six of them behind the camera, at
+ * distances along the floor in each of semantic depth's bands by default (full nearer than 6.7
+ * units, a compact preview to 9.3, the label alone beyond), above and below the horizon. Each has a hue of its own, so no two look alike. The near ones are native notes,
  * which both backends present live; the drawn tiles are the far ones, shown by their labels.
  */
 const STUDIO: readonly StudioWindow[] = Object.freeze([
@@ -265,8 +265,8 @@ const STUDIO: readonly StudioWindow[] = Object.freeze([
     label: 'Plan',
     content: 'note',
     heading: 0,
-    elevation: 0,
-    distance: 3.4,
+    reach: 6.1,
+    y: 0.4,
     width: 1.6,
     height: 1.4,
     hue: 210,
@@ -281,8 +281,8 @@ const STUDIO: readonly StudioWindow[] = Object.freeze([
     label: 'Timeline',
     content: 'note',
     heading: 0,
-    elevation: 0,
-    distance: 3.4,
+    reach: 6.1,
+    y: 0.4,
     width: 1.6,
     height: 1.4,
     hue: 45,
@@ -297,8 +297,8 @@ const STUDIO: readonly StudioWindow[] = Object.freeze([
     label: 'Sources',
     content: 'note',
     heading: 0,
-    elevation: 0,
-    distance: 3.4,
+    reach: 6.1,
+    y: 0.4,
     width: 1.6,
     height: 1.4,
     hue: 275,
@@ -308,9 +308,9 @@ const STUDIO: readonly StudioWindow[] = Object.freeze([
     key: 'desk',
     label: 'Writing Desk',
     content: 'note',
-    heading: -62,
-    elevation: 6,
-    distance: 3,
+    heading: 41,
+    reach: 4.4,
+    y: 2.55,
     width: 2.2,
     height: 1.5,
     hue: 30,
@@ -324,9 +324,9 @@ const STUDIO: readonly StudioWindow[] = Object.freeze([
     key: 'builds',
     label: 'Build Status',
     content: 'note',
-    heading: 62,
-    elevation: -6,
-    distance: 3.2,
+    heading: 119,
+    reach: 6.6,
+    y: 2.0,
     width: 2.2,
     height: 1.5,
     hue: 150,
@@ -336,9 +336,9 @@ const STUDIO: readonly StudioWindow[] = Object.freeze([
     key: 'messages',
     label: 'Messages',
     content: 'note',
-    heading: -102,
-    elevation: 4,
-    distance: 4.6,
+    heading: -162,
+    reach: 5.3,
+    y: 2.1,
     width: 2.6,
     height: 1.7,
     hue: 345,
@@ -352,9 +352,9 @@ const STUDIO: readonly StudioWindow[] = Object.freeze([
     key: 'metrics',
     label: 'Metrics',
     content: 'note',
-    heading: 102,
-    elevation: 10,
-    distance: 4.8,
+    heading: 61,
+    reach: 5.9,
+    y: -1.7,
     width: 2.6,
     height: 1.7,
     hue: 190,
@@ -364,9 +364,9 @@ const STUDIO: readonly StudioWindow[] = Object.freeze([
     key: 'calendar',
     label: 'Calendar',
     content: 'note',
-    heading: -138,
-    elevation: -8,
-    distance: 3.4,
+    heading: -82,
+    reach: 4.9,
+    y: 1.3,
     width: 2.2,
     height: 1.5,
     hue: 95,
@@ -376,9 +376,9 @@ const STUDIO: readonly StudioWindow[] = Object.freeze([
     key: 'review',
     label: 'Code Review',
     content: 'note',
-    heading: 140,
-    elevation: -4,
-    distance: 5,
+    heading: -113,
+    reach: 8.4,
+    y: 0.0,
     width: 2.6,
     height: 1.7,
     hue: 235,
@@ -388,9 +388,9 @@ const STUDIO: readonly StudioWindow[] = Object.freeze([
     key: 'reading',
     label: 'Reading List',
     content: 'tile',
-    heading: 180,
-    elevation: 6,
-    distance: 8.5,
+    heading: -121,
+    reach: 8.8,
+    y: -1.7,
     width: 3.6,
     height: 2.2,
     hue: 15,
@@ -400,9 +400,9 @@ const STUDIO: readonly StudioWindow[] = Object.freeze([
     key: 'tasks',
     label: 'Tasks',
     content: 'note',
-    heading: -165,
-    elevation: 24,
-    distance: 4.4,
+    heading: -21,
+    reach: 6.8,
+    y: 0.3,
     width: 2.4,
     height: 1.6,
     hue: 60,
@@ -412,9 +412,9 @@ const STUDIO: readonly StudioWindow[] = Object.freeze([
     key: 'sketches',
     label: 'Sketches',
     content: 'tile',
-    heading: -25,
-    elevation: 32,
-    distance: 6.5,
+    heading: -172,
+    reach: 11.2,
+    y: 2.5,
     width: 3.2,
     height: 2,
     hue: 300,
@@ -428,9 +428,9 @@ const STUDIO: readonly StudioWindow[] = Object.freeze([
     key: 'signals',
     label: 'Signal Monitor',
     content: 'tile',
-    heading: 25,
-    elevation: -28,
-    distance: 7.5,
+    heading: 84,
+    reach: 8.6,
+    y: -2.1,
     width: 3.2,
     height: 2,
     hue: 170,
@@ -440,9 +440,9 @@ const STUDIO: readonly StudioWindow[] = Object.freeze([
     key: 'media',
     label: 'Media Notes',
     content: 'note',
-    heading: 118,
-    elevation: 26,
-    distance: 9.5,
+    heading: -39,
+    reach: 10.8,
+    y: 2.5,
     width: 3.6,
     height: 2.2,
     hue: 120,
@@ -452,9 +452,9 @@ const STUDIO: readonly StudioWindow[] = Object.freeze([
     key: 'archive',
     label: 'Archive',
     content: 'tile',
-    heading: -112,
-    elevation: -24,
-    distance: 10.5,
+    heading: 155,
+    reach: 11.6,
+    y: -1.6,
     width: 3.8,
     height: 2.4,
     hue: 255,
@@ -470,8 +470,9 @@ const STUDIO: readonly StudioWindow[] = Object.freeze([
 const STUDIO_BOARD_PARTS: readonly string[] = Object.freeze(['plan', 'timeline', 'sources']);
 
 /**
- * Named windows planned from their layout: the seed moves each window a few degrees, never across
- * a depth band, and the parts of a board (by key) stay together, composed into it.
+ * Named windows planned from their layout: the seed turns each window a few degrees and raises or
+ * lowers it a little, never across a depth band, and the parts of a board (by key) stay together,
+ * composed into it.
  */
 function planNamed(
   preset: PresetId,
@@ -486,7 +487,7 @@ function planNamed(
   return windows.map((spec, i): PlannedWindow => {
     const part = board?.parts.includes(spec.key) === true;
     const jitter = part ? 0 : stepped(random, -3, 3, 10);
-    const lift = part ? 0 : stepped(random, -2, 2, 10);
+    const lift = part ? 0 : stepped(random, -0.15, 0.15, 100);
     const number = String(i + 1).padStart(2, '0');
     return {
       id: spec.key,
@@ -494,8 +495,8 @@ function planNamed(
       content: spec.content,
       bindingKey: `${preset}/${spec.content}/${String(seed)}/${number}`,
       heading: wrapHeading(spec.heading + jitter),
-      elevation: Math.round((spec.elevation + lift) * 10) / 10,
-      distance: spec.distance,
+      reach: spec.reach,
+      y: Math.round((spec.y + lift) * 100) / 100,
       width: spec.width,
       height: spec.height,
       hue: spec.hue,
@@ -523,64 +524,64 @@ const named = (
   key: string,
   label: string,
   content: ContentKind,
-  [heading, elevation, distance]: readonly [number, number, number],
+  [heading, reach, y]: readonly [number, number, number],
   [width, height]: readonly [number, number],
   hue: number,
   detail: WindowDetail,
 ): StudioWindow =>
-  Object.freeze({ key, label, content, heading, elevation, distance, width, height, hue, detail });
+  Object.freeze({ key, label, content, heading, reach, y, width, height, hue, detail });
 
 /**
  * A researcher's desk: the question straight ahead, reading and fieldwork to either side, data
  * and the lab's log further round, writing and the archive far off, every depth band filled.
  */
 const RESEARCH: readonly StudioWindow[] = Object.freeze([
-  named('question', 'Research Question', 'note', [0, 2, 3.2], [2.2, 1.5], 205, {
+  named('question', 'Research Question', 'note', [0, 5.2, 1.1], [2.2, 1.5], 205, {
     category: 'Research',
     metric: '3 hypotheses',
     description: 'What the study sets out to answer',
   }),
-  named('papers', 'Papers', 'note', [-48, 4, 3.6], [2.4, 1.6], 20, {
+  named('papers', 'Papers', 'note', [-76, 5.3, 1.4], [2.4, 1.6], 20, {
     category: 'Reading',
     metric: '42 papers',
     description: 'Read, skimmed and still to read',
   }),
-  named('fieldnotes', 'Field Notes', 'note', [50, -4, 3.4], [2.2, 1.5], 85, {
+  named('fieldnotes', 'Field Notes', 'note', [61, 5.9, -1.7], [2.2, 1.5], 85, {
     category: 'Fieldwork',
     metric: '17 entries',
     description: 'Observations from the last site visit',
   }),
-  named('datasets', 'Datasets', 'note', [-100, -6, 4.8], [2.6, 1.7], 175, {
+  named('datasets', 'Datasets', 'note', [-145, 4.1, -1.0], [2.6, 1.7], 175, {
     category: 'Data',
     metric: '6 sets',
     description: 'Sources, licences and versions',
   }),
-  named('experiments', 'Experiment Log', 'note', [100, 8, 5], [2.6, 1.7], 130, {
+  named('experiments', 'Experiment Log', 'note', [152, 6.4, -1.7], [2.6, 1.7], 130, {
     category: 'Lab',
     metric: 'Run 14',
     description: 'Each run, its settings and outcome',
   }),
-  named('interviews', 'Interviews', 'note', [-150, 10, 3.6], [2.2, 1.5], 330, {
+  named('interviews', 'Interviews', 'note', [28, 8.0, 2.25], [2.2, 1.5], 330, {
     category: 'Fieldwork',
     metric: '9 transcripts',
     description: 'Conversations, coded by theme',
   }),
-  named('survey', 'Survey Results', 'tile', [150, -10, 7], [3.2, 2], 265, {
+  named('survey', 'Survey Results', 'tile', [-172, 11.2, 2.5], [3.2, 2], 265, {
     category: 'Data',
     metric: '412 replies',
     description: 'Answers by question and group',
   }),
-  named('citations', 'Citations', 'note', [178, 24, 9], [3.4, 2.2], 50, {
+  named('citations', 'Citations', 'note', [-50, 9.8, -0.3], [3.4, 2.2], 50, {
     category: 'Writing',
     metric: '128 references',
     description: 'The bibliography, checked',
   }),
-  named('draft', 'Paper Draft', 'note', [-20, -30, 5.2], [3, 1.9], 290, {
+  named('draft', 'Paper Draft', 'note', [-113, 8.4, 0.0], [3, 1.9], 290, {
     category: 'Writing',
     metric: '6,200 words',
     description: 'The draft, section by section',
   }),
-  named('labarchive', 'Lab Archive', 'tile', [32, 30, 10.5], [3.8, 2.4], 240, {
+  named('labarchive', 'Lab Archive', 'tile', [106, 10.5, 2.5], [3.8, 2.4], 240, {
     category: 'Archive',
     metric: '3 years',
     description: 'Earlier studies and their data',
@@ -593,52 +594,52 @@ const RESEARCH: readonly StudioWindow[] = Object.freeze([
  * far off, every depth band filled.
  */
 const PLANNING: readonly StudioWindow[] = Object.freeze([
-  named('roadmap', 'Roadmap', 'note', [0, 0, 3.4], [2.6, 1.6], 215, {
+  named('roadmap', 'Roadmap', 'note', [3, 4.4, 1.0], [2.6, 1.6], 215, {
     category: 'Planning',
     metric: 'Q1–Q4',
     description: 'Where the year is going',
   }),
-  named('backlog', 'Backlog', 'note', [-55, -4, 3.2], [2.2, 1.5], 40, {
+  named('backlog', 'Backlog', 'note', [-85, 5.6, 0.6], [2.2, 1.5], 40, {
     category: 'Work',
     metric: '58 items',
     description: 'Everything not yet scheduled',
   }),
-  named('sprint', 'Sprint Board', 'note', [55, 6, 3.6], [2.4, 1.6], 145, {
+  named('sprint', 'Sprint Board', 'note', [67, 4.6, -1.6], [2.4, 1.6], 145, {
     category: 'Work',
     metric: 'Sprint 31',
     description: 'This fortnight’s work by state',
   }),
-  named('milestones', 'Milestones', 'note', [-105, 8, 4.8], [2.6, 1.7], 90, {
+  named('milestones', 'Milestones', 'note', [-154, 4.8, -0.5], [2.6, 1.7], 90, {
     category: 'Planning',
     metric: '5 due',
     description: 'Dates the plan commits to',
   }),
-  named('risks', 'Risks', 'note', [105, -8, 5.2], [2.6, 1.7], 0, {
+  named('risks', 'Risks', 'note', [137, 6.2, -0.9], [2.6, 1.7], 0, {
     category: 'Review',
     metric: '7 open',
     description: 'What could slip, and the plan if it does',
   }),
-  named('budget', 'Budget', 'note', [-150, -6, 3.8], [2.2, 1.5], 120, {
+  named('budget', 'Budget', 'note', [34, 7.8, 1.55], [2.2, 1.5], 120, {
     category: 'Finance',
     metric: '72% spent',
     description: 'Spending against the plan',
   }),
-  named('capacity', 'Team Capacity', 'tile', [150, 12, 7.5], [3.2, 2], 280, {
+  named('capacity', 'Team Capacity', 'tile', [-124, 10, 1.4], [3.2, 2], 280, {
     category: 'People',
     metric: '34 days free',
     description: 'Who is free, and when',
   }),
-  named('decisions', 'Decisions', 'tile', [180, -22, 8.8], [3.4, 2.2], 190, {
+  named('decisions', 'Decisions', 'tile', [95, 9.9, 2.2], [3.4, 2.2], 190, {
     category: 'Review',
     metric: '23 logged',
     description: 'What was decided, by whom and why',
   }),
-  named('goals', 'Quarter Goals', 'note', [-30, 28, 5.4], [3, 1.9], 320, {
+  named('goals', 'Quarter Goals', 'note', [-50, 7.9, -0.7], [3, 1.9], 320, {
     category: 'Planning',
     metric: '4 goals',
     description: 'Outcomes the quarter is measured by',
   }),
-  named('retro', 'Retrospective', 'note', [30, -30, 10.8], [3.8, 2.4], 260, {
+  named('retro', 'Retrospective', 'note', [174, 8.3, 1.3], [3.8, 2.4], 260, {
     category: 'Review',
     metric: '12 notes',
     description: 'What went well, and what to change',
@@ -798,7 +799,7 @@ export function presetCommands(windows: readonly PlannedWindow[]): SceneCommand[
   // The group's box holds every window wherever it is turned: a cube round the camera.
   const reach = made.reduce((most, w) => {
     const [width, height] = layoutSurfaces(w.parts.map(surfaceSize)).bounds;
-    return Math.max(most, w.place.distance + Math.hypot(width, height) / 2);
+    return Math.max(most, Math.hypot(w.place.reach, w.place.y) + Math.hypot(width, height) / 2);
   }, 1);
   return [
     {
@@ -817,14 +818,12 @@ export function presetCommands(windows: readonly PlannedWindow[]): SceneCommand[
 
 /**
  * The commands that create a planned window and its surfaces in a group standing unturned at the
- * camera's place, facing the camera at the origin. Its tags say what kinds of content it shows;
+ * camera's place: upright, at its place in the room round the camera at the origin. Its tags say what kinds of content it shows;
  * its colour is its first part's.
  */
 export function windowCommands(window: PlannedComposite, parentId: string): SceneCommand[] {
   const { place, parts } = window;
   const h = place.heading * RADIANS;
-  const e = place.elevation * RADIANS;
-  const d = place.distance;
   const layout = layoutSurfaces(parts.map(surfaceSize));
   return [
     {
@@ -841,13 +840,10 @@ export function windowCommands(window: PlannedComposite, parentId: string): Scen
         },
         bounds: layout.bounds,
         transform: {
-          position: [
-            d * Math.cos(e) * Math.sin(h),
-            d * Math.sin(e),
-            -d * Math.cos(e) * Math.cos(h),
-          ],
-          // A window faces the camera: its front (+Z) looks back along the camera's line to it.
-          rotation: cameraRotation(h, e),
+          // In the room: its heading round the camera, its reach along the floor, its height.
+          position: [place.reach * Math.sin(h), place.y, -place.reach * Math.cos(h)],
+          // Upright, with no turn of its own: a card always faces the camera.
+          rotation: [0, 0, 0, 1],
           scale: [1, 1, 1],
         },
       },
@@ -887,8 +883,8 @@ export function contentOf(adapterTypeId: string): ContentKind | null {
 /** What the binding keys of windows added from the controls start with. */
 export const ADDED_KEY = 'added/note/';
 
-/** How far from the camera a window added from the controls stands, in world units. */
-export const ADDED_DISTANCE = 3;
+/** How far out along the floor a window added from the controls stands, in world units. */
+export const ADDED_REACH = 4.4;
 
 /**
  * The content of the `number`th window added from the controls (key `added/note/<number>`): a blank
@@ -905,8 +901,8 @@ export function addedWindow(number: number): PlannedWindow {
     content: 'note',
     bindingKey: `${ADDED_KEY}${String(number)}`,
     heading: 0,
-    elevation: 0,
-    distance: ADDED_DISTANCE,
+    reach: ADDED_REACH,
+    y: 0,
     width: 2.2,
     height: 1.5,
     // Golden-angle steps: each new window's hue far from the last ones'.

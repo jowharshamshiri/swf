@@ -2,7 +2,7 @@ import { SwfFailure } from '@swf/core';
 import { describe, expect, it } from 'vitest';
 import type { PickResult } from '../src/index.js';
 import { intentIssue, NO_MODIFIERS, wheelTurn } from '../src/index.js';
-import { contentOf, H, onWindow, screenOf, titleBar, W, world } from './fixtures.js';
+import { contentOf, H, onCard, titleBar, W, world } from './fixtures.js';
 
 function hit(result: PickResult) {
   if (result.kind !== 'hit') {
@@ -34,12 +34,12 @@ describe('input regions (FR-103)', () => {
       region: 'chrome',
       target: { nodeId: 'a', surfaceId: null, edge: null },
     });
-    const [ex, ey] = screenOf(ws, onWindow(ws, 'a', [0.99, 0, 0]));
+    const [ex, ey] = onCard(ws, 'a', [0.99, 0]);
     expect(hit(router.pick('v', ex, ey))).toMatchObject({
       region: 'resize-handle',
       target: { nodeId: 'a', edge: 'e' },
     });
-    const [nx, ny] = screenOf(ws, onWindow(ws, 'a', [-0.99, 0.59, 0]));
+    const [nx, ny] = onCard(ws, 'a', [-0.99, 0.59]);
     expect(hit(router.pick('v', nx, ny)).target.edge).toBe('nw');
     // Behind the camera there is nothing.
     expect(router.pick('v', 2, H / 2)).toMatchObject({ kind: 'background', region: 'background' });
@@ -59,6 +59,19 @@ describe('input regions (FR-103)', () => {
     }).toThrow(SwfFailure);
   });
 
+  it('picks on the cards as the viewport’s representation policy draws them', () => {
+    const placed = [{ id: 'a', heading: 0, distance: 3 }] as const;
+    const full = world(placed);
+    const [ex, ey] = onCard(full.ws, 'a', [0.9, 0]);
+    expect(hit(full.router.pick('v', ex, ey)).target.nodeId).toBe('a');
+    // Shown by its label alone, the card is smaller: the same point is past its edge.
+    const label = { id: 'test.label/1', representationOf: () => 'label' as const };
+    const labelled = world(placed, { router: { representation: () => label } });
+    expect(labelled.router.pick('v', ex, ey)).toMatchObject({ kind: 'background' });
+    const [cx, cy] = contentOf(labelled.ws, 'a');
+    expect(hit(labelled.router.pick('v', cx, cy)).target.nodeId).toBe('a');
+  });
+
   it('treats a surface that only shows something as part of the window frame', () => {
     const { ws, router } = world([{ id: 'a', heading: 0, distance: 3, interaction: 'none' }]);
     const [cx, cy] = contentOf(ws, 'a');
@@ -70,7 +83,7 @@ describe('input regions (FR-103)', () => {
 
   it('keeps the resize band along the frame even where a surface fills it', () => {
     const { ws, router } = world([{ id: 'a', heading: 0, distance: 3, inset: 0 }]);
-    const [ex, ey] = screenOf(ws, onWindow(ws, 'a', [0.99, 0, 0]));
+    const [ex, ey] = onCard(ws, 'a', [0.99, 0]);
     const edge = hit(router.pick('v', ex, ey));
     expect(edge).toMatchObject({
       region: 'resize-handle',
@@ -87,7 +100,7 @@ describe('input regions (FR-103)', () => {
     expect(ws.dispatch({ type: 'node.patch', id: 'a', flags: { resizable: false } }).status).toBe(
       'committed',
     );
-    const [ex, ey] = screenOf(ws, onWindow(ws, 'a', [0.99, 0, 0]));
+    const [ex, ey] = onCard(ws, 'a', [0.99, 0]);
     expect(hit(router.pick('v', ex, ey))).toMatchObject({
       region: 'chrome',
       target: { edge: null },

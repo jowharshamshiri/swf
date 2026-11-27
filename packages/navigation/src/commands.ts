@@ -1,4 +1,5 @@
 import type { JsonValue, PreviewResult, SceneState, TxResult } from '@swf/core';
+import { ROOM_LIMITS } from '@swf/interaction';
 import { CompositionRefusal } from './composition.js';
 import type { ExperimentId } from './experiments.js';
 import { EXPERIMENT_IDS } from './experiments.js';
@@ -61,7 +62,7 @@ export interface NavigationCommandSpecs {
     /** The window's ID. */
     readonly id: string;
   };
-  /** Puts a window at a world position, turning it to keep facing the camera; one undoable change. */
+  /** Puts a window at a world position, inside the room; one undoable change. */
   'swf.window.place': {
     /** The window's ID. */
     readonly id: string;
@@ -73,20 +74,19 @@ export interface NavigationCommandSpecs {
     readonly z?: number;
   };
   /**
-   * Poses a window: round the camera, out from it, up, turned and sized; each left out stays as it
-   * is. Refused for a locked window, or one its host does not let be moved, turned or sized so.
+   * Poses a window in the room: round the camera, out from it along the floor, up, and sized; each
+   * left out stays as it is. Refused for a locked window, one its host does not let be moved or
+   * sized so, or a place outside the room.
    */
   'swf.window.pose': {
     /** The window's ID. */
     readonly id: string;
     /** Degrees right of straight ahead. */
     readonly heading?: number;
-    /** World units out from the camera across the ground, at least the router's least distance. */
+    /** World units out from the camera along the floor, within the room's (2 to 13.5). */
     readonly reach?: number;
-    /** Its centre's world height. */
+    /** Its centre's height above the camera's level, within the room's (−3 to 4). */
     readonly y?: number;
-    /** Degrees to the right it is turned from facing the camera. */
-    readonly turned?: number;
     /** World units wide, at least the router's least size. */
     readonly width?: number;
     /** World units high, at least the router's least size. */
@@ -624,7 +624,7 @@ export function createNavigationCommands(navigation: () => Navigation): Navigati
       }
       return committed(navigation().placeWindow(id, { x, y, z }));
     },
-    'swf.window.pose': async ({ id, heading, reach, y, turned, width, height, preview }) => {
+    'swf.window.pose': async ({ id, heading, reach, y, width, height, preview }) => {
       const pose = isWindow(id) ? navigation().poseOf(id) : null;
       if (pose === null) {
         return rejected('id', `no window "${id}"`);
@@ -634,13 +634,7 @@ export function createNavigationCommands(navigation: () => Navigation): Navigati
         return rejected('preview', 'preview must be true or false');
       }
       const bad =
-        numbers(
-          [
-            ['heading', heading],
-            ['turned', turned],
-          ],
-          'degrees',
-        ) ??
+        numbers([['heading', heading]], 'degrees') ??
         numbers(
           [
             ['reach', reach],
@@ -655,26 +649,30 @@ export function createNavigationCommands(navigation: () => Navigation): Navigati
       }
       const placing = heading !== undefined || reach !== undefined || y !== undefined;
       const sizing = width !== undefined || height !== undefined;
-      if (!placing && !sizing && turned === undefined) {
-        return rejected('pose', 'a pose sets heading, reach, y, turned, width or height');
+      if (!placing && !sizing) {
+        return rejected('pose', 'a pose sets heading, reach, y, width or height');
       }
       if (pose.locked) {
-        return rejected('id', `window "${id}" is locked: unlock it to move, turn or size it`);
+        return rejected('id', `window "${id}" is locked: unlock it to move or size it`);
       }
       const refusedBy =
-        placing && !pose.movable
-          ? 'moved'
-          : turned !== undefined && !pose.rotatable
-            ? 'turned'
-            : sizing && !pose.resizable
-              ? 'resized'
-              : null;
+        placing && !pose.movable ? 'moved' : sizing && !pose.resizable ? 'resized' : null;
       if (refusedBy !== null) {
         return rejected('id', `the host of window "${id}" does not let it be ${refusedBy}`);
       }
-      const { minDistance, minSize } = navigation().router.settings();
-      if (reach !== undefined && reach < minDistance) {
-        return rejected('reach', `reach must be at least ${String(minDistance)} world units`);
+      const { minSize } = navigation().router.settings();
+      const { nearest, farthest, lowest, highest } = ROOM_LIMITS;
+      if (reach !== undefined && (reach < nearest || reach > farthest)) {
+        return rejected(
+          'reach',
+          `reach must be within the room, ${String(nearest)} to ${String(farthest)} world units`,
+        );
+      }
+      if (y !== undefined && (y < lowest || y > highest)) {
+        return rejected(
+          'y',
+          `y must be within the room, ${String(lowest)} to ${String(highest)} world units`,
+        );
       }
       for (const [field, value] of [
         ['width', width],
@@ -687,7 +685,7 @@ export function createNavigationCommands(navigation: () => Navigation): Navigati
       return committed(
         navigation().poseWindow(
           id,
-          { heading, reach, y, turned, width, height },
+          { heading, reach, y, width, height },
           { preview: preview ?? false },
         ),
       );

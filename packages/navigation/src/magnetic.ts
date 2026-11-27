@@ -1,26 +1,15 @@
 import type { Id, SceneState } from '@swf/core';
 import { effectiveState, worldMatrix } from '@swf/core';
-import type { Placement } from '@swf/interaction';
-import type { Mat4, Transform3D, Vec3 } from '@swf/math';
-import {
-  add,
-  cross,
-  dot,
-  length,
-  mat4Decompose,
-  mat4FromTransform,
-  mat4InvertAffine,
-  mat4Multiply,
-  normalize,
-  quatFromAxisAngle,
-  quatMultiply,
-  quatNormalize,
-  quatRotate,
-  sub,
-} from '@swf/math';
+import type { RoomPlace } from '@swf/interaction';
+import { ROOM_LIMITS, roomPlaceOf } from '@swf/interaction';
+import type { Vec3 } from '@swf/math';
 import type * as Lean from '@swf/models';
 import { models } from '@swf/models';
-import type { SnapSettings } from './features.js';
+import type { Representation } from '@swf/presentation';
+import { windowCard } from '@swf/presentation';
+import type { DepthBands, SnapSettings } from './features.js';
+import { SNAP_SPACING } from './features.js';
+import { representationAt } from './semantic-depth.js';
 
 /**
  * Magnetic positioning, worked out around the camera. Windows in a panorama stand around the
@@ -32,28 +21,49 @@ import type { SnapSettings } from './features.js';
  *   window's distance;
  * - its centre's heading or elevation to a neighbour's, its elevation to the horizon, or its
  *   heading to a spoke round the camera (every so many degrees): the angular threshold, in degrees;
- * - its distance from the camera to a ring ({@link ringsOf}): the ring threshold, in world units.
+ * - its distance from the camera along the floor to a ring ({@link SNAP_RINGS}): the ring threshold, in world units.
  * Each axis (across, down, out) takes the nearest snap on it; at the same distance edges win over
  * line-ups, line-ups over the horizon, the spokes and the rings, and then the first neighbour. Only neighbours side by side with the window
  * snap: those whose distance from the camera is within a quarter of its own; farther ones lie
  * behind it. The snap is decided by the Lean model `Swf.AppSnap` (models/Swf/AppSnap.lean),
- * where it is proved to be the nearest within reach; this module measures where the windows are
- * seen from the camera, and turns the window by the snap, and moves it out to its ring: it keeps
- * facing the camera as it did. Nothing here touches a scene.
+ * where it is proved to be the nearest within reach; this module measures where the windows stand
+ * in the room and the angles their cards span, and moves the window round the camera, up or down
+ * and along the floor by the snap, inside the room. A window the snap put on a spoke is kept clear
+ * of the windows near it on the floor when it is dropped ({@link spacedPlace}, decided by
+ * `Swf.AppSpacing`).
+ * Nothing here touches a scene.
  */
 
-/** A window as snapping sees it. */
+/** A window as snapping sees it: where it stands in the room, and the angles its card spans. */
 export interface SnapBox {
   /** The window's ID. */
   readonly id: Id;
   /** Its name. */
   readonly label: string;
-  /** World centre. */
-  readonly centre: Vec3;
-  /** Half its width, in world units. */
+  /** Where it stands in the room. */
+  readonly place: RoomPlace;
+  /** Half the angle its card spans across, in radians, as the view draws it. */
   readonly halfWidth: number;
-  /** Half its height, in world units. */
+  /** Half the angle its card spans up and down, in radians, as the view draws it. */
   readonly halfHeight: number;
+}
+
+/**
+ * How the view a window is snapped in draws its cards: its size in CSS pixels, the angles it spans
+ * across and down in degrees, and semantic depth's bands when the view represents windows by
+ * distance (null when it shows every window in full).
+ */
+export interface CardMeasure {
+  /** The view's width, in CSS pixels. */
+  readonly width: number;
+  /** The view's height, in CSS pixels. */
+  readonly height: number;
+  /** The angle the view spans across, in degrees. */
+  readonly horizontal: number;
+  /** The angle the view spans down, in degrees. */
+  readonly vertical: number;
+  /** Semantic depth's bands, or null when every window is shown in full. */
+  readonly depth: DepthBands | null;
 }
 
 /** A snap in force: what the moving window lines up with. */
@@ -115,36 +125,33 @@ export const NO_SNAP: Snap = Object.freeze({
   constraints: Object.freeze([]),
 });
 
-/** A box as seen from the eye: its centre's heading, elevation and distance, and its angular half sizes. */
-function seen(box: SnapBox, eye: Vec3): Lean.SnapSeen {
-  const [x, y, z] = sub(box.centre, eye);
-  const distance = Math.hypot(x, y, z);
+/** A box as the snap model sees it: its heading, elevation and floor distance, and its card's angles. */
+function seen(box: SnapBox): Lean.SnapSeen {
   return {
-    heading: Math.atan2(x, -z),
-    elevation: Math.atan2(y, Math.hypot(x, z)),
-    distance,
-    halfWidth: Math.atan2(box.halfWidth, distance),
-    halfHeight: Math.atan2(box.halfHeight, distance),
+    heading: box.place.heading,
+    elevation: models.elevationOf(box.place),
+    distance: box.place.floor,
+    halfWidth: box.halfWidth,
+    halfHeight: box.halfHeight,
   };
 }
 
 /**
  * The snap for a window proposed at `moving`, among `neighbours` (in a stable order: ties go to
- * the first) and the `rings` (distances from the camera, in world units), as seen from `eye`.
- * Throws a RangeError when a number it weighs is not finite.
+ * the first) and the `rings` (distances along the floor, in world units). Throws a RangeError when
+ * a number it weighs is not finite.
  */
 export function resolveSnap(
   moving: SnapBox,
   neighbours: readonly SnapBox[],
-  eye: Vec3,
   settings: SnapSettings,
   rings: readonly number[],
 ): Snap {
-  const m = seen(moving, eye);
+  const m = seen(moving);
   const outcome = models.snapResolve(
     moving.id,
     m,
-    neighbours.map((neighbour) => ({ id: neighbour.id, seen: seen(neighbour, eye) })),
+    neighbours.map((neighbour) => ({ id: neighbour.id, seen: seen(neighbour) })),
     {
       linear: settings.linear,
       angular: settings.angular,
@@ -202,69 +209,112 @@ export function resolveSnap(
   }
 }
 
-/** The direction seen at a heading and elevation. */
-function direction(heading: number, elevation: number): Vec3 {
-  return [
-    Math.cos(elevation) * Math.sin(heading),
-    Math.sin(elevation),
-    -Math.cos(elevation) * Math.cos(heading),
-  ];
+/**
+ * Where a window proposed at `place` stands once a snap has turned it round the camera, raised or
+ * lowered it to the elevation the snap gives (at its floor distance), and moved it along the floor
+ * by the snap's distance; inside the room.
+ */
+export function snappedPlace(place: RoomPlace, snap: Snap): RoomPlace {
+  const floor = place.floor + snap.distance;
+  const elevation = models.elevationOf(place) + snap.elevation;
+  return models.keepInRoom(ROOM_LIMITS, {
+    heading: place.heading + snap.heading,
+    floor,
+    height: floor * Math.tan(elevation),
+  });
+}
+
+/** Where a snapped window stands, and the snap that put it there. */
+export interface SnappedPlace {
+  /** Where it stands, inside the room. */
+  readonly place: RoomPlace;
+  /** The snap in force there: what it lines up with, the spoke it ends on included. */
+  readonly snap: Snap;
 }
 
 /**
- * The local transform of a window placed at `world` (its proposed world matrix, under the parent
- * of `placement`) once a snap has turned it about the eye and moved it out: the shortest turn that
- * takes its centre from where it is seen to where the snap puts it, so it keeps its facing, then
- * along its line from the eye by the snap's distance. Null when the parent's placement cannot be
- * inverted or decomposed.
+ * Where a window dropped at `snapped`, the place `snap` gave it, stands kept clear of `others`:
+ * when the snap put it on a spoke and another window stands nearer than {@link SNAP_SPACING} to it
+ * along the floor, it goes on to the first clear spoke of the ones beside, tried left and right in
+ * turn, or stays where its snap put it when none is clear (`Swf.AppSpacing`). The snap given back
+ * says the spoke it ends on. A move applies it when it ends, not while it goes, so a window being
+ * dragged never hops away from the pointer.
  */
-export function snappedTransform(
-  placement: Placement,
-  world: Mat4,
-  eye: Vec3,
+export function spacedPlace(
+  snapped: RoomPlace,
   snap: Snap,
-): Transform3D | null {
-  const toParent = mat4InvertAffine(placement.parentWorld);
-  const centre: Vec3 = [world[12], world[13], world[14]];
-  const offset = sub(centre, eye);
-  const distance = length(offset);
-  if (toParent === null || !(distance > 0)) {
-    return null;
+  others: readonly SnapBox[],
+  settings: SnapSettings,
+): SnappedPlace {
+  if (!(settings.spoke > 0) || !snap.constraints.some((c) => c.kind === 'spoke')) {
+    return { place: snapped, snap };
   }
-  const from = normalize(offset);
-  const heading = Math.atan2(from[0], -from[2]);
-  const elevation = Math.atan2(from[1], Math.hypot(from[0], from[2]));
-  const to = direction(heading + snap.heading, elevation + snap.elevation);
-  const axis = cross(from, to);
-  const sine = length(axis);
-  const angle = Math.atan2(sine, dot(from, to));
-  const turn = sine < 1e-12 ? null : quatFromAxisAngle(normalize(axis), angle);
-  const decomposed = mat4Decompose(world);
-  if (!decomposed.ok) {
-    return null;
+  const heading = models.spacedHeading(
+    SNAP_SPACING,
+    (settings.spoke * Math.PI) / 180,
+    others.map((o) => ({
+      x: o.place.floor * Math.sin(o.place.heading),
+      z: -o.place.floor * Math.cos(o.place.heading),
+    })),
+    snapped.floor,
+    snapped.heading,
+  );
+  if (heading === snapped.heading) {
+    return { place: snapped, snap };
   }
-  const placed = decomposed.transform;
-  const out = (distance + snap.distance) / distance;
-  const turned = turn === null ? offset : quatRotate(turn, offset);
-  const snappedWorld = mat4FromTransform({
-    position: add(eye, [turned[0] * out, turned[1] * out, turned[2] * out]),
-    rotation: turn === null ? placed.rotation : quatNormalize(quatMultiply(turn, placed.rotation)),
-    scale: placed.scale,
-  });
-  const local = mat4Decompose(mat4Multiply(toParent, snappedWorld));
-  return local.ok ? local.transform : null;
+  const turned = heading - snapped.heading;
+  return {
+    place: models.keepInRoom(ROOM_LIMITS, { ...snapped, heading }),
+    snap: Object.freeze({
+      ...snap,
+      heading: snap.heading + turned,
+      constraints: Object.freeze(
+        snap.constraints.map((c) =>
+          c.kind === 'spoke'
+            ? Object.freeze({ ...c, degrees: c.degrees + (turned * 180) / Math.PI })
+            : c,
+        ),
+      ),
+    }),
+  };
 }
 
-/** The world matrix of a node placed at a local transform under its parent. */
-export function worldAt(placement: Placement, local: Transform3D): Mat4 {
-  return mat4Multiply(placement.parentWorld, mat4FromTransform(local));
+/**
+ * How a viewport draws its cards: its size and the angles its equirectangular projection spans,
+ * with semantic depth's `depth` bands when it represents windows by distance. Throws an Error for
+ * a viewport that is not there or not shown equirectangularly.
+ */
+export function cardMeasureOf(
+  scene: SceneState,
+  viewportId: Id,
+  depth: DepthBands | null,
+): CardMeasure {
+  const viewport = scene.viewports.get(viewportId);
+  const config = viewport?.projection.config as Readonly<Record<string, unknown>> | undefined;
+  const horizontal = config?.['horizontal'];
+  const vertical = config?.['vertical'];
+  if (viewport === undefined || typeof horizontal !== 'number' || typeof vertical !== 'number') {
+    throw new Error(`viewport "${viewportId}" is not shown by an equirectangular projection`);
+  }
+  return Object.freeze({
+    width: viewport.size.width,
+    height: viewport.size.height,
+    horizontal,
+    vertical,
+    depth,
+  });
 }
 
 /**
  * The windows a moving one may snap to, in ID order: every other window shown in the scene, not
- * the moving window's own descendants.
+ * the moving window's own descendants, each measured as `measure` draws it round `eye`.
  */
-export function snapNeighbours(scene: SceneState, movingId: Id): SnapBox[] {
+export function snapNeighbours(
+  scene: SceneState,
+  movingId: Id,
+  eye: Vec3,
+  measure: CardMeasure,
+): SnapBox[] {
   const boxes: SnapBox[] = [];
   const nodes = [...scene.nodes.values()].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   for (const node of nodes) {
@@ -278,7 +328,7 @@ export function snapNeighbours(scene: SceneState, movingId: Id): SnapBox[] {
     ) {
       continue;
     }
-    const box = boxOf(scene, id);
+    const box = boxOf(scene, id, eye, measure);
     if (box !== null) {
       boxes.push(box);
     }
@@ -286,21 +336,45 @@ export function snapNeighbours(scene: SceneState, movingId: Id): SnapBox[] {
   return boxes;
 }
 
-/** A node as snapping sees it, from its world placement; null when it has none. */
-export function boxOf(scene: SceneState, id: Id, world?: Mat4): SnapBox | null {
+/**
+ * A window as snapping sees it round `eye`: at `place` (where it stands, when not given), its card
+ * as `measure` draws it there (represented by semantic depth's bands along the floor, when the
+ * view represents windows by distance); null when it has no placement.
+ */
+export function boxOf(
+  scene: SceneState,
+  id: Id,
+  eye: Vec3,
+  measure: CardMeasure,
+  place?: RoomPlace,
+): SnapBox | null {
   const node = scene.nodes.get(id);
-  const matrix = world ?? worldMatrix(scene.nodes, id);
-  if (node === undefined || matrix === undefined) {
+  const world = worldMatrix(scene.nodes, id);
+  if (node === undefined || world === undefined) {
     return null;
   }
-  const scaleX = Math.hypot(matrix[0], matrix[1], matrix[2]);
-  const scaleY = Math.hypot(matrix[4], matrix[5], matrix[6]);
+  const at = place ?? roomPlaceOf(scene, id, eye);
+  // Represented as semantic depth represents it, by its distance along the floor.
+  const representation: Representation =
+    measure.depth === null ? 'full' : representationAt(at.floor, measure.depth);
+  const card = windowCard({
+    bounds: [node.bounds[0], node.bounds[1]],
+    worldScale: [
+      Math.hypot(world[0], world[1], world[2]),
+      Math.hypot(world[4], world[5], world[6]),
+    ],
+    floor: at.floor,
+    representation,
+    fieldOfView: measure.horizontal,
+    semantic: measure.depth !== null,
+  });
+  const radians = Math.PI / 180;
   return Object.freeze({
     id,
     label: node.label ?? id,
-    centre: [matrix[12], matrix[13], matrix[14]] as Vec3,
-    halfWidth: (node.bounds[0] * scaleX) / 2,
-    halfHeight: (node.bounds[1] * scaleY) / 2,
+    place: at,
+    halfWidth: ((card.width / 2) * measure.horizontal * radians) / measure.width,
+    halfHeight: ((card.height / 2) * measure.vertical * radians) / measure.height,
   });
 }
 

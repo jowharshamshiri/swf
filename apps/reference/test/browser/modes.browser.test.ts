@@ -10,7 +10,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { commands } from 'vitest/browser';
 import type { ReferenceApp } from '../../src/app.js';
 import { parseConfig } from '../../src/config.js';
-import { MAP_SCALE, mapScene, overviewScene, toMap } from '@swf/navigation';
+import { MAP_SCALE, mapScene, overviewScene, roomMapView, toMap, zoomed } from '@swf/navigation';
 import { createMessages, ENGLISH } from '../../src/messages.js';
 import { ShellModel } from '../../src/shell/model.svelte.js';
 import Shell from '../../src/shell/Shell.svelte';
@@ -113,16 +113,16 @@ describe('focus and context in the shell (FR-120, UX-003)', () => {
     await settle();
     expect(app.status().mode).toBe('focus');
     expect(root.textContent).toContain('Focus: ');
-    // Once the view has moved there, the focused window fills most of it, centred.
+    // Once the view has moved there, the focused window's card fills most of it, centred across:
+    // the level camera faces it, and it stays at its own height.
     await expect.poll(() => app.transitions.running(), { timeout: 5000 }).toBe(false);
     const f = await frame(app);
     const fragment = f.frame.planned.find((p) => p.fragment.surfaceId === 'window-03-surface');
     const size = app.workspace.getState().viewports.get('main')?.size;
     if (fragment === undefined || size === undefined) throw new Error('not shown');
-    const [x, y, w, h] = fragment.fragment.bounds;
+    const [x, , w, h] = fragment.fragment.card;
     expect(Math.max(w / size.width, h / size.height)).toBeGreaterThan(0.5);
     expect(Math.abs(x + w / 2 - size.width / 2)).toBeLessThan(size.width * 0.05);
-    expect(Math.abs(y + h / 2 - size.height / 2)).toBeLessThan(size.height * 0.1);
     // Its neighbours are named and reachable: pressing one focuses it.
     const context = app.focusNeighbours();
     const next = context?.right[0] ?? context?.left[0];
@@ -139,7 +139,7 @@ describe('focus and context in the shell (FR-120, UX-003)', () => {
     expect(app.workspace.getState().cameras.get('camera')?.rotation).toEqual(camera);
     expect(app.workspace.getState().viewports.get('main')?.projection).toEqual({
       id: 'equirectangular/1',
-      config: { horizontal: 360, vertical: 120 },
+      config: { horizontal: 360, vertical: 130, horizon: 0.49 },
     });
     expect(layout(app)).toBe(before);
     expect(driver.has('page.focus.close')).toBe(false);
@@ -169,12 +169,7 @@ describe('the spatial map (FR-124, UX-004, WF-05)', () => {
 
     const surface = driver.read('page.map.surface');
     if (!surface.present) throw new Error('no map');
-    const view = {
-      centre: [0, 0] as const,
-      scale: MAP_SCALE.initial,
-      width: surface.box.width,
-      height: surface.box.height,
-    };
+    const view = roomMapView(surface.box.width, surface.box.height);
     const [wx, , wz] = origin(app, 'window-07');
     const [px, py] = toMap(view, wx, wz);
     const at = (x: number, y: number) => [surface.box.x + x, surface.box.y + y] as const;
@@ -214,12 +209,7 @@ describe('the spatial map (FR-124, UX-004, WF-05)', () => {
     await settle();
     const surface = driver.read('page.map.surface');
     if (!surface.present) throw new Error('no map');
-    const view = {
-      centre: [0, 0] as const,
-      scale: MAP_SCALE.initial,
-      width: surface.box.width,
-      height: surface.box.height,
-    };
+    const view = roomMapView(surface.box.width, surface.box.height);
     const [wx, , wz] = origin(app, 'window-07');
     const [px, py] = toMap(view, wx, wz);
     const [x, y] = [surface.box.x + px + 3, surface.box.y + py - 2];
@@ -237,12 +227,22 @@ describe('the spatial map (FR-124, UX-004, WF-05)', () => {
   });
 
   it('names every window, the ground in front and behind at its edges, and its rings by distance', async () => {
-    const { app, root, driver, settle } = await start('?preset=studio');
+    // A page large enough for the whole room's names.
+    const { app, root, driver, settle } = await start('?preset=studio', {
+      width: 1600,
+      height: 1000,
+    });
     driver.act('editor.actions.mode#map', 'press');
     await settle();
-    // Out far enough to hold most of the studio.
-    for (let i = 0; i < 3; i++) {
-      driver.act('page.map.zoom-out', 'press');
+    // The map starts holding the whole room, a ring's distance written on it.
+    const unitKeys = () =>
+      [...root.querySelectorAll('[data-wsb^="page.map.unit#"]')]
+        .filter((unit) => unit.classList.contains('wsb-stage__unit--titled'))
+        .map((unit) => (unit.getAttribute('data-wsb') ?? '').slice('page.map.unit#'.length));
+    expect(unitKeys().some((k) => k.startsWith('ring.'))).toBe(true);
+    // Two steps in, the crowded windows ahead have room for their names.
+    for (let i = 0; i < 2; i++) {
+      driver.act('page.map.zoom-in', 'press');
       await settle();
     }
     // The selected window's name is written larger: it is still written whole, on one line.
@@ -287,8 +287,6 @@ describe('the spatial map (FR-124, UX-004, WF-05)', () => {
     const behind = titled.find((t) => t.key === 'region.behind')?.box;
     expect((front?.top ?? 0) - map.box.y).toBeLessThan(20);
     expect(map.box.y + map.box.height - (behind?.bottom ?? 0)).toBeLessThan(20);
-    // A ring's distance is written.
-    expect(keys.some((k) => k.startsWith('ring.'))).toBe(true);
     // No two names written over each other.
     for (const a of titled) {
       for (const b of titled) {
@@ -301,19 +299,21 @@ describe('the spatial map (FR-124, UX-004, WF-05)', () => {
         expect(apart, `${a.key} and ${b.key}`).toBe(true);
       }
     }
-    // A name is not written across its own window's line where a place clear of it is free: the
-    // project board, straight ahead, has its line across the map, and is named above or below it.
+    // A name is not written across its own window's line where a place clear of it is free: one
+    // step farther in, the project board, straight ahead, has its line across the map, and room
+    // above or below it to be named.
+    driver.act('page.map.zoom-in', 'press');
+    await settle();
     const surface = reading(driver, 'page.map.surface');
-    const view = {
-      centre: [0, 0] as const,
-      scale: MAP_SCALE.initial / MAP_SCALE.step ** 3,
-      width: surface.box.width,
-      height: surface.box.height,
-    };
+    // Three steps in from the whole room, about the map's middle.
+    const whole = roomMapView(surface.box.width, surface.box.height);
+    const view = zoomed(whole, MAP_SCALE.step ** 3, whole.width / 2, whole.height / 2);
     const board = mapScene(app.workspace.getState(), 'main', app.windows.partOfKey).markers.find(
       (m) => m.id === 'board',
     );
-    const name = titled.find((t) => t.key === 'board')?.box;
+    const name = root
+      .querySelector('[data-wsb="page.map.unit#board"].wsb-stage__unit--titled')
+      ?.getBoundingClientRect();
     if (board === undefined || name === undefined)
       throw new Error('the project board is not named');
     const [a, b] = board.ends.map((end) => toMap(view, end[0], end[1]));
@@ -329,17 +329,16 @@ describe('the spatial map (FR-124, UX-004, WF-05)', () => {
   });
 
   it('gives a name with few places room before names that have others', async () => {
-    // Wide, three steps out: Media Notes stands at the map's right edge, where its name fits only
-    // to its left, above or below, each a place Code Review's name, to the right of its own mark,
-    // would take; Code Review has room to its left.
+    // Wide, two steps in from the whole room: the windows near the map's edge (Media Notes among
+    // them) have few places for a name, and every one is named.
     const { app, root, driver, settle } = await start('?preset=studio', {
       width: 1600,
       height: 1000,
     });
     driver.act('editor.actions.mode#map', 'press');
     await settle();
-    for (let i = 0; i < 3; i++) {
-      driver.act('page.map.zoom-out', 'press');
+    for (let i = 0; i < 2; i++) {
+      driver.act('page.map.zoom-in', 'press');
       await settle();
     }
     const units = [...root.querySelectorAll('[data-wsb^="page.map.unit#"]')].map((unit) => ({
@@ -530,12 +529,14 @@ describe('the spatial overview (FR-128, UX-005)', () => {
       const box = cardBox(root, id);
       return (box.left + box.right) / 2 - board.left;
     };
+    // The board straight ahead; the desk 41° right and the calendar 82° left; messages (162° left)
+    // and the archive (155° right) behind, at the edges.
     expect(centre('board')).toBeCloseTo(board.width / 2, -1);
-    expect(centre('desk')).toBeLessThan(centre('board'));
-    expect(centre('builds')).toBeGreaterThan(centre('board'));
-    expect(centre('reading')).toBeGreaterThan(board.width * 0.85);
-    expect(centre('calendar')).toBeLessThan(board.width * 0.25);
-    // Above the horizon higher up: the sketches (32° up) over the signal monitor (28° down).
+    expect(centre('desk')).toBeGreaterThan(centre('board'));
+    expect(centre('calendar')).toBeLessThan(centre('board'));
+    expect(centre('messages')).toBeLessThan(board.width * 0.25);
+    expect(centre('archive')).toBeGreaterThan(board.width * 0.75);
+    // Higher up above lower: the sketches (13° up) over the signal monitor (14° down).
     expect(cardBox(root, 'sketches').top).toBeLessThan(cardBox(root, 'signals').top);
     // The searchable list is still there, every window in it.
     for (const id of ids) {

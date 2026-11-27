@@ -1,44 +1,37 @@
 import type { Id, SceneCommand, SceneState } from '@swf/core';
 import { worldMatrix } from '@swf/core';
-import { placementOf, turnedAbout, worldOrigin } from '@swf/interaction';
+import { ROOM_LIMITS, roomPlaceOf, standingInRoom } from '@swf/interaction';
 import type { Vec3 } from '@swf/math';
-import { mat4Decompose, mat4FromTransform, mat4Multiply } from '@swf/math';
-import { headingPitchOf } from '@swf/projections';
-import { placedAt } from './map.js';
+import { models } from '@swf/models';
 
 /**
- * Where a window is around the camera and how it stands, as an operator reads it: what the
+ * Where a window is in the room around the camera, as an operator reads it: what the
  * inspector shows, what is announced when it changes, and what the inspector's exact entries set.
  */
 export interface Pose {
   /** Degrees to the right of straight ahead, from −180 to 180. */
   readonly heading: number;
-  /** Degrees above the horizon. */
+  /** Degrees above the horizon, derived from its height and its distance along the floor. */
   readonly elevation: number;
   /** World units from the camera. */
   readonly distance: number;
   /**
-   * World units from the camera across the ground: how far out it stands, whatever its height.
-   * With its heading and its height it says where the window is, each set on its own.
+   * World units from the camera along the floor: how far out it stands, whatever its height. With
+   * its heading and its height it says where the window is in the room, each set on its own.
    */
   readonly reach: number;
-  /**
-   * Degrees it is turned to the right from facing the camera, from −180 to 180: 0 when it faces
-   * the camera squarely.
-   */
-  readonly turned: number;
+  /** World units its centre stands above the camera's level (below it, negative). */
+  readonly above: number;
   /** Its world position. */
   readonly position: Vec3;
   /** Its frame's width, in world units. */
   readonly width: number;
   /** Its frame's height, in world units. */
   readonly height: number;
-  /** Locked: not moved, turned or sized. */
+  /** Locked: not moved or sized. */
   readonly locked: boolean;
   /** Its host lets it be moved. */
   readonly movable: boolean;
-  /** Its host lets it be turned. */
-  readonly rotatable: boolean;
   /** Its host lets it be sized. */
   readonly resizable: boolean;
 }
@@ -58,26 +51,21 @@ export function poseOf(scene: SceneState, id: Id, eye: Vec3): Pose | null {
   if (node === undefined || world === undefined) {
     return null;
   }
-  const decomposed = mat4Decompose(world);
-  if (!decomposed.ok) {
-    throw new Error(`window "${id}" has a placement that is not a rotation and a scale`);
-  }
   const position: Vec3 = [world[12], world[13], world[14]];
   const [x, y, z] = [position[0] - eye[0], position[1] - eye[1], position[2] - eye[2]];
-  const heading = Math.atan2(x, -z) * DEGREES;
-  const yaw = headingPitchOf(decomposed.transform.rotation).heading * DEGREES;
+  const heading = Math.atan2(x, -z);
   return Object.freeze({
-    heading: wrapDegrees(heading),
-    elevation: Math.atan2(y, Math.hypot(x, z)) * DEGREES,
+    heading: wrapDegrees(heading * DEGREES),
+    // Derived from its height and its distance along the floor, as the room derives it.
+    elevation: models.elevationOf({ heading, floor: Math.hypot(x, z), height: y }) * DEGREES,
     distance: Math.hypot(x, y, z),
     reach: Math.hypot(x, z),
-    turned: wrapDegrees(yaw - heading),
+    above: y,
     position,
     width: node.bounds[0],
     height: node.bounds[1],
     locked: node.flags.locked,
     movable: node.flags.draggable,
-    rotatable: node.flags.rotatable,
     resizable: node.flags.resizable,
   });
 }
@@ -90,8 +78,6 @@ export interface PoseTarget {
   readonly reach?: number | undefined;
   /** The world height of its centre. */
   readonly y?: number | undefined;
-  /** Degrees it is turned to the right from facing the camera. */
-  readonly turned?: number | undefined;
   /** Its frame's width, in world units. */
   readonly width?: number | undefined;
   /** Its frame's height, in world units. */
@@ -100,10 +86,10 @@ export interface PoseTarget {
 
 /**
  * The one change that poses a window as `target` says, seen from `eye`: a `node.patch` of its
- * transform, its bounds, or both. Moved round the camera or out from it, it keeps facing the
- * camera as it did, unless `turned` is given; resized, it keeps its centre. Null when its group's
- * placement cannot be inverted. Throws an Error when there is no such window; the values are the
- * caller's to check.
+ * transform, its bounds, or both. Moved round the camera, out along the floor or up, it stays
+ * inside the room (`Swf.Room`); resized, it keeps its centre. Null when its group's placement
+ * cannot be inverted. Throws an Error when there is no such window; the values are the caller's
+ * to check.
  */
 export function posedPatch(
   scene: SceneState,
@@ -118,44 +104,25 @@ export function posedPatch(
   }
   const placed =
     target.heading !== undefined || target.reach !== undefined || target.y !== undefined;
-  let local = placementOf(scene, id).local;
+  let transform = null;
   if (placed) {
-    const heading = (target.heading ?? pose.heading) / DEGREES;
-    const reach = target.reach ?? pose.reach;
-    const ground = placedAt(scene, id, eye, {
-      x: eye[0] + reach * Math.sin(heading),
-      y: target.y,
-      z: eye[2] - reach * Math.cos(heading),
+    const now = roomPlaceOf(scene, id, eye);
+    const place = models.keepInRoom(ROOM_LIMITS, {
+      heading: target.heading === undefined ? now.heading : target.heading / DEGREES,
+      floor: target.reach ?? now.floor,
+      height: target.y === undefined ? now.height : target.y - eye[1],
     });
-    if (ground === null) {
+    transform = standingInRoom(scene, id, eye, place);
+    if (transform === null) {
       return null;
     }
-    local = ground;
-  }
-  if (target.turned !== undefined) {
-    // Turned about its own centre, from where it now stands, by as much as it is short of the turn.
-    const { parentWorld } = placementOf(scene, id);
-    const standing = {
-      local,
-      parentWorld,
-      world: mat4Multiply(parentWorld, mat4FromTransform(local)),
-    };
-    const turned = turnedAbout(
-      standing,
-      worldOrigin(standing),
-      wrapDegrees(target.turned - pose.turned) / DEGREES,
-    );
-    if (turned === null) {
-      return null;
-    }
-    local = turned;
   }
   const sized = target.width !== undefined || target.height !== undefined;
   const [width, height, depth] = node.bounds;
   return {
     type: 'node.patch',
     id,
-    ...(placed || target.turned !== undefined ? { transform: local } : {}),
+    ...(transform === null ? {} : { transform }),
     ...(sized ? { bounds: [target.width ?? width, target.height ?? height, depth] as const } : {}),
   };
 }

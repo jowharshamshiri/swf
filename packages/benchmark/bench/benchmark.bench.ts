@@ -297,7 +297,7 @@ async function measure(name: 'standard' | 'stress', size: FixtureSize) {
     const grown = growthAt({ windows, surfaces: windows * 1.2, groups: size.groups });
     const host = await present(grown);
     const main = host.viewports[0];
-    const ahead = grown.windows.find((w) => Math.abs(w.heading) < 10 && Math.abs(w.elevation) < 3);
+    const ahead = grown.windows.find((w) => Math.abs(w.heading) < 10 && Math.abs(w.y) < 0.2);
     if (main === undefined || ahead === undefined) {
       throw new Error('no window ahead');
     }

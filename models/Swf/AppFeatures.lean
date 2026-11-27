@@ -50,8 +50,9 @@ structure SnapSettings where
   (no rings) or more. -/
   ring : Float
 
-/-- Semantic depth's bands, in world units from the camera: a window nearer than `full` shows its
-content, one nearer than `compact` a compact preview, and one farther its label alone. -/
+/-- Semantic depth's bands, in world units from the camera along the floor: a window nearer than
+`full` shows its content, one nearer than `compact` a compact preview, and one farther its label
+alone. -/
 structure DepthBands where
   /-- Where the full band ends, in world units; finite and above zero. -/
   full : Float

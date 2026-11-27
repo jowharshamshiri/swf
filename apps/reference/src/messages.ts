@@ -322,8 +322,8 @@ const OWN = Object.freeze({
     'Switch the view mode to Map, or press Show in map for it in the Windows view: it stands in the shaded half behind the camera.',
   'scenario.hidden': 'Reach a window you cannot see',
   'scenario.hidden.summary':
-    'Tasks hangs high up behind the camera. Find it without looking round, bring it in front of you and read it.',
-  'scenario.hidden.find': 'Select Tasks without turning round.',
+    'Messages hangs high up behind the camera. Find it without looking round, bring it in front of you and read it.',
+  'scenario.hidden.find': 'Select Messages without turning round.',
   'scenario.hidden.find.hint':
     'Type its name in the Windows view’s search or in the command list, or press it on the radar, the map or in the overview.',
   'scenario.hidden.face': 'Turn to face it.',
@@ -331,7 +331,7 @@ const OWN = Object.freeze({
     'Press Centre the view on it among its actions, pick it in the command list, or drag the panorama’s background until it is in front of you.',
   'scenario.hidden.read': 'Read it in focus.',
   'scenario.hidden.read.hint':
-    'Switch the view mode to Focus with Tasks selected, or press Focus on its row in the Windows view.',
+    'Switch the view mode to Focus with Messages selected, or press Focus on its row in the Windows view.',
   'scenario.depth': 'Change a window’s depth',
   'scenario.depth.summary':
     'Media Notes is far away, so only its label shows. Bring it near to see its content, then push it back.',
@@ -339,10 +339,10 @@ const OWN = Object.freeze({
   'scenario.depth.select.hint': 'Press its label in the panorama, or its row in the Windows view.',
   'scenario.depth.near': 'Bring it nearer than {full} units.',
   'scenario.depth.near.hint':
-    'Hold Shift and drag it down or scroll down over it, lower its Distance in the inspector, or drag it towards the camera on the map. Nearer than {full} units it shows its content in full.',
+    'Hold Shift and drag it up or scroll up over it, lower its Distance in the inspector, or drag it towards the camera on the map. Nearer than {full} units it shows its content in full.',
   'scenario.depth.far': 'Push it back beyond {compact} units.',
   'scenario.depth.far.hint':
-    'Hold Shift and drag it up or scroll up over it, or raise its Distance in the inspector. From {full} units it shows a compact preview; beyond {compact}, its label alone.',
+    'Hold Shift and drag it down or scroll down over it, or raise its Distance in the inspector. From {full} units it shows a compact preview; beyond {compact}, its label alone.',
   'scenario.focus': 'Switch focus between windows',
   'scenario.focus.summary':
     'Read one window full size with the rest of the room a press away, move to its neighbour, then step back out.',

@@ -7,7 +7,7 @@ import { cameraRotation, equirectangular } from '@swf/projections';
 import { describe, expect, it } from 'vitest';
 import { commands, userEvent } from 'vitest/browser';
 import type { ReferenceApp } from '../../src/app.js';
-import { MAP_SCALE, VIEWPORT_ID, toMap } from '@swf/navigation';
+import { VIEWPORT_ID, roomMapView, toMap } from '@swf/navigation';
 import { NOTE_ADAPTER, planPreset, WORKSPACE_GROUP_ID } from '../../src/presets.js';
 import type { ShellModel } from '../../src/shell/model.svelte.js';
 import { endVisits, layout, same, start } from './shell-harness.js';
@@ -164,16 +164,7 @@ describe('a blank workspace, end to end (§33.2 scenario 1, WF-01, AC-001, AC-00
       if (!surface.present) {
         throw new Error('no map');
       }
-      const [mx, my] = toMap(
-        {
-          centre: [0, 0],
-          scale: MAP_SCALE.initial,
-          width: surface.box.width,
-          height: surface.box.height,
-        },
-        x,
-        z,
-      );
+      const [mx, my] = toMap(roomMapView(surface.box.width, surface.box.height), x, z);
       return [surface.box.x + mx, surface.box.y + my];
     };
     const history = app.workspace.history().length;

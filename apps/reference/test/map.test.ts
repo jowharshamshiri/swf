@@ -51,13 +51,6 @@ function origin(ws: ReturnType<typeof scene>, id: string) {
   return [m[12], m[13], m[14]] as const;
 }
 
-/** The window's facing on the ground plane, as the heading its front (+Z) looks along. */
-function facing(ws: ReturnType<typeof scene>, id: string) {
-  const m = worldMatrix(ws.getState().nodes, id);
-  if (m === undefined) throw new Error('no node');
-  return Math.atan2(m[8], -m[10]);
-}
-
 describe('the spatial map (FR-124, UX-004, WF-05)', () => {
   it('maps the ground plane both ways, straight ahead up the page', () => {
     expect(toMap(VIEW, 0, -1)).toEqual([300, 140]);
@@ -93,10 +86,11 @@ describe('the spatial map (FR-124, UX-004, WF-05)', () => {
     expect(markerAt(VIEW, map, px + 40, py, 10)?.id).not.toBe('window-07');
   });
 
-  it('previews a drag without committing, commits once, and keeps the window facing the camera', () => {
+  it('previews a drag without committing, commits once, and keeps the window upright', () => {
     const ws = scene();
     const revision = ws.getState().revision;
     const [, y] = origin(ws, 'window-07');
+    const rotation = ws.getState().nodes.get('window-07')?.transform.rotation;
     // Grabbed at its own place on the ground, it goes where the pointer goes.
     const [ox, , oz] = origin(ws, 'window-07');
     const drag = new MarkerDrag(ws, 'v', 'window-07', [ox, oz]);
@@ -108,11 +102,12 @@ describe('the spatial map (FR-124, UX-004, WF-05)', () => {
     expect(commit?.status).toBe('committed');
     expect(ws.getState().revision).toBe(revision + 1);
     const [x, after, z] = origin(ws, 'window-07');
-    expect([x, z]).toEqual([3, 0]);
+    expect(x).toBeCloseTo(3, 12);
+    expect(z).toBeCloseTo(0, 12);
     // Its height is the depth control's, not the map's.
     expect(after).toBeCloseTo(y, 12);
-    // Moved to the right of the camera, it turned to keep facing it.
-    expect(Math.abs(facing(ws, 'window-07') - Math.atan2(-3, 0))).toBeLessThan(1e-9);
+    // Moved round to the right of the camera, it stands as upright as it stood.
+    expect(ws.getState().nodes.get('window-07')?.transform.rotation).toEqual(rotation);
     // One undo puts it back.
     ws.undo();
     expect(origin(ws, 'window-07')[0]).not.toBe(3);

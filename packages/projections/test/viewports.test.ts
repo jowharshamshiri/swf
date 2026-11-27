@@ -22,7 +22,6 @@ import {
   createProjectionRegistry,
   equirectangular,
   headingPitchOf,
-  pickAt,
   projectionFor,
 } from '../src/index.js';
 import { placedCommands } from './fixtures.js';
@@ -75,7 +74,12 @@ function world() {
     return createViewOutput(
       state,
       viewportId,
-      projector.project(state, viewGeometryOf(state, viewportId), (id) => ws.surfaceGeometry(id)),
+      projector.project(
+        state,
+        viewGeometryOf(state, viewportId),
+        (id) => ws.surfaceGeometry(id),
+        null,
+      ),
     );
   };
   return { ws, project };
@@ -223,47 +227,5 @@ describe('viewport views', () => {
     expect(headingPitchOf(cameraRotation(-2, -Math.PI / 2)).heading).toBeCloseTo(-2, 9);
     expect(quatSameRotation(cameraRotation(0, 0), quatFromAxisAngle([0, 1, 0], 0))).toBe(true);
     expect(() => cameraRotation(NaN, 0)).toThrow(RangeError);
-  });
-});
-
-describe('picking (FR-067)', () => {
-  it('returns every surface under a point as candidates, nearest first', () => {
-    const ws = createWorkspace({ id: 'ws' });
-    const committed = ws.transaction(
-      placedCommands([
-        { id: 'far', heading: 0, distance: 4 },
-        { id: 'near', heading: 0, distance: 2 },
-        { id: 'aside', heading: 1, distance: 2 },
-      ]),
-    );
-    expect(committed.status).toBe('committed');
-    const projection = equirectangular.create({ horizontal: 360, vertical: 120 });
-    const state = ws.getState();
-    const view: ViewGeometry = {
-      viewportId: 'v',
-      width: 800,
-      height: 400,
-      devicePixelRatio: 1,
-      camera: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
-      near: 0.05,
-      far: null,
-      projectionId: 'equirectangular/1',
-      projectionConfig: { horizontal: 360, vertical: 120 },
-    };
-    const geometry = (id: string) => ws.surfaceGeometry(id);
-    const pick = pickAt(projection, state, view, 400, 200, geometry);
-    expect(pick.kind === 'hits' && pick.candidates.map((c) => [c.surfaceId, c.distance])).toEqual([
-      ['near', 2],
-      ['far', 4],
-    ]);
-    // The far limit drops what lies beyond it; a hidden owner drops its surfaces.
-    const limited = pickAt(projection, state, { ...view, far: 3 }, 400, 200, geometry);
-    expect(limited.kind === 'hits' && limited.candidates.map((c) => c.surfaceId)).toEqual(['near']);
-    expect(
-      ws.dispatch({ type: 'node.patch', id: 'n-near', flags: { selectable: false } }).status,
-    ).toBe('committed');
-    const after = pickAt(projection, ws.getState(), view, 400, 200, geometry);
-    expect(after.kind === 'hits' && after.candidates.map((c) => c.surfaceId)).toEqual(['far']);
-    expect(pickAt(projection, state, view, -1, 0, geometry).kind).toBe('outside');
   });
 });

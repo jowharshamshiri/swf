@@ -7,16 +7,18 @@ import {
   FIELD_OF_VIEW,
   FOCUS_ID,
   MAP,
+  MAP_REACH,
   MarkerDrag,
   ModeRefusal,
   OVERVIEW,
+  PANORAMA_VERTICAL,
   PolicyRefusal,
   aroundCamera,
   arrangedAround,
+  cardMeasureOf,
   mapScene,
   orbitHeading,
   panoramaProjection,
-  radarReach,
   radarView,
   ringStep,
 } from '@swf/navigation';
@@ -52,14 +54,16 @@ const turnCamera = (ws: Workspace, degrees: number) => {
 };
 
 describe('the panorama’s field of view', () => {
-  it('zooms the panorama, keeping its proportion, and changes nothing but the view', () => {
+  it('zooms the panorama across, keeping its span down and its horizon, and changes nothing but the view', () => {
     const { ws, modes } = policyWorld('sparse');
     const before = layout(ws);
     const history = ws.history().length;
     expect(modes.fieldOfView(150).status).toBe('committed');
+    // Cards are never stretched, so the span down stays what the room is seen with.
+    expect(PANORAMA_VERTICAL).toEqual({ span: 130, horizon: 0.49 });
     expect(ws.getState().viewports.get(VIEWPORT)?.projection).toEqual({
       id: 'equirectangular/1',
-      config: { horizontal: 150, vertical: 50 },
+      config: { horizontal: 150, vertical: 130, horizon: 0.49 },
     });
     expect(modes.panorama()).toEqual(panoramaProjection(150));
     expect(layout(ws)).toBe(before);
@@ -176,10 +180,11 @@ describe('turning the camera or the workspace', () => {
 });
 
 describe('quick actions: in front of the camera and behind it', () => {
-  it('puts a window straight ahead or straight behind, at its distance and height, facing the camera', () => {
+  it('puts a window straight ahead or straight behind, at its distance along the floor and its height, upright', () => {
     const { ws } = policyWorld('sparse');
     turnCamera(ws, 30);
     const before = centreOf(ws, 'window-03');
+    const rotation = ws.getState().nodes.get('window-03')?.transform.rotation;
     for (const [side, heading] of [
       ['front', 30],
       ['behind', -150],
@@ -193,14 +198,12 @@ describe('quick actions: in front of the camera and behind it', () => {
       expect(headingOf(after)).toBeCloseTo(heading, 9);
       expect(groundDistance(after)).toBeCloseTo(groundDistance(before), 12);
       expect(after[1]).toBeCloseTo(before[1], 12);
-      // It faces the camera: its front (+Z) points back at the eye.
-      const m = worldOf(ws, 'window-03');
-      expect(Math.atan2(-m[8], m[10]) * DEGREES).toBeCloseTo(heading, 9);
+      expect(ws.getState().nodes.get('window-03')?.transform.rotation).toEqual(rotation);
     }
   });
 
   it('refuses a window standing at the camera, which has no distance to keep', () => {
-    const { ws } = policyWorld([note('n', { heading: 0, distance: 3 })]);
+    const { ws } = policyWorld([note('n', { heading: 0, reach: 3 })]);
     ws.dispatch(
       {
         type: 'node.patch',
@@ -244,31 +247,35 @@ describe('arranging the windows round the camera', () => {
 });
 
 describe('the radar', () => {
-  it('reaches past the farthest window to a ring, and fits that reach inside its rim', () => {
+  it('reaches past the room’s far wall, and fits that reach inside its rim', () => {
     expect(ringStep(4)).toBe(1);
     expect(ringStep(9)).toBe(5);
     expect(ringStep(0.3)).toBeCloseTo(0.1, 12);
     const { ws } = policyWorld([
-      note('near', { heading: 0, distance: 2 }),
-      note('far', { heading: 170, distance: 6 }),
+      note('near', { heading: 0, reach: 2 }),
+      note('far', { heading: 170, reach: 6 }),
     ]);
     const scene = mapScene(ws.getState(), VIEWPORT, PART_OF_KEY);
-    // 6 × 1.1 = 6.6, rounded up to the next 2-unit ring.
-    expect(radarReach(scene)).toBe(8);
+    // The whole room, 13.5 out, whatever stands in it.
+    expect(MAP_REACH).toBe(14);
     const view = radarView(scene, 300, 200, 20);
     expect(view.centre).toEqual([0, 0]);
-    expect(view.scale).toBeCloseTo((100 - 20) / 8, 12);
+    expect(view.scale).toBeCloseTo((100 - 20) / 14, 12);
   });
 
   it('snaps a window dragged on it to the windows beside it while magnetic positioning is on', () => {
     const { ws, policies } = policyWorld([
-      note('a', { heading: 0, distance: 3 }),
-      note('b', { heading: 40, distance: 3, elevation: 20 }),
+      note('a', { heading: 0, reach: 3 }),
+      note('b', { heading: 40, reach: 3, y: 3 * Math.tan(20 / DEGREES) }),
     ]);
     const [bx, , bz] = centreOf(ws, 'b');
     // Spokes and rings off: what is checked is the line-up with a.
     policies.configure({ snap: { spoke: 0, ring: 0 } });
-    const settings = () => ({ settings: policies.status().features.snap, rings: [] });
+    const settings = () => ({
+      settings: policies.status().features.snap,
+      rings: [],
+      measure: cardMeasureOf(ws.getState(), VIEWPORT, policies.status().features.depth),
+    });
     const drag = new MarkerDrag(ws, VIEWPORT, 'b', [bx, bz], settings);
     // On the ground to 1.2° right of straight ahead: within the 2° line-up with a's heading.
     const target = 1.2 / DEGREES;

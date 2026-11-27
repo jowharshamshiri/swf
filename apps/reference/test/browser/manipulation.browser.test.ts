@@ -1,16 +1,13 @@
-import { worldMatrix } from '@swf/core';
 import type { SceneState } from '@swf/core';
-import type { Vec3 } from '@swf/math';
-import { mat4TransformPoint } from '@swf/math';
+import { worldMatrix } from '@swf/core';
 import { createMemoryStore } from '@swf/persistence';
-import { viewGeometryOf } from '@swf/presentation';
-import { equirectangular } from '@swf/projections';
 import { describe, expect, it } from 'vitest';
 import { commands, userEvent } from 'vitest/browser';
 import type { ReferenceApp } from '../../src/app.js';
 import { ENGLISH } from '../../src/messages.js';
-import { CAMERA_ID, VIEWPORT_ID, poseOf } from '@swf/navigation';
+import { CAMERA_ID, poseOf } from '@swf/navigation';
 import type { Mounted } from './shell-harness.js';
+import { cardPoint, framePoint } from './cards.js';
 import { same, start } from './shell-harness.js';
 
 declare module 'vitest/browser' {
@@ -57,29 +54,22 @@ async function visit(): Promise<Mounted & { readonly app: ReferenceApp }> {
   return { ...m, app };
 }
 
-/** Where a point of a window, in its own frame, is on the page. */
-function onPage(app: ReferenceApp, id: string, local: Vec3): [number, number] {
-  const state = app.workspace.getState();
-  const world = worldMatrix(state.nodes, id);
-  // The element the viewport fills, whichever backend presents it.
-  const box = app.root.getBoundingClientRect();
-  if (world === undefined) {
-    throw new Error(`${id} is not in the scene`);
-  }
-  const view = viewGeometryOf(state, VIEWPORT_ID);
-  const image = equirectangular
-    .create(view.projectionConfig)
-    .projectDirection(mat4TransformPoint(world, local), view).images[0];
-  if (image === undefined) {
+/** Where a point of a window's card, in its own units from its centre, is on the page. */
+function onPage(app: ReferenceApp, id: string, local: readonly [number, number]): [number, number] {
+  const at = cardPoint(app, id, local);
+  if (at === null) {
     throw new Error(`${id} is not in view`);
   }
-  return [Math.round(box.left + image[0]), Math.round(box.top + image[1])];
+  // The element the viewport fills, whichever backend presents it.
+  const box = app.root.getBoundingClientRect();
+  return [Math.round(box.left + at[0]), Math.round(box.top + at[1])];
 }
 
-/** A point on a window's frame, in its title band below the edge a resize takes. */
+/** A point on a window's frame, in its title band, on the page. */
 function onFrame(app: ReferenceApp, id: string): [number, number] {
-  const height = app.workspace.getState().nodes.get(id)?.bounds[1] ?? 0;
-  return onPage(app, id, [0, height / 2 - 0.15, 0]);
+  const [x, y] = framePoint(app, id);
+  const box = app.root.getBoundingClientRect();
+  return [Math.round(box.left + x), Math.round(box.top + y)];
 }
 
 /** A window's pose in a scene, seen from the camera. */
@@ -109,7 +99,7 @@ const bar = (m: Mounted) =>
 const nextFrame = () => new Promise((resolve) => requestAnimationFrame(resolve));
 
 /**
- * Drags from a point by steps, with modifiers held at the press, sampling after each step what
+ * Drags from a point by steps, with modifiers held throughout, sampling after each step what
  * `read` reads; released at the end.
  */
 async function dragFrom<T>(
@@ -124,12 +114,12 @@ async function dragFrom<T>(
   await commands.mouse('move', x, y);
   await commands.mouse('down', x, y, modifiers);
   for (let i = 1; i <= steps; i += 1) {
-    await commands.mouse('move', x + step[0] * i, y + step[1] * i);
+    await commands.mouse('move', x + step[0] * i, y + step[1] * i, modifiers);
     await nextFrame();
     await m.settle();
     seen.push(read());
   }
-  await commands.mouse('up', x + step[0] * steps, y + step[1] * steps);
+  await commands.mouse('up', x + step[0] * steps, y + step[1] * steps, modifiers);
   await m.settle();
   return seen;
 }
@@ -174,14 +164,14 @@ describe('a window handled directly in the panorama', () => {
     expect(slider(m, 'heading')).toBe(Math.round(poseIn(before, 'window-01').heading));
   });
 
-  it('comes nearer or goes farther with Shift held, down pulling it in and up pushing it away, as one change', async () => {
+  it('goes farther or comes nearer along the floor with Shift held, down pushing it away and up pulling it in, as one change', async () => {
     const m = await visit();
     const { app } = m;
     const before = app.workspace.getState();
     const history = app.workspace.history().length;
     const reach = () => app.poseOf('window-01')?.reach ?? NaN;
     const start = reach();
-    const away = await dragFrom(m, onFrame(app, 'window-01'), [0, -10], 6, ['Shift'], () => ({
+    const away = await dragFrom(m, onFrame(app, 'window-01'), [0, 10], 6, ['Shift'], () => ({
       reach: reach(),
       slider: slider(m, 'reach'),
       bar: bar(m),
@@ -190,16 +180,18 @@ describe('a window handled directly in the panorama', () => {
     expect(away.every((s, i) => s.reach > (away[i - 1]?.reach ?? start))).toBe(true);
     expect(away.map((s) => s.slider)).toEqual(away.map((s) => Number(s.reach.toFixed(1))));
     expect(away.every((s) => s.bar.includes('units away'))).toBe(true);
-    // A depth drag never snaps: the bar says it previews, not that nothing snapped.
+    // With magnetic positioning off it never snaps: the bar says it previews, not that nothing
+    // snapped.
     expect(away.every((s) => s.bar.includes(ENGLISH['gesture.preview']))).toBe(true);
     expect(away.some((s) => s.bar.includes(ENGLISH['gesture.free']))).toBe(false);
     expect(app.workspace.history()).toHaveLength(history + 1);
     const farther = poseIn(app.workspace.getState(), 'window-01');
     expect(farther.reach).toBeGreaterThan(start * 1.3);
-    // Its heading kept: the pointer went straight up.
-    expect(farther.heading).toBeCloseTo(poseIn(before, 'window-01').heading, 1);
-    // And back: down brings it nearer.
-    await dragFrom(m, onFrame(app, 'window-01'), [0, 10], 6, ['Shift'], reach);
+    // Its heading and height kept: the pointer went straight down, along the floor.
+    expect(farther.heading).toBeCloseTo(poseIn(before, 'window-01').heading, 9);
+    expect(farther.above).toBeCloseTo(poseIn(before, 'window-01').above, 9);
+    // And back: up brings it nearer.
+    await dragFrom(m, onFrame(app, 'window-01'), [0, -10], 6, ['Shift'], reach);
     expect(poseIn(app.workspace.getState(), 'window-01').reach).toBeLessThan(farther.reach);
     expect(app.workspace.history()).toHaveLength(history + 2);
     expect(await m.model.run('swf.history.undo', {})).toBe(true);
@@ -242,13 +234,13 @@ describe('a window handled directly in the panorama', () => {
     // The plain move, and the magnetic one that snaps each place it proposes.
     for (const snap of [false, true]) {
       app.policies.configure({ enabled: { snap } });
-      // Turned up (away from the user) once as the turn comes upright, in deltaY, and once as
+      // Turned down (toward the user) once as the turn comes upright, in deltaY, and once as
       // browsers on Windows and Linux deliver a turn with Shift held: sideways, in deltaX, with
       // deltaY zero and the same sign.
-      const upright = await farther(0, -100);
-      const sideways = await farther(-100, 0);
-      expect(upright.delivered).toEqual([[0, -100]]);
-      expect(sideways.delivered).toEqual([[-100, 0]]);
+      const upright = await farther(0, 100);
+      const sideways = await farther(100, 0);
+      expect(upright.delivered).toEqual([[0, 100]]);
+      expect(sideways.delivered).toEqual([[100, 0]]);
       expect(upright.change).toBeGreaterThan(0.1);
       expect(sideways.change).toBeCloseTo(upright.change, 6);
     }
@@ -269,7 +261,7 @@ describe('a window handled directly in the panorama', () => {
     const start = reach();
     const seen: { reach: number; committed: number; bar: string }[] = [];
     for (let i = 0; i < 5; i += 1) {
-      await commands.wheel(x, y, 0, -100, ['Shift']);
+      await commands.wheel(x, y, 0, 100, ['Shift']);
       await nextFrame();
       seen.push({ reach: reach(), committed: app.workspace.history().length, bar: bar(m) });
     }
@@ -292,8 +284,8 @@ describe('a window handled directly in the panorama', () => {
       before.nodes.get('window-01')?.transform,
     );
     // A burst cancelled leaves the window where it was, with nothing to undo.
-    await commands.wheel(x, y, 0, -100, ['Shift']);
-    await commands.wheel(x, y, 0, -100, ['Shift']);
+    await commands.wheel(x, y, 0, 100, ['Shift']);
+    await commands.wheel(x, y, 0, 100, ['Shift']);
     expect(reach()).toBeGreaterThan(start);
     expect(await m.model.run('swf.gesture.cancel', {})).toBe(true);
     await m.settle();
@@ -304,39 +296,6 @@ describe('a window handled directly in the panorama', () => {
     expect(bar(m)).toContain(ENGLISH['gesture.cancelled']);
   });
 
-  it('turns about its own vertical with Ctrl held, shown as it turns, as one change', async () => {
-    const m = await visit();
-    const { app } = m;
-    const before = app.workspace.getState();
-    const history = app.workspace.history().length;
-    const turned = () => app.poseOf('window-01')?.turned ?? NaN;
-    const seen = await dragFrom(m, onFrame(app, 'window-01'), [10, 0], 6, ['Control'], () => ({
-      turned: turned(),
-      slider: slider(m, 'turned'),
-      bar: bar(m),
-      heading: app.poseOf('window-01')?.heading ?? NaN,
-    }));
-    expect(seen.every((s) => s.bar.includes('Turning Tile 01'))).toBe(true);
-    expect(everyStepMoved(seen.map((s) => s.turned))).toBe(true);
-    expect(seen.map((s) => s.slider)).toEqual(seen.map((s) => Math.round(s.turned)));
-    // Turned in place: where it stands is kept.
-    for (const s of seen) {
-      expect(s.heading).toBeCloseTo(poseIn(before, 'window-01').heading, 6);
-    }
-    expect(app.workspace.history()).toHaveLength(history + 1);
-    // Six steps of ten pixels, half a degree each: thirty degrees to the right.
-    expect(poseIn(app.workspace.getState(), 'window-01').turned).toBeCloseTo(
-      poseIn(before, 'window-01').turned + 30,
-      6,
-    );
-    expect(bar(m)).toContain('Turned Tile 01');
-    m.driver.act('page.gesture.undo', 'press');
-    await m.settle();
-    expect(app.workspace.getState().nodes.get('window-01')?.transform).toEqual(
-      before.nodes.get('window-01')?.transform,
-    );
-  });
-
   it('resizes from its edge, shown as it grows, as one change', async () => {
     const m = await visit();
     const { app } = m;
@@ -344,7 +303,7 @@ describe('a window handled directly in the panorama', () => {
     const history = app.workspace.history().length;
     const width = before?.bounds[0] ?? 0;
     // On its right edge, within the band that resizes.
-    const edge = onPage(app, 'window-01', [width / 2 - 0.01, 0, 0]);
+    const edge = onPage(app, 'window-01', [width / 2 - 0.01, 0]);
     const seen = await dragFrom(m, edge, [8, 0], 5, [], () => ({
       width: app.workspace.getPresented().nodes.get('window-01')?.bounds[0] ?? NaN,
       bar: bar(m),
@@ -366,18 +325,18 @@ describe('a window handled directly in the panorama', () => {
     const before = app.workspace.getState();
     const history = app.workspace.history().length;
     const width = before.nodes.get('window-01')?.bounds[0] ?? 0;
-    const [x, y] = onPage(app, 'window-01', [width / 2 - 0.01, 0, 0]);
+    const [x, y] = onPage(app, 'window-01', [width / 2 - 0.01, 0]);
     const delivered: [number, number][] = [];
     app.root.addEventListener('wheel', (e) => delivered.push([e.deltaX, e.deltaY]), {
       capture: true,
     });
     /**
-     * Shift+wheel where the pointer is, turned up as it comes upright and as browsers on Windows
-     * and Linux turn it sideways; then longer than a wheel burst waits to commit.
+     * Shift+wheel where the pointer is, turned down as it comes upright and as browsers on
+     * Windows and Linux turn it sideways; then longer than a wheel burst waits to commit.
      */
     const turnWheel = async (at: number) => {
-      await commands.wheel(at, y, 0, -100, ['Shift']);
-      await commands.wheel(at, y, -100, 0, ['Shift']);
+      await commands.wheel(at, y, 0, 100, ['Shift']);
+      await commands.wheel(at, y, 100, 0, ['Shift']);
       await expect.poll(() => delivered.length).toBe(2);
       delivered.splice(0);
       await new Promise((resolve) => setTimeout(resolve, 400));
@@ -533,13 +492,16 @@ describe('a window handled directly in the panorama', () => {
       }
       expect(app.status().backend).toBe(backend);
       const view = app.root.getBoundingClientRect();
-      // A note's text, in sight.
+      // A note's text, in sight: inside the view and on top at its centre (not under another
+      // window's card, nor clipped off at the seam).
       const text = [
         ...m.root.querySelectorAll<HTMLElement>('[data-reference-content] [contenteditable]'),
       ].find((element) => {
         const box = element.getBoundingClientRect();
         const [x, y] = [box.left + box.width / 2, box.top + box.height / 2];
-        return box.width > 0 && x > view.left && x < view.right && y > view.top && y < view.bottom;
+        const inView =
+          box.width > 0 && x > view.left && x < view.right && y > view.top && y < view.bottom;
+        return inView && element.contains(document.elementFromPoint(x, y));
       });
       if (text === undefined) {
         throw new Error('no note in sight');
@@ -668,7 +630,7 @@ describe('the inspector’s sliders', () => {
     expect(facts()).toContain(ENGLISH['inspector.side.behind']);
     driver.act('page.inspector.lock', 'toggle');
     await m.settle();
-    for (const field of ['heading', 'reach', 'y', 'turned', 'width', 'height']) {
+    for (const field of ['heading', 'reach', 'y', 'width', 'height']) {
       expect(
         m.root
           .querySelector(`[data-wsb="page.inspector.pose#${field}"]`)

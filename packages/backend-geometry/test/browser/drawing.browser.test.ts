@@ -1,9 +1,4 @@
 import { DomRenderer } from '@swf/backend-dom';
-import { viewGeometryOf } from '@swf/presentation';
-import { worldMatrix } from '@swf/core';
-import type { Vec3 } from '@swf/math';
-import { mat4TransformPoint, sub } from '@swf/math';
-import { equirectangular } from '@swf/projections';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { LayeredRendererSession, LayerCompositorSession } from '../../src/index.js';
 import {
@@ -104,56 +99,63 @@ async function drawn(placed: readonly Placed[], revision: () => number | undefin
     session,
   )) as LayerCompositorSession;
   const composed = compositor.compose(session.render(frame));
-  /** Where a point of a window, in its local frame, appears. */
-  const screen = (nodeId: string, local: Vec3): [number, number] => {
-    const m = worldMatrix(ws.getState().nodes, nodeId);
-    const view = viewGeometryOf(ws.getState(), 'v');
-    if (m === undefined) {
+  /**
+   * Where a point of a window, in its own units from its centre (x right, y up), lies on its card
+   * as drawn: on whichever copy of the card shows it, across the seam.
+   */
+  const screen = (nodeId: string, [lx, ly]: readonly [number, number]): [number, number] => {
+    const node = ws.getState().nodes.get(nodeId);
+    if (node === undefined) {
       throw new Error('no node');
     }
-    const p = mat4TransformPoint(m, local);
-    const image = equirectangular
-      .create(view.projectionConfig)
-      .projectDirection(sub(p, [0, 0, 0]), view).images;
-    const best = image.find((i) => i[0] > 2 && i[0] < W - 2) ?? image[0];
-    if (best === undefined) {
+    const points = frame.planned
+      .filter((p) => ws.getState().surfaces.get(p.fragment.surfaceId)?.ownerNodeId === nodeId)
+      .map(({ fragment: { card } }): [number, number] => [
+        card[0] + card[2] / 2 + (lx * card[2]) / node.bounds[0],
+        card[1] + card[3] / 2 - (ly * card[3]) / node.bounds[1],
+      ]);
+    const shown = points.find(([x]) => x >= 0 && x < W) ?? points[0];
+    if (shown === undefined) {
       throw new Error('not in view');
     }
-    return [best[0], best[1]];
+    return shown;
   };
   return { ws, frame, session, compositor, composed, screen };
 }
 
 describe('drawn content (ARCH-011)', () => {
-  it('lands each part of a drawable where the projection puts that part of its surface', async () => {
+  it('lands each part of a drawable where that part of its surface lies on the card', async () => {
     const { compositor, screen, composed } = await drawn([
       { id: 'a', kind: 'drawn', heading: 0.4, distance: 3, y: 0.3 },
     ]);
     expect(composed.occlusion).toBe('layer-order');
     for (const [name, local] of [
-      ['tl', [-0.5, 0.3, 0]],
-      ['tr', [0.5, 0.3, 0]],
-      ['br', [0.5, -0.3, 0]],
-      ['bl', [-0.5, -0.3, 0]],
+      ['tl', [-0.5, 0.3]],
+      ['tr', [0.5, 0.3]],
+      ['br', [0.5, -0.3]],
+      ['bl', [-0.5, -0.3]],
     ] as const) {
       const [x, y] = screen('a', local);
       expect(near(pixelAt(compositor.root, x, y), [...QUADRANTS[name], 255]), name).toBe(true);
     }
     // Outside the surface nothing is drawn.
-    const [x, y] = screen('a', [1.5, 0, 0]);
+    const [x, y] = screen('a', [1.5, 0]);
     expect(pixelAt(compositor.root, x, y)[3]).toBe(0);
   });
 
-  it('follows the panorama’s bend across a wide surface, not just its corners', async () => {
+  it('draws a wide surface flat on its card, its edges straight however wide it is', async () => {
     const { compositor, screen } = await drawn([
       { id: 'wide', kind: 'drawn', heading: 0, distance: 3, size: [8, 2] },
     ]);
-    // A straight top edge bulges upwards in the middle of a panorama: just inside it there is
-    // drawn content, where a mapping of the corners alone would leave the top-middle empty.
-    const [x, y] = screen('wide', [0, 0.96, 0]);
-    const [cx, cy] = [screen('wide', [-4, 1, 0]), screen('wide', [4, 1, 0])];
-    expect(y).toBeLessThan(Math.min(cx[1], cy[1]) - 10);
-    expect(pixelAt(compositor.root, x, y)[3]).toBe(255);
+    // A panorama never bends a card: just inside its top edge there is content all along, and just
+    // above it none, at its middle as at its ends.
+    for (const x of [-3.8, 0, 3.8]) {
+      const [ix, iy] = screen('wide', [x, 0.97]);
+      const [ox, oy] = screen('wide', [x, 1.03]);
+      expect(iy).toBeCloseTo(screen('wide', [0, 0.97])[1], 9);
+      expect(pixelAt(compositor.root, ix, iy)[3]).toBe(255);
+      expect(pixelAt(compositor.root, ox, oy)[3]).toBe(0);
+    }
   });
 
   it('draws a surface split by the seam on both sides, each side its own half', async () => {
@@ -161,16 +163,17 @@ describe('drawn content (ARCH-011)', () => {
       { id: 's', kind: 'drawn', heading: Math.PI, distance: 3 },
     ]);
     expect(frame.planned.filter((p) => p.negotiation.layer === 'content-raster')).toHaveLength(2);
-    // The surface faces the camera from behind: its left half is at the right edge of the image.
-    const [lx, ly] = screen('s', [-0.5, 0.3, 0]);
-    const [rx, ry] = screen('s', [0.5, 0.3, 0]);
+    // Its card straddles the seam: its left half at the right edge of the image, its right half at
+    // the left.
+    const [lx, ly] = screen('s', [-0.5, 0.3]);
+    const [rx, ry] = screen('s', [0.5, 0.3]);
     expect(lx).toBeGreaterThan(W / 2);
     expect(rx).toBeLessThan(W / 2);
     expect(near(pixelAt(compositor.root, lx, ly), [...QUADRANTS.tl, 255])).toBe(true);
     expect(near(pixelAt(compositor.root, rx, ry), [...QUADRANTS.tr, 255])).toBe(true);
     // Right at the seam each side still shows its own side of the surface, unstretched.
-    const [ex, ey] = screen('s', [-0.04, 0.3, 0]);
-    const [fx, fy] = screen('s', [0.04, 0.3, 0]);
+    const [ex, ey] = screen('s', [-0.04, 0.3]);
+    const [fx, fy] = screen('s', [0.04, 0.3]);
     expect(ex).toBeGreaterThan(W - 6);
     expect(fx).toBeLessThan(6);
     expect(near(pixelAt(compositor.root, ex, ey), [...QUADRANTS.tl, 255])).toBe(true);
@@ -216,7 +219,7 @@ describe('drawn content (ARCH-011)', () => {
     const layers = frame.planned.map((p) => p.negotiation.layer);
     expect(layers).toEqual(expect.arrayContaining(['proxy', 'placeholder']));
     for (const node of ['p', 'u']) {
-      const [x, y] = screen(node, [0, 0, 0]);
+      const [x, y] = screen(node, [0, 0]);
       expect(pixelAt(compositor.root, x, y)[3]).toBeGreaterThan(0);
     }
     // No pixels of the frame are left uncomposited off to the side.

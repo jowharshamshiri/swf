@@ -7,10 +7,10 @@
     }
   },
   "@swf/models": {
-    "budget": 61184,
+    "budget": 64000,
     "recorded": {
-      "minified": 367086,
-      "gzip": 60938
+      "minified": 387789,
+      "gzip": 63864
     }
   },
   "@swf/core": {
@@ -28,45 +28,45 @@
     }
   },
   "@swf/presentation": {
-    "budget": 14592,
+    "budget": 15104,
     "recorded": {
-      "minified": 46362,
-      "gzip": 14545
+      "minified": 47518,
+      "gzip": 14915
     }
   },
   "@swf/projections": {
     "budget": 5888,
     "recorded": {
-      "minified": 12896,
-      "gzip": 5298
+      "minified": 11354,
+      "gzip": 4629
     }
   },
   "@swf/interaction": {
     "budget": 17408,
     "recorded": {
-      "minified": 50640,
-      "gzip": 16126
+      "minified": 45422,
+      "gzip": 14451
     }
   },
   "@swf/backend-dom": {
     "budget": 7680,
     "recorded": {
-      "minified": 21454,
-      "gzip": 7568
+      "minified": 19871,
+      "gzip": 7055
     }
   },
   "@swf/backend-geometry": {
     "budget": 8704,
     "recorded": {
-      "minified": 23210,
-      "gzip": 8642
+      "minified": 19935,
+      "gzip": 7305
     }
   },
   "@swf/conformance": {
     "budget": 10752,
     "recorded": {
-      "minified": 33014,
-      "gzip": 10015
+      "minified": 33004,
+      "gzip": 9991
     }
   },
   "@swf/diagnostics": {
@@ -77,31 +77,31 @@
     }
   },
   "@swf/persistence": {
-    "budget": 13312,
+    "budget": 13568,
     "recorded": {
-      "minified": 44656,
-      "gzip": 13255
+      "minified": 45287,
+      "gzip": 13513
     }
   },
   "@swf/navigation": {
     "budget": 29440,
     "recorded": {
-      "minified": 81755,
-      "gzip": 27018
+      "minified": 80177,
+      "gzip": 26447
     }
   },
   "@swf/benchmark": {
     "budget": 6912,
     "recorded": {
-      "minified": 16526,
-      "gzip": 6447
+      "minified": 16456,
+      "gzip": 6417
     }
   },
   "@swf/navigation-ui": {
     "budget": 40704,
     "recorded": {
-      "minified": 144102,
-      "gzip": 36886
+      "minified": 143269,
+      "gzip": 36815
     }
   }
 }

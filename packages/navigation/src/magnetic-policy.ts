@@ -1,46 +1,46 @@
 import type { CancelReason, Id, SceneCommand, SwfError } from '@swf/core';
 import type {
   ClaimContext,
-  DragFrame,
   GestureClaim,
   GestureFinish,
   GestureHandler,
   GestureSession,
   InteractionPolicy,
-  Placement,
+  PickCandidate,
   PointerIntent,
+  RoomPlace,
   WheelIntent,
 } from '@swf/interaction';
 import {
-  dragAnchor,
-  dragFrame,
   eyeOf,
   INTERACTION_API_VERSION,
-  movedTransform,
-  placementOf,
+  RoomMotion,
+  roomPlaceOf,
+  standingInRoom,
   wheelTurn,
   windowMovePolicy,
-  withDepth,
 } from '@swf/interaction';
 import type { Vec3 } from '@swf/math';
 import type { SnapSettings } from './features.js';
-import type { Snap, SnapBox } from './magnetic.js';
+import type { CardMeasure, Snap, SnapBox } from './magnetic.js';
+import type { SnappedPlace } from './magnetic.js';
 import {
   boxOf,
   NO_SNAP,
   resolveSnap,
   snapNeighbours,
-  snappedTransform,
-  worldAt,
+  snappedPlace,
+  spacedPlace,
 } from './magnetic.js';
 
 /**
  * Moving a window with magnetic positioning: the same presses as the framework's own window move
- * start it, and it moves the window the same way, but each place proposed is snapped first. The
- * snapped place is previewed (so the snap can be seen, and undone by moving on or cancelling) and
- * the last one is committed once, when the pointer is released.
+ * start it, and it moves the window round the room the same way (across turns it, up and down
+ * raise and lower it, Shift moves it along the floor, and so does the wheel), but each place
+ * proposed is snapped first, measured on the cards the view draws. The snapped place is previewed
+ * (so the snap can be seen, and undone by moving on or cancelling) and the last one is committed
+ * once, when the pointer is released.
  */
-
 export const MAGNETIC_POLICY_ID = 'swf.navigation.magnetic-move/1';
 
 /** What a running snapping move reports, as it goes: which window, and the snap in force. */
@@ -53,8 +53,10 @@ export interface SnapReport {
 export interface MagneticOptions {
   /** The settings now: read at every proposal, so a change applies to the next move. */
   readonly settings: () => SnapSettings;
-  /** The rings round the camera now, nearest first, in world units: read at every proposal. */
+  /** The rings round the camera now, nearest first, in world units along the floor. */
   readonly rings: () => readonly number[];
+  /** How the view draws its cards now, to measure windows by. */
+  readonly measure: () => CardMeasure;
   /** Hears each preview's snap. */
   readonly report: (report: SnapReport) => void;
 }
@@ -68,24 +70,27 @@ class MagneticMove implements GestureHandler {
   readonly #session: GestureSession;
   readonly #options: MagneticOptions;
   readonly #nodeId: Id;
-  readonly #placement: Placement;
-  readonly #frame: DragFrame;
   readonly #eye: Vec3;
   readonly #neighbours: readonly SnapBox[];
-  #depth = 0;
-  #pointer: PointerIntent | null = null;
+  /** The pointer's motion of the window: where it is shown, before its snap. */
+  readonly #motion: RoomMotion;
   #last: SceneCommand[] | null = null;
+  /** Where the last preview shows the window, and the snap that put it there. */
+  #shown: SnappedPlace | null = null;
 
-  constructor(session: GestureSession, options: MagneticOptions, nodeId: Id, grabbed: Vec3) {
+  constructor(
+    session: GestureSession,
+    options: MagneticOptions,
+    target: PickCandidate,
+    down: PointerIntent,
+  ) {
     this.#session = session;
     this.#options = options;
-    this.#nodeId = nodeId;
+    this.#nodeId = target.nodeId;
     const scene = session.scene();
-    this.#placement = placementOf(scene, nodeId);
-    const s = session.settings;
     this.#eye = eyeOf(session.view());
-    this.#frame = dragFrame(s.dragMode, this.#eye, grabbed, s.worldPlaneNormal, s.minDistance);
-    this.#neighbours = snapNeighbours(scene, nodeId);
+    this.#motion = new RoomMotion(roomPlaceOf(scene, target.nodeId, this.#eye), down);
+    this.#neighbours = snapNeighbours(scene, target.nodeId, this.#eye, options.measure());
   }
 
   update(pointers: readonly PointerIntent[]): void {
@@ -93,35 +98,45 @@ class MagneticMove implements GestureHandler {
     if (pointer === undefined) {
       return;
     }
-    this.#pointer = pointer;
-    const ray = this.#session.ray(pointer);
-    if (ray.kind !== 'ray') {
-      // Outside the image or where it has no inverse: hold the last place, keep the capture.
-      return;
-    }
-    const anchor = dragAnchor(this.#frame, ray.ray, this.#depth);
-    if (anchor !== null) {
-      this.#propose(anchor);
-    }
+    const fieldOfView = this.#session.projection().describeDomain().horizontalCoverage;
+    this.#propose(this.#motion.moved(pointer, this.#session.view().width, fieldOfView));
   }
 
   wheel(intent: WheelIntent): boolean {
-    this.#depth -= wheelTurn(intent) * this.#session.settings.wheelDepthPerPixel;
-    if (this.#pointer === null) {
-      this.#propose(
-        withDepth(this.#frame.eye, this.#frame.anchor, this.#depth, this.#frame.minDistance),
-      );
-    } else {
-      this.update([this.#pointer]);
-    }
+    this.#propose(this.#motion.wheeled(wheelTurn(intent)));
+    this.#motion.restart();
     return true;
   }
 
   finish(): GestureFinish {
-    if (this.#last === null) {
+    if (this.#last === null || this.#shown === null) {
       return { outcome: 'unchanged' };
     }
-    const result = this.#session.commit(this.#last);
+    // Dropped: kept clear of the windows near it on the floor.
+    let commands = this.#last;
+    const spaced = spacedPlace(
+      this.#shown.place,
+      this.#shown.snap,
+      this.#neighbours,
+      this.#options.settings(),
+    );
+    if (spaced.place !== this.#shown.place) {
+      const transform = standingInRoom(
+        this.#session.scene(),
+        this.#nodeId,
+        this.#eye,
+        spaced.place,
+      );
+      if (transform !== null) {
+        commands = [{ type: 'node.patch', id: this.#nodeId, transform }];
+        this.#options.report({
+          gestureId: this.#session.gestureId,
+          nodeId: this.#nodeId,
+          snap: spaced.snap,
+        });
+      }
+    }
+    const result = this.#session.commit(commands);
     return result.status === 'committed'
       ? { outcome: 'committed', transactionId: result.transactionId }
       : { outcome: 'cancelled', reason: reasonOf(result.error), error: result.error };
@@ -131,27 +146,15 @@ class MagneticMove implements GestureHandler {
     // Everything this gesture changed is in its preview.
   }
 
-  #propose(anchor: Vec3): void {
-    const moved = movedTransform(this.#placement, this.#frame, anchor);
-    if (moved === null) {
-      return;
-    }
-    const world = worldAt(this.#placement, moved);
-    const box = boxOf(this.#session.scene(), this.#nodeId, world);
-    const snap =
-      box === null
-        ? NO_SNAP
-        : resolveSnap(
-            box,
-            this.#neighbours,
-            this.#eye,
-            this.#options.settings(),
-            this.#options.rings(),
-          );
-    const transform =
-      snap.constraints.length === 0
-        ? moved
-        : snappedTransform(this.#placement, world, this.#eye, snap);
+  #propose(place: RoomPlace): void {
+    const scene = this.#session.scene();
+    const box = boxOf(scene, this.#nodeId, this.#eye, this.#options.measure(), place);
+    const settings = this.#options.settings();
+    const resolved =
+      box === null ? NO_SNAP : resolveSnap(box, this.#neighbours, settings, this.#options.rings());
+    const snap = resolved;
+    const shown = snap.constraints.length === 0 ? place : snappedPlace(place, snap);
+    const transform = standingInRoom(scene, this.#nodeId, this.#eye, shown);
     if (transform === null) {
       return;
     }
@@ -159,6 +162,8 @@ class MagneticMove implements GestureHandler {
     // A rejected proposal (a constraint said no) leaves the last valid one in place.
     if (this.#session.preview(commands).status === 'previewed') {
       this.#last = commands;
+      this.#shown = { place: shown, snap };
+      this.#motion.accept(place);
       this.#options.report({ gestureId: this.#session.gestureId, nodeId: this.#nodeId, snap });
     }
   }
@@ -177,7 +182,8 @@ export function magneticMovePolicy(options: MagneticOptions): InteractionPolicy 
     operations: Object.freeze(['node.move']),
     claim(context: ClaimContext): GestureClaim | null {
       const move = windowMovePolicy.claim(context);
-      if (move === null || context.pick.kind !== 'hit') {
+      const down = context.pointers[0];
+      if (move === null || context.pick.kind !== 'hit' || down === undefined) {
         return null;
       }
       const target = context.pick.target;
@@ -186,7 +192,7 @@ export function magneticMovePolicy(options: MagneticOptions): InteractionPolicy 
         pointers: 1,
         operation: 'node.move',
         nodeId: target.nodeId,
-        begin: (session) => new MagneticMove(session, options, target.nodeId, target.worldPoint),
+        begin: (session) => new MagneticMove(session, options, target, down),
       };
     },
   });

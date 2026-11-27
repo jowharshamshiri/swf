@@ -105,7 +105,7 @@
    * Gestures that change the scene: each shows its preview, where the window would be as it goes,
    * its snap, its cancel and its end. A window held from the keyboard (`gesture.grab`) is one too.
    */
-  const MODIFYING = ['node.move', 'node.rotate', 'node.resize', 'orbit.turn', 'gesture.grab'];
+  const MODIFYING = ['node.move', 'node.resize', 'orbit.turn', 'gesture.grab'];
 
   /** Where the window a gesture works on would be now, read again on every frame drawn. */
   const readingOf = (operation: string, nodeId: string | null): string | null => {
@@ -116,8 +116,6 @@
     }
     const round = (value: number, digits: number) => Number(value.toFixed(digits));
     switch (operation) {
-      case 'node.rotate':
-        return t('gesture.reading.turned', { degrees: round(pose.turned, 0) });
       case 'node.resize':
         return t('gesture.reading.size', { width: round(pose.width, 2), height: round(pose.height, 2) });
       case 'node.move':
@@ -161,13 +159,11 @@
     const what =
       gesture.operation === 'node.move'
         ? t('gesture.node.move', { label })
-        : gesture.operation === 'node.rotate'
-          ? t('gesture.node.rotate', { label })
-          : gesture.operation === 'node.resize'
-            ? t('gesture.node.resize', { label })
-            : held
-              ? t('gesture.gesture.grab', { label })
-              : t('gesture.orbit.turn');
+        : gesture.operation === 'node.resize'
+          ? t('gesture.node.resize', { label })
+          : held
+            ? t('gesture.gesture.grab', { label })
+            : t('gesture.orbit.turn');
     const snapping = gesture.snaps;
     return {
       what,
@@ -199,13 +195,11 @@
     const done =
       last.operation === 'node.move'
         ? t('gesture.done.node.move', { label })
-        : last.operation === 'node.rotate'
-          ? t('gesture.done.node.rotate', { label })
-          : last.operation === 'node.resize'
-            ? t('gesture.done.node.resize', { label })
-            : last.operation === 'gesture.grab'
-              ? t('gesture.done.gesture.grab', { label })
-              : t('gesture.done.orbit.turn');
+        : last.operation === 'node.resize'
+          ? t('gesture.done.node.resize', { label })
+          : last.operation === 'gesture.grab'
+            ? t('gesture.done.gesture.grab', { label })
+            : t('gesture.done.orbit.turn');
     return {
       last,
       committed: last.outcome === 'committed',

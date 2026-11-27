@@ -2,7 +2,7 @@ import type { PointerIntent } from '@swf/interaction';
 import { afterEach, describe, expect, it } from 'vitest';
 import { commands, server, userEvent } from 'vitest/browser';
 import type { Stage } from './fixture.js';
-import { onWindow, pageOf, screenOf, stage } from './fixture.js';
+import { onCard, pageOf, stage } from './fixture.js';
 
 declare module 'vitest/browser' {
   interface BrowserCommands {
@@ -83,21 +83,21 @@ describe('input devices end to end (QA-006, FR-100, FR-101)', () => {
       queueMicrotask(() => wheels.push({ trusted: e.isTrusted, prevented: e.defaultPrevented }));
     });
     const before = current.ws.getState();
-    const [cx, cy] = pageOf(view.root, ...screenOf(current, onWindow(current, 'a', [0, 0, 0])));
+    const [cx, cy] = pageOf(view.root, ...onCard(current, 'a', [0, 0]));
     await commands.wheel(cx, cy, 0, 120);
     await expect.poll(() => wheels.length).toBe(1);
     expect(wheels[0]).toEqual({ trusted: true, prevented: false });
     expect(current.ws.getState()).toBe(before);
-    // Shift with the wheel over the window's frame moves it: turned up, farther; turned down,
-    // nearer again. One change each.
-    const [fx, fy] = pageOf(view.root, ...screenOf(current, onWindow(current, 'a', [0, 0.75, 0])));
+    // Shift with the wheel over the window's frame moves it along the floor: turned down,
+    // farther; turned up, nearer again. One change each.
+    const [fx, fy] = pageOf(view.root, ...onCard(current, 'a', [0, 0.75]));
     const near = distance(current);
     const history = current.ws.history().length;
-    await commands.wheel(fx, fy, 0, -200, ['Shift']);
+    await commands.wheel(fx, fy, 0, 200, ['Shift']);
     await expect.poll(() => current?.ws.history().length).toBe(history + 1);
     const far = distance(current);
     expect(far).toBeGreaterThan(near + 0.01);
-    await commands.wheel(fx, fy, 0, 200, ['Shift']);
+    await commands.wheel(fx, fy, 0, -200, ['Shift']);
     await expect.poll(() => current?.ws.history().length).toBe(history + 2);
     expect(distance(current)).toBeCloseTo(near, 6);
   });
@@ -112,7 +112,7 @@ describe('input devices end to end (QA-006, FR-100, FR-101)', () => {
       capture: true,
     });
     // On the frame, clear of its resize edges.
-    const [x, y] = pageOf(view.root, ...screenOf(s, onWindow(s, 'a', [0, 0.6, 0])));
+    const [x, y] = pageOf(view.root, ...onCard(s, 'a', [0, 0.6]));
     const history = s.ws.history().length;
     /** Where the drag shows the window, from the camera. */
     const shown = () => {
@@ -135,13 +135,13 @@ describe('input devices end to end (QA-006, FR-100, FR-101)', () => {
       expect(s.router.captures()).toEqual([]);
       return { delivered: delivered.splice(0), change: after - before };
     };
-    // Turned up (away from the user) once as the turn comes upright, in deltaY, and once as
+    // Turned down (toward the user) once as the turn comes upright, in deltaY, and once as
     // browsers on Windows and Linux deliver a turn with Shift held: sideways, in deltaX, with
     // deltaY zero and the same sign.
-    const upright = await farther(0, -200);
-    const sideways = await farther(-200, 0);
-    expect(upright.delivered).toEqual([[0, -200]]);
-    expect(sideways.delivered).toEqual([[-200, 0]]);
+    const upright = await farther(0, 200);
+    const sideways = await farther(200, 0);
+    expect(upright.delivered).toEqual([[0, 200]]);
+    expect(sideways.delivered).toEqual([[200, 0]]);
     expect(upright.change).toBeGreaterThan(0.1);
     expect(sideways.change).toBeCloseTo(upright.change, 6);
     expect(story(s)).toEqual([
@@ -157,7 +157,7 @@ describe('input devices end to end (QA-006, FR-100, FR-101)', () => {
     current = await stage([framed]);
     const view = viewOf(current);
     const before = current.ws.getState().nodes.get('a')?.transform;
-    const start = screenOf(current, onWindow(current, 'a', [0, 0.6, 0]));
+    const start = onCard(current, 'a', [0, 0.6]);
     const [x, y] = pageOf(view.root, ...start);
     let pointerId = -1;
     view.root.addEventListener('pointerdown', (e) => (pointerId = e.pointerId), { capture: true });
@@ -192,7 +192,7 @@ describe('input devices end to end (QA-006, FR-100, FR-101)', () => {
       );
       const operations = pressesSeen(s);
       const before = s.ws.getState().nodes.get('a')?.transform.position[0] ?? 0;
-      const [x, y] = pageOf(view.root, ...screenOf(s, onWindow(s, 'a', [0, 0.6, 0])));
+      const [x, y] = pageOf(view.root, ...onCard(s, 'a', [0, 0.6]));
       await commands.touch('start', [{ id: 1, x, y }]);
       for (let i = 1; i <= 6; i++) {
         await commands.touch('move', [{ id: 1, x: x + i * 10, y }]);
@@ -213,8 +213,8 @@ describe('input devices end to end (QA-006, FR-100, FR-101)', () => {
       const view = viewOf(s);
       const far = distance(s);
       const history = s.ws.history().length;
-      const left = pageOf(view.root, ...screenOf(s, onWindow(s, 'a', [-1.25, 0, 0])));
-      const right = pageOf(view.root, ...screenOf(s, onWindow(s, 'a', [1.25, 0, 0])));
+      const left = pageOf(view.root, ...onCard(s, 'a', [-1.25, 0]));
+      const right = pageOf(view.root, ...onCard(s, 'a', [1.25, 0]));
       await commands.touch('start', [{ id: 1, x: left[0], y: left[1] }]);
       await commands.touch('start', [
         { id: 1, x: left[0], y: left[1] },
@@ -251,7 +251,7 @@ describe('input devices end to end (QA-006, FR-100, FR-101)', () => {
         { capture: true },
       );
       const before = s.ws.getState().nodes.get('a')?.transform.position[0] ?? 0;
-      const start = screenOf(s, onWindow(s, 'a', [0, 0.6, 0]));
+      const start = onCard(s, 'a', [0, 0.6]);
       const [x, y] = pageOf(view.root, ...start);
       await commands.pen('move', x, y, 0);
       await commands.pen('down', x, y, 0.6);

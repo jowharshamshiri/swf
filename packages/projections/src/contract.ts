@@ -1,11 +1,6 @@
-import type { JsonValue, ProjectionKind, ResolvedGeometry } from '@swf/core';
+import type { JsonValue, ProjectionKind } from '@swf/core';
 import type { Ray, Vec3 } from '@swf/math';
-import type {
-  ProjectedFragment,
-  ProjectionProfile,
-  ScreenPoint,
-  ViewGeometry,
-} from '@swf/presentation';
+import type { ProjectionProfile, ScreenPoint, ViewGeometry } from '@swf/presentation';
 
 /** The version of the projection contract this package defines. */
 export const PROJECTION_API_VERSION = 1;
@@ -83,21 +78,6 @@ export type RayResult =
       readonly reason: string;
     };
 
-/** How much of a surface a viewport shows. */
-export interface Visibility {
-  /**
-   * `inside` when the whole outline is in the image (`coverage` 1), `outside` when none of it is
-   * (`coverage` 0), `partial` otherwise.
-   */
-  readonly state: 'inside' | 'partial' | 'outside';
-  /** Share of the surface's outline inside the image, 0 to 1. */
-  readonly coverage: number;
-  /** The surface's centre is behind the camera. */
-  readonly behind: boolean;
-  /** The surface crosses the image's wrapping seam. */
-  readonly crossesSeam: boolean;
-}
-
 /** Continuity for interaction: the previous longitude of a drag in progress, unwrapped. */
 export interface Continuity {
   /**
@@ -108,9 +88,9 @@ export interface Continuity {
 }
 
 /**
- * A projection for one configuration. It maps between world directions and viewport pixels and
- * places surface geometry as fragments; it reads the view and the geometry only, and keeps no
- * state of its own. Screen coordinates are viewport CSS pixels with (0, 0) at the top-left corner,
+ * A projection for one configuration. It maps between world directions and viewport pixels; it
+ * reads the view only, and keeps no state of its own. Windows are drawn as cards at the image of
+ * their centre (`projectorOf`), never warped by it. Screen coordinates are viewport CSS pixels with (0, 0) at the top-left corner,
  * x to the right and y down; world directions are in the right-handed, +Y-up world, and the
  * camera looks along its local -Z. Every method expects a view that passes `viewGeometryIssue`
  * and uses this projection's ID and configuration, as {@link projectionFor} checks.
@@ -126,18 +106,18 @@ export interface Projection {
   /** Where a world direction (from the camera, any non-zero length) appears. */
   projectDirection(direction: Vec3, view: ViewGeometry): ProjectedDirection;
   /**
+   * Where a world direction (from the camera, any non-zero length) stands on the image's plane,
+   * carried on past the angles the view covers so a point just beyond an edge lies just beyond it:
+   * on the branch nearest the image's centre, never wrapped across a seam. A card whose centre is
+   * beyond an edge can still show in part this way.
+   */
+  placeDirection(direction: Vec3, view: ViewGeometry): ScreenPoint;
+  /**
    * The world ray through a viewport point, or `outside` for a point beyond the image or not
    * finite. Its longitude is never unwrapped; {@link Projection.interactionRay} unwraps it for a
    * drag.
    */
   unprojectPoint(x: number, y: number, view: ViewGeometry): RayResult;
-  /**
-   * The visible fragments of a surface: none, one, or several (a surface crossing a seam), each
-   * referring to the surface. Exactly one of them, if any, is the native owner.
-   */
-  projectGeometry(geometry: ResolvedGeometry, view: ViewGeometry): ProjectedFragment[];
-  /** How much of a surface the view shows, as the share of its outline inside the image. */
-  clipVisibility(geometry: ResolvedGeometry, view: ViewGeometry): Visibility;
   /**
    * The world ray for a pointer at a viewport point. With `continuity`, the longitude is unwrapped
    * to the branch nearest the drag's previous longitude, so angles stay continuous across a seam.

@@ -136,10 +136,10 @@ describe('the inspector’s composition choices after they act', () => {
       await settle();
       expect(model.app?.workspace.getState().nodes.get('window-05')?.parentId).toBe(groupId);
       expect(errors).toEqual([]);
-      const turned = model.selected?.turned ?? NaN;
-      driver.act('page.inspector.pose#turned', 'key', 'ArrowRight');
+      const above = model.selected?.above ?? NaN;
+      driver.act('page.inspector.pose#y', 'key', 'ArrowUp');
       await settle();
-      expect(model.selected?.turned).toBeGreaterThan(turned);
+      expect(model.selected?.above).toBeGreaterThan(above);
       // A surface moved out of the board, and a window merged away: their choices go too.
       await model.inspect('board');
       await settle();

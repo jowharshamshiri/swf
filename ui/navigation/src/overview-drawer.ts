@@ -291,7 +291,15 @@ export class OverviewDrawer {
     const layout = layOverview(scene.entries, board.width, board.height);
     const shown = new Set(
       scene.entries
-        .filter((entry) => inView(presented, VIEWPORT_ID, app.projections, entry.id))
+        .filter((entry) =>
+          inView(
+            presented,
+            VIEWPORT_ID,
+            app.projections,
+            (id) => app.workspace.presentedGeometry(id),
+            entry.id,
+          ),
+        )
         .map((entry) => entry.id),
     );
     const byId = new Map(scene.entries.map((entry) => [entry.id, entry]));

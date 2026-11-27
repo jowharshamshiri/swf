@@ -65,7 +65,8 @@ describe('feature settings (FR-130, UX-010, §29, CFG-001)', () => {
     expect(refusal({ snap: { angular: 16 } })).toBe('snap.angular');
     expect(refusal({ depth: { full: 0 } })).toBe('depth.full');
     expect(refusal({ depth: { compact: 3 } })).toBe('depth.compact');
-    expect(refusal({ depth: { full: 7 } })).toBe('depth.full');
+    // Past where the compact band ends.
+    expect(refusal({ depth: { full: 9.5 } })).toBe('depth.full');
     expect(refusal({ speed: 1 })).toBe('features.speed');
     expect(refusal('on')).toBe('features');
     // Zero is a valid snap distance: nothing snaps by edges.

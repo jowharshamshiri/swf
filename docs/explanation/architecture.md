@@ -24,10 +24,10 @@ A browser cannot do everything a 3D window manager would like: it cannot bend li
 DOM into an arbitrary shape, and it has no depth test between an element and a canvas. Rather
 than pretend, SWF asks. Each surface's adapter says what its content can do (be a live element,
 be drawn, be resized, be shown in two places); each renderer and compositor says what it can do;
-each projection says what its mapping needs. For every fragment of every frame, the planner walks
+each projection places each window's card, a flat, upright rectangle it never bends. For every fragment of every frame, the planner walks
 a fallback order (exact, native, approximated, proxy, placeholder) and records why each better
-mode was not possible. A live element placed by its corners in a curved view is declared
-approximate; a proxy says why it stands in. Nothing approximate is ever labelled exact.
+mode was not possible. A window carrying a rotation its card cannot show is declared approximate;
+a proxy says why it stands in. Nothing approximate is ever labelled exact.
 
 Two backends implement the contracts independently: one places live DOM, one draws on canvases,
 and a layered pair combines them. Both pass the same conformance suite, which is how the

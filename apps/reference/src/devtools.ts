@@ -4,7 +4,6 @@ import type { Id, SceneCommand } from '@swf/core';
 import type { Diagnostics, Disclosure, OperationTrace } from '@swf/diagnostics';
 import { createDiagnostics, createOperationTrace, exportDiagnostics } from '@swf/diagnostics';
 import type { PresentedViewport } from '@swf/presentation';
-import { cameraRotation } from '@swf/projections';
 import type { SurfaceAdapter, SurfaceCapabilities } from '@swf/surfaces';
 import { ADAPTER_API_VERSION } from '@swf/surfaces';
 import { resolvePalette } from '@wsb/uikit/primitives';
@@ -483,19 +482,9 @@ export function createDevtools(app: ReferenceApp, options: DevtoolsOptions = {})
       ctx.fillStyle = colour;
       ctx.setLineDash(f.nativeOwner ? [] : [4, 3]);
       ctx.strokeRect(f.bounds[0] + 0.5, f.bounds[1] + 0.5, f.bounds[2] - 1, f.bounds[3] - 1);
-      if (f.corners !== null) {
-        ctx.setLineDash([2, 2]);
-        ctx.beginPath();
-        f.corners.forEach(([x, y], i) => {
-          if (i === 0) {
-            ctx.moveTo(x, y);
-          } else {
-            ctx.lineTo(x, y);
-          }
-        });
-        ctx.closePath();
-        ctx.stroke();
-      }
+      // The window's whole card, dotted, round the surface's place on it.
+      ctx.setLineDash([2, 2]);
+      ctx.strokeRect(f.card[0] + 0.5, f.card[1] + 0.5, f.card[2] - 1, f.card[3] - 1);
       // One logical target: every fragment names the one surface it stands for.
       ctx.setLineDash([]);
       ctx.fillText(
@@ -554,9 +543,10 @@ export function createDevtools(app: ReferenceApp, options: DevtoolsOptions = {})
       if (failure === 'throwing') {
         attachFails = true;
       }
+      // Low in the room, out along the floor at its own heading.
       const h = (PLACES[failure] * Math.PI) / 180;
-      const e = (-32 * Math.PI) / 180;
-      const d = 3;
+      const reach = 3;
+      const y = -1.9;
       const layout = layoutSurfaces([[1.2, 0.7]]);
       const parentId = state.nodes.has(WORKSPACE_GROUP_ID) ? WORKSPACE_GROUP_ID : null;
       const commands: SceneCommand[] = [
@@ -570,12 +560,8 @@ export function createDevtools(app: ReferenceApp, options: DevtoolsOptions = {})
             tags: ['simulated'],
             bounds: layout.bounds,
             transform: {
-              position: [
-                d * Math.cos(e) * Math.sin(h),
-                d * Math.sin(e),
-                -d * Math.cos(e) * Math.cos(h),
-              ],
-              rotation: cameraRotation(h, e),
+              position: [reach * Math.sin(h), y, -reach * Math.cos(h)],
+              rotation: [0, 0, 0, 1],
               scale: [1, 1, 1],
             },
           },

@@ -201,7 +201,8 @@ function panoramaPoint(model: ShellModel, point: Vec3, nearX?: number) {
 
 describe('the panorama’s guides', () => {
   it('draws a grid of headings and heights, the horizon strongest, says where the camera faces, and writes no word over another', async () => {
-    const { model, settle } = await visit('?preset=studio');
+    // An empty room: no window's card keeps a word from being written.
+    const { model, settle } = await visit('?preset=empty');
     const a = app(model);
     const guides = new PanoramaGuides({ app: a, messages: model.messages, container: a.root });
     try {
@@ -379,7 +380,15 @@ describe('the radar beside the panorama', () => {
     expect(near(pixel(canvas, sx, sy), accent)).toBe(true);
     // Behind and out of view: hollow, its centre the ground behind the camera.
     const [bx, by] = dotOf(model, root, 'window-01');
-    expect(inView(a.workspace.getState(), VIEWPORT_ID, a.projections, 'window-01')).toBe(false);
+    expect(
+      inView(
+        a.workspace.getState(),
+        VIEWPORT_ID,
+        a.projections,
+        (id) => a.workspace.surfaceGeometry(id),
+        'window-01',
+      ),
+    ).toBe(false);
     expect(near(pixel(canvas, bx, by), behindInk, 20)).toBe(true);
     // Focused: ringed in the warning colour, ten pixels out from its dot.
     const [fx, fy] = dotOf(model, root, 'window-04');
@@ -450,13 +459,24 @@ describe('the view’s controls', () => {
   it('sets the field of view, which the panorama re-projects at once and every panoramic view keeps', async () => {
     // It reads the DOM backend's own elements: the DOM backend, by name.
     const { model, root, driver, settle } = await visit('?preset=sparse&backend=dom');
-    const width = () => chromeOf(root, 'window-01')?.getBoundingClientRect().width ?? 0;
-    const wide = width();
+    const box = () => chromeOf(root, 'window-01')?.getBoundingClientRect();
+    const view = () => app(model).root.getBoundingClientRect();
+    /** How far the window's card is from the middle of the view, across. */
+    const offCentre = () => {
+      const b = box();
+      return b === undefined
+        ? 0
+        : Math.abs(b.left + b.width / 2 - (view().left + view().width / 2));
+    };
+    const wide = { off: offCentre(), width: box()?.width ?? 0 };
+    expect(wide.off).toBeGreaterThan(10);
     driver.act('page.view.fov', 'key', 'Home');
     await settle();
     expect(fieldOfView(model)).toBe(FIELD_OF_VIEW.min);
     await nextFrame();
-    expect(width()).toBeGreaterThan(wide * 3);
+    // Narrower, the cards spread apart by as much; each keeps its size, which its distance sets.
+    expect(offCentre()).toBeCloseTo((wide.off * 360) / FIELD_OF_VIEW.min, -1);
+    expect(box()?.width).toBeCloseTo(wide.width, 0);
     driver.act('page.view.fov', 'key', 'ArrowRight');
     await settle();
     expect(fieldOfView(model)).toBe(FIELD_OF_VIEW.min + 1);

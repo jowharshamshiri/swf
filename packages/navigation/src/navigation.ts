@@ -67,7 +67,7 @@ import {
 } from './composition.js';
 import type { ExperimentId } from './experiments.js';
 import { experimentPlan } from './experiments.js';
-import { ringsOf } from './features.js';
+import { ARRANGE_RINGS } from './features.js';
 import type { FocusContext } from './focus.js';
 import { createFocusMode, FOCUS_ID, focusContext } from './focus.js';
 import { MANIPULATION_POLICIES } from './manipulation.js';
@@ -99,14 +99,8 @@ export type BackendId = (typeof BACKEND_IDS)[number];
 /** The layered renderer: live content from the DOM, everything else drawn on canvases. */
 export const LAYERED_RENDERER_ID = 'swf.layered-renderer/1';
 
-/**
- * CSS pixels a live element lays out per world unit. A whole 360° panorama shows windows small,
- * so content lays out small and is scaled down less.
- */
-export const PIXELS_PER_UNIT = 160;
-
-/** How focus frames a window: three-quarters of the view, at most two and a half times its size. */
-const FOCUS = Object.freeze({ fill: 0.75, maxMagnification: 2.5, pixelsPerUnit: PIXELS_PER_UNIT });
+/** How focus shows a window: three-quarters of the view, at most two and a half times its size. */
+const FOCUS = Object.freeze({ fill: 0.75, maxMagnification: 2.5 });
 
 /** Each backend, with the other as its fallback. */
 const BACKENDS: Readonly<Record<BackendId, readonly BackendChoice[]>> = Object.freeze({
@@ -453,8 +447,8 @@ export interface Navigation {
   /** Selects a window and shows the map. */
   showInMap(id: string): TxResult;
   /**
-   * Puts a window at a world position (each coordinate left out stays as it is), turning it about
-   * the vertical as it moves round the camera so it keeps facing it: one undoable commit.
+   * Puts a window at a world position (each coordinate left out stays as it is), inside the room:
+   * one undoable commit.
    */
   placeWindow(
     id: string,
@@ -636,8 +630,7 @@ export async function createNavigation(options: NavigationOptions): Promise<Navi
       presentation.registerRenderer(
         new DomRenderer({
           document,
-          pixelsPerUnit: PIXELS_PER_UNIT,
-          chrome: { projections, inks: domChrome },
+          chrome: { inks: domChrome },
           standIn,
         }),
       ),
@@ -645,7 +638,7 @@ export async function createNavigation(options: NavigationOptions): Promise<Navi
       presentation.registerRenderer(
         new LayeredRenderer({
           id: LAYERED_RENDERER_ID,
-          native: new DomRenderer({ document, pixelsPerUnit: PIXELS_PER_UNIT, standIn }),
+          native: new DomRenderer({ document, standIn }),
           geometry: new GeometryRenderer({
             projections,
             drawables: (surfaceId) => runtime.handleOf(surfaceId),
@@ -677,10 +670,12 @@ export async function createNavigation(options: NavigationOptions): Promise<Navi
     workspace,
     projections,
     presentation: (surfaceId) => mount.viewport.presentation(surfaceId),
+    // Picking finds the cards the panorama draws, sized as semantic depth shows them.
+    representation: () => mount.viewport.representation(),
     timer,
   });
-  // Shift and drag for depth, Ctrl (⌘) and drag to turn, Ctrl (⌘) and click to select more: the
-  // panorama's direct manipulation beyond the framework's own move and resize.
+  // Ctrl (⌘) and click to select more: the panorama's direct manipulation beyond the framework's
+  // own move (Shift along the floor) and resize.
   for (const policy of MANIPULATION_POLICIES) {
     router.registerPolicy(policy);
   }
@@ -716,6 +711,7 @@ export async function createNavigation(options: NavigationOptions): Promise<Navi
     viewportId: VIEWPORT_ID,
     modes,
     focusMode: createFocusMode(FOCUS),
+    focusOptions: FOCUS,
     mapMode: MAP,
     homeModeId: PANORAMA.id,
   });
@@ -752,28 +748,44 @@ export async function createNavigation(options: NavigationOptions): Promise<Navi
     element: HTMLElement,
     backends: readonly BackendChoice[],
   ): Promise<Mount> => {
-    // The viewport is as large as its element, always.
+    // The viewport is as large as its element, always: when the element is resized, and when a
+    // change of the scene (a restored space, an undo) gives it another size.
+    const box = element.getBoundingClientRect();
+    let measured = sizeOf(box.width, box.height);
+    let mounted = true;
+    const fit = () => {
+      if (!mounted) {
+        return;
+      }
+      const current = workspace.getState().viewports.get(VIEWPORT_ID)?.size;
+      if (
+        current !== undefined &&
+        (current.width !== measured.width ||
+          current.height !== measured.height ||
+          current.devicePixelRatio !== measured.devicePixelRatio)
+      ) {
+        workspace.dispatch(
+          { type: 'viewport.patch', id: VIEWPORT_ID, size: measured },
+          { source: 'system' },
+        );
+      }
+    };
     const resizes = new ResizeObserver((entries) => {
       const entry = entries.at(-1);
       if (entry === undefined) {
         return;
       }
-      const size = sizeOf(entry.contentRect.width, entry.contentRect.height);
-      const current = workspace.getState().viewports.get(VIEWPORT_ID)?.size;
-      if (
-        current?.width !== size.width ||
-        current.height !== size.height ||
-        current.devicePixelRatio !== size.devicePixelRatio
-      ) {
-        workspace.dispatch({ type: 'viewport.patch', id: VIEWPORT_ID, size }, { source: 'system' });
-      }
+      measured = sizeOf(entry.contentRect.width, entry.contentRect.height);
+      fit();
     });
-    const box = element.getBoundingClientRect();
-    const size = sizeOf(box.width, box.height);
-    const current = workspace.getState().viewports.get(VIEWPORT_ID)?.size;
-    if (current?.width !== size.width || current.height !== size.height) {
-      workspace.dispatch({ type: 'viewport.patch', id: VIEWPORT_ID, size }, { source: 'system' });
-    }
+    fit();
+    const unwatchSize = workspace.watch(
+      (state) => state.viewports.get(VIEWPORT_ID)?.size,
+      () => {
+        // After the change that set it has been told to everyone.
+        queueMicrotask(fit);
+      },
+    );
     const opened = await presenter.open({ viewportId: VIEWPORT_ID, container: element, backends });
     const detach = policies.attach(opened, element);
     const dom = createDomInput({
@@ -789,8 +801,10 @@ export async function createNavigation(options: NavigationOptions): Promise<Navi
     return {
       viewport: opened,
       async release() {
+        mounted = false;
         restoreElement();
         resizes.disconnect();
+        unwatchSize();
         unregisterInput();
         detach();
         await opened.dispose();
@@ -818,7 +832,7 @@ export async function createNavigation(options: NavigationOptions): Promise<Navi
     }
   };
   const coverageOf = (state: SceneState, nodeId: string) =>
-    inView(state, VIEWPORT_ID, projections, nodeId)
+    inView(state, VIEWPORT_ID, projections, (id) => workspace.presentedGeometry(id), nodeId)
       ? ('in-view' as const)
       : ('out-of-view' as const);
   const search = createSearch({
@@ -1009,11 +1023,8 @@ export async function createNavigation(options: NavigationOptions): Promise<Navi
       return workspace.dispatch({ type: 'node.patch', id, transform }, { source: 'user' });
     },
     arrangeWindows() {
-      const commands = arrangedAround(
-        workspace.getState(),
-        VIEWPORT_ID,
-        ringsOf(policies.status().features.depth),
-        (node) => windows.arrangeKey(node),
+      const commands = arrangedAround(workspace.getState(), VIEWPORT_ID, ARRANGE_RINGS, (node) =>
+        windows.arrangeKey(node),
       );
       return commands.length === 0 ? null : workspace.transaction(commands, { source: 'user' });
     },

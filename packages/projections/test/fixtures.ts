@@ -1,7 +1,7 @@
-import type { JsonValue, ResolvedGeometry, SceneCommand, Workspace } from '@swf/core';
+import type { JsonValue, SceneCommand, Workspace } from '@swf/core';
 import { createWorkspace } from '@swf/core';
 import type { Quat, Vec3 } from '@swf/math';
-import { IDENTITY_QUAT, mat4FromTransform, quatFromAxisAngle } from '@swf/math';
+import { IDENTITY_QUAT, mat4FromTransform } from '@swf/math';
 import type { ViewGeometry } from '@swf/presentation';
 import type { Projection } from '../src/index.js';
 import { equirectangular } from '../src/index.js';
@@ -16,7 +16,7 @@ export interface ViewOptions {
   readonly position?: Vec3;
   readonly near?: number;
   readonly far?: number | null;
-  readonly config?: { horizontal: number; vertical: number };
+  readonly config?: { horizontal: number; vertical: number; horizon?: number };
 }
 
 /** An equirectangular projection and a view using it. */
@@ -42,7 +42,7 @@ export function setup(options: ViewOptions = {}): { projection: Projection; view
   };
 }
 
-/** A flat surface of the given size facing the origin from a heading and height, at a distance. */
+/** A window of the given size at a heading and height, its distance out along the floor, upright. */
 export interface Placement {
   readonly id: string;
   /** Radians right of -Z. */
@@ -50,7 +50,7 @@ export interface Placement {
   readonly distance: number;
   readonly y?: number;
   readonly size?: readonly [number, number];
-  /** Overrides the facing rotation. */
+  /** A rotation of the window's own, which a card does not show. Default none. */
   readonly rotation?: Quat;
 }
 
@@ -70,7 +70,7 @@ export function placedCommands(placements: readonly Placement[]): SceneCommand[]
               p.y ?? 0,
               -p.distance * Math.cos(p.heading),
             ],
-            rotation: p.rotation ?? quatFromAxisAngle([0, 1, 0], -p.heading),
+            rotation: p.rotation ?? IDENTITY_QUAT,
             scale: [1, 1, 1],
           },
         },
@@ -100,13 +100,4 @@ export function placed(
     throw new Error(`fixture failed: ${JSON.stringify(result)}`);
   }
   return ws;
-}
-
-/** The resolved geometry of one placed surface. */
-export function geometryOf(placement: Placement): ResolvedGeometry {
-  const g = placed([placement]).surfaceGeometry(placement.id);
-  if (g === undefined) {
-    throw new Error('no geometry');
-  }
-  return g;
 }

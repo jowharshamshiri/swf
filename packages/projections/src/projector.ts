@@ -1,17 +1,26 @@
 import type { Id, ResolvedGeometry, SceneState } from '@swf/core';
-import { effectiveState, makeError, SwfFailure } from '@swf/core';
-import type { Ray, Vec3 } from '@swf/math';
+import { effectiveState, makeError, SwfFailure, worldMatrix } from '@swf/core';
+import type { Mat4, Quat } from '@swf/math';
 import type {
-  PreviousProjection,
   ProjectedFragment,
+  Representation,
+  RepresentationPolicy,
+  ScreenRect,
   ViewGeometry,
   ViewProjector,
 } from '@swf/presentation';
-import { viewGeometryIssue } from '@swf/presentation';
-import type { Continuity, Projection, ProjectionModule } from './contract.js';
+import {
+  cardScale,
+  cardScaleFor,
+  fragmentId,
+  representationFor,
+  viewGeometryIssue,
+  windowCard,
+} from '@swf/presentation';
+import type { Projection, ProjectionModule } from './contract.js';
 
 /**
- * Looks up a surface's geometry as placed in the scene being projected or picked (a workspace's
+ * Looks up a surface's geometry as placed in the scene being projected (a workspace's
  * `presentedGeometry`, say); undefined when there is none. It is only read, never retained past
  * the call it is given to.
  */
@@ -26,7 +35,7 @@ export type GeometryOf = (surfaceId: Id) => ResolvedGeometry | undefined;
 export function projectionFor(module: ProjectionModule, view: ViewGeometry): Projection {
   const fail = (message: string): never => {
     throw new SwfFailure(
-      makeError('INVALID_INPUT', `view of viewport "${view.viewportId}": ${message}`, {
+      makeError('INVALID_INPUT', `viewport "${view.viewportId}": ${message}`, {
         entityId: view.viewportId,
       }),
     );
@@ -36,22 +45,42 @@ export function projectionFor(module: ProjectionModule, view: ViewGeometry): Pro
     fail(issue);
   }
   if (view.projectionId !== module.id) {
-    fail(`uses projection "${view.projectionId}", not "${module.id}"`);
+    fail(`it uses projection "${view.projectionId}", not "${module.id}"`);
   }
   const configIssue = module.configIssue(view.projectionConfig);
   if (configIssue !== null) {
-    fail(`projection configuration ${configIssue}`);
+    fail(`projection "${module.id}" configuration ${configIssue}`);
   }
   return module.create(view.projectionConfig);
 }
 
+/** How far a rotation may be from none and still count as none. */
+const UPRIGHT = 1e-9;
+
+/** Whether a rotation turns nothing. */
+function upright(q: Quat): boolean {
+  return Math.abs(q[0]) <= UPRIGHT && Math.abs(q[1]) <= UPRIGHT && Math.abs(q[2]) <= UPRIGHT;
+}
+
+/** The length of a world matrix's column `i` (0 across, 1 up): the world scale along that axis. */
+function axisScale(m: Mat4, i: 0 | 1): number {
+  const o = 4 * i;
+  return Math.hypot(m[o] ?? 0, m[o + 1] ?? 0, m[o + 2] ?? 0);
+}
+
 /**
- * Stage 4 for a projection module: the fragments of every visible surface of the scene, as the
- * view's configured projection places them. A surface the scene shows but that has no resolved
- * geometry is an inconsistency, reported as {@link SwfFailure} (`INVALID_INPUT`); so is a view
- * {@link projectionFor} refuses. Given a previous projection, the fragments of each surface whose
- * own record and every ancestor's are unchanged are kept as they were. The projector returned is
- * frozen and stateless, with the module's profile.
+ * Stage 4 for a projection module: every shown surface on its window's card. A window's card is a
+ * flat, upright rectangle centred where the projection places the window's centre, its own size at
+ * `CARD_PIXELS_PER_UNIT` times the card's scale (`cardScale`, by its representation and its
+ * distance along the floor); its surfaces lie on it where they lie on the window, across and up.
+ * Short of the full circle, a card whose centre is past the view's edge still shows the part of it
+ * inside; at the full circle, a card across the seam is drawn at both edges, its widest part the
+ * native owner. A card drawn upright and facing the camera shows no rotation, and draws a surface
+ * as its rectangle: a window or surface carrying a rotation of its own, or a surface of another
+ * shape than `rect`, is placed `approximate`, so a host is told. A surface the scene
+ * shows but that has no resolved geometry is an inconsistency, reported as {@link SwfFailure}
+ * (`INVALID_INPUT`); so is a view {@link projectionFor} refuses. The projector returned is frozen
+ * and stateless, with the module's profile.
  */
 export function projectorOf(module: ProjectionModule): ViewProjector {
   return Object.freeze({
@@ -60,173 +89,112 @@ export function projectorOf(module: ProjectionModule): ViewProjector {
       scene: SceneState,
       view: ViewGeometry,
       geometry: GeometryOf,
-      previous?: PreviousProjection,
+      representation: RepresentationPolicy | null,
     ): ProjectedFragment[] {
       const projection = projectionFor(module, view);
-      const kept = previous === undefined ? null : keptFragments(previous);
+      const domain = projection.describeDomain();
+      const fieldOfView = (domain.horizontalCoverage * 180) / Math.PI;
+      const eye = [view.camera[12], view.camera[13], view.camera[14]] as const;
       const fragments: ProjectedFragment[] = [];
-      for (const surfaceId of shownSurfaces(scene, 'visible')) {
-        const same =
-          kept !== null && previous !== undefined && samePlacement(scene, previous.scene, surfaceId)
-            ? kept.get(surfaceId)
-            : undefined;
-        fragments.push(
-          ...(same ?? projection.projectGeometry(resolved(scene, geometry, surfaceId), view)),
-        );
+      for (const surfaceId of shownSurfaces(scene)) {
+        const surface = scene.surfaces.get(surfaceId);
+        const node = surface === undefined ? undefined : scene.nodes.get(surface.ownerNodeId);
+        const world =
+          surface === undefined ? undefined : worldMatrix(scene.nodes, surface.ownerNodeId);
+        if (surface === undefined || node === undefined || world === undefined) {
+          continue;
+        }
+        const placed = resolved(scene, geometry, surfaceId);
+        const direction = [world[12] - eye[0], world[13] - eye[1], world[14] - eye[2]] as const;
+        const depth = Math.hypot(...direction);
+        if (!(depth > 0) || depth < view.near || (view.far !== null && depth > view.far)) {
+          continue;
+        }
+        const context = { scene, view, surfaceId, nodeId: node.id };
+        const shown: Representation =
+          representation === null ? 'full' : representationFor(representation, context);
+        const floor = Math.hypot(direction[0], direction[2]);
+        const semantic = representation !== null;
+        const natural = cardScale(shown, floor, fieldOfView, semantic);
+        const card = windowCard({
+          bounds: [node.bounds[0], node.bounds[1]],
+          worldScale: [axisScale(world, 0), axisScale(world, 1)],
+          floor,
+          representation: shown,
+          fieldOfView,
+          semantic,
+          scale: representation === null ? natural : cardScaleFor(representation, context, natural),
+        });
+        const { scale } = card;
+        const [cx, cy] = projection.placeDirection(direction, view);
+        // The window's own units to the card's pixels, across and up.
+        const [toX, toY] = card.perUnit;
+        const cardWidth = card.width;
+        const cardHeight = card.height;
+        const [sx, sy] = surface.transform.position;
+        const surfaceWidth = surface.bounds[0] * surface.transform.scale[0] * toX;
+        const surfaceHeight = surface.bounds[1] * surface.transform.scale[1] * toY;
+        const fidelity =
+          upright(node.transform.rotation) &&
+          upright(surface.transform.rotation) &&
+          placed.kind === 'rect' &&
+          placed.fidelity === 'exact'
+            ? 'exact'
+            : 'approximate';
+        // Each place the card is drawn at: its own, and across the seam at the full circle.
+        const centres = domain.seamWrapping ? [cx, cx - view.width, cx + view.width] : [cx];
+        const copies = centres
+          .map((x) => {
+            const card: ScreenRect = [
+              x - cardWidth / 2,
+              cy - cardHeight / 2,
+              cardWidth,
+              cardHeight,
+            ];
+            const bounds: ScreenRect = [
+              x + sx * toX - surfaceWidth / 2,
+              cy - sy * toY - surfaceHeight / 2,
+              surfaceWidth,
+              surfaceHeight,
+            ];
+            return { card, bounds, shown: visibleArea(bounds, view) };
+          })
+          .filter((c) => c.shown > 0)
+          // The widest part first: it is the native owner.
+          .sort((a, b) => b.shown - a.shown);
+        copies.forEach((c, ordinal) => {
+          fragments.push({
+            id: fragmentId(view.viewportId, surfaceId, ordinal),
+            surfaceId,
+            viewportId: view.viewportId,
+            ordinal,
+            bounds: c.bounds,
+            card: c.card,
+            scale,
+            representation: shown,
+            depth,
+            geometricFidelity: fidelity,
+            nativeOwner: ordinal === 0,
+          });
+        });
       }
       return fragments;
     },
   });
 }
 
-/**
- * The fragments of each surface the previous projection showed, by surface: a surface it showed
- * with none (wholly out of view) has an empty list, so it is known and kept too.
- */
-function keptFragments(previous: PreviousProjection): Map<Id, ProjectedFragment[]> {
-  const kept = new Map<Id, ProjectedFragment[]>();
-  for (const surfaceId of shownSurfaces(previous.scene, 'visible')) {
-    kept.set(surfaceId, []);
-  }
-  for (const fragment of previous.fragments) {
-    kept.get(fragment.surfaceId)?.push(fragment);
-  }
-  return kept;
+/** The area of a rect inside the view. */
+function visibleArea(rect: ScreenRect, view: ViewGeometry): number {
+  const w = Math.min(view.width, rect[0] + rect[2]) - Math.max(0, rect[0]);
+  const h = Math.min(view.height, rect[1] + rect[3]) - Math.max(0, rect[1]);
+  return w > 0 && h > 0 ? w * h : 0;
 }
 
-/**
- * Whether a surface stands exactly where it stood: its record and those of its owner and every
- * ancestor are the same objects (records are immutable, so the same object means unchanged), and
- * its placement and visibility depend on nothing else.
- */
-function samePlacement(scene: SceneState, before: SceneState, surfaceId: Id): boolean {
-  const surface = scene.surfaces.get(surfaceId);
-  if (surface === undefined || before.surfaces.get(surfaceId) !== surface) {
-    return false;
-  }
-  for (let id: Id | null = surface.ownerNodeId; id !== null;) {
-    const node = scene.nodes.get(id);
-    if (node === undefined || before.nodes.get(id) !== node) {
-      return false;
-    }
-    id = node.parentId;
-  }
-  return true;
-}
-
-/** A surface a pointer ray hits. */
-export interface PickCandidate {
-  /** The surface hit: one candidate per surface, however many fragments it shows as. */
-  readonly surfaceId: Id;
-  /** Distance from the camera along the ray, in world units; within the view's depth range. */
-  readonly distance: number;
-  /** Where the ray meets the surface, in world coordinates. */
-  readonly point: Vec3;
-  /**
-   * Where on the surface the ray meets it, as its geometry gives it: for a rectangle, (0, 0) is
-   * the top-left corner and (1, 1) the bottom-right.
-   */
-  readonly uv: readonly [number, number];
-}
-
-/** What lies under a viewport point. */
-export type Pick =
-  | {
-      /** The point has a ray; `candidates` may still be empty. */
-      readonly kind: 'hits';
-      /** The interaction ray, in world space from the camera, with a unit direction. */
-      readonly ray: Ray;
-      /** Bound on the ray's angular error, in radians. */
-      readonly error: number;
-      /**
-       * Angle right of the camera's heading, in radians; unwrapped to the drag's branch when
-       * continuity was given.
-       */
-      readonly longitude: number;
-      /** Angle above the camera's horizon, in radians, in [-π/2, π/2]. */
-      readonly latitude: number;
-      /** Every selectable surface the ray hits, nearest first (then by Surface ID). */
-      readonly candidates: readonly PickCandidate[];
-    }
-  | {
-      /** The point is outside the view. */
-      readonly kind: 'outside';
-      /** Why, in words for diagnostics. */
-      readonly reason: string;
-    }
-  | {
-      /** The point is inside the view, where the projection has no inverse; nothing is guessed. */
-      readonly kind: 'unpickable';
-      /** Why, in words for diagnostics. */
-      readonly reason: string;
-    };
-
-/**
- * The selectable surfaces under a viewport point, as ordered candidates along the projection's
- * interaction ray. Where the projection has no inverse the point is reported unpickable rather than
- * guessed; with `continuity`, the longitude is unwrapped to stay continuous during a drag. A
- * surface counts when it and its owner are effectively selectable, and its hit lies within the
- * view's `near` and `far` distances.
- *
- * @param projection - The projection configured for `view`, from {@link projectionFor}.
- * @param scene - The scene whose surfaces are picked (a workspace's presented scene, so open
- *   previews count).
- * @param x - Viewport CSS pixels from the left edge.
- * @param y - Viewport CSS pixels from the top edge.
- * @param geometry - Each surface's geometry as placed in `scene`.
- * @throws An {@link SwfFailure} (`INVALID_INPUT`) when a selectable surface has no geometry.
- * @example
- * ```ts
- * const view = viewGeometryOf(workspace.getPresented(), 'main');
- * const pick = pickAt(projectionFor(equirectangular, view), workspace.getPresented(), view,
- *   event.offsetX, event.offsetY, (id) => workspace.presentedGeometry(id));
- * const target = pick.kind === 'hits' ? pick.candidates[0]?.surfaceId : undefined;
- * ```
- */
-export function pickAt(
-  projection: Projection,
-  scene: SceneState,
-  view: ViewGeometry,
-  x: number,
-  y: number,
-  geometry: GeometryOf,
-  continuity?: Continuity,
-): Pick {
-  const result = projection.interactionRay(x, y, view, continuity);
-  if (result.kind !== 'ray') {
-    return result;
-  }
-  const candidates: PickCandidate[] = [];
-  for (const surfaceId of shownSurfaces(scene, 'selectable')) {
-    const hit = resolved(scene, geometry, surfaceId).intersect(result.ray);
-    if (
-      hit !== null &&
-      (view.far === null || hit.distance <= view.far) &&
-      hit.distance >= view.near
-    ) {
-      candidates.push({ surfaceId, distance: hit.distance, point: hit.point, uv: hit.uv });
-    }
-  }
-  candidates.sort(
-    (a, b) =>
-      a.distance - b.distance ||
-      (a.surfaceId < b.surfaceId ? -1 : a.surfaceId > b.surfaceId ? 1 : 0),
-  );
-  return {
-    kind: 'hits',
-    ray: result.ray,
-    error: result.error,
-    longitude: result.longitude,
-    latitude: result.latitude,
-    candidates,
-  };
-}
-
-/** The surfaces whose owner is effectively visible (or selectable) and that are themselves so. */
-function* shownSurfaces(scene: SceneState, need: 'visible' | 'selectable'): Generator<Id> {
+/** The surfaces whose owner is effectively visible and that are themselves so. */
+function* shownSurfaces(scene: SceneState): Generator<Id> {
   for (const surface of scene.surfaces.values()) {
     const owner = effectiveState(scene.nodes, surface.ownerNodeId);
-    if (owner?.[need] === true && surface.flags[need]) {
+    if (owner?.visible === true && surface.flags.visible) {
       yield surface.id;
     }
   }

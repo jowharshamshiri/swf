@@ -7,3 +7,6 @@ version never does; from 1.0.0, only a major version does.
 ## 0.1.0
 
 The first release. The performance benchmark. Seeded standard and stress fixtures, a host that presents a fixture through the framework as an application would, the measures a run takes in the page (frame intervals, input-to-preview latency, hit queries), the statistics results are reported in, and a probe of the listeners, observers, frames and timers a page holds, for disposal soaks.
+
+The fixture's windows stand upright in the room, planned by heading, `reach` along the floor and
+height `y`, in five rows of heights.

@@ -455,7 +455,7 @@ export class PanoramaGuides {
       if (module === undefined) {
         throw new Error(`projection "${shown.projectionId}" is not registered`);
       }
-      const frames = windowFrames(presented.frame, projectionFor(module, shown));
+      const frames = windowFrames(presented.frame);
       const names = windowNames(
         presented.frame,
         (text) => [

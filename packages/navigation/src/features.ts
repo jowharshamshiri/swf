@@ -45,18 +45,19 @@ export interface SnapSettings {
    */
   readonly spoke: number;
   /**
-   * World units within which a window's distance from the camera snaps to a ring ({@link ringsOf}):
-   * 0 for none.
+   * World units within which a window's distance from the camera along the floor snaps to a ring
+   * ({@link SNAP_RINGS}): 0 for none.
    */
   readonly ring: number;
 }
 
 /**
- * Semantic depth's bands, in world units from the camera: a window nearer than `full` shows its
- * content, one nearer than `compact` a compact preview, and one farther its label alone.
+ * Semantic depth's bands, in world units from the camera along the floor: a window nearer than
+ * `full` shows its content, one nearer than `compact` a compact preview, and one farther its label
+ * alone.
  */
 export interface DepthBands {
-  /** World units from the camera within which a window shows its content. */
+  /** World units from the camera along the floor within which a window shows its content. */
   readonly full: number;
   /** World units within which it shows a compact preview; more than `full`. */
   readonly compact: number;
@@ -81,17 +82,26 @@ export const ALL_ENABLED: Readonly<Record<FeatureId, boolean>> = Object.freeze(
 export const DEFAULT_FEATURES: FeatureSettings = Object.freeze({
   enabled: ALL_ENABLED,
   snap: Object.freeze({ linear: 0.08, angular: 2, padding: 0.04, spoke: 15, ring: 0.3 }),
-  depth: Object.freeze({ full: 4, compact: 5.5 }),
+  depth: Object.freeze({ full: 6.7, compact: 9.3 }),
 });
 
 /**
- * The rings round the camera, nearest first, in world units: one within each band semantic depth
- * draws by (near enough to show whole, compact, a label alone). Windows are arranged on them, and
- * magnetic positioning snaps a window's distance to them.
+ * The rings round the camera magnetic positioning snaps a window's distance along the floor to,
+ * nearest first, in world units.
  */
-export function ringsOf(depth: DepthBands): readonly [number, number, number] {
-  return [depth.full * 0.75, (depth.full + depth.compact) / 2, depth.compact * 1.15];
-}
+export const SNAP_RINGS: readonly number[] = Object.freeze([3.8, 6.3, 9.2, 12]);
+
+/**
+ * How near along the floor, in world units, another window may stand to one magnetic positioning
+ * has put on a spoke before the window is moved on to a clear spoke (`Swf.AppSpacing`).
+ */
+export const SNAP_SPACING = 1.8;
+
+/**
+ * The rings round the camera Arrange round lays windows on, near, middle and far, in world units
+ * along the floor.
+ */
+export const ARRANGE_RINGS: readonly [number, number, number] = Object.freeze([4.8, 7.3, 10.6]);
 
 /** A change to the settings: only what it names changes. */
 export interface FeaturePatch {

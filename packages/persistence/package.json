@@ -16,7 +16,7 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
-    "./schema/swf.workspace-1.schema.json": "./dist/schema/swf.workspace-1.schema.json"
+    "./schema/swf.workspace-2.schema.json": "./dist/schema/swf.workspace-2.schema.json"
   },
   "files": [
     "dist",

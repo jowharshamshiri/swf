@@ -176,7 +176,6 @@ const OUTCOMES = Object.freeze({
 /** What each framework operation a key runs is called, when it does nothing. */
 const OPERATION_NAMES: Readonly<Record<string, NavigationMessageId>> = Object.freeze({
   'node.move': 'operation.node.move',
-  'node.rotate': 'operation.node.rotate',
   'node.resize': 'operation.node.resize',
   'gesture.grab': 'operation.gesture.grab',
   'gesture.drop': 'operation.gesture.drop',
@@ -236,7 +235,6 @@ export const PANORAMA_PLACE = 'panorama';
 export type WindowAnnouncement =
   | 'announce.selected'
   | 'announce.moved'
-  | 'announce.turned'
   | 'announce.resized'
   | 'announce.held'
   | 'announce.preview'
@@ -502,9 +500,9 @@ export class NavigationModel<S extends NavigationCommandSpecs = NavigationComman
     return t.format('where.text', {
       heading: round(pose.heading),
       side: t.format(pose.heading < 0 ? 'where.left' : 'where.right'),
-      elevation: round(pose.elevation),
-      updown: t.format(pose.elevation < 0 ? 'where.down' : 'where.up'),
-      distance: round(pose.distance, 2),
+      distance: round(pose.reach, 2),
+      height: round(pose.above, 2),
+      updown: t.format(pose.above < 0 ? 'where.down' : 'where.up'),
     });
   }
 
@@ -519,7 +517,6 @@ export class NavigationModel<S extends NavigationCommandSpecs = NavigationComman
       this.messages.named(id, {
         label: this.labelOf(nodeId),
         where: this.where(pose),
-        degrees: round(pose.turned, 1),
         width: round(pose.width, 2),
         height: round(pose.height, 2),
       }),
@@ -559,9 +556,6 @@ export class NavigationModel<S extends NavigationCommandSpecs = NavigationComman
         switch (name) {
           case 'node.move':
             this.say('announce.moved', selected);
-            return;
-          case 'node.rotate':
-            this.say('announce.turned', selected);
             return;
           case 'node.resize':
             this.say('announce.resized', selected);
@@ -625,9 +619,7 @@ export class NavigationModel<S extends NavigationCommandSpecs = NavigationComman
             ? 'announce.preview'
             : pose.heading !== undefined || pose.reach !== undefined || pose.y !== undefined
               ? 'announce.moved'
-              : pose.turned !== undefined
-                ? 'announce.turned'
-                : 'announce.resized',
+              : 'announce.resized',
           windowId,
         );
         return;

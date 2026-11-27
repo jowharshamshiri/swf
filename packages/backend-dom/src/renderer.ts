@@ -1,5 +1,5 @@
 import type { Id, SceneState } from '@swf/core';
-import { makeError, nodeFrameGeometry, SwfFailure } from '@swf/core';
+import { makeError, SwfFailure } from '@swf/core';
 import type {
   CompositionLayer,
   PlannedFragment,
@@ -22,11 +22,6 @@ import {
   viewGeometryIssue,
   windowNames,
 } from '@swf/presentation';
-import type { ProjectionModule } from '@swf/projections';
-import { projectionFor } from '@swf/projections';
-import type { Quad2 } from '@swf/math';
-import { offsetQuad, rectQuad } from '@swf/math';
-import { cssTransform, quadMatrix } from './placement.js';
 import { DomWriter } from './writer.js';
 
 /** The DOM renderer's registered ID, as {@link DomRenderer} declares it. */
@@ -35,12 +30,12 @@ export const DOM_RENDERER_ID = 'swf.dom-renderer/1';
 /**
  * What the DOM renderer can do. It presents live DOM elements natively (placing them, never
  * redrawing them) and proxy-only endpoints as proxies. It cannot draw: drawable content falls back
- * to a proxy. Its transforms are planar perspective (a CSS `matrix3d`), so in a nonlinear
- * projection a live element is placed by its projected corners and only approximates the bend.
+ * to a proxy. A live element is placed on its window's card, flat and upright, by a translation and
+ * a scale only, so its placement is as exact as the card's.
  */
 export const DOM_RENDERER_CAPABILITIES: RendererCapabilities = Object.freeze({
   handleKinds: Object.freeze({ 'native-dom': 'native', 'proxy-only': 'proxy' }),
-  transformMode: 'perspective-3d',
+  transformMode: 'affine-2d',
   clipping: 'rect',
   hitMapping: false,
   layering: 'dom',
@@ -85,19 +80,11 @@ export const DEFAULT_CHROME_INKS: ChromeInks = Object.freeze({
 const NAME = Object.freeze({ size: 12, line: 15, margin: 3 });
 
 /**
- * Window chrome: frames, names and resize handles drawn from each window's projected frame. Each
- * window's name is written flat, where it can be read: wholly inside the view, over no other
- * window and over no other name (`placeNames` of `@swf/presentation`).
+ * Window chrome: frames, names and resize handles drawn round each window's card. Each window's
+ * name is written flat, where it can be read: wholly inside the view, over no other window and
+ * over no other name (`placeNames` of `@swf/presentation`).
  */
 export interface ChromeOptions {
-  /**
-   * The projection modules views use, to project window frames: a projection registry will do.
-   * A frame of a view whose projection is not here throws `UNSUPPORTED_CAPABILITY`.
-   */
-  readonly projections: {
-    /** The projection module registered under `id`, or undefined when none is. */
-    get(id: string): ProjectionModule | undefined;
-  };
   /**
    * Thickness of the resize handles along window edges, in CSS px: positive and finite. Default
    * 12.
@@ -114,11 +101,6 @@ export interface ChromeOptions {
 export interface DomRendererOptions {
   /** The document every view's elements are made in; the host's containers must belong to it. */
   readonly document: Document;
-  /**
-   * CSS pixels a live element lays out per world unit of its surface: positive and finite.
-   * Default 400.
-   */
-  readonly pixelsPerUnit?: number;
   /** Draws window chrome when given; without it the renderer draws content only. */
   readonly chrome?: ChromeOptions;
   /**
@@ -148,8 +130,6 @@ export const DOM_ATTRIBUTES = Object.freeze({
   shape: 'data-swf-shape',
   /** On a live clip box: how faithful its anchoring is. */
   anchor: 'data-swf-anchor',
-  /** On a live clip box: `corners` when the slot follows its projected corners, or `bounds`. */
-  placement: 'data-swf-placement',
   /** On a resize handle: its edge or corner (`n`, `ne`, … `nw`). */
   handle: 'data-swf-handle',
   /** On a selected window's chrome, present while it is selected. */
@@ -183,7 +163,6 @@ const RESIZE_EDGES = Object.freeze({
 /** What a session is made with. */
 interface SessionOptions {
   readonly document: Document;
-  readonly pixelsPerUnit: number;
   readonly chrome: Required<ChromeOptions> | null;
   readonly standIn: (reason: StandInReason) => string;
 }
@@ -202,14 +181,10 @@ export class DomRenderer implements RendererBackend {
   /**
    * A renderer for `options.document`, which is not checked.
    *
-   * @throws `RangeError` for a `pixelsPerUnit` or `chrome.handlePx` that is not positive and
-   *   finite, or a `chrome.inks` colour that is not a non-blank string.
+   * @throws `RangeError` for a `chrome.handlePx` that is not positive and finite, or a
+   *   `chrome.inks` colour that is not a non-blank string.
    */
   constructor(options: DomRendererOptions) {
-    const ppu = options.pixelsPerUnit ?? 400;
-    if (!(ppu > 0 && Number.isFinite(ppu))) {
-      throw new RangeError(`pixelsPerUnit must be a positive finite number (got ${String(ppu)})`);
-    }
     const handlePx = options.chrome?.handlePx ?? 12;
     if (!(handlePx > 0 && Number.isFinite(handlePx))) {
       throw new RangeError(
@@ -225,12 +200,10 @@ export class DomRenderer implements RendererBackend {
     }
     this.#options = {
       document: options.document,
-      pixelsPerUnit: ppu,
       chrome:
         options.chrome === undefined
           ? null
           : {
-              projections: options.chrome.projections,
               handlePx,
               inks: Object.freeze({
                 frame: inks.frame,
@@ -285,7 +258,6 @@ export class DomRendererSession implements RendererSession {
   /** The view's root element; the compositor puts it in the host's container. */
   readonly root: HTMLElement;
   readonly #document: Document;
-  readonly #ppu: number;
   readonly #chrome: Required<ChromeOptions> | null;
   readonly #standIn: (reason: StandInReason) => string;
   readonly #slots = new Map<Id, NativeSlot>();
@@ -302,7 +274,6 @@ export class DomRendererSession implements RendererSession {
     this.rendererId = rendererId;
     this.viewportId = view.viewportId;
     this.#document = options.document;
-    this.#ppu = options.pixelsPerUnit;
     this.#chrome = options.chrome;
     this.#standIn = options.standIn;
     this.root = options.document.createElement('div');
@@ -399,9 +370,10 @@ export class DomRendererSession implements RendererSession {
     frame.planned.forEach((planned, i) => {
       layers.push(this.#content(frame, planned, usedSlots, usedElements));
       for (const [nodeId, last] of lastOfNode) {
-        const frameOf = chrome.get(nodeId);
-        if (last === i && frameOf !== undefined) {
-          layers.push(this.#chromeLayer(frame.scene, nodeId, frameOf, usedElements));
+        if (last === i) {
+          (chrome.get(nodeId) ?? []).forEach((card, copy) => {
+            layers.push(this.#chromeLayer(frame, nodeId, card, copy, usedElements));
+          });
         }
       }
     });
@@ -526,9 +498,8 @@ export class DomRendererSession implements RendererSession {
   }
 
   /**
-   * Places a surface's live slot: a clip box at the fragment's visible bounds, and inside it the
-   * slot (laid out at the surface's size in CSS px) mapped onto the surface's projected corners.
-   * Without usable corners the slot fills the bounds, and says its shape is approximate.
+   * Places a surface's live slot: a clip box where the surface lies on its window's card, and inside
+   * it the slot, laid out at the surface's size before the card's scale and scaled to it.
    */
   #place(scene: SceneState, planned: PlannedFragment): HTMLElement {
     const { fragment, negotiation } = planned;
@@ -560,42 +531,19 @@ export class DomRendererSession implements RendererSession {
       slot = { clip, slot: inner };
       this.#slots.set(fragment.surfaceId, slot);
     }
-    const [x, y, w, h] = fragment.bounds;
-    const width = surface.bounds[0] * this.#ppu;
-    const height = surface.bounds[1] * this.#ppu;
-    const cornerMatrix =
-      fragment.corners === null
-        ? null
-        : quadMatrix(width, height, offsetQuad(fragment.corners, x, y));
-    const followsCorners = cornerMatrix !== null;
-    const matrix =
-      cornerMatrix ?? quadMatrix(width, height, offsetQuad(rectQuad(fragment.bounds), x, y));
-    this.#write.style(slot.clip, {
-      display: '',
-      left: `${String(x)}px`,
-      top: `${String(y)}px`,
-      width: `${String(w)}px`,
-      height: `${String(h)}px`,
-    });
+    // Laid out at its size on the card before the card's scale, then scaled: flat and upright.
+    const [, , w, h] = fragment.bounds;
+    const { scale } = fragment;
+    this.#write.style(slot.clip, { display: '', ...boxOf(fragment.bounds) });
     this.#write.style(slot.slot, {
-      width: `${String(width)}px`,
-      height: `${String(height)}px`,
-      transform: matrix === null ? 'scale(0)' : cssTransform(matrix),
+      width: `${String(w / scale)}px`,
+      height: `${String(h / scale)}px`,
+      transform: `scale(${String(scale)})`,
     });
     this.#write.attribute(slot.clip, DOM_ATTRIBUTES.fragment, fragment.id);
     this.#write.attribute(slot.clip, DOM_ATTRIBUTES.mode, negotiation.mode);
     this.#write.attribute(slot.clip, DOM_ATTRIBUTES.anchor, negotiation.anchorFidelity);
-    // A slot that could not follow the corners is never declared exact.
-    this.#write.attribute(
-      slot.clip,
-      DOM_ATTRIBUTES.shape,
-      followsCorners ? negotiation.shapeFidelity : 'approximate',
-    );
-    this.#write.attribute(
-      slot.clip,
-      DOM_ATTRIBUTES.placement,
-      followsCorners ? 'corners' : 'bounds',
-    );
+    this.#write.attribute(slot.clip, DOM_ATTRIBUTES.shape, negotiation.shapeFidelity);
     return slot.clip;
   }
 
@@ -629,7 +577,7 @@ export class DomRendererSession implements RendererSession {
    */
   #namesLayer(
     frame: RenderFrame,
-    frames: ReadonlyMap<Id, ProjectedFragment>,
+    frames: ReadonlyMap<Id, readonly ScreenRect[]>,
     usedElements: Set<string>,
   ): CompositionLayer {
     const chrome = this.#chrome;
@@ -650,7 +598,11 @@ export class DomRendererSession implements RendererSession {
     const { obstacles, names } = windowNames(
       frame,
       (text) => [Math.ceil(measure(text, font)) + 2 * NAME.margin, NAME.line + 2 * NAME.margin],
-      new Map([...frames].map(([nodeId, piece]) => [nodeId, piece.bounds])),
+      new Map(
+        [...frames].flatMap(([nodeId, cards]) =>
+          cards[0] === undefined ? [] : [[nodeId, cards[0]] as const],
+        ),
+      ),
     );
     const placed = placeNames(frame.view, obstacles, names);
     names.forEach((name, i) => {
@@ -805,39 +757,24 @@ export class DomRendererSession implements RendererSession {
     return e;
   }
 
-  /** Each window's projected frame (its native-owner piece), when chrome is drawn. */
-  #chromeFrames(frame: RenderFrame): Map<Id, ProjectedFragment> {
-    const frames = new Map<Id, ProjectedFragment>();
+  /**
+   * Each window's card, at every place it is drawn (its own first, then across the seam), when
+   * chrome is drawn. A window whose every surface is represented by its label alone has none: the
+   * label stands for the whole window.
+   */
+  #chromeFrames(frame: RenderFrame): Map<Id, ScreenRect[]> {
+    const frames = new Map<Id, ScreenRect[]>();
     if (this.#chrome === null) {
       return frames;
     }
-    const module = this.#chrome.projections.get(frame.view.projectionId);
-    if (module === undefined) {
-      throw new SwfFailure(
-        makeError(
-          'UNSUPPORTED_CAPABILITY',
-          `window chrome for viewport "${this.viewportId}" needs projection "${frame.view.projectionId}", which is not registered`,
-        ),
-      );
-    }
-    const projection = projectionFor(module, frame.view);
-    // A window whose every surface is represented by its label alone has no chrome: the label
-    // stands for the whole window.
-    const nodes = new Set(
-      frame.planned.flatMap((p) => {
-        const owner = frame.scene.surfaces.get(p.fragment.surfaceId)?.ownerNodeId;
-        return owner === undefined || p.representation === 'label' ? [] : [owner];
-      }),
-    );
-    for (const nodeId of nodes) {
-      const geometry = nodeFrameGeometry(frame.scene, nodeId);
-      const piece =
-        geometry === undefined
-          ? undefined
-          : projection.projectGeometry(geometry, frame.view).find((f) => f.nativeOwner);
-      if (piece !== undefined) {
-        frames.set(nodeId, piece);
+    for (const { fragment, representation } of frame.planned) {
+      const owner = frame.scene.surfaces.get(fragment.surfaceId)?.ownerNodeId;
+      if (owner === undefined || representation === 'label') {
+        continue;
       }
+      const cards = frames.get(owner) ?? [];
+      cards[fragment.ordinal] ??= fragment.card;
+      frames.set(owner, cards);
     }
     return frames;
   }
@@ -849,37 +786,33 @@ export class DomRendererSession implements RendererSession {
    * where the content under them is a cross-origin frame.
    */
   #chromeLayer(
-    scene: SceneState,
+    frame: RenderFrame,
     nodeId: Id,
-    piece: ProjectedFragment,
+    card: ScreenRect,
+    copy: number,
     usedElements: Set<string>,
   ): CompositionLayer {
+    const { scene, view } = frame;
     const chrome = this.#chrome;
     const node = scene.nodes.get(nodeId);
     if (chrome === null || node === undefined) {
       throw new Error('window chrome was drawn without its options or node');
     }
-    const id = `chrome:${nodeId}`;
+    // The chrome of the card's own place, and of each copy of it across the seam.
+    const id = copy === 0 ? `chrome:${nodeId}` : `chrome:${nodeId}/${String(copy)}`;
     usedElements.add(id);
     const element = this.#element(id, () => this.#chromeElement(nodeId));
     const outline = element.firstElementChild as HTMLElement | null;
     if (outline === null) {
       throw new Error(`the chrome of window "${nodeId}" lost its frame`);
     }
-    const [x, y, w, h] = piece.bounds;
-    this.#write.style(element, boxOf(piece.bounds));
-    const width = node.bounds[0] * this.#ppu;
-    const height = node.bounds[1] * this.#ppu;
-    const corners: Quad2 = piece.corners ?? rectQuad(piece.bounds);
-    const matrix =
-      quadMatrix(width, height, offsetQuad(corners, x, y)) ??
-      quadMatrix(width, height, offsetQuad(rectQuad(piece.bounds), x, y));
+    const [x, y, w, h] = card;
+    this.#write.style(element, boxOf(card));
     const selected = scene.selection.includes(nodeId);
     const focused = scene.focusedId === nodeId;
     this.#write.style(outline, {
-      width: `${String(width)}px`,
-      height: `${String(height)}px`,
-      transform: matrix === null ? 'scale(0)' : cssTransform(matrix),
+      width: `${String(w)}px`,
+      height: `${String(h)}px`,
       // The window keys act on is marked, and the one in focus above it.
       border: `${focused || selected ? '3px' : '1px'} solid ${
         focused ? chrome.inks.focused : selected ? chrome.inks.selected : chrome.inks.frame
@@ -889,15 +822,12 @@ export class DomRendererSession implements RendererSession {
     this.#write.toggle(element, DOM_ATTRIBUTES.focused, focused);
     const resizable = node.flags.resizable && !node.flags.locked;
     const t = chrome.handlePx;
-    const [tl, tr, br, bl] = corners;
-    // An edge is the window's own only where the piece is not cut there by the view or a seam.
-    const inside = (value: number, lo: number, hi: number) =>
-      value >= lo - 0.5 && value <= hi + 0.5;
+    // An edge takes a handle only where it lies inside the view.
     const has = {
-      n: inside(Math.min(tl[1], tr[1]), y, y + h),
-      s: inside(Math.max(bl[1], br[1]), y, y + h),
-      w: inside(Math.min(tl[0], bl[0]), x, x + w),
-      e: inside(Math.max(tr[0], br[0]), x, x + w),
+      n: y >= 0,
+      s: y + h <= view.height,
+      w: x >= 0,
+      e: x + w <= view.width,
     };
     for (const handle of element.querySelectorAll<HTMLElement>(`[${DOM_ATTRIBUTES.handle}]`)) {
       const edge = handle.getAttribute(DOM_ATTRIBUTES.handle) as keyof typeof RESIZE_EDGES;

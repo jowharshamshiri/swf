@@ -25,7 +25,7 @@ import {
 } from '@swf/navigation';
 import { createWorkspaces } from '../src/workspaces.js';
 import type { PolicyWorld } from './policy-world.js';
-import { drag, pointOn, policyWorld, screenOf, VIEWPORT, W } from './policy-world.js';
+import { centreOf, drag, onCard, policyWorld, VIEWPORT, W } from './policy-world.js';
 
 /**
  * Golden scenes and scripted interaction traces (QA-012): each of the four view modes and each of
@@ -78,7 +78,7 @@ function record(
  * gives the press to the framework), dragged by (dx, dy) in steps, and released.
  */
 function takeAndMove(world: PolicyWorld, id: string, dx: number, dy: number): void {
-  const [x, y] = screenOf(world.ws, pointOn(world.ws, id, [0, 0, 0]));
+  const [x, y] = onCard(world, id, [0, 0]);
   world.input.pointer('down', VIEWPORT, x, y, { modifiers: { alt: true } });
   for (let i = 1; i <= 8; i += 1) {
     world.input.pointer('move', VIEWPORT, x + (dx * i) / 8, y + (dy * i) / 8, {
@@ -194,7 +194,7 @@ describe('golden scenes and scripted traces: the eight behaviour modules (QA-012
     await expect(record(world, trace)).toMatchFileSnapshot(golden('module-orbit'));
   });
 
-  it('spatial map: a window carried round the camera keeps facing it', async () => {
+  it('spatial map: a window carried round the camera stands upright', async () => {
     const { world, trace } = scripted('sparse', only({ map: true }));
     world.modes.switchTo(MAP.id);
     const m = world.ws.getState().nodes.get('window-01')?.transform.position ?? [0, 0, 0];
@@ -207,7 +207,9 @@ describe('golden scenes and scripted traces: the eight behaviour modules (QA-012
 
   it('wrapped cursor: a window carried past the right edge comes in at the left', async () => {
     const { world, trace } = scripted('seam', only({ cursor: true }));
-    const [x, y] = screenOf(world.ws, pointOn(world.ws, 'window-01', [-0.6, 0, 0]), W);
+    const [cx, y] = onCard(world, 'window-01', [-0.6, 0]);
+    // The copy of its card at the right edge.
+    const x = ((cx % W) + W) % W;
     world.input.pointer('down', VIEWPORT, x, y, { modifiers: { alt: true } });
     for (const step of [x + 10, W - 1, W + 10, W + 30, W + 45]) {
       world.input.pointer('move', VIEWPORT, step, y);
@@ -219,9 +221,11 @@ describe('golden scenes and scripted traces: the eight behaviour modules (QA-012
   it('magnetic positioning: a window moved near a neighbour snaps beside it', async () => {
     const { world, trace } = scripted('sparse', only({ snap: true }));
     const node = world.ws.getState().nodes.get('window-02');
-    const [, y] = screenOf(world.ws, pointOn(world.ws, 'window-02', [0, 0, 0]));
-    // Its centre brought within a degree of the horizon: the move snaps level with it.
-    takeAndMove(world, 'window-02', 40, 200 - y + 2);
+    // Its centre lowered to 0.05 above the camera's level, a 68th of a unit a pixel: within a
+    // degree of the horizon, so the move snaps level, with the nearer of the horizon and a
+    // neighbour's centre.
+    const height = centreOf(world.ws, 'window-02')[1];
+    takeAndMove(world, 'window-02', 40, (height - 0.05) * 68);
     expect(world.ws.getState().nodes.get('window-02')?.bounds).toEqual(node?.bounds);
     await expect(
       record(world, trace, {

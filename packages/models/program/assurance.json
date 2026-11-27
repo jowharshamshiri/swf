@@ -1686,11 +1686,11 @@
         "package": "swf_models",
         "file": "Swf/AppFeatures.lean",
         "start": {
-          "line": 324,
+          "line": 325,
           "column": 1
         },
         "end": {
-          "line": 349,
+          "line": 350,
           "column": 112
         }
       }
@@ -1719,11 +1719,11 @@
         "package": "swf_models",
         "file": "Swf/AppFeatures.lean",
         "start": {
-          "line": 394,
+          "line": 395,
           "column": 1
         },
         "end": {
-          "line": 409,
+          "line": 410,
           "column": 60
         }
       }
@@ -1752,11 +1752,11 @@
         "package": "swf_models",
         "file": "Swf/AppFeatures.lean",
         "start": {
-          "line": 387,
+          "line": 388,
           "column": 1
         },
         "end": {
-          "line": 392,
+          "line": 393,
           "column": 17
         }
       }
@@ -1785,11 +1785,11 @@
         "package": "swf_models",
         "file": "Swf/AppFeatures.lean",
         "start": {
-          "line": 351,
+          "line": 352,
           "column": 1
         },
         "end": {
-          "line": 355,
+          "line": 356,
           "column": 86
         }
       }
@@ -1818,11 +1818,11 @@
         "package": "swf_models",
         "file": "Swf/AppFeatures.lean",
         "start": {
-          "line": 364,
+          "line": 365,
           "column": 1
         },
         "end": {
-          "line": 385,
+          "line": 386,
           "column": 70
         }
       }
@@ -1851,11 +1851,11 @@
         "package": "swf_models",
         "file": "Swf/AppFeatures.lean",
         "start": {
-          "line": 357,
+          "line": 358,
           "column": 1
         },
         "end": {
-          "line": 362,
+          "line": 363,
           "column": 81
         }
       }
@@ -3229,6 +3229,105 @@
       }
     },
     {
+      "name": "Swf.AppSpacing.clear_stays",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppSpacing.spacedHeading"
+      ],
+      "specifications": [],
+      "statement": "∀ (spacing spoke floor heading : Float) (others : Array Swf.AppSpacing.FloorPoint),\n  Swf.AppSpacing.crowdedAt spacing others floor heading = false →\n    Swf.AppSpacing.spacedHeading spacing spoke others floor heading = heading",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "4a7212ea832555b1cb3dd69bcd5d1173a319374b3b294dada9c8bf080f215fcd",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppSpacing.lean",
+        "start": {
+          "line": 47,
+          "column": 1
+        },
+        "end": {
+          "line": 52,
+          "column": 38
+        }
+      }
+    },
+    {
+      "name": "Swf.AppSpacing.moved_only_clear",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppSpacing.spacedHeading"
+      ],
+      "specifications": [],
+      "statement": "∀ (spacing spoke floor heading : Float) (others : Array Swf.AppSpacing.FloorPoint),\n  Swf.AppSpacing.spacedHeading spacing spoke others floor heading = heading ∨\n    Swf.AppSpacing.crowdedAt spacing others floor (Swf.AppSpacing.spacedHeading spacing spoke others floor heading) =\n      false",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "2e63c7c886964a8951bc9fc302d4d5f3d20410419a397af1565cad8bcf56eaef",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppSpacing.lean",
+        "start": {
+          "line": 54,
+          "column": 1
+        },
+        "end": {
+          "line": 66,
+          "column": 21
+        }
+      }
+    },
+    {
+      "name": "Swf.AppSpacing.on_a_tried_spoke",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppSpacing.spacedHeading"
+      ],
+      "specifications": [],
+      "statement": "∀ (spacing spoke floor heading : Float) (others : Array Swf.AppSpacing.FloorPoint),\n  Swf.AppSpacing.spacedHeading spacing spoke others floor heading ∈ Swf.AppSpacing.candidates spoke heading",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "2a90175675f7fa8b0ef74db0726433b77f60725a537565a61b8f14425d4656c5",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppSpacing.lean",
+        "start": {
+          "line": 68,
+          "column": 1
+        },
+        "end": {
+          "line": 76,
+          "column": 50
+        }
+      }
+    },
+    {
       "name": "Swf.AppWheel.commits_only_the_burst_under_way",
       "relation": "lungo.law",
       "subjects": [
@@ -3247,16 +3346,16 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "f58d51db4373a15bae935edc36f86655ca66deb9a159d80c98067475620c49c7",
+      "fingerprint": "30cc5fda3b046b24e820fdc69afcc530b0a571321c3d3d29d1d5128eba1107c8",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppWheel.lean",
         "start": {
-          "line": 92,
+          "line": 94,
           "column": 1
         },
         "end": {
-          "line": 131,
+          "line": 133,
           "column": 71
         }
       }
@@ -3280,16 +3379,16 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "be6c71e35482efd900427801e7f5ff96baebab8bf77140775fbb55eabecf5e08",
+      "fingerprint": "c86f7ec492e8cd18e5f582dfa3d85aaefbb32c12c13d2d79986456a184d1c599",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppWheel.lean",
         "start": {
-          "line": 85,
+          "line": 87,
           "column": 1
         },
         "end": {
-          "line": 90,
+          "line": 92,
           "column": 91
         }
       }
@@ -3313,16 +3412,16 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "86eb5cc88b9f67582ef240d35d779b30e37b620ddf92a4069e7c955bbe76c0a2",
+      "fingerprint": "1a562f996af6109548e2d5eaa83c787c63e67db606f28cda3faccee06a600172",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppWheel.lean",
         "start": {
-          "line": 143,
+          "line": 145,
           "column": 1
         },
         "end": {
-          "line": 169,
+          "line": 171,
           "column": 81
         }
       }
@@ -3346,16 +3445,16 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "09a597bff0f9e3ffab080431dd7c93a7def2eaae525c6d051bbdde3342636d2b",
+      "fingerprint": "564f3598acce7d8138ed3fcc2f49237179ecffbea1bceef8277bfe9aacf24503",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppWheel.lean",
         "start": {
-          "line": 75,
+          "line": 77,
           "column": 1
         },
         "end": {
-          "line": 83,
+          "line": 85,
           "column": 76
         }
       }
@@ -3367,7 +3466,7 @@
         "Swf.AppWheel.wheelStep"
       ],
       "specifications": [],
-      "statement": "∀ (b : Swf.AppWheel.Burst) (delta : Float) (s : Swf.AppWheel.WheelStep),\n  delta.isFinite = true →\n    Swf.AppWheel.wheelStep (some b) (Swf.AppWheel.WheelEvent.tick b.nodeId delta) = Swf.AppWheel.WheelOutcome.step s →\n      s.burst = some { nodeId := b.nodeId, depth := b.depth + delta } ∧\n        s.actions = [Swf.AppWheel.WheelAction.show { nodeId := b.nodeId, depth := b.depth + delta }]",
+      "statement": "∀ (b : Swf.AppWheel.Burst) (delta : Float) (s : Swf.AppWheel.WheelStep),\n  delta.isFinite = true →\n    Swf.AppWheel.wheelStep (some b) (Swf.AppWheel.WheelEvent.tick b.nodeId delta) = Swf.AppWheel.WheelOutcome.step s →\n      s.burst = some { nodeId := b.nodeId, turned := b.turned + delta } ∧\n        s.actions = [Swf.AppWheel.WheelAction.show { nodeId := b.nodeId, turned := b.turned + delta }]",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -3379,16 +3478,16 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "dbb67d461f77d557dacb56e44286e4ce911cf88158101c223439b0532eaee16c",
+      "fingerprint": "b04b2742dbb1be082d7903edded1f4455791ca8b40fb36166e6d20afc429cf48",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppWheel.lean",
         "start": {
-          "line": 133,
+          "line": 135,
           "column": 1
         },
         "end": {
-          "line": 141,
+          "line": 143,
           "column": 19
         }
       }
@@ -4136,6 +4235,39 @@
       }
     },
     {
+      "name": "Swf.Fallback.cards_need_scaling",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Fallback.negotiateOne"
+      ],
+      "specifications": [],
+      "statement": "∀ (c : Swf.Fallback.NegotiationContext) (f : Swf.Fallback.FragmentFacts) (r : Swf.Fallback.Negotiated),\n  Swf.Fallback.negotiateOne c f = some r →\n    r.mode = Swf.Fallback.Mode.exact ∨ r.mode = Swf.Fallback.Mode.native →\n      Swf.Fallback.TransformMode.affine2d.rank ≤ c.renderer.transformMode.rank",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "3c31ec0ac5cc808df6eb1a006143a49b428e75dbfe120a816c51e37cb0b3ee63",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Fallback.lean",
+        "start": {
+          "line": 491,
+          "column": 1
+        },
+        "end": {
+          "line": 505,
+          "column": 82
+        }
+      }
+    },
+    {
       "name": "Swf.Fallback.exact_only_drawable",
       "relation": "lungo.law",
       "subjects": [
@@ -4153,16 +4285,16 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "386a047a1ca0f4496a16dea0872e56eca7116e4e5e4f2aabcc43efd2ecfff4ad",
+      "fingerprint": "8de7e03d143d1a37ee4d551185a7bcba678f3edb3fd0b4ff74706eeac6cdd040",
       "source": {
         "package": "swf_models",
         "file": "Swf/Fallback.lean",
         "start": {
-          "line": 475,
+          "line": 469,
           "column": 1
         },
         "end": {
-          "line": 495,
+          "line": 489,
           "column": 45
         }
       }
@@ -4185,16 +4317,16 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "a54b1d92ecfbd8368833a99a1c0e81269e64bdb4082ea8db2020068d7ea64c8b",
+      "fingerprint": "2f8f08b7c6c65b622966583534e05f5b877a5a55bffd35fa26f4664f31ec4ffb",
       "source": {
         "package": "swf_models",
         "file": "Swf/Fallback.lean",
         "start": {
-          "line": 422,
+          "line": 416,
           "column": 1
         },
         "end": {
-          "line": 432,
+          "line": 426,
           "column": 55
         }
       }
@@ -4217,16 +4349,16 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "2f008e95f6fef7b8a10b09785cf1b0c762eb7ded1145a6926c9130a25aaaf2db",
+      "fingerprint": "659b0acf84b1407b63c9b59c4f55814235b19daea782d80ea996c74a31fd0286",
       "source": {
         "package": "swf_models",
         "file": "Swf/Fallback.lean",
         "start": {
-          "line": 497,
+          "line": 507,
           "column": 1
         },
         "end": {
-          "line": 502,
+          "line": 512,
           "column": 24
         }
       }
@@ -4249,16 +4381,16 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "247853dbd92277082ac57ae0485e09dacab22ab6d3cb3c502cb7ba46a10016fb",
+      "fingerprint": "ebc5b1266e9bb75d8a657783bfe8d9f30cda19c2d7f758af5ab0b6266c20f9be",
       "source": {
         "package": "swf_models",
         "file": "Swf/Fallback.lean",
         "start": {
-          "line": 456,
+          "line": 450,
           "column": 1
         },
         "end": {
-          "line": 473,
+          "line": 467,
           "column": 47
         }
       }
@@ -4286,11 +4418,11 @@
         "package": "swf_models",
         "file": "Swf/Fallback.lean",
         "start": {
-          "line": 562,
+          "line": 572,
           "column": 1
         },
         "end": {
-          "line": 568,
+          "line": 578,
           "column": 57
         }
       }
@@ -4312,16 +4444,16 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "59d48d1e9a4202dfbae3d6f4ca387ccdd70b2d3f22713f734c115efbff031559",
+      "fingerprint": "e23ac265bec2fec525ce933e8a873cd4fb0a62c341c231b359975a76166eb67b",
       "source": {
         "package": "swf_models",
         "file": "Swf/Fallback.lean",
         "start": {
-          "line": 434,
+          "line": 428,
           "column": 1
         },
         "end": {
-          "line": 454,
+          "line": 448,
           "column": 20
         }
       }
@@ -4349,11 +4481,11 @@
         "package": "swf_models",
         "file": "Swf/Fallback.lean",
         "start": {
-          "line": 535,
+          "line": 545,
           "column": 1
         },
         "end": {
-          "line": 550,
+          "line": 560,
           "column": 16
         }
       }
@@ -4380,11 +4512,11 @@
         "package": "swf_models",
         "file": "Swf/Fallback.lean",
         "start": {
-          "line": 552,
+          "line": 562,
           "column": 1
         },
         "end": {
-          "line": 560,
+          "line": 570,
           "column": 23
         }
       }
@@ -6468,6 +6600,401 @@
       }
     },
     {
+      "name": "Swf.Room.across_and_up_keeps_the_floor",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Room.dragStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (l : Swf.Room.RoomLimits) (pace : Swf.Room.RoomPace) (d : Swf.Room.RoomDrag),\n  d.alongFloor = false → (Swf.Room.dragStep l pace d).floor = Swf.Room.keepWithin d.start.floor l.nearest l.farthest",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "cfc322dc62e2d8ad660226f15147c4eca588513d7ae773d1e0ec288e0bab38db",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Room.lean",
+        "start": {
+          "line": 224,
+          "column": 1
+        },
+        "end": {
+          "line": 229,
+          "column": 33
+        }
+      }
+    },
+    {
+      "name": "Swf.Room.along_the_floor_keeps_the_height",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Room.dragStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (l : Swf.Room.RoomLimits) (pace : Swf.Room.RoomPace) (d : Swf.Room.RoomDrag),\n  d.alongFloor = true → (Swf.Room.dragStep l pace d).height = Swf.Room.keepWithin d.start.height l.lowest l.highest",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "88293b80c4fd723a593178ca99ce03c05d13b2ad2c8675d31970b965f62ccd1e",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Room.lean",
+        "start": {
+          "line": 216,
+          "column": 1
+        },
+        "end": {
+          "line": 222,
+          "column": 33
+        }
+      }
+    },
+    {
+      "name": "Swf.Room.drag_stays_in_room",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Room.dragStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (l : Swf.Room.RoomLimits) (pace : Swf.Room.RoomPace) (d : Swf.Room.RoomDrag),\n  l.ordered → l.holds (Swf.Room.dragStep l pace d)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "0a01d5b1f30a93a85280b46777a09ad379e4b662e51e4e3894e07d2495c817ca",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Room.lean",
+        "start": {
+          "line": 173,
+          "column": 1
+        },
+        "end": {
+          "line": 178,
+          "column": 41
+        }
+      }
+    },
+    {
+      "name": "Swf.Room.drop_stays_in_room",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Room.floorDrop"
+      ],
+      "specifications": [],
+      "statement": "∀ (l : Swf.Room.RoomLimits) (p : Swf.Room.RoomPlace) (x z : Float), l.ordered → l.holds (Swf.Room.floorDrop l p x z)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "2f3a8c6ffcfb17a0fff8dce9d437e2d3354261d48ebfdec0a80a24331c2d03a3",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Room.lean",
+        "start": {
+          "line": 186,
+          "column": 1
+        },
+        "end": {
+          "line": 190,
+          "column": 25
+        }
+      }
+    },
+    {
+      "name": "Swf.Room.elevation_whatever_the_heading",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Room.elevationOf"
+      ],
+      "specifications": [],
+      "statement": "∀ (p : Swf.Room.RoomPlace) (a : Float),\n  Swf.Room.elevationOf { heading := a, floor := p.floor, height := p.height } = Swf.Room.elevationOf p",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "f44a81ff157bfda870b4c1a3359b0fa5f0af2b33fbab0d3e9a812027df8075ea",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Room.lean",
+        "start": {
+          "line": 239,
+          "column": 1
+        },
+        "end": {
+          "line": 243,
+          "column": 63
+        }
+      }
+    },
+    {
+      "name": "Swf.Room.heading_by_motion_across",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Room.dragStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (l : Swf.Room.RoomLimits) (pace : Swf.Room.RoomPace) (d : Swf.Room.RoomDrag),\n  (Swf.Room.dragStep l pace d).heading = Swf.Room.wrapHeading (d.start.heading + d.dx / d.width * d.fieldOfView)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "aec9d3e9eb114812874d73251a74e5ffe1e8c89196f1d90cd597262f798bbd9e",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Room.lean",
+        "start": {
+          "line": 208,
+          "column": 1
+        },
+        "end": {
+          "line": 214,
+          "column": 16
+        }
+      }
+    },
+    {
+      "name": "Swf.Room.height_per_pixel_whatever_the_distance",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Room.dragStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (l : Swf.Room.RoomLimits) (pace : Swf.Room.RoomPace) (d : Swf.Room.RoomDrag) (r : Float),\n  (Swf.Room.dragStep l pace\n        {\n          start :=\n            have __src := d.start;\n            { heading := __src.heading, floor := r, height := __src.height },\n          dx := d.dx, dy := d.dy, width := d.width, fieldOfView := d.fieldOfView, alongFloor := d.alongFloor }).height =\n    (Swf.Room.dragStep l pace d).height",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "e4c95a40ccf5fc2ad7f82b8327b76b66a5174872345c8c5f2f865994fff4c6a2",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Room.lean",
+        "start": {
+          "line": 198,
+          "column": 1
+        },
+        "end": {
+          "line": 206,
+          "column": 16
+        }
+      }
+    },
+    {
+      "name": "Swf.Room.keepInRoom_holds",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Room.keepInRoom"
+      ],
+      "specifications": [],
+      "statement": "∀ (l : Swf.Room.RoomLimits) (p : Swf.Room.RoomPlace), l.ordered → l.holds (Swf.Room.keepInRoom l p)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "d8abe699647d00febbe50f042a614c112bf34042c1502d6a2136d34a9bf12398",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Room.lean",
+        "start": {
+          "line": 165,
+          "column": 1
+        },
+        "end": {
+          "line": 171,
+          "column": 29
+        }
+      }
+    },
+    {
+      "name": "Swf.Room.place_in_room",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Room.placeOf"
+      ],
+      "specifications": [],
+      "statement": "∀ (l : Swf.Room.RoomLimits) (x y z : Float), l.ordered → l.holds (Swf.Room.placeOf l x y z)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "d04cd38988cab24107936c95d2fb6cb6616760f44195e594ed1a0cba47ecdf8f",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Room.lean",
+        "start": {
+          "line": 192,
+          "column": 1
+        },
+        "end": {
+          "line": 196,
+          "column": 25
+        }
+      }
+    },
+    {
+      "name": "Swf.Room.point_at_its_height",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Room.pointOf"
+      ],
+      "specifications": [],
+      "statement": "∀ (p : Swf.Room.RoomPlace), (Swf.Room.pointOf p).y = p.height",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "af76a99d48f6b113b89f37726c47ace36f6387b72267c9a6e66447c71d18dc65",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Room.lean",
+        "start": {
+          "line": 245,
+          "column": 1
+        },
+        "end": {
+          "line": 248,
+          "column": 78
+        }
+      }
+    },
+    {
+      "name": "Swf.Room.wheel_keeps_heading_and_height",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Room.wheelOnFloor"
+      ],
+      "specifications": [],
+      "statement": "∀ (l : Swf.Room.RoomLimits) (pace : Swf.Room.RoomPace) (p : Swf.Room.RoomPlace) (deltaY : Float),\n  (Swf.Room.wheelOnFloor l pace p deltaY).heading = Swf.Room.wrapHeading p.heading ∧\n    (Swf.Room.wheelOnFloor l pace p deltaY).height = Swf.Room.keepWithin p.height l.lowest l.highest",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "d272fa0b48eacab0357603a22de3db822728919f65255c393f44f31d4dcf2651",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Room.lean",
+        "start": {
+          "line": 231,
+          "column": 1
+        },
+        "end": {
+          "line": 237,
+          "column": 34
+        }
+      }
+    },
+    {
+      "name": "Swf.Room.wheel_stays_in_room",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Room.wheelOnFloor"
+      ],
+      "specifications": [],
+      "statement": "∀ (l : Swf.Room.RoomLimits) (pace : Swf.Room.RoomPace) (p : Swf.Room.RoomPlace) (deltaY : Float),\n  l.ordered → l.holds (Swf.Room.wheelOnFloor l pace p deltaY)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "37f9d36b609664ef1c48e12b3738c940de9ead95237c8d5b45fcbb33e040c162",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Room.lean",
+        "start": {
+          "line": 180,
+          "column": 1
+        },
+        "end": {
+          "line": 184,
+          "column": 25
+        }
+      }
+    },
+    {
       "name": "Swf.Save.ack_cleans_or_dirties",
       "relation": "lungo.law",
       "subjects": [
@@ -8135,11 +8662,11 @@
         "package": "swf_models",
         "file": "Swf/AppFeatures.lean",
         "start": {
-          "line": 220,
+          "line": 221,
           "column": 1
         },
         "end": {
-          "line": 227,
+          "line": 228,
           "column": 45
         }
       }
@@ -8535,6 +9062,87 @@
       }
     },
     {
+      "name": "Swf.AppSpacing.spacedHeading",
+      "module": "Swf.AppSpacing",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [
+          "_private.Init.Data.Array.Basic.0.Array.anyMUnsafe.any"
+        ],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "cos",
+          "lean_array_fget_borrowed",
+          "lean_array_get_size",
+          "lean_array_push",
+          "lean_array_uget_borrowed",
+          "lean_float_add",
+          "lean_float_decLt",
+          "lean_float_div",
+          "lean_float_mul",
+          "lean_float_negate",
+          "lean_float_of_bits",
+          "lean_float_sub",
+          "lean_int_add",
+          "lean_int_dec_le",
+          "lean_int_dec_lt",
+          "lean_int_neg",
+          "lean_int_neg_succ_of_nat",
+          "lean_int_sub",
+          "lean_mk_empty_array_with_capacity",
+          "lean_nat_abs",
+          "lean_nat_add",
+          "lean_nat_dec_eq",
+          "lean_nat_dec_le",
+          "lean_nat_dec_lt",
+          "lean_nat_div",
+          "lean_nat_log2",
+          "lean_nat_lor",
+          "lean_nat_mod",
+          "lean_nat_mul",
+          "lean_nat_pow",
+          "lean_nat_shiftl",
+          "lean_nat_shiftr",
+          "lean_nat_sub",
+          "lean_nat_to_int",
+          "lean_uint64_of_nat",
+          "lean_uint64_of_nat_mk",
+          "lean_uint64_to_float",
+          "lean_usize_add",
+          "lean_usize_dec_eq",
+          "lean_usize_of_nat",
+          "sin",
+          "sqrt"
+        ]
+      },
+      "claims": [
+        "Swf.AppSpacing.clear_stays",
+        "Swf.AppSpacing.moved_only_clear",
+        "Swf.AppSpacing.on_a_tried_spoke"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppSpacing.lean",
+        "start": {
+          "line": 38,
+          "column": 1
+        },
+        "end": {
+          "line": 43,
+          "column": 93
+        }
+      }
+    },
+    {
       "name": "Swf.AppWheel.wheelStep",
       "module": "Swf.AppWheel",
       "async": false,
@@ -8567,11 +9175,11 @@
         "package": "swf_models",
         "file": "Swf/AppWheel.lean",
         "start": {
-          "line": 53,
+          "line": 55,
           "column": 1
         },
         "end": {
-          "line": 71,
+          "line": 73,
           "column": 41
         }
       }
@@ -8879,11 +9487,11 @@
         "package": "swf_models",
         "file": "Swf/Fallback.lean",
         "start": {
-          "line": 350,
+          "line": 344,
           "column": 1
         },
         "end": {
-          "line": 352,
+          "line": 346,
           "column": 26
         }
       }
@@ -8908,6 +9516,7 @@
         ]
       },
       "claims": [
+        "Swf.Fallback.cards_need_scaling",
         "Swf.Fallback.exact_only_drawable",
         "Swf.Fallback.first_allowed_in_order",
         "Swf.Fallback.live_needs_owner",
@@ -8920,11 +9529,11 @@
         "package": "swf_models",
         "file": "Swf/Fallback.lean",
         "start": {
-          "line": 345,
+          "line": 339,
           "column": 1
         },
         "end": {
-          "line": 348,
+          "line": 342,
           "column": 61
         }
       }
@@ -8955,11 +9564,11 @@
         "package": "swf_models",
         "file": "Swf/Fallback.lean",
         "start": {
-          "line": 381,
+          "line": 375,
           "column": 1
         },
         "end": {
-          "line": 387,
+          "line": 381,
           "column": 99
         }
       }
@@ -8987,11 +9596,11 @@
         "package": "swf_models",
         "file": "Swf/Fallback.lean",
         "start": {
-          "line": 340,
+          "line": 334,
           "column": 1
         },
         "end": {
-          "line": 343,
+          "line": 337,
           "column": 88
         }
       }
@@ -10161,6 +10770,364 @@
         "end": {
           "line": 40,
           "column": 17
+        }
+      }
+    },
+    {
+      "name": "Swf.Room.dragStep",
+      "module": "Swf.Room",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "atan2",
+          "cos",
+          "lean_float_add",
+          "lean_float_div",
+          "lean_float_mul",
+          "lean_float_sub",
+          "lean_float_to_bits",
+          "lean_int_dec_lt",
+          "lean_int_neg",
+          "lean_nat_to_int",
+          "lean_uint64_complement",
+          "lean_uint64_dec_eq",
+          "lean_uint64_land",
+          "lean_uint64_to_nat",
+          "sin"
+        ]
+      },
+      "claims": [
+        "Swf.Room.across_and_up_keeps_the_floor",
+        "Swf.Room.along_the_floor_keeps_the_height",
+        "Swf.Room.drag_stays_in_room",
+        "Swf.Room.heading_by_motion_across",
+        "Swf.Room.height_per_pixel_whatever_the_distance"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Room.lean",
+        "start": {
+          "line": 122,
+          "column": 1
+        },
+        "end": {
+          "line": 130,
+          "column": 75
+        }
+      }
+    },
+    {
+      "name": "Swf.Room.elevationOf",
+      "module": "Swf.Room",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "atan2",
+          "lean_array_fget_borrowed",
+          "lean_array_push",
+          "lean_float_div",
+          "lean_float_mul",
+          "lean_float_of_bits",
+          "lean_float_to_bits",
+          "lean_int_add",
+          "lean_int_dec_le",
+          "lean_int_dec_lt",
+          "lean_int_neg",
+          "lean_int_neg_succ_of_nat",
+          "lean_int_sub",
+          "lean_mk_empty_array_with_capacity",
+          "lean_nat_abs",
+          "lean_nat_add",
+          "lean_nat_dec_eq",
+          "lean_nat_dec_le",
+          "lean_nat_dec_lt",
+          "lean_nat_div",
+          "lean_nat_log2",
+          "lean_nat_lor",
+          "lean_nat_mod",
+          "lean_nat_mul",
+          "lean_nat_pow",
+          "lean_nat_shiftl",
+          "lean_nat_shiftr",
+          "lean_nat_sub",
+          "lean_nat_to_int",
+          "lean_uint64_complement",
+          "lean_uint64_dec_eq",
+          "lean_uint64_land",
+          "lean_uint64_of_nat",
+          "lean_uint64_of_nat_mk",
+          "lean_uint64_to_float",
+          "lean_uint64_to_nat"
+        ]
+      },
+      "claims": [
+        "Swf.Room.elevation_whatever_the_heading"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Room.lean",
+        "start": {
+          "line": 94,
+          "column": 1
+        },
+        "end": {
+          "line": 98,
+          "column": 84
+        }
+      }
+    },
+    {
+      "name": "Swf.Room.floorDrop",
+      "module": "Swf.Room",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "atan2",
+          "cos",
+          "lean_float_add",
+          "lean_float_mul",
+          "lean_float_negate",
+          "lean_float_to_bits",
+          "lean_int_dec_lt",
+          "lean_int_neg",
+          "lean_nat_to_int",
+          "lean_uint64_complement",
+          "lean_uint64_dec_eq",
+          "lean_uint64_land",
+          "lean_uint64_to_nat",
+          "sin",
+          "sqrt"
+        ]
+      },
+      "claims": [
+        "Swf.Room.drop_stays_in_room"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Room.lean",
+        "start": {
+          "line": 137,
+          "column": 1
+        },
+        "end": {
+          "line": 140,
+          "column": 25
+        }
+      }
+    },
+    {
+      "name": "Swf.Room.keepInRoom",
+      "module": "Swf.Room",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "atan2",
+          "cos",
+          "lean_float_to_bits",
+          "lean_int_dec_lt",
+          "lean_int_neg",
+          "lean_nat_to_int",
+          "lean_uint64_complement",
+          "lean_uint64_dec_eq",
+          "lean_uint64_land",
+          "lean_uint64_to_nat",
+          "sin"
+        ]
+      },
+      "claims": [
+        "Swf.Room.keepInRoom_holds"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Room.lean",
+        "start": {
+          "line": 67,
+          "column": 1
+        },
+        "end": {
+          "line": 72,
+          "column": 55
+        }
+      }
+    },
+    {
+      "name": "Swf.Room.placeOf",
+      "module": "Swf.Room",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "atan2",
+          "cos",
+          "lean_float_add",
+          "lean_float_mul",
+          "lean_float_negate",
+          "lean_float_to_bits",
+          "lean_int_dec_lt",
+          "lean_int_neg",
+          "lean_nat_to_int",
+          "lean_uint64_complement",
+          "lean_uint64_dec_eq",
+          "lean_uint64_land",
+          "lean_uint64_to_nat",
+          "sin",
+          "sqrt"
+        ]
+      },
+      "claims": [
+        "Swf.Room.place_in_room"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Room.lean",
+        "start": {
+          "line": 74,
+          "column": 1
+        },
+        "end": {
+          "line": 77,
+          "column": 99
+        }
+      }
+    },
+    {
+      "name": "Swf.Room.pointOf",
+      "module": "Swf.Room",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "cos",
+          "lean_float_mul",
+          "lean_float_negate",
+          "sin"
+        ]
+      },
+      "claims": [
+        "Swf.Room.point_at_its_height"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Room.lean",
+        "start": {
+          "line": 90,
+          "column": 1
+        },
+        "end": {
+          "line": 92,
+          "column": 95
+        }
+      }
+    },
+    {
+      "name": "Swf.Room.wheelOnFloor",
+      "module": "Swf.Room",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "atan2",
+          "cos",
+          "exp",
+          "lean_float_mul",
+          "lean_float_to_bits",
+          "lean_int_dec_lt",
+          "lean_int_neg",
+          "lean_nat_to_int",
+          "lean_uint64_complement",
+          "lean_uint64_dec_eq",
+          "lean_uint64_land",
+          "lean_uint64_to_nat",
+          "sin"
+        ]
+      },
+      "claims": [
+        "Swf.Room.wheel_keeps_heading_and_height",
+        "Swf.Room.wheel_stays_in_room"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Room.lean",
+        "start": {
+          "line": 132,
+          "column": 1
+        },
+        "end": {
+          "line": 135,
+          "column": 85
         }
       }
     },

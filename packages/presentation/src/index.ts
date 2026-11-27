@@ -94,6 +94,7 @@ export type {
   RepresentationPolicy,
 } from './representation.js';
 export {
+  cardScaleFor,
   representationFor,
   representationPolicyIssue,
   representedOrder,
@@ -109,5 +110,7 @@ export {
   standInReason,
   surfaceCondition,
 } from './conditions.js';
-export type { FrameInput, PreviousProjection, ViewProjector } from './stages.js';
+export type { FrameInput, ViewProjector } from './stages.js';
+export type { CardInput, WindowCard } from './cards.js';
+export { CARD_PIXELS_PER_UNIT, cardScale, COMPACT_CARD, LABEL_CARD, windowCard } from './cards.js';
 export { groupFallbacks, planFrame, PRESENTATION_STAGES } from './stages.js';

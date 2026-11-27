@@ -1,14 +1,9 @@
 import type { SceneCommand } from '@swf/core';
 import { createWorkspace, worldMatrix } from '@swf/core';
-import { dot, mat4TransformDirection, mat4TransformPoint, normalize, scale } from '@swf/math';
+import { createInteractionRouter } from '@swf/interaction';
+import { mat4Decompose, mat4TransformPoint } from '@swf/math';
 import { createPresentationRegistry, createViewOutput, viewGeometryOf } from '@swf/presentation';
-import {
-  createProjectionRegistry,
-  equirectangular,
-  pickAt,
-  projectionFor,
-  projectorOf,
-} from '@swf/projections';
+import { createProjectionRegistry, equirectangular, projectorOf } from '@swf/projections';
 import { describe, expect, it } from 'vitest';
 import type { PresetId } from '../src/presets.js';
 import {
@@ -28,6 +23,11 @@ const H = 480;
 
 /** A workspace holding a preset's windows, with a panorama viewport `v` at W×H. */
 function seeded(preset: PresetId, seed: number) {
+  return seededWith(preset, seed).ws;
+}
+
+/** A preset's windows seeded, with the projections registered for them. */
+function seededWith(preset: PresetId, seed: number) {
   const ws = createWorkspace({ id: 'test', now: () => 0 });
   const presentation = createPresentationRegistry();
   const projections = createProjectionRegistry({
@@ -52,8 +52,15 @@ function seeded(preset: PresetId, seed: number) {
   if (result.status !== 'committed') {
     throw new Error(`could not seed ${preset}@${String(seed)}: ${JSON.stringify(result)}`);
   }
-  return ws;
+  return { ws, projections };
 }
+
+/** The bands semantic depth shows by default, by distance along the floor: 6.7 and 9.3. */
+const band = (reach: number) => (reach < 6.7 ? 'full' : reach < 9.3 ? 'compact' : 'label');
+
+/** Degrees above the horizon a planned window looks, from its height and its reach. */
+const elevationOf = (w: { readonly reach: number; readonly y: number }) =>
+  (Math.atan2(w.y, w.reach) * 180) / Math.PI;
 
 describe('demo presets (FR-131, MIG-005, AN-010)', () => {
   it('offers the studio, research, planning, sparse, dense, seam/behind-camera and composed scenes besides the empty one', () => {
@@ -134,7 +141,7 @@ describe('demo presets (FR-131, MIG-005, AN-010)', () => {
     expect(planPreset('sparse', 1)[0]?.bindingKey).not.toBe(planPreset('seam', 1)[0]?.bindingKey);
   });
 
-  it('places every window facing the camera at its planned direction and distance', () => {
+  it('stands every window upright in the room at its planned heading, reach and height', () => {
     for (const id of PRESET_IDS) {
       const ws = seeded(id, 9);
       // A composed window stands where its first part is planned.
@@ -145,26 +152,19 @@ describe('demo presets (FR-131, MIG-005, AN-010)', () => {
         }
         const centre = mat4TransformPoint(m, [0, 0, 0]);
         const h = (planned.heading * Math.PI) / 180;
-        const e = (planned.elevation * Math.PI) / 180;
-        const expected = scale(
-          [Math.cos(e) * Math.sin(h), Math.sin(e), -Math.cos(e) * Math.cos(h)],
-          planned.distance,
-        );
+        const expected = [planned.reach * Math.sin(h), planned.y, -planned.reach * Math.cos(h)];
         centre.forEach((v, i) => {
           expect(v).toBeCloseTo(expected[i] ?? NaN, 9);
         });
-        // The window's front (+Z) points back at the camera.
-        const front = normalize(mat4TransformDirection(m, [0, 0, 1]));
-        expect(dot(front, normalize(scale(centre, -1)))).toBeCloseTo(1, 9);
+        // Drawn as a card, it carries no rotation of its own.
+        const world = mat4Decompose(m);
+        expect(world.ok && world.transform.rotation).toEqual([0, 0, 0, 1]);
       }
     }
   });
 });
 
 describe('the research and planning scenes, seeded spaces of their own', () => {
-  /** The bands semantic depth shows by default: full nearer than 4, compact to 5.5, label beyond. */
-  const band = (distance: number) => (distance < 4 ? 'full' : distance < 5.5 ? 'compact' : 'label');
-
   it('stand named, described, distinguishable windows all the way round and at every depth, live near and drawn far', () => {
     for (const preset of ['research', 'planning'] as const) {
       const base = planPreset(preset, 1);
@@ -188,13 +188,14 @@ describe('the research and planning scenes, seeded spaces of their own', () => {
           expect(plan.some((w) => w.heading >= from && w.heading <= to)).toBe(true);
         }
         expect(plan.filter((w) => Math.abs(w.heading) > 90).length).toBeGreaterThanOrEqual(4);
-        expect(plan.some((w) => w.elevation > 20)).toBe(true);
-        expect(plan.some((w) => w.elevation < -20)).toBe(true);
+        // Above and below the camera's level.
+        expect(plan.some((w) => w.y >= 1)).toBe(true);
+        expect(plan.some((w) => w.y <= -0.9)).toBe(true);
         for (const which of ['full', 'compact', 'label']) {
-          expect(plan.filter((w) => band(w.distance) === which).length).toBeGreaterThanOrEqual(3);
+          expect(plan.filter((w) => band(w.reach) === which).length).toBeGreaterThanOrEqual(2);
         }
-        // As in the studio: what is not far is a live note, and only far windows are drawn.
-        for (const w of plan.filter((p) => band(p.distance) !== 'label')) {
+        // As in the studio: every window shown in full is a live note; tiles are drawn.
+        for (const w of plan.filter((p) => band(p.reach) === 'full')) {
           expect(w.content).toBe('note');
         }
         expect(plan.some((w) => w.content === 'tile')).toBe(true);
@@ -202,7 +203,7 @@ describe('the research and planning scenes, seeded spaces of their own', () => {
         plan.forEach((w, i) => {
           const planned = base[i];
           expect(w.id).toBe(planned?.id);
-          expect(band(w.distance)).toBe(band(planned?.distance ?? NaN));
+          expect(band(w.reach)).toBe(band(planned?.reach ?? NaN));
           const turned = Math.abs(((w.heading - (planned?.heading ?? NaN) + 540) % 360) - 180);
           expect(turned).toBeLessThanOrEqual(6);
         });
@@ -212,9 +213,6 @@ describe('the research and planning scenes, seeded spaces of their own', () => {
 });
 
 describe('the studio, the default scene', () => {
-  /** The bands semantic depth shows by default: full nearer than 4, compact to 5.5, label beyond. */
-  const band = (distance: number) => (distance < 4 ? 'full' : distance < 5.5 ? 'compact' : 'label');
-
   it('stands named, distinguishable windows all the way round the camera and at every depth', () => {
     for (const seed of [0, 1, 7, 1234, MAX_SEED]) {
       const made = composites(planPreset('studio', seed));
@@ -237,13 +235,13 @@ describe('the studio, the default scene', () => {
       ] as const) {
         expect(places.some((p) => p.heading >= from && p.heading <= to)).toBe(true);
       }
-      expect(places.filter((p) => Math.abs(p.heading) > 90)).toHaveLength(8);
-      // Above and below the horizon.
-      expect(places.some((p) => p.elevation > 20)).toBe(true);
-      expect(places.some((p) => p.elevation < -20)).toBe(true);
+      expect(places.filter((p) => Math.abs(p.heading) > 90)).toHaveLength(6);
+      // High and low round the room.
+      expect(places.some((p) => elevationOf(p) > 20)).toBe(true);
+      expect(places.some((p) => p.y <= -1.9)).toBe(true);
       // Each depth band holds several windows.
       for (const which of ['full', 'compact', 'label']) {
-        expect(places.filter((p) => band(p.distance) === which).length).toBeGreaterThanOrEqual(3);
+        expect(places.filter((p) => band(p.reach) === which).length).toBeGreaterThanOrEqual(3);
       }
     }
   });
@@ -263,16 +261,16 @@ describe('the studio, the default scene', () => {
       planPreset('studio', seed).forEach((w, i) => {
         const planned = base[i];
         expect(w.id).toBe(planned?.id);
-        expect(band(w.distance)).toBe(band(planned?.distance ?? NaN));
+        expect(band(w.reach)).toBe(band(planned?.reach ?? NaN));
         const turned = Math.abs(((w.heading - (planned?.heading ?? NaN) + 540) % 360) - 180);
         expect(turned).toBeLessThanOrEqual(6);
       });
     }
   });
 
-  it('shows every window that is not far live in both backends: only far ones are drawn', () => {
+  it('shows every window shown in full live in both backends: tiles are drawn', () => {
     const plan = planPreset('studio', 1);
-    for (const w of plan.filter((p) => band(p.distance) !== 'label')) {
+    for (const w of plan.filter((p) => band(p.reach) === 'full')) {
       expect(w.content).toBe('note');
     }
     expect(plan.some((w) => w.content === 'tile')).toBe(true);
@@ -308,32 +306,35 @@ describe('the seam and behind-camera scene (UX-002, WF-03)', () => {
       expect(behind.some((w) => w.heading > 0)).toBe(true);
       expect(behind.some((w) => w.heading < 0)).toBe(true);
       expect(behind.length).toBeGreaterThanOrEqual(5);
-      expect(plan.some((w) => w.elevation > 45)).toBe(true);
+      expect(plan.some((w) => elevationOf(w) > 45)).toBe(true);
     }
   });
 
   it('shows a seam-crossing window on both edges of the panorama, and picks it as one surface there', () => {
-    const ws = seeded('seam', 1);
+    const { ws, projections } = seededWith('seam', 1);
     const state = ws.getState();
     const view = viewGeometryOf(state, 'v');
     const geometry = (id: string) => ws.surfaceGeometry(id);
     const fragments = createViewOutput(
       state,
       'v',
-      projectorOf(equirectangular).project(state, view, geometry),
+      projectorOf(equirectangular).project(state, view, geometry, null),
     ).fragments.filter((f) => f.surfaceId === 'window-01-surface');
+    // Its card is drawn at both edges: one copy reaching in from the left, one from the right.
     expect(fragments).toHaveLength(2);
     const lefts = fragments.map((f) => f.bounds[0]).sort((a, b) => a - b);
-    expect(lefts[0]).toBeLessThan(1);
-    expect((lefts[1] ?? 0) + (fragments[1]?.bounds[2] ?? 0)).toBeGreaterThan(W / 2);
+    expect(lefts[0]).toBeLessThan(0);
+    expect(lefts[1]).toBeLessThan(W);
+    expect((lefts[1] ?? 0) + (fragments[1]?.bounds[2] ?? 0)).toBeGreaterThan(W);
 
-    const projection = projectionFor(equirectangular, view);
+    const router = createInteractionRouter({ workspace: ws, projections });
     for (const x of [3, 20, W - 20, W - 3]) {
-      const pick = pickAt(projection, state, view, x, H / 2, geometry);
-      expect(pick.kind).toBe('hits');
-      if (pick.kind === 'hits') {
-        expect(pick.candidates[0]?.surfaceId).toBe('window-01-surface');
+      const pick = router.pick('v', x, H / 2);
+      expect(pick.kind).toBe('hit');
+      if (pick.kind === 'hit') {
+        expect(pick.target.surfaceId).toBe('window-01-surface');
       }
     }
+    router.dispose();
   });
 });

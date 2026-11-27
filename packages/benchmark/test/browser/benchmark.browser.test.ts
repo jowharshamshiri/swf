@@ -77,7 +77,8 @@ describe('the standard benchmark fixture in a real browser (§26.1)', () => {
       const surfaces = new Set(frame?.frame.planned.map((p) => p.fragment.surfaceId));
       expect(surfaces.size).toBeGreaterThanOrEqual(30);
       expect(surfaces.size).toBeLessThanOrEqual(50);
-      expect(frame?.frame.planned.some((p) => p.negotiation.mode === 'approximated')).toBe(true);
+      // Plain elements live and native on their cards; the drawn ones are proxies in the DOM.
+      expect(frame?.frame.planned.some((p) => p.negotiation.mode === 'native')).toBe(true);
       expect(frame?.frame.planned.some((p) => p.negotiation.mode === 'proxy')).toBe(true);
       expect(v.container.querySelectorAll('[data-swf-surface]').length).toBeGreaterThan(0);
     }
@@ -194,7 +195,7 @@ describe('one window’s move as the scene grows (§33.2 scenario 9, NFR-002, NF
       }
       // A window in view ahead, moved back and forth.
       const ahead =
-        fixture.windows.find((w) => Math.abs(w.heading) < 10 && w.elevation === 0) ??
+        fixture.windows.find((w) => Math.abs(w.heading) < 10 && Math.abs(w.y) < 0.2) ??
         fixture.windows.find((w) => Math.abs(w.heading) < 20);
       if (ahead === undefined) {
         throw new Error('no window ahead');

@@ -8,18 +8,18 @@ import {
   validateSceneSnapshot,
   VERSIONED_ID,
 } from '@swf/core';
-import schema from './schema/swf.workspace-1.schema.json' with { type: 'json' };
+import schema from './schema/swf.workspace-2.schema.json' with { type: 'json' };
 import { jsonSyntaxError } from './syntax.js';
 
 /** The snapshot format this package reads and writes. */
-export const SNAPSHOT_SCHEMA_ID = 'swf.workspace/1';
+export const SNAPSHOT_SCHEMA_ID = 'swf.workspace/2';
 
 /** The engine that writes snapshots, as recorded in each one. */
 export const SNAPSHOT_ENGINE = 'swf.persistence/1';
 
 /**
  * The published JSON Schema of {@link SNAPSHOT_SCHEMA_ID} (draft 2020-12), deeply frozen; the same
- * as `@swf/persistence/schema/swf.workspace-1.schema.json`. {@link validateDocument} enforces
+ * as `@swf/persistence/schema/swf.workspace-2.schema.json`. {@link validateDocument} enforces
  * everything it says, and what a schema cannot: references that hold, unique IDs, a hierarchy
  * without cycles and the size limits.
  */

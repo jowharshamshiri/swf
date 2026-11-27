@@ -74,7 +74,7 @@ async function tabTo(handle: string, limit = 200): Promise<void> {
 }
 
 describe('the keyboard alone (§33.2 scenario 10, AC-014, UX-012, FR-109)', () => {
-  it('finds, selects, focuses, moves on each axis, changes depth, turns, resizes, groups, locks, undoes, redoes, cancels, saves and restores windows', async () => {
+  it('finds, selects, focuses, moves on each axis, changes depth, resizes, groups, locks, undoes, redoes, cancels, saves and restores windows', async () => {
     const store = createMemoryStore();
     const { model, root, settle } = await start('?preset=sparse', store);
     const app = model.app;
@@ -136,21 +136,18 @@ describe('the keyboard alone (§33.2 scenario 10, AC-014, UX-012, FR-109)', () =
     await keys('{ArrowLeft}');
     expect(pose(first.id).heading).toBeCloseTo(before.heading, 6);
     await keys('{ArrowUp}');
-    expect(pose(first.id).elevation).toBeGreaterThan(before.elevation);
+    expect(pose(first.id).above).toBeGreaterThan(before.above);
     await keys('{ArrowDown}');
-    expect(pose(first.id).elevation).toBeCloseTo(before.elevation, 6);
+    expect(pose(first.id).above).toBeCloseTo(before.above, 6);
     expect(said()).toContain(`${first.label} moved`);
     await keys('{PageUp}');
-    expect(pose(first.id).distance).not.toBeCloseTo(before.distance, 3);
+    expect(pose(first.id).reach).not.toBeCloseTo(before.reach, 3);
     await keys('{PageDown}');
-    expect(pose(first.id).distance).toBeCloseTo(before.distance, 6);
+    expect(pose(first.id).reach).toBeCloseTo(before.reach, 6);
     expect(history()).toBe(count + 6);
 
-    // Turn and resize.
+    // Resize.
     before = pose(first.id);
-    await keys(']');
-    expect(pose(first.id).turned).toBeCloseTo(before.turned + 5, 6);
-    expect(said()).toContain(`${first.label} turned`);
     await keys('+');
     expect(pose(first.id).width).toBeCloseTo(before.width + 0.05, 6);
     expect(said()).toContain(`${first.label} is now`);

@@ -1,9 +1,4 @@
-import { worldMatrix } from '@swf/core';
-import type { Vec3 } from '@swf/math';
-import { mat4TransformPoint } from '@swf/math';
 import type { ViewportFrame } from '@swf/presentation';
-import { viewGeometryOf } from '@swf/presentation';
-import { equirectangular } from '@swf/projections';
 import { afterEach, describe, expect, it } from 'vitest';
 import { commands } from 'vitest/browser';
 import type { ReferenceApp } from '../../src/app.js';
@@ -12,6 +7,7 @@ import { VIEWPORT_ID } from '@swf/navigation';
 import type { AppConfig } from '../../src/config.js';
 import type { PresetId } from '../../src/presets.js';
 import { planPreset } from '../../src/presets.js';
+import { cardPoint } from './cards.js';
 
 declare module 'vitest/browser' {
   interface BrowserCommands {
@@ -74,21 +70,13 @@ function modesOf(f: ViewportFrame, surfaceId: string): { x: number; mode: string
     .sort((a, b) => a.x - b.x);
 }
 
-/** Where a point of a window, in its local frame, appears in the view. */
-function screenOf(a: ReferenceApp, nodeId: string, local: Vec3): [number, number] {
-  const state = a.workspace.getState();
-  const m = worldMatrix(state.nodes, nodeId);
-  if (m === undefined) {
-    throw new Error(`no ${nodeId}`);
-  }
-  const view = viewGeometryOf(state, VIEWPORT_ID);
-  const image = equirectangular
-    .create(view.projectionConfig)
-    .projectDirection(mat4TransformPoint(m, local), view).images[0];
-  if (image === undefined) {
+/** Where a point of a window's card, in its own units from its centre, appears in the view. */
+function screenOf(a: ReferenceApp, nodeId: string, local: readonly [number, number]) {
+  const at = cardPoint(a, nodeId, local);
+  if (at === null) {
     throw new Error(`${nodeId} is not in view`);
   }
-  return [image[0], image[1]];
+  return at;
 }
 
 /** A window's heading, in degrees to the right of straight ahead. */
@@ -117,24 +105,20 @@ function plannedWindows(preset: PresetId, seed: number) {
   return planPreset(preset, seed)
     .map((w) => {
       const h = (w.heading * Math.PI) / 180;
-      const e = (w.elevation * Math.PI) / 180;
-      const d = w.distance;
       return {
         id: w.id,
         label: w.label,
         key: w.bindingKey,
-        position: [
-          d * Math.cos(e) * Math.sin(h),
-          d * Math.sin(e),
-          -d * Math.cos(e) * Math.cos(h),
-        ].map((v) => Math.round(v * 1e9) / 1e9),
+        position: [w.reach * Math.sin(h), w.y, -w.reach * Math.cos(h)].map(
+          (v) => Math.round(v * 1e9) / 1e9,
+        ),
       };
     })
     .sort((x, y) => x.id.localeCompare(y.id));
 }
 
 describe('the panorama on the DOM backend (UX-002, WF-01)', () => {
-  it('shows the whole 360° scene, notes live (approximately placed, as a panorama bends them) and drawn tiles as labelled proxies', async () => {
+  it('shows the whole 360° scene, notes live and native on their cards, and drawn tiles as labelled proxies', async () => {
     const a = await start({ preset: 'sparse' });
     const f = await frame(a);
     expect(a.status()).toMatchObject({ backend: 'dom', mode: 'panorama', windows: 6 });
@@ -145,11 +129,11 @@ describe('the panorama on the DOM backend (UX-002, WF-01)', () => {
       if (w.content === 'note') {
         // Live in exactly one fragment: a note across the seam is a proxy on its other side.
         expect(
-          shown.filter((m) => m === 'approximated'),
+          shown.filter((m) => m === 'native'),
           w.id,
         ).toHaveLength(1);
         expect(
-          shown.filter((m) => m !== 'approximated' && m !== 'proxy'),
+          shown.filter((m) => m !== 'native' && m !== 'proxy'),
           w.id,
         ).toEqual([]);
         expect(a.viewport.presentation(`${w.id}-surface`)).toBe('live');
@@ -170,7 +154,7 @@ describe('the panorama on the DOM backend (UX-002, WF-01)', () => {
     const f = await frame(a);
     const modes = modesOf(f, 'window-01-surface');
     expect(modes).toHaveLength(2);
-    expect(modes.map((m) => m.mode).sort()).toEqual(['approximated', 'proxy']);
+    expect(modes.map((m) => m.mode).sort()).toEqual(['native', 'proxy']);
     expect(modes[0]?.x).toBeLessThan(1);
     expect(modes[1]?.x).toBeGreaterThan(W / 2);
     for (const x of [4, 30, W - 30, W - 4]) {
@@ -183,6 +167,8 @@ describe('the panorama on the DOM backend (UX-002, WF-01)', () => {
 
   it('drags a window across the seam as one target, with no jump, committing once, undone in one step (§33.2 scenario 2)', async () => {
     const a = await start({ preset: 'seam' });
+    // The drag itself, not where magnetic positioning would put it when let go.
+    a.policies.configure({ enabled: { snap: false } });
     await frame(a);
     const gestures: string[] = [];
     a.router.subscribe((event) => {
@@ -194,7 +180,7 @@ describe('the panorama on the DOM backend (UX-002, WF-01)', () => {
     });
     const revision = a.workspace.getState().revision;
     // The window's content left of the seam (the right edge), taken with the takeover modifier.
-    const [x, y] = screenOf(a, 'window-01', [-0.7, 0, 0]);
+    const [x, y] = screenOf(a, 'window-01', [-0.7, 0]);
     expect(x).toBeGreaterThan(W - 120);
     const headings: number[] = [];
     const unwatch = a.workspace.subscribe((event) => {
@@ -230,10 +216,12 @@ describe('the panorama on the DOM backend (UX-002, WF-01)', () => {
     expect(after).toBeGreaterThan(-178);
     expect(after).toBeLessThan(-160);
     const unwrapped = [...headings, after].map((h) => (h < 0 ? h + 360 : h));
+    // Each 4-pixel move turns it 1.2° (360° over 1200 pixels); a preview per animation frame may
+    // gather a few moves, while a jump across the seam would be hundreds of degrees.
     for (let i = 1; i < unwrapped.length; i++) {
       const step = (unwrapped[i] ?? 0) - (unwrapped[i - 1] ?? 0);
       expect(step).toBeGreaterThanOrEqual(-0.01);
-      expect(step).toBeLessThan(3);
+      expect(step).toBeLessThan(6);
     }
     // One undo puts it back exactly.
     expect(a.workspace.undo().status).toBe('committed');
@@ -241,8 +229,30 @@ describe('the panorama on the DOM backend (UX-002, WF-01)', () => {
   });
 });
 
+describe('the view’s size', () => {
+  it('stays the size of its element when a restored scene, or an undo, says otherwise', async () => {
+    const a = await start({ preset: 'sparse' });
+    await frame(a);
+    const width = () => a.workspace.getState().viewports.get(VIEWPORT_ID)?.size.width;
+    expect(width()).toBe(W);
+    // A scene saved where the view was narrower, as a space saved on another page.
+    const saved = a.workspace.serialize();
+    const narrower = {
+      ...saved,
+      viewports: saved.viewports.map((v) =>
+        v.id === VIEWPORT_ID ? { ...v, size: { ...v.size, width: 800 } } : v,
+      ),
+    };
+    expect(a.workspace.restore(narrower).status).toBe('committed');
+    await expect.poll(width).toBe(W);
+    // Undone, the scene before it comes back at the element's size too.
+    expect(a.workspace.undo().status).toBe('committed');
+    await expect.poll(width).toBe(W);
+  });
+});
+
 describe('the panorama on the geometry backend', () => {
-  it('draws tiles warped into the panorama while notes stay live, the same elements as before', async () => {
+  it('draws tiles on their cards while notes stay live, the same elements as before', async () => {
     const a = await start({ preset: 'seam' });
     await frame(a);
     const before = new Set(root?.querySelectorAll('[data-reference-content]'));
@@ -263,7 +273,7 @@ describe('the panorama on the geometry backend', () => {
       modesOf(f, 'window-01-surface')
         .map((m) => m.mode)
         .sort(),
-    ).toEqual(['approximated', 'proxy']);
+    ).toEqual(['native', 'proxy']);
     const left = a.router.pick(VIEWPORT_ID, 4, H / 2);
     const right = a.router.pick(VIEWPORT_ID, W - 4, H / 2);
     expect(left.kind === 'hit' && left.target.surfaceId).toBe('window-01-surface');

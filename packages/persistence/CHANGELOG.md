@@ -15,3 +15,7 @@ other with the workspace's history started afresh; when that save fails it asks 
 stored; `saveAs`, `remove` (a seeded space is reset) and `clear` keep the store in step, and
 `spaceNameIssue`, `spaceKey` and `spaceOfKey` name and key the spaces. `persistence.restore` takes
 `history: 'fresh'`, passed to the workspace, to start its history afresh with the restored scene.
+
+Snapshots are of format `swf.workspace/2`, its schema published as
+`@swf/persistence/schema/swf.workspace-2.schema.json`. The step from `swf.workspace/1` stands every
+window and surface upright, as the room draws them, naming each one in a warning.

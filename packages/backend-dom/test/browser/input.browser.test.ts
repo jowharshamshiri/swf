@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { commands, userEvent } from 'vitest/browser';
 import { DEFAULT_CHROME_INKS, DOM_ATTRIBUTES } from '../../src/index.js';
 import type { Stage } from './fixture.js';
-import { drag, onWindow, pageOf, screenOf, stage, W } from './fixture.js';
+import { drag, onCard, pageOf, stage, W } from './fixture.js';
 
 let current: Stage | null = null;
 afterEach(async () => {
@@ -112,7 +112,7 @@ describe('chrome on its own layers (FR-054, FR-089)', () => {
     );
     expect(handles.every((h) => getComputedStyle(h).pointerEvents === 'auto')).toBe(true);
     // Over the content, the browser finds the content, not the chrome above it.
-    const [cx, cy] = pageOf(view.root, ...screenOf(current, onWindow(current, 'a', [0, 0, 0])));
+    const [cx, cy] = pageOf(view.root, ...onCard(current, 'a', [0, 0]));
     const hit = document.elementFromPoint(cx, cy);
     expect(hit?.closest('[data-test-content]')).not.toBeNull();
     expect(hit?.closest(`[${DOM_ATTRIBUTES.layer}="chrome"]`)).toBeNull();
@@ -182,7 +182,7 @@ describe('chrome on its own layers (FR-054, FR-089)', () => {
       throw new Error('no view');
     }
     const before = current.ws.getState().nodes.get('a')?.transform.position;
-    const start = screenOf(current, onWindow(current, 'a', [0, 0.6, 0]));
+    const start = onCard(current, 'a', [0, 0.6]);
     // Between the surface and the resize band: the frame, where the content does not reach.
     const [px, py] = pageOf(view.root, ...start);
     expect(document.elementFromPoint(px, py)?.closest('[data-test-content]')).toBeNull();
@@ -215,7 +215,7 @@ describe('chrome on its own layers (FR-054, FR-089)', () => {
       throw new Error('no view');
     }
     const before = current.ws.getState().nodes.get('a')?.transform;
-    const start = screenOf(current, onWindow(current, 'a', [0, 0.6, 0]));
+    const start = onCard(current, 'a', [0, 0.6]);
     const [x, y] = pageOf(view.root, ...start);
     let pointerId = -1;
     view.root.addEventListener(
@@ -285,7 +285,7 @@ describe('chrome on its own layers (FR-054, FR-089)', () => {
     if (view === undefined || live === undefined) {
       throw new Error('no view');
     }
-    const at = screenOf(current, onWindow(current, 'a', [0, 0.25, 0]));
+    const at = onCard(current, 'a', [0, 0.25]);
     const [x, y] = pageOf(view.root, ...at);
     expect(document.elementFromPoint(x, y)).toBe(live.button);
     await commands.mouse('move', x, y);

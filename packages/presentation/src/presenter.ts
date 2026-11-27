@@ -907,6 +907,8 @@ interface Seen {
   readonly view: string;
   readonly fragments: readonly ProjectedFragment[];
   readonly projectorId: string;
+  /** The representation policy the fragments were projected with: their cards' sizes follow it. */
+  readonly representation: RepresentationPolicy | null;
 }
 
 class ViewportImpl implements PresentedViewport {
@@ -1280,19 +1282,24 @@ class ViewportImpl implements PresentedViewport {
     }
     const key = viewKey(view);
     const seen = this.#seen;
-    // The same view keeps what it projected: all of it while the scene shows the same, and what
-    // stands where it stood otherwise.
-    const sameView = seen !== null && seen.view === key && seen.projectorId === view.projectionId;
-    const fragments =
-      sameView && sameContent(scene, seen.scene)
-        ? seen.fragments
-        : projector.module.project(
-            scene,
-            view,
-            (id) => this.#presenter.options.workspace.presentedGeometry(id),
-            sameView ? { scene: seen.scene, fragments: seen.fragments } : undefined,
-          );
-    this.#seen = { scene, view: key, fragments, projectorId: view.projectionId };
+    const representation = this.#representation;
+    // The same view keeps what it projected while the scene shows the same and the cards are
+    // sized by the same policy.
+    const same =
+      seen !== null &&
+      seen.view === key &&
+      seen.projectorId === view.projectionId &&
+      seen.representation === representation &&
+      sameContent(scene, seen.scene);
+    const fragments = same
+      ? seen.fragments
+      : projector.module.project(
+          scene,
+          view,
+          (id) => this.#presenter.options.workspace.presentedGeometry(id),
+          representation,
+        );
+    this.#seen = { scene, view: key, fragments, projectorId: view.projectionId, representation };
     return createViewOutput(scene, this.viewportId, fragments);
   }
 
@@ -1327,7 +1334,6 @@ class ViewportImpl implements PresentedViewport {
       compositor: { id: backend.choice.compositor, capabilities: backend.compositor.capabilities },
       projection: projector.capabilities,
       ...(policy === undefined ? {} : { policy }),
-      ...(this.#representation === null ? {} : { representation: this.#representation }),
       condition,
       // A single-owner handle presented in another viewport stays there; this one shows a proxy.
       viewportOwns: (id) => {
@@ -1777,8 +1783,11 @@ class ViewportImpl implements PresentedViewport {
     if (projector === undefined) {
       throw new Error(`projection "${view.projectionId}" is not registered`);
     }
-    return projector.module.project(scene, view, (id) =>
-      this.#presenter.options.workspace.presentedGeometry(id),
+    return projector.module.project(
+      scene,
+      view,
+      (id) => this.#presenter.options.workspace.presentedGeometry(id),
+      this.#representation,
     );
   }
 
@@ -2035,15 +2044,11 @@ function overlap(a: ScreenRect, b: ScreenRect): number {
   return w > 0 && h > 0 ? w * h : 0;
 }
 
-/** The area of a projected quadrilateral, by the shoelace formula. */
-function quadArea(corners: NonNullable<ProjectedFragment['corners']>): number {
-  let sum = 0;
-  for (let i = 0; i < 4; i++) {
-    const [x0, y0] = corners[i] ?? [0, 0];
-    const [x1, y1] = corners[(i + 1) % 4] ?? [0, 0];
-    sum += x0 * y1 - x1 * y0;
-  }
-  return Math.abs(sum) / 2;
+/** The part of `rect` inside a view `width` by `height`. */
+function inView(rect: ScreenRect, width: number, height: number): ScreenRect {
+  const x = Math.max(0, rect[0]);
+  const y = Math.max(0, rect[1]);
+  return [x, y, Math.min(width, rect[0] + rect[2]) - x, Math.min(height, rect[1] + rect[3]) - y];
 }
 
 /**
@@ -2070,13 +2075,10 @@ function hintFor(
   const mine = frame.planned.filter((p) => p.fragment.surfaceId === surfaceId);
   const layers = mine.map((p) => p.negotiation.layer);
   const representation = mine[0]?.representation ?? 'full';
-  const shown = own.reduce((sum, f) => sum + area(f.bounds), 0);
-  const whole = own.find((f) => f.corners !== null)?.corners ?? null;
-  const intersectionRatio = !visible
-    ? 0
-    : whole === null
-      ? 1
-      : Math.min(1, quadArea(whole) > 0 ? shown / quadArea(whole) : 1);
+  // A card across the seam shows its parts at both edges; together they are its share in view.
+  const shown = own.reduce((sum, f) => sum + area(inView(f.bounds, view.width, view.height)), 0);
+  const whole = own[0] === undefined ? 0 : area(own[0].bounds);
+  const intersectionRatio = !visible ? 0 : whole > 0 ? Math.min(1, shown / whole) : 1;
   let occlusion: PresentationHint['occlusion'];
   if (!visible || shown === 0) {
     occlusion = { value: null, confidence: 'unknown' };
@@ -2086,7 +2088,10 @@ function hintFor(
       const at = order.indexOf(fragment);
       for (const front of order.slice(at + 1)) {
         if (front.surfaceId !== surfaceId) {
-          covered += overlap(fragment.bounds, front.bounds);
+          covered += overlap(
+            inView(fragment.bounds, view.width, view.height),
+            inView(front.bounds, view.width, view.height),
+          );
         }
       }
     }

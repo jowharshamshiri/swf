@@ -1,12 +1,22 @@
 import type { Workspace } from '@swf/core';
 import { createWorkspace } from '@swf/core';
-import { createPresentationRegistry } from '@swf/presentation';
-import { createProjectionRegistry, equirectangular, headingPitchOf } from '@swf/projections';
+import {
+  CARD_PIXELS_PER_UNIT,
+  createPresentationRegistry,
+  viewGeometryOf,
+} from '@swf/presentation';
+import {
+  createProjectionRegistry,
+  equirectangular,
+  headingPitchOf,
+  projectorOf,
+} from '@swf/projections';
 import { describe, expect, it } from 'vitest';
 import { planPreset, presetCommands } from '../src/presets.js';
 import type { FocusOptions } from '@swf/navigation';
 import {
   CAMERA_ID,
+  DEFAULT_FEATURES,
   FOCUS_ID,
   MAP,
   ModeRefusal,
@@ -16,10 +26,10 @@ import {
   createModes,
   focusContext,
   focusFrame,
+  semanticDepth,
 } from '@swf/navigation';
 
-const OPTIONS: FocusOptions = { fill: 0.75, maxMagnification: 2.5, pixelsPerUnit: 160 };
-const DEGREES = 180 / Math.PI;
+const OPTIONS: FocusOptions = { fill: 0.75, maxMagnification: 2.5 };
 
 function scene(preset: 'sparse' | 'seam' = 'sparse') {
   const ws = createWorkspace({ id: 'test' });
@@ -69,47 +79,70 @@ function viewport(ws: Workspace) {
   return record;
 }
 
-/** The angle the window takes across the viewport's width, as a share of it. */
-function share(ws: Workspace, id: string) {
-  const state = ws.getState();
-  const node = state.nodes.get(id);
-  const config = viewport(ws).projection.config as { horizontal: number; vertical: number };
+/** The heading of a window's centre from the camera at the centre, in radians. */
+function headingOf(ws: Workspace, id: string) {
+  const node = ws.getState().nodes.get(id);
   if (node === undefined) throw new Error('no window');
-  const [x, y, z] = node.transform.position;
-  const across = 2 * Math.atan(node.bounds[0] / (2 * Math.hypot(x, y, z))) * DEGREES;
-  const down = 2 * Math.atan(node.bounds[1] / (2 * Math.hypot(x, y, z))) * DEGREES;
-  return { across: across / config.horizontal, down: down / config.vertical };
+  const [x, , z] = node.transform.position;
+  return Math.atan2(x, -z);
+}
+
+/**
+ * How a card of a window's size at `scale` fits a view: the share of its width and height it
+ * takes, each way.
+ */
+function fit(ws: Workspace, id: string, scale: number, size: { width: number; height: number }) {
+  const node = ws.getState().nodes.get(id);
+  if (node === undefined) throw new Error('no window');
+  return {
+    across: (node.bounds[0] * CARD_PIXELS_PER_UNIT * scale) / size.width,
+    down: (node.bounds[1] * CARD_PIXELS_PER_UNIT * scale) / size.height,
+  };
+}
+
+/** Focus's frame fills the view by its binding side, unless the magnification limit stops it. */
+function expectFramed(fits: { across: number; down: number }, scale: number) {
+  expect(fits.across).toBeLessThanOrEqual(0.75 + 1e-9);
+  expect(fits.down).toBeLessThanOrEqual(0.75 + 1e-9);
+  expect(scale).toBeLessThanOrEqual(2.5);
+  expect(Math.max(fits.across, fits.down) > 0.75 - 1e-9 || scale === 2.5).toBe(true);
+}
+
+/** The card the panorama draws a window on, with semantic depth and focus as the app has them. */
+function drawnCard(ws: Workspace, id: string) {
+  const state = ws.getState();
+  const policy = semanticDepth({
+    bands: DEFAULT_FEATURES.depth,
+    focusModeId: FOCUS_ID,
+    focus: OPTIONS,
+  });
+  const card = projectorOf(equirectangular)
+    .project(state, viewGeometryOf(state, 'v'), (s) => ws.surfaceGeometry(s), policy)
+    .find((f) => f.nativeOwner && state.surfaces.get(f.surfaceId)?.ownerNodeId === id)?.card;
+  if (card === undefined) throw new Error(`no card for ${id}`);
+  return card;
 }
 
 describe('focus and context (FR-120, UX-003, WF-04)', () => {
-  it('frames a window facing it, filling the view by its binding side, unstretched', () => {
+  it('frames a window facing it, its card scaled to fill the view by its binding side, unstretched', () => {
     const { ws } = scene();
-    const state = ws.getState();
-    const node = state.nodes.get('window-03');
-    if (node === undefined) throw new Error('no window');
-    const frame = focusFrame(state, 'window-03', [0, 0, 0], { width: 640, height: 360 }, OPTIONS);
-    const [x, y, z] = node.transform.position;
-    expect(frame.heading).toBeCloseTo(Math.atan2(x, -z), 12);
-    expect(frame.pitch).toBeCloseTo(Math.atan2(y, Math.hypot(x, z)), 12);
-    // The same angle per pixel across and down.
-    expect(frame.horizontal / 640).toBeCloseTo(frame.vertical / 360, 4);
-    const across = 2 * Math.atan(node.bounds[0] / (2 * Math.hypot(x, y, z))) * DEGREES;
-    const down = 2 * Math.atan(node.bounds[1] / (2 * Math.hypot(x, y, z))) * DEGREES;
-    const fills = Math.max(across / frame.horizontal, down / frame.vertical);
-    expect(fills).toBeCloseTo(0.75, 2);
+    const size = { width: 640, height: 360 };
+    const frame = focusFrame(ws.getState(), 'window-03', [0, 0, 0], size, OPTIONS);
+    expect(frame.heading).toBeCloseTo(headingOf(ws, 'window-03'), 12);
+    // One scale across and down: the card keeps its proportion.
+    expectFramed(fit(ws, 'window-03', frame.scale, size), frame.scale);
+    // A narrow view binds by its width.
+    const narrow = { width: 200, height: 900 };
+    const tall = focusFrame(ws.getState(), 'window-03', [0, 0, 0], narrow, OPTIONS);
+    expect(fit(ws, 'window-03', tall.scale, narrow).across).toBeCloseTo(0.75, 9);
   });
 
   it('never magnifies content past its limit, however large the view', () => {
     const { ws } = scene();
-    const state = ws.getState();
-    const node = state.nodes.get('window-01');
-    if (node === undefined) throw new Error('no window');
     const huge = { width: 8000, height: 4000 };
-    const frame = focusFrame(state, 'window-01', [0, 0, 0], huge, OPTIONS);
-    const [x, y, z] = node.transform.position;
-    const across = 2 * Math.atan(node.bounds[0] / (2 * Math.hypot(x, y, z))) * DEGREES;
-    const onScreen = (across / frame.horizontal) * huge.width;
-    expect(onScreen).toBeLessThanOrEqual(2.5 * 160 * node.bounds[0] * 1.001);
+    const frame = focusFrame(ws.getState(), 'window-01', [0, 0, 0], huge, OPTIONS);
+    expect(frame.scale).toBe(2.5);
+    expect(fit(ws, 'window-01', frame.scale, huge).across).toBeLessThan(0.75);
   });
 
   it('enters on a window, focusing and selecting it, without moving anything', () => {
@@ -121,12 +154,16 @@ describe('focus and context (FR-120, UX-003, WF-04)', () => {
     expect(state.focusedId).toBe('window-04');
     expect(state.selection).toEqual(['window-04']);
     expect(layout(ws)).toBe(before);
-    const node = state.nodes.get('window-04');
-    if (node === undefined) throw new Error('no window');
-    const [x, , z] = node.transform.position;
-    expect(headingPitchOf(camera(ws)).heading).toBeCloseTo(Math.atan2(x, -z), 9);
-    const { across, down } = share(ws, 'window-04');
-    expect(Math.max(across, down)).toBeCloseTo(0.75, 2);
+    // The camera faces it, level, and the panorama draws its card at focus's scale.
+    expect(headingPitchOf(camera(ws))).toMatchObject({ pitch: 0 });
+    expect(headingPitchOf(camera(ws)).heading).toBeCloseTo(headingOf(ws, 'window-04'), 9);
+    const size = viewport(ws).size;
+    const frame = focusFrame(state, 'window-04', [0, 0, 0], size, OPTIONS);
+    const [x, , w] = drawnCard(ws, 'window-04');
+    expect(w / size.width).toBeCloseTo(fit(ws, 'window-04', frame.scale, size).across, 9);
+    expectFramed(fit(ws, 'window-04', frame.scale, size), frame.scale);
+    // Centred in the view.
+    expect(x + w / 2).toBeCloseTo(size.width / 2, 6);
   });
 
   it('refuses to enter with no window to focus, naming the field', () => {
@@ -165,20 +202,17 @@ describe('focus and context (FR-120, UX-003, WF-04)', () => {
       { type: 'selection.set', ids: ['window-05'] },
       { type: 'focus.set', id: 'window-05' },
     ]);
-    const node = ws.getState().nodes.get('window-05');
-    if (node === undefined) throw new Error('no window');
-    const [x, , z] = node.transform.position;
-    expect(headingPitchOf(camera(ws)).heading).toBeCloseTo(Math.atan2(x, -z), 9);
-    // A narrower viewport fits the frame again, the camera kept where it faces.
+    expect(headingPitchOf(camera(ws)).heading).toBeCloseTo(headingOf(ws, 'window-05'), 9);
+    // A narrower viewport draws the card to fit it again, the camera kept where it faces.
     const facing = camera(ws);
-    ws.dispatch({
-      type: 'viewport.patch',
-      id: 'v',
-      size: { width: 500, height: 600, devicePixelRatio: 1 },
-    });
+    const size = { width: 300, height: 600 };
+    ws.dispatch({ type: 'viewport.patch', id: 'v', size: { ...size, devicePixelRatio: 1 } });
     expect(camera(ws)).toEqual(facing);
-    const { across, down } = share(ws, 'window-05');
-    expect(Math.max(across, down)).toBeCloseTo(0.75, 2);
+    const [, , w, h] = drawnCard(ws, 'window-05');
+    expectFramed(
+      { across: w / size.width, down: h / size.height },
+      focusFrame(ws.getState(), 'window-05', [0, 0, 0], size, OPTIONS).scale,
+    );
     // The focused window is removed: focus is left for the view it came from.
     ws.dispatch({ type: 'node.delete', id: 'window-05', mode: 'subtree' });
     expect(modes.current()).toBe(PANORAMA.id);

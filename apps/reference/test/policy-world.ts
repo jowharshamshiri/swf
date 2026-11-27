@@ -4,21 +4,27 @@ import type { InteractionEvent, InteractionRouter, SyntheticInput } from '@swf/i
 import { createInteractionRouter, createSyntheticInput } from '@swf/interaction';
 import type { Vec3 } from '@swf/math';
 import { mat4TransformPoint } from '@swf/math';
+import type { RepresentationPolicy, ScreenRect } from '@swf/presentation';
 import { createPresentationRegistry, viewGeometryOf } from '@swf/presentation';
 import type { ProjectionRegistry } from '@swf/projections';
-import { createProjectionRegistry, equirectangular } from '@swf/projections';
+import { createProjectionRegistry, equirectangular, projectorOf } from '@swf/projections';
 import { expect } from 'vitest';
 import type { PlannedWindow, PresetId } from '../src/presets.js';
 import { planPreset, presetCommands } from '../src/presets.js';
-import type { FeatureSettings, Modes, Policies } from '@swf/navigation';
+import type { DepthBands, FeatureSettings, Modes, Policies } from '@swf/navigation';
 import {
   CAMERA_ID,
+  FOCUS_ID,
   MAP,
   PANORAMA,
   createFocusMode,
   createModes,
   createPolicies,
+  semanticDepth,
 } from '@swf/navigation';
+
+/** How focus shows its window, as the reference application has it. */
+export const FOCUS = Object.freeze({ fill: 0.75, maxMagnification: 2.5 });
 
 /** The viewport the reference application presents (as `app.ts` names it). */
 export const VIEWPORT = 'main';
@@ -35,6 +41,11 @@ export interface PolicyWorld {
   /** A pointer device, connected through the policies' wrapped cursor as the page's is. */
   readonly input: SyntheticInput;
   readonly events: InteractionEvent[];
+  /**
+   * The representation policy the panorama draws its cards by, as the application's viewport
+   * has it: semantic depth while it is on, every window in full otherwise.
+   */
+  representation(): RepresentationPolicy | null;
 }
 
 /**
@@ -71,7 +82,22 @@ export function policyWorld(
     ...presetCommands(typeof scene === 'string' ? planPreset(scene, 1) : scene),
   ]);
   expect(result.status).toBe('committed');
-  const router = createInteractionRouter({ workspace: ws, projections });
+  // Picking finds the cards the panorama draws, as the application's router does.
+  let depth: { readonly bands: DepthBands; readonly policy: RepresentationPolicy } | null = null;
+  const representation = (): RepresentationPolicy | null => {
+    const settings = policies.status().features;
+    if (!settings.enabled.depth) {
+      return null;
+    }
+    if (depth?.bands !== settings.depth) {
+      depth = {
+        bands: settings.depth,
+        policy: semanticDepth({ bands: settings.depth, focusModeId: FOCUS_ID, focus: FOCUS }),
+      };
+    }
+    return depth.policy;
+  };
+  const router = createInteractionRouter({ workspace: ws, projections, representation });
   const modes = createModes(ws, VIEWPORT);
   modes.register(PANORAMA);
   const policies = createPolicies({
@@ -80,7 +106,8 @@ export function policyWorld(
     projections,
     viewportId: VIEWPORT,
     modes,
-    focusMode: createFocusMode({ fill: 0.75, maxMagnification: 2.5, pixelsPerUnit: 160 }),
+    focusMode: createFocusMode(FOCUS),
+    focusOptions: FOCUS,
     mapMode: MAP,
     homeModeId: PANORAMA.id,
     ...(features === undefined ? {} : { features }),
@@ -89,13 +116,16 @@ export function policyWorld(
   router.registerInputAdapter(policies.input(input, null));
   const events: InteractionEvent[] = [];
   router.subscribe((event) => events.push(event));
-  return { ws, projections, router, policies, modes, input, events };
+  return { ws, projections, router, policies, modes, input, events, representation };
 }
 
-/** A note window of the reference application, planned at a place round the camera. */
+/**
+ * A note window of the reference application, planned at a place in the room: its heading in
+ * degrees, its reach along the floor and its height.
+ */
 export function note(
   id: string,
-  place: { heading: number; distance: number; elevation?: number; width?: number; height?: number },
+  place: { heading: number; reach: number; y?: number; width?: number; height?: number },
 ): PlannedWindow {
   return {
     id,
@@ -103,8 +133,8 @@ export function note(
     content: 'note',
     bindingKey: `test/${id}`,
     heading: place.heading,
-    elevation: place.elevation ?? 0,
-    distance: place.distance,
+    reach: place.reach,
+    y: place.y ?? 0,
     width: place.width ?? 1,
     height: place.height ?? 0.6,
     hue: 0,
@@ -169,4 +199,39 @@ export function drag(
   if (release) {
     input.pointer('up', VIEWPORT, to[0], to[1], { buttons: 0 });
   }
+}
+
+/**
+ * A window's card in the panorama as it draws it and the router picks on it, at the window's own
+ * place (not a copy across the seam).
+ */
+export function cardOf(w: PolicyWorld, id: string, presented = false): ScreenRect {
+  const state = presented ? w.ws.getPresented() : w.ws.getState();
+  const own = projectorOf(equirectangular)
+    .project(
+      state,
+      viewGeometryOf(state, VIEWPORT),
+      (surfaceId) => w.ws.surfaceGeometry(surfaceId),
+      w.representation(),
+    )
+    .find((f) => f.nativeOwner && state.surfaces.get(f.surfaceId)?.ownerNodeId === id);
+  if (own === undefined) {
+    throw new Error(`window "${id}" has no card in the panorama`);
+  }
+  return own.card;
+}
+
+/** A point of a window's card in the panorama, in the window's own units (x right, y up). */
+export function onCard(
+  w: PolicyWorld,
+  id: string,
+  [lx, ly]: readonly [number, number],
+  presented = false,
+): [number, number] {
+  const node = (presented ? w.ws.getPresented() : w.ws.getState()).nodes.get(id);
+  if (node === undefined) {
+    throw new Error(`no node "${id}"`);
+  }
+  const [x, y, cw, ch] = cardOf(w, id, presented);
+  return [x + cw / 2 + (lx * cw) / node.bounds[0], y + ch / 2 - (ly * ch) / node.bounds[1]];
 }

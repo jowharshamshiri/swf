@@ -403,15 +403,21 @@ describe('focus with the strip of every window (section 3)', () => {
     const m = await visit();
     const a = app(m.model);
     const main = await frameOf(a);
-    // Messages, which the panorama stands in for at its distance: its whole frame takes the press.
-    const at = centreIn(main, 'messages-surface');
-    if (at === null) throw new Error('Messages is not in the panorama');
-    expect(a.windowAt(at[0], at[1])).toBe('messages');
+    // A window the panorama stands in for at its distance, a compact preview or its label, whose
+    // card is uncovered at its centre: its whole card takes the press.
+    const standIn = main.frame.planned.find((p) => {
+      const at = centreIn(main, p.fragment.surfaceId);
+      const id = a.workspace.getState().surfaces.get(p.fragment.surfaceId)?.ownerNodeId;
+      return p.representation !== 'full' && at !== null && a.windowAt(at[0], at[1]) === id;
+    });
+    const id = a.workspace.getState().surfaces.get(standIn?.fragment.surfaceId ?? '')?.ownerNodeId;
+    const at = centreIn(main, standIn?.fragment.surfaceId ?? '');
+    if (id === undefined || at === null) throw new Error('no window stood in for in the panorama');
     const surface = m.root.querySelector('[data-wsb="page.panorama.surface"]');
     if (surface === null) throw new Error('no panorama');
     const box = surface.getBoundingClientRect();
     await commands.mouse('double', box.left + at[0], box.top + at[1]);
     await expect.poll(() => a.status().mode).toBe(FOCUS_ID);
-    expect(a.workspace.getState().focusedId).toBe('messages');
+    expect(a.workspace.getState().focusedId).toBe(id);
   });
 });

@@ -37,13 +37,11 @@ const VIEWPORT = 'conformance-view';
 const PROFILES: readonly ProjectionProfile[] = [
   Object.freeze({
     id: 'conformance.perspective/1',
-    mapping: 'affine',
     seamWrapping: false,
     exactInverse: true,
   }),
   Object.freeze({
     id: 'conformance.panorama/1',
-    mapping: 'nonlinear',
     seamWrapping: true,
     exactInverse: true,
   }),
@@ -122,7 +120,9 @@ function fragments(order: 'forward' | 'reverse'): ProjectedFragment[] {
           viewportId: VIEWPORT,
           ordinal,
           bounds: [100 * i + 600 * ordinal, 50, 90, 45] as const,
-          corners: null,
+          card: [100 * i + 600 * ordinal, 50, 90, 45] as const,
+          scale: 1,
+          representation: 'full',
           depth: 3 + (i % 2),
           geometricFidelity: 'exact',
           nativeOwner: ordinal === 0,

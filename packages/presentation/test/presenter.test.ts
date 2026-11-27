@@ -16,7 +16,6 @@ import type {
   PresentedViewport,
   Presenter,
   PresenterEvent,
-  PreviousProjection,
   ProjectedFragment,
   ProjectionProfile,
   RepresentationPolicy,
@@ -33,7 +32,6 @@ import {
 
 const FLAT: ProjectionProfile = {
   id: 'test.flat/1',
-  mapping: 'affine',
   seamWrapping: false,
   exactInverse: true,
 };
@@ -42,21 +40,29 @@ const MAIN = { renderer: 'mock.renderer/1', compositor: 'mock.compositor/1' };
 const SPARE = { renderer: 'spare.renderer/1', compositor: 'mock.compositor/1' };
 
 /**
- * A flat projection for tests: a window at (x, y, z) shows as a 100×60 box centred 100 px per
- * unit from the view's centre, clipped to the view, at depth -z. Counts its projections and keeps
- * what each was given and gave.
+ * A flat projection for tests: a window at (x, y, z) shows as a 100×60 card centred 100 px per
+ * unit from the view's centre, drawn while some of it is in the view, at depth -z. Counts its
+ * projections and keeps what each was given and gave.
  */
 function flatProjector(): ViewProjector & {
   calls: Map<string, number>;
-  given: { scene: SceneState; fragments: ProjectedFragment[]; previous?: PreviousProjection }[];
+  given: {
+    scene: SceneState;
+    fragments: ProjectedFragment[];
+    representation: RepresentationPolicy | null;
+  }[];
 } {
   const calls = new Map<string, number>();
   const given: {
     scene: SceneState;
     fragments: ProjectedFragment[];
-    previous?: PreviousProjection;
+    representation: RepresentationPolicy | null;
   }[] = [];
-  const afresh = (scene: SceneState, view: ViewGeometry): ProjectedFragment[] => {
+  const afresh = (
+    scene: SceneState,
+    view: ViewGeometry,
+    representation: RepresentationPolicy | null,
+  ): ProjectedFragment[] => {
     const out: ProjectedFragment[] = [];
     for (const surface of scene.surfaces.values()) {
       const node = scene.nodes.get(surface.ownerNodeId);
@@ -78,13 +84,18 @@ function flatProjector(): ViewProjector & {
         surfaceId: surface.id,
         viewportId: view.viewportId,
         ordinal: 0,
-        bounds: [x0, y0, x1 - x0, y1 - y0],
-        corners: [
-          [left, top],
-          [left + 100, top],
-          [left + 100, top + 60],
-          [left, top + 60],
-        ],
+        bounds: [left, top, 100, 60],
+        card: [left, top, 100, 60],
+        scale: 1,
+        representation:
+          representation === null
+            ? 'full'
+            : representation.representationOf({
+                scene,
+                view,
+                surfaceId: surface.id,
+                nodeId: node.id,
+              }),
         depth: -z,
         geometricFidelity: 'exact',
         nativeOwner: true,
@@ -96,10 +107,10 @@ function flatProjector(): ViewProjector & {
     profile: FLAT,
     calls,
     given,
-    project(scene, view, _geometry, previous) {
+    project(scene, view, _geometry, representation) {
       calls.set(view.viewportId, (calls.get(view.viewportId) ?? 0) + 1);
-      const fragments = afresh(scene, view);
-      given.push({ scene, fragments, ...(previous === undefined ? {} : { previous }) });
+      const fragments = afresh(scene, view, representation);
+      given.push({ scene, fragments, representation });
       return fragments;
     },
   };
@@ -339,20 +350,23 @@ describe('frames at frame boundaries (FR-143, FR-148, NFR-005, NFR-009)', () => 
     expect(frames(h.events, 'v').at(-1)?.metrics.dirty).toEqual(['requested']);
   });
 
-  it('hands the projector what it projected last while the view is unchanged, and nothing after the view changed (NFR-020)', async () => {
+  it('projects with the viewport’s representation policy, and again when it changes, since a card’s size follows it', async () => {
     const h = await harness();
-    await h.open();
+    const v = await h.open();
     await h.frames.flush();
-    const before = h.projector.given.at(-1);
-    expect(before?.previous).toBeUndefined();
-    h.ws.dispatch(move('a', 1));
+    expect(h.projector.given.at(-1)?.representation).toBeNull();
+    const calls = h.projector.calls.get('v') ?? 0;
+    const policy: RepresentationPolicy = {
+      id: 'test.compact/1',
+      representationOf: () => 'compact',
+    };
+    v.setRepresentation(policy);
     await h.frames.flush();
-    const moved = h.projector.given.at(-1);
-    expect(moved?.previous?.scene).toBe(before?.scene);
-    expect(moved?.previous?.fragments).toEqual(before?.fragments);
-    h.ws.dispatch({ type: 'camera.patch', id: 'cam', position: [0, 1, 0] });
-    await h.frames.flush();
-    expect(h.projector.given.at(-1)?.previous).toBeUndefined();
+    expect(h.projector.calls.get('v')).toBe(calls + 1);
+    expect(h.projector.given.at(-1)?.representation).toBe(policy);
+    expect(h.projector.given.at(-1)?.fragments.every((f) => f.representation === 'compact')).toBe(
+      true,
+    );
   });
 
   it('shows open previews without committing them', async () => {
@@ -415,7 +429,8 @@ describe('advisory hints (FR-045, FR-046, FR-141, FR-149, AC-006)', () => {
     expect(b).toMatchObject({ occlusion: { value: 0, confidence: 'exact' }, attention: 'active' });
     // c sticks out of the view: shown, partly.
     expect(c?.intersectionRatio).toBeCloseTo(0.8);
-    expect(c?.projectedBounds).toEqual([720, 170, 80, 60]);
+    // Its card is where it is drawn, the part past the view's edge included.
+    expect(c?.projectedBounds).toEqual([720, 170, 100, 60]);
   });
 
   it('only hints when a surface is hidden or far away, never touching its producer', async () => {

@@ -10,7 +10,10 @@ import type {
   RepresentationPolicy,
   ViewGeometry,
 } from '@swf/presentation';
+import { cardScale } from '@swf/presentation';
 import type { DepthBands } from './features.js';
+import type { FocusOptions } from './focus.js';
+import { focusFrame } from './focus.js';
 
 /**
  * Semantic depth: each window is represented by how far it is from the camera, in bands. Nearer
@@ -24,7 +27,7 @@ import type { DepthBands } from './features.js';
 
 export const SEMANTIC_DEPTH_ID = 'swf.navigation.semantic-depth/1';
 
-/** The representation for a distance from the camera, by the bands. */
+/** The representation for a distance from the camera along the floor, by the bands. */
 export function representationAt(distance: number, bands: DepthBands): Representation {
   const [representation] = answer(bands, [distance], null);
   if (representation === undefined) {
@@ -33,7 +36,7 @@ export function representationAt(distance: number, bands: DepthBands): Represent
   return representation;
 }
 
-/** How far a window's centre is from the eye of a view, in world units. */
+/** How far a window's centre is from the eye of a view along the floor, in world units. */
 export function distanceFrom(scene: SceneState, nodeId: Id, view: ViewGeometry): number {
   const world = worldMatrix(scene.nodes, nodeId);
   if (world === undefined) {
@@ -51,7 +54,49 @@ export interface SemanticDepthOptions {
    * one window readably, which a label would defeat.
    */
   readonly focusModeId: string;
+  /** How focus shows its window: the card of the focused window, in focus, is scaled to it. */
+  readonly focus: FocusOptions;
 }
+
+/** The window a view in focus shows, or null when the view is not in focus. */
+function focusedIn(scene: SceneState, view: ViewGeometry, focusModeId: string): Id | null {
+  return scene.viewports.get(view.viewportId)?.mode === focusModeId ? scene.focusedId : null;
+}
+
+/** The scale focus gives the card of the window it shows, as `focusFrame` frames it. */
+function focusScale(scene: SceneState, view: ViewGeometry, nodeId: Id, focus: FocusOptions) {
+  return focusFrame(scene, nodeId, eyeOf(view), view, focus).scale;
+}
+
+/**
+ * Focus's representation policy for a view that shows every window in full (semantic depth off):
+ * every surface is shown in full, the focused window's card, in focus, scaled to read, and every
+ * other card by the card rules' geometric scale (by its distance and the view's field of view).
+ */
+export function focusCards(options: {
+  readonly focusModeId: string;
+  readonly focus: FocusOptions;
+}): RepresentationPolicy {
+  return Object.freeze({
+    id: FOCUS_CARDS_ID,
+    representationOf: (): Representation => 'full',
+    scaleOf({ scene, view, nodeId }: RepresentationContext): number {
+      if (focusedIn(scene, view, options.focusModeId) === nodeId) {
+        return focusScale(scene, view, nodeId, options.focus);
+      }
+      const world = worldMatrix(scene.nodes, nodeId);
+      const config = view.projectionConfig as Readonly<Record<string, unknown>> | null;
+      const horizontal = config?.['horizontal'];
+      if (world === undefined || typeof horizontal !== 'number') {
+        throw new Error(`window "${nodeId}" has no card to scale in viewport "${view.viewportId}"`);
+      }
+      return cardScale('full', distanceOf(world, eyeOf(view)), horizontal, false);
+    },
+  });
+}
+
+/** The ID of {@link focusCards}. */
+export const FOCUS_CARDS_ID = 'swf.navigation.focus-cards/1';
 
 /**
  * Semantic depth as the viewport's representation policy. A frame consults it for every fragment
@@ -60,7 +105,7 @@ export interface SemanticDepthOptions {
  * long as that scene and view are.
  */
 export function semanticDepth(options: SemanticDepthOptions): RepresentationPolicy {
-  const { bands, focusModeId } = options;
+  const { bands, focusModeId, focus } = options;
   const frames = new WeakMap<SceneState, WeakMap<ViewGeometry, ReadonlyMap<Id, Representation>>>();
   const frameOf = (scene: SceneState, view: ViewGeometry): ReadonlyMap<Id, Representation> => {
     let byView = frames.get(scene);
@@ -83,6 +128,11 @@ export function semanticDepth(options: SemanticDepthOptions): RepresentationPoli
         throw new Error(`no node "${nodeId}" in the scene`);
       }
       return representation;
+    },
+    scaleOf({ scene, view, nodeId }: RepresentationContext, natural: number): number {
+      return focusedIn(scene, view, focusModeId) === nodeId
+        ? focusScale(scene, view, nodeId, focus)
+        : natural;
     },
   });
 }
@@ -140,6 +190,7 @@ function answer(
   }
 }
 
-function distanceOf(world: Mat4, [x, y, z]: Vec3): number {
-  return Math.hypot(world[12] - x, world[13] - y, world[14] - z);
+/** How far a window's centre stands from the eye along the room's floor, whatever its height. */
+function distanceOf(world: Mat4, [x, , z]: Vec3): number {
+  return Math.hypot(world[12] - x, world[14] - z);
 }

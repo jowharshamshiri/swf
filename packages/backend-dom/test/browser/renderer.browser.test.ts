@@ -13,7 +13,6 @@ import {
 
 const PERSPECTIVE: ProjectionProfile = {
   id: 'test.perspective/1',
-  mapping: 'affine',
   seamWrapping: false,
   exactInverse: true,
 };
@@ -26,13 +25,10 @@ afterEach(() => {
 });
 
 /**
- * A frame of one surface under an affine projection, with fragments as given: live, or unbound
- * when `bound` is false.
+ * A frame of one surface on a card 200×100 at (100, 100) drawn at `scale`, its window placed as
+ * `placed` says: live, or unbound when `bound` is false.
  */
-function frame(
-  corners: RenderFrame['output']['fragments'][number]['corners'],
-  bound = true,
-): RenderFrame {
+function frame(placed: 'exact' | 'approximate' = 'exact', bound = true, scale = 1): RenderFrame {
   const ws = createWorkspace({ id: 'ws' });
   const result = ws.transaction([
     { type: 'node.create', node: { id: 'w', kind: 'window', bounds: [1, 0.5, 0.01] } },
@@ -72,9 +68,11 @@ function frame(
         viewportId: 'v',
         ordinal: 0,
         bounds: [100, 100, 200, 100],
-        corners,
+        card: [100, 100, 200, 100],
+        scale,
+        representation: 'full',
         depth: 2,
-        geometricFidelity: 'exact',
+        geometricFidelity: placed,
         nativeOwner: true,
       },
     ]),
@@ -117,50 +115,57 @@ async function session(f: RenderFrame) {
 
 describe('the DOM renderer’s declarations', () => {
   it('says why a placeholder stands in, and stops saying it once the content is bound (FR-195)', async () => {
-    const unbound = frame(null, false);
+    const unbound = frame('exact', false);
     const { renderer, compositor, container } = await session(unbound);
     compositor.compose(renderer.render(unbound));
     const placeholder = container.querySelector(`[${DOM_ATTRIBUTES.layer}="placeholder"]`);
     expect(placeholder?.getAttribute(DOM_ATTRIBUTES.standIn)).toBe('unbound');
     expect(placeholder?.textContent).toContain('Unbound: no content is bound');
-    const bound = frame(null);
+    const bound = frame();
     compositor.compose(renderer.render(bound));
     expect(container.querySelector(`[${DOM_ATTRIBUTES.layer}="placeholder"]`)).toBeNull();
     expect(container.querySelector(`[${DOM_ATTRIBUTES.layer}="content-native"]`)).not.toBeNull();
   });
 
-  it('declares a live element exact only when it follows exact corners', async () => {
-    const exact = frame([
-      [110, 105],
-      [290, 110],
-      [285, 195],
-      [105, 190],
+  it('lays a live element out at its size before the card’s scale, then scales it onto the card', async () => {
+    const f = frame('exact', true, 2);
+    expect(f.planned[0]?.negotiation).toMatchObject({ mode: 'native', shapeFidelity: 'exact' });
+    const { renderer, compositor, container } = await session(f);
+    compositor.compose(renderer.render(f));
+    const clip = container.querySelector<HTMLElement>(`[${DOM_ATTRIBUTES.layer}="content-native"]`);
+    const slot = clip?.querySelector<HTMLElement>(`[${DOM_ATTRIBUTES.slot}]`);
+    expect([clip?.style.left, clip?.style.top, clip?.style.width, clip?.style.height]).toEqual([
+      '100px',
+      '100px',
+      '200px',
+      '100px',
     ]);
-    expect(exact.planned[0]?.negotiation).toMatchObject({ mode: 'native', shapeFidelity: 'exact' });
-    const { renderer, compositor, container } = await session(exact);
-    compositor.compose(renderer.render(exact));
-    const clip = container.querySelector(`[${DOM_ATTRIBUTES.layer}="content-native"]`);
+    expect([slot?.style.width, slot?.style.height, slot?.style.transform]).toEqual([
+      '100px',
+      '50px',
+      'scale(2)',
+    ]);
+    // Scaled, it covers the card's place exactly.
+    const box = slot?.getBoundingClientRect();
+    const root = clip?.getBoundingClientRect();
+    expect([box?.width, box?.height]).toEqual([200, 100]);
+    expect([box?.left, box?.top]).toEqual([root?.left, root?.top]);
+    expect(clip?.getAttribute(DOM_ATTRIBUTES.anchor)).toBe('exact');
     expect(clip?.getAttribute(DOM_ATTRIBUTES.shape)).toBe('exact');
-    expect(clip?.getAttribute(DOM_ATTRIBUTES.placement)).toBe('corners');
-    // Without corners it can only fill the bounds, and says so, whatever negotiation hoped.
-    const bare = frame(null);
-    compositor.compose(renderer.render(bare));
+  });
+
+  it('declares a live element approximated where its card only approximates its window’s place', async () => {
+    const f = frame('approximate');
+    const { renderer, compositor, container } = await session(f);
+    compositor.compose(renderer.render(f));
+    const clip = container.querySelector(`[${DOM_ATTRIBUTES.layer}="content-native"]`);
+    expect(clip?.getAttribute(DOM_ATTRIBUTES.mode)).toBe('approximated');
+    expect(clip?.getAttribute(DOM_ATTRIBUTES.anchor)).toBe('approximate');
     expect(clip?.getAttribute(DOM_ATTRIBUTES.shape)).toBe('approximate');
-    expect(clip?.getAttribute(DOM_ATTRIBUTES.placement)).toBe('bounds');
-    // Corners no rectangle can map to (crossed) fall back to the bounds the same way.
-    renderer.render(
-      frame([
-        [110, 105],
-        [285, 195],
-        [290, 110],
-        [105, 190],
-      ]),
-    );
-    expect(clip?.getAttribute(DOM_ATTRIBUTES.placement)).toBe('bounds');
   });
 
   it('refuses a frame that would mount one surface’s live element twice', async () => {
-    const f = frame(null);
+    const f = frame();
     const { renderer } = await session(f);
     const [only] = f.planned;
     if (only === undefined) {
@@ -187,7 +192,7 @@ describe('the DOM renderer’s declarations', () => {
   });
 
   it('refuses frames of other viewports and frames after release', async () => {
-    const f = frame(null);
+    const f = frame();
     const { renderer, compositor, container } = await session(f);
     expect(() => renderer.render({ ...f, viewportId: 'other' })).toThrow(SwfFailure);
     await compositor.release();
@@ -198,11 +203,10 @@ describe('the DOM renderer’s declarations', () => {
   });
 
   it('refuses a container that is not an element', async () => {
-    const f = frame(null);
+    const f = frame();
     const renderer = await new DomRenderer({ document }).prepare(f.scene, f.view);
     await expect(
       new DomCompositor().prepare({ viewportId: 'v', container: {} }, renderer),
     ).rejects.toThrow(/must be an element/);
-    expect(() => new DomRenderer({ document, pixelsPerUnit: 0 })).toThrow(RangeError);
   });
 });

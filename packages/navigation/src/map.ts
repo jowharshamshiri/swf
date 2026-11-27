@@ -7,24 +7,32 @@ import type {
   WorkspaceMutator,
   WorkspaceReader,
 } from '@swf/core';
-import { effectiveState, nodeFrameGeometry, worldMatrix } from '@swf/core';
-import { headingOf, placementOf, translatedBy, turnedAbout, worldOrigin } from '@swf/interaction';
+import { effectiveState, worldMatrix } from '@swf/core';
+import type { RoomPlace } from '@swf/interaction';
+import {
+  placementOf,
+  ROOM_LIMITS,
+  roomPlaceOf,
+  standingInRoom,
+  worldOrigin,
+} from '@swf/interaction';
+import { models } from '@swf/models';
 import type { Transform3D, Vec3 } from '@swf/math';
 import { partOf } from './composition.js';
 import type { SnapSettings } from './features.js';
-import type { Snap, SnapBox } from './magnetic.js';
+import type { CardMeasure, Snap, SnapBox } from './magnetic.js';
 import {
   boxOf,
   NO_SNAP,
   resolveSnap,
   snapNeighbours,
-  snappedTransform,
-  worldAt,
+  snappedPlace,
+  spacedPlace,
 } from './magnetic.js';
 import type { ViewGeometry } from '@swf/presentation';
 import { viewGeometryOf } from '@swf/presentation';
-import type { Projection, ProjectionModule } from '@swf/projections';
-import { headingPitchOf, projectionFor } from '@swf/projections';
+import type { GeometryOf, Projection, ProjectionModule } from '@swf/projections';
+import { headingPitchOf, projectionFor, projectorOf } from '@swf/projections';
 
 /**
  * The spatial map: the scene seen from above. A window is a marker where it stands on the ground
@@ -52,11 +60,9 @@ export const MAP_SCALE: {
   readonly min: number;
   /** The nearest in. */
   readonly max: number;
-  /** Where the map starts. */
-  readonly initial: number;
   /** The factor one step of zoom multiplies or divides by. */
   readonly step: number;
-} = Object.freeze({ min: 8, max: 480, initial: 60, step: 1.25 });
+} = Object.freeze({ min: 8, max: 480, step: 1.25 });
 
 /** Where a world point on the ground plane (X, Z) is on the map. */
 export function toMap(view: MapView, x: number, z: number): [number, number] {
@@ -184,47 +190,61 @@ export function mapScene(state: SceneState, viewportId: Id, partKey: string): Ma
 }
 
 /**
- * Whether the viewport shows any of a window now, as its projection places it: false for one
- * wholly outside the view (behind the camera when the field of view is narrow, say).
+ * Whether the viewport shows any of a window now, its card as the projection places it, shown in
+ * full: false for one wholly outside the view (behind the camera when the field of view is narrow,
+ * say). `geometry` gives each surface's geometry as placed in `state`.
  */
 export function inView(
   state: SceneState,
   viewportId: Id,
   projections: { get(id: string): ProjectionModule | undefined },
+  geometry: GeometryOf,
   nodeId: Id,
 ): boolean {
   const view = viewGeometryOf(state, viewportId);
   const module = projections.get(view.projectionId);
-  const frame = nodeFrameGeometry(state, nodeId);
-  if (module === undefined || frame === undefined) {
+  const node = state.nodes.get(nodeId);
+  if (module === undefined || node === undefined) {
     throw new Error(`window "${nodeId}" cannot be placed in the view`);
   }
-  return projectionFor(module, view).clipVisibility(frame, view).state !== 'outside';
+  const surfaces = new Set(node.surfaceIds);
+  return projectorOf(module)
+    .project(state, view, geometry, null)
+    .some((f) => surfaces.has(f.surfaceId));
 }
 
 /**
- * The view that lays a radar out: centred on the camera, at the scale that keeps every window
- * within its rim, `margin` pixels inside the smaller side, out to {@link radarReach}.
+ * How far from the camera the radar reaches along the floor, in world units: just past the room's
+ * farthest place (`ROOM_LIMITS.farthest`), so every window is within its rim, wherever it stands.
+ */
+export const MAP_REACH = 14;
+
+/**
+ * The view that lays a radar out: centred on the camera, at the scale that brings
+ * {@link MAP_REACH} to its rim, `margin` pixels inside the smaller side.
  */
 export function radarView(scene: MapScene, width: number, height: number, margin: number): MapView {
   const radius = Math.max(1, Math.min(width, height) / 2 - margin);
   return {
     centre: [scene.camera.x, scene.camera.z],
-    scale: radius / radarReach(scene),
+    scale: radius / MAP_REACH,
     width,
     height,
   };
 }
 
+/** How far inside a map's smaller side the room's reach comes, in CSS pixels. */
+const MAP_MARGIN = 12;
+
 /**
- * How far from the camera a radar reaches, in world units: past the farthest window by a little,
- * rounded up to a ring ({@link ringStep}), and never less than two units.
+ * The view a map starts with, `width` by `height` CSS pixels: centred on the world's origin, at the
+ * scale that holds the whole room ({@link MAP_REACH} along the floor) inside its smaller side,
+ * 12 pixels in, within {@link MAP_SCALE}'s range.
  */
-export function radarReach(scene: MapScene): number {
-  const farthest = scene.markers.reduce((far, marker) => Math.max(far, marker.distance), 0);
-  const reach = Math.max(2, farthest * 1.1);
-  const step = ringStep(reach);
-  return Math.ceil(reach / step) * step;
+export function roomMapView(width: number, height: number): MapView {
+  const radius = Math.max(1, Math.min(width, height) / 2 - MAP_MARGIN);
+  const scale = Math.min(MAP_SCALE.max, Math.max(MAP_SCALE.min, radius / MAP_REACH));
+  return { centre: [0, 0], scale, width, height };
 }
 
 /** The distance between rings for a reach: 1, 2 or 5 times a power of ten, four rings or so. */
@@ -260,9 +280,9 @@ export function markerAt(
 }
 
 /**
- * The local transform that stands a window at a ground point (X, Z), keeping its height and
- * turning it about the vertical by as much as its heading from the eye changed, so it still faces
- * the camera as it did. Null when its parent's placement cannot be inverted.
+ * The local transform that stands a window at a ground point (X, Z), keeping its height, inside
+ * the room round `eye` (`Swf.Room`'s floor drop). Null when its parent's placement cannot be
+ * inverted.
  */
 export function standingAt(
   state: SceneState,
@@ -271,25 +291,15 @@ export function standingAt(
   x: number,
   z: number,
 ): Transform3D | null {
-  const placement = placementOf(state, nodeId);
-  const origin = worldOrigin(placement);
-  const target: Vec3 = [x, origin[1], z];
-  const level = (p: Vec3): Vec3 => [p[0] - eye[0], 0, p[2] - eye[2]];
-  const flat = (p: Vec3) => Math.hypot(p[0], p[2]) === 0;
-  const yaw =
-    flat(level(origin)) || flat(level(target))
-      ? 0
-      : headingOf(level(target)) - headingOf(level(origin));
-  const turned = turnedAbout(placement, origin, yaw);
-  return turned === null
-    ? null
-    : translatedBy({ ...placement, local: turned }, [x - origin[0], 0, z - origin[2]]);
+  const at = roomPlaceOf(state, nodeId, eye);
+  const place = models.floorDrop(ROOM_LIMITS, at, x - eye[0], z - eye[2]);
+  return standingInRoom(state, nodeId, eye, place);
 }
 
 /**
  * The local transform that puts a window at a world position: on the ground at (X, Z) as
- * {@link standingAt} stands it, and at height Y; each left out stays as it is. Null when its
- * parent's placement cannot be inverted.
+ * {@link standingAt} stands it, and at height Y; each left out stays as it is, and the window stays
+ * inside the room. Null when its parent's placement cannot be inverted.
  */
 export function placedAt(
   state: SceneState,
@@ -301,18 +311,13 @@ export function placedAt(
     readonly z?: number | undefined;
   },
 ): Transform3D | null {
-  const placement = placementOf(state, nodeId);
-  const origin = worldOrigin(placement);
-  const ground =
+  const now = roomPlaceOf(state, nodeId, eye);
+  const height = at.y === undefined ? now : { ...now, height: at.y - eye[1] };
+  const place =
     at.x === undefined || at.z === undefined
-      ? placement.local
-      : standingAt(state, nodeId, eye, at.x, at.z);
-  if (ground === null) {
-    return null;
-  }
-  return at.y === undefined
-    ? ground
-    : translatedBy({ ...placement, local: ground }, [0, at.y - origin[1], 0]);
+      ? models.keepInRoom(ROOM_LIMITS, height)
+      : models.floorDrop(ROOM_LIMITS, height, at.x - eye[0], at.z - eye[2]);
+  return standingInRoom(state, nodeId, eye, place);
 }
 
 /** Straight ahead of the camera, or straight behind it: where a quick action puts a window. */
@@ -320,8 +325,8 @@ export type AroundSide = 'front' | 'behind';
 
 /**
  * The local transform that puts a window straight ahead of the camera's heading, or straight
- * behind it, at the distance it stands from the camera on the ground and at its own height, turned
- * as it moves round so it faces the camera as it did ({@link standingAt}). Null when its parent's
+ * behind it, at the distance it stands from the camera along the floor and at its own height
+ * ({@link standingAt}). Null when its parent's
  * placement cannot be inverted. Throws a RangeError for a window standing at the camera, which has
  * no distance to keep.
  */
@@ -353,15 +358,15 @@ export function aroundCamera(
 }
 
 /** Heights above the eye of the near, middle and far rings, in world units: the far ones higher. */
-const RING_RISE = Object.freeze([-0.3, 0, 0.3]);
+const RING_RISE = Object.freeze([-0.48, 0, 0.48]);
 
 /**
  * The commands that arrange the windows round the camera, as one change: every window standing on
  * its own (not one nested in another window) that is not locked, in order of what it shows, then
  * the host's key for it (`keyOf`, such as its colour), then its name, spread evenly round the
  * whole circle from straight ahead of the camera, and laid in turn on three rings at the `rings`
- * distances (near, middle, far), the farther a little higher; each keeps facing the camera as it
- * did. Locked windows keep their places. Throws a RangeError for a ring distance that is not
+ * distances along the floor (near, middle, far), the farther a little higher. Locked windows keep
+ * their places. Throws a RangeError for a ring distance that is not
  * positive and finite, or rings not nearest first; an Error for a window whose group's placement
  * cannot be inverted.
  */
@@ -430,8 +435,10 @@ export function arrangedAround(
 export interface MarkerSnap {
   /** Magnetic positioning's settings. */
   readonly settings: SnapSettings;
-  /** The rings round the camera, nearest first, in world units. */
+  /** The rings round the camera, nearest first, in world units along the floor. */
   readonly rings: readonly number[];
+  /** How the panorama draws its cards, to measure windows by. */
+  readonly measure: CardMeasure;
 }
 
 /**
@@ -451,6 +458,8 @@ export class MarkerDrag {
   readonly #grabbed: readonly [number, number];
   readonly #from: readonly [number, number];
   #last: SceneCommand[] | null = null;
+  /** Where the last preview shows the window. */
+  #lastPlace: RoomPlace | null = null;
   #ended = false;
   readonly #snap: (() => MarkerSnap | null) | null;
   readonly #neighbours: readonly SnapBox[];
@@ -486,7 +495,9 @@ export class MarkerDrag {
     this.#from = [at[0], at[2]];
     this.#previewId = `swf.map/${nodeId}/${String(state.revision)}`;
     this.#snap = snap;
-    this.#neighbours = snap === null ? [] : snapNeighbours(state, nodeId);
+    const magnet = snap?.() ?? null;
+    this.#neighbours =
+      magnet === null ? [] : snapNeighbours(state, nodeId, camera.position, magnet.measure);
   }
 
   /** The snap in force at the last place previewed. */
@@ -512,43 +523,59 @@ export class MarkerDrag {
       return true;
     }
     const state = this.#workspace.getState();
-    const stood = standingAt(state, this.nodeId, this.#eye, this.#from[0] + dx, this.#from[1] + dz);
-    if (stood === null) {
-      return false;
-    }
+    const eye = this.#eye;
+    let place = models.floorDrop(
+      ROOM_LIMITS,
+      roomPlaceOf(state, this.nodeId, eye),
+      this.#from[0] + dx - eye[0],
+      this.#from[1] + dz - eye[2],
+    );
     const magnet = this.#snap?.() ?? null;
-    let transform = stood;
     this.#snapped = NO_SNAP;
     if (magnet !== null) {
-      const placement = placementOf(state, this.nodeId);
-      const world = worldAt(placement, stood);
-      const box = boxOf(state, this.nodeId, world);
-      const snap =
-        box === null
-          ? NO_SNAP
-          : resolveSnap(box, this.#neighbours, this.#eye, magnet.settings, magnet.rings);
-      const snapped = snappedTransform(placement, world, this.#eye, snap);
-      if (snapped !== null) {
-        transform = snapped;
-        this.#snapped = snap;
-      }
+      const box = boxOf(state, this.nodeId, eye, magnet.measure, place);
+      const resolved =
+        box === null ? NO_SNAP : resolveSnap(box, this.#neighbours, magnet.settings, magnet.rings);
+      place = resolved.constraints.length === 0 ? place : snappedPlace(place, resolved);
+      this.#snapped = resolved;
+    }
+    const transform = standingInRoom(state, this.nodeId, eye, place);
+    if (transform === null) {
+      return false;
     }
     const commands: SceneCommand[] = [{ type: 'node.patch', id: this.nodeId, transform }];
     const result = this.#workspace.preview(this.#previewId, commands, { source: 'user' });
     if (result.status === 'previewed') {
       this.#last = commands;
+      this.#lastPlace = place;
       return true;
     }
     return false;
   }
 
-  /** Commits where it was last previewed; null when it never moved. */
+  /**
+   * Commits where it was last previewed, kept clear of the windows near it on the floor when
+   * magnetic positioning put it on a spoke ({@link spacedPlace}); null when it never moved.
+   */
   commit(): TxResult | null {
     this.#ended = true;
     if (this.#last === null) {
       return null;
     }
-    return this.#workspace.transaction(this.#last, { source: 'user', previewId: this.#previewId });
+    let commands = this.#last;
+    const magnet = this.#snap?.() ?? null;
+    if (magnet !== null && this.#lastPlace !== null) {
+      const spaced = spacedPlace(this.#lastPlace, this.#snapped, this.#neighbours, magnet.settings);
+      if (spaced.place !== this.#lastPlace) {
+        const state = this.#workspace.getState();
+        const transform = standingInRoom(state, this.nodeId, this.#eye, spaced.place);
+        if (transform !== null) {
+          commands = [{ type: 'node.patch', id: this.nodeId, transform }];
+          this.#snapped = spaced.snap;
+        }
+      }
+    }
+    return this.#workspace.transaction(commands, { source: 'user', previewId: this.#previewId });
   }
 
   /** Ends the drag without a change: the preview is discarded, and the window is where it was. */

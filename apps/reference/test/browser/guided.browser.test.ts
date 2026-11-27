@@ -2,7 +2,14 @@ import { keyed } from '@wsb/uikit/handles';
 import { createMemoryStore } from '@swf/persistence';
 import { describe, expect, it } from 'vitest';
 import type { ReferenceApp } from '../../src/app.js';
-import { FOCUS_ID, VIEWPORT_ID, cameraHeading, wrapDegrees } from '@swf/navigation';
+import {
+  DEFAULT_FEATURES,
+  FOCUS_ID,
+  VIEWPORT_ID,
+  cameraHeading,
+  wrapDegrees,
+} from '@swf/navigation';
+import { ADDED_REACH } from '../../src/presets.js';
 import type { ScenarioId } from '../../src/scenarios.js';
 import { SCENARIO_LAYOUT } from '../../src/scenarios.js';
 import type { ShellModel } from '../../src/shell/model.svelte.js';
@@ -109,15 +116,15 @@ describe('the guided scenarios, driven from the Scenarios view', () => {
   it('reaches a window behind the camera without turning round, faces it and reads it', async () => {
     const m = await begin('hidden');
     const app = appOf(m.model);
-    expect(offCamera(app, 'tasks')).toBeGreaterThan(90);
+    expect(offCamera(app, 'messages')).toBeGreaterThan(90);
     // Going to it by name both selects it and turns to it: two steps at once.
-    await goTo(m, 'Tasks', 'tasks');
+    await goTo(m, 'Messages', 'messages');
     await due(m, 3);
-    expect(offCamera(app, 'tasks')).toBeLessThan(30);
+    expect(offCamera(app, 'messages')).toBeLessThan(30);
     m.driver.act('editor.actions.mode#focus', 'press');
     await due(m, 'finished');
     expect(m.model.status?.mode).toBe(FOCUS_ID);
-    expect(app.workspace.getState().focusedId).toBe('tasks');
+    expect(app.workspace.getState().focusedId).toBe('messages');
   });
 
   it('brings a far window near, where its content shows, and pushes it back to its label', async () => {
@@ -129,13 +136,13 @@ describe('the guided scenarios, driven from the Scenarios view', () => {
     await expect.poll(() => app.policies.representationOf('media')).toBe('label');
     await showMe(m);
     await due(m, 3);
-    expect(app.poseOf('media')?.distance).toBeLessThan(4);
+    expect(app.poseOf('media')?.reach).toBeLessThan(DEFAULT_FEATURES.depth.full);
     await expect.poll(() => app.policies.representationOf('media')).toBe('full');
     // The note's own content is on the page now that it is near.
     await expect.poll(() => m.root.textContent).toContain('A transcript with annotations');
     await showMe(m);
     await due(m, 'finished');
-    expect(app.poseOf('media')?.distance).toBeGreaterThanOrEqual(5.5);
+    expect(app.poseOf('media')?.reach).toBeGreaterThanOrEqual(DEFAULT_FEATURES.depth.compact);
     await expect.poll(() => app.policies.representationOf('media')).toBe('label');
   });
 
@@ -295,8 +302,8 @@ describe('adding a window from the controls', () => {
     expect(id).toBe('new-window-1');
     expect(m.model.selected?.label).toBe('New window 1');
     expect(offCamera(app, id)).toBeLessThan(1e-6);
-    expect(app.poseOf(id)?.distance).toBeCloseTo(3, 9);
-    expect(app.poseOf(id)?.turned).toBeCloseTo(0, 9);
+    expect(app.poseOf(id)?.reach).toBeCloseTo(ADDED_REACH, 9);
+    expect(app.workspace.getState().nodes.get(id)?.transform.rotation).toEqual([0, 0, 0, 1]);
     // Its content is a live note, there to type in.
     await expect
       .poll(() => m.root.querySelector('[data-reference-content="added/note/1"]') !== null)
@@ -323,7 +330,8 @@ describe('adding a window from the controls', () => {
     await m.settle();
     const id = m.model.selected?.id ?? '';
     expect(offCamera(app, id)).toBeLessThan(1e-6);
-    expect(app.poseOf(id)?.turned).toBeCloseTo(0, 9);
+    // Upright in its group: it carries no rotation of its own.
+    expect(app.workspace.getState().nodes.get(id)?.transform.rotation).toEqual([0, 0, 0, 1]);
   });
 
   it('is offered by the empty workspace beside loading the studio', async () => {

@@ -24,9 +24,6 @@
       "path": "../presentation/tsconfig.build.json"
     },
     {
-      "path": "../projections/tsconfig.build.json"
-    },
-    {
       "path": "../interaction/tsconfig.build.json"
     }
   ]

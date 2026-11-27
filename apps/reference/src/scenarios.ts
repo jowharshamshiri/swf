@@ -124,11 +124,11 @@ const stands = (world: ScenarioWorld, id: string, test: (pose: Pose) => boolean)
   const pose = world.pose(id);
   return pose !== null && test(pose);
 };
-/** Where a window stands moved along its line from the camera to a distance. */
-const atDistance = (pose: Pose, distance: number) => {
+/** Where a window stands moved out or in along the floor to a reach, at its own height. */
+const atReach = (pose: Pose, reach: number) => {
   const [x, y, z] = pose.position;
-  const k = distance / pose.distance;
-  return { x: x * k, y: y * k, z: z * k };
+  const k = reach / pose.reach;
+  return { x: x * k, y, z: z * k };
 };
 /** The last world a step became due in. */
 const last = (due: readonly ScenarioWorld[]): ScenarioWorld => {
@@ -160,7 +160,7 @@ function sameLayout(a: SceneState, b: SceneState): boolean {
 
 /** The window each scenario works with, by its ID in the studio. */
 const DESK = 'desk';
-const TASKS = 'tasks';
+const MESSAGES = 'messages';
 const MEDIA = 'media';
 const BOARD = 'board';
 const BUILDS = 'builds';
@@ -214,22 +214,22 @@ const hidden: Scenario = {
       id: 'find',
       text: 'scenario.hidden.find',
       hint: 'scenario.hidden.find.hint',
-      holds: (world) => selected(world, TASKS),
-      show: () => command('swf.window.inspect', { id: TASKS }),
+      holds: (world) => selected(world, MESSAGES),
+      show: () => command('swf.window.inspect', { id: MESSAGES }),
     },
     {
       id: 'face',
       text: 'scenario.hidden.face',
       hint: 'scenario.hidden.face.hint',
-      holds: (world) => stands(world, TASKS, (pose) => offCamera(world, pose) < FACING),
-      show: () => command('swf.window.reveal', { id: TASKS }),
+      holds: (world) => stands(world, MESSAGES, (pose) => offCamera(world, pose) < FACING),
+      show: () => command('swf.window.reveal', { id: MESSAGES }),
     },
     {
       id: 'read',
       text: 'scenario.hidden.read',
       hint: 'scenario.hidden.read.hint',
-      holds: (world) => world.mode === FOCUS_ID && world.scene.focusedId === TASKS,
-      show: () => command('swf.focus.enter', { id: TASKS }),
+      holds: (world) => world.mode === FOCUS_ID && world.scene.focusedId === MESSAGES,
+      show: () => command('swf.focus.enter', { id: MESSAGES }),
     },
   ],
 };
@@ -251,22 +251,22 @@ const depth: Scenario = {
       id: 'near',
       text: 'scenario.depth.near',
       hint: 'scenario.depth.near.hint',
-      holds: (world) => stands(world, MEDIA, (pose) => pose.distance < world.depth.full),
+      holds: (world) => stands(world, MEDIA, (pose) => pose.reach < world.depth.full),
       show: (world) =>
         command('swf.window.place', {
           id: MEDIA,
-          ...atDistance(poseIn(world, MEDIA), Math.max(world.depth.full - 1, 2)),
+          ...atReach(poseIn(world, MEDIA), Math.max(world.depth.full - 1, 2)),
         }),
     },
     {
       id: 'far',
       text: 'scenario.depth.far',
       hint: 'scenario.depth.far.hint',
-      holds: (world) => stands(world, MEDIA, (pose) => pose.distance >= world.depth.compact),
+      holds: (world) => stands(world, MEDIA, (pose) => pose.reach >= world.depth.compact),
       show: (world) =>
         command('swf.window.place', {
           id: MEDIA,
-          ...atDistance(poseIn(world, MEDIA), world.depth.compact + 1.5),
+          ...atReach(poseIn(world, MEDIA), world.depth.compact + 1.5),
         }),
     },
   ],

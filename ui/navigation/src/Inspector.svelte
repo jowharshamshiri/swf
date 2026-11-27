@@ -1,7 +1,7 @@
 <script lang="ts">
   // WHAT IS SELECTED: the window's identity, whether it is in front of the camera or behind it,
   // and where it stands, formatted for the reader's locale (the scene keeps its own numbers); the
-  // kit's sliders that move it round the camera, out and up, turn it and size it, each previewing
+  // kit's sliders that move it round the camera, out and up, and size it, each previewing
   // as it is dragged and one undoable change when let go; the surfaces
   // the host supplied for it, each detached into a window of its own or moved into another window
   // whole, never split (FR-126, AC-016); merging it into another window and moving it into a group;
@@ -27,6 +27,7 @@
     Text,
   } from '@wsb/uikit/components';
   import { handleOf, keyed } from '@wsb/uikit/handles';
+  import { ROOM_LIMITS } from '@swf/interaction';
   import type { NavigationMessageId } from './messages.js';
   import type { NavigationModel } from './model.svelte.js';
   import WindowActions from './WindowActions.svelte';
@@ -179,7 +180,7 @@
     model.refusal !== null && model.placeOf(model.refusal) === 'inspector' ? model.refusal : null,
   );
 
-  // PLACING IT (UX-006, UX-012, UX-014): every drag, resize handle, turn and wheel or pinch has
+  // PLACING IT (UX-006, UX-012, UX-014): every drag, resize handle and wheel or pinch has
   // its control here, so neither a pointer's precision nor a device's gestures are needed. Each is
   // the kit's slider: dragged, the window moves as it goes (a preview) and letting go commits it
   // once; a key moves it a step and a typed number puts it exactly there, each one change.
@@ -197,24 +198,21 @@
     }
     return [
       ...(selected.movable ? [] : [t('inspector.place.fixed.move')]),
-      ...(selected.rotatable ? [] : [t('inspector.place.fixed.rotate')]),
       ...(selected.resizable ? [] : [t('inspector.place.fixed.resize')]),
     ];
   });
   const canMove = $derived(selected !== null && selected.movable && !selected.locked);
-  const canTurn = $derived(selected !== null && selected.rotatable && !selected.locked);
   const canSize = $derived(selected !== null && selected.resizable && !selected.locked);
 
-  type PoseField = 'heading' | 'reach' | 'y' | 'turned' | 'width' | 'height';
+  type PoseField = 'heading' | 'reach' | 'y' | 'width' | 'height';
   /**
    * Each slider's range and step. Distances, heights and sizes reach past their usual range when
    * the window already stands beyond it, to the step past where it is, so it can always be shown.
    */
   const SCALE: Readonly<Record<PoseField, { min: number; max: number; step: number; degrees: boolean }>> = {
     heading: { min: -180, max: 180, step: 1, degrees: true },
-    reach: { min: 0.5, max: 20, step: 0.1, degrees: false },
-    y: { min: -5, max: 5, step: 0.1, degrees: false },
-    turned: { min: -180, max: 180, step: 1, degrees: true },
+    reach: { min: ROOM_LIMITS.nearest, max: ROOM_LIMITS.farthest, step: 0.1, degrees: false },
+    y: { min: ROOM_LIMITS.lowest, max: ROOM_LIMITS.highest, step: 0.1, degrees: false },
     width: { min: 0.1, max: 8, step: 0.05, degrees: false },
     height: { min: 0.1, max: 8, step: 0.05, degrees: false },
   };
@@ -229,8 +227,6 @@
         return selected.reach;
       case 'y':
         return selected.position[1];
-      case 'turned':
-        return selected.turned;
       case 'width':
         return selected.width;
       case 'height':
@@ -249,14 +245,14 @@
     };
   };
   const enabledFor = (field: PoseField): boolean =>
-    field === 'turned' ? canTurn : field === 'width' || field === 'height' ? canSize : canMove;
+    field === 'width' || field === 'height' ? canSize : canMove;
 
   /** Poses the selected window by one slider: shown while it moves, committed once when let go. */
   function pose(id: string, field: PoseField, value: number, preview: boolean): void {
     void model.run('swf.window.pose', { id, [field]: value, preview });
   }
   const PLACE_FIELDS: readonly PoseField[] = ['heading', 'reach', 'y'];
-  const STAND_FIELDS: readonly PoseField[] = ['turned', 'width', 'height'];
+  const STAND_FIELDS: readonly PoseField[] = ['width', 'height'];
 </script>
 
 {#snippet poseSlider(id: string, field: PoseField)}
@@ -331,7 +327,7 @@
                 handle={handleOf`page.inspector.grab`}
                 label={t('command.gesture.grab.named', { label: selected.label ?? selected.id })}
                 size="small"
-                disabled={!(canMove || canTurn || canSize)}
+                disabled={!(canMove || canSize)}
                 onpress={() => {
                   void model.run('swf.gesture.grab', { id: selected.id });
                 }}

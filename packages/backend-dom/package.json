@@ -32,7 +32,6 @@
     "@swf/interaction": "0.1.0",
     "@swf/math": "0.1.0",
     "@swf/presentation": "0.1.0",
-    "@swf/projections": "0.1.0",
     "@swf/surfaces": "0.1.0"
   },
   "engines": {

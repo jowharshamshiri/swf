@@ -13,3 +13,7 @@ each window's actions, the focus strip, the map, the overview with search, and t
 panel. A host mounts the ones it wants, leaves out or replaces the view's controls, the focus strip,
 the map and the overview, and gives navigation's keys its page (`navigationKey`). The controls'
 English messages, every navigation command's name, and the kit's chrome tokens come with them.
+
+The inspector places a window by its angle, its distance along the floor and its height, with no
+turn; a window's place is said by its heading, its distance along the floor and its height. The
+panorama's key help and the held window's hint offer no turning of a window.

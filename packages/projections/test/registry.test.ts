@@ -35,8 +35,7 @@ function variant(
         describeDomain: () => base.describeDomain(),
         projectDirection: base.projectDirection.bind(base),
         unprojectPoint: base.unprojectPoint.bind(base),
-        projectGeometry: base.projectGeometry.bind(base),
-        clipVisibility: base.clipVisibility.bind(base),
+        placeDirection: base.placeDirection.bind(base),
         interactionRay: base.interactionRay.bind(base),
       };
       return { id, ...methods, ...projection } as Projection;
@@ -92,8 +91,9 @@ describe('projection validation (API-006)', () => {
     };
     unsupported(variant({ apiVersion: 2 }), /contract version 2/);
     unsupported(
-      variant({ profile: { ...equirectangular.profile, id: 'variant/1', mapping: 'curved' } }),
-      /mapping/,
+      // A projection only places cards: how it maps the sphere is not a field of its profile.
+      variant({ profile: { ...equirectangular.profile, id: 'variant/1', mapping: 'nonlinear' } }),
+      /profile.mapping is not a known capability/,
     );
     unsupported(variant({ profile: equirectangular.profile }), /profile ID "equirectangular\/1"/);
     unsupported(
@@ -147,7 +147,7 @@ describe('projection validation (API-006)', () => {
       }),
       /default configuration: cannot/,
     );
-    unsupported(variant({}, { projectGeometry: undefined }), /without projectGeometry\(\)/);
+    unsupported(variant({}, { placeDirection: undefined }), /without placeDirection\(\)/);
     unsupported(variant({}, { id: 'other/1' }), /creates projections with ID "other\/1"/);
     unsupported(
       variant({}, { unprojectPoint: () => ({ kind: 'unpickable', reason: 'never' }) }),
@@ -159,6 +159,10 @@ describe('projection validation (API-006)', () => {
         { projectDirection: () => ({ images: [[0, 0]], singular: false, behind: false }) },
       ),
       /projects to \[\[0,0\]\], not back to \(200, 100\)/,
+    );
+    unsupported(
+      variant({}, { placeDirection: () => [0, 0] }),
+      /places a card for it at \[0,0\], not at \(200, 100\)/,
     );
   });
 });

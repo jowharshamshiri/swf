@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/jowharshamshiri/swf/schema/swf.workspace-1.schema.json",
-  "title": "Spatial Workspace Framework workspace snapshot, swf.workspace/1",
+  "$id": "https://github.com/jowharshamshiri/swf/schema/swf.workspace-2.schema.json",
+  "title": "Spatial Workspace Framework workspace snapshot, swf.workspace/2",
   "description": "A workspace's layout as portable JSON: its scene (nodes, hierarchy, transforms, bounds, flags, surface associations with their binding keys, cameras, viewports, orbit root, selection and focus), the parameters of its active policies and the opaque state of its extensions. It never holds runtime handles, elements, callbacks or presented content.",
   "$comment": "The runtime validator enforces this schema and, besides, what a JSON Schema cannot state: rotations are unit quaternions (within 1e-6), a camera's far is greater than its near, every ID is unique across nodes, surfaces, cameras and viewports, every reference names an existing entity and the hierarchy is consistent and free of cycles, JSON data nests at most 64 levels, and the document and extension sizes are within their limits (by default 32 MiB per document, 1 MiB per extension namespace and 10 MiB for all of them).",
   "type": "object",
@@ -24,7 +24,7 @@
     "extensions"
   ],
   "properties": {
-    "schema": { "const": "swf.workspace/1" },
+    "schema": { "const": "swf.workspace/2" },
     "engine": {
       "description": "The versioned ID of the engine that wrote the snapshot.",
       "$ref": "#/$defs/versionedId"

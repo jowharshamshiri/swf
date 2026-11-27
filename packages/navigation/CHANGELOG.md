@@ -20,3 +20,17 @@ offers none), the `viewportId` its samples land in and the router's `events`, an
 the view's `height` as well as its width; the policies' `input(device, lock)` passes the lock on.
 The step functions it was built from (`wrapPointer`, `afterDispatch`, `NO_POINTERS`, `WrapState`,
 `Wrapped`) are no longer exported.
+
+Navigation works in the room. A `Pose` gives a window's heading, its `reach` along the floor and how
+far it stands `above` the camera's level, with its elevation derived from them; `turned` and
+`rotatable` are gone, and `swf.window.pose` keeps a window inside the room. Semantic depth reads the
+distance along the floor, with bands at 6.7 and 9.3 by default. Focus faces its window with a level
+camera and scales its card to read (`FocusOptions` is `fill` and `maxMagnification`; `FocusFrame`
+is a heading and a scale). Magnetic positioning snaps room places measured on the cards the view
+draws (`SnapBox`, `CardMeasure`, `cardMeasureOf`) to `SNAP_RINGS` and the spokes, and keeps a
+window let go on a spoke clear of its neighbours (`spacedPlace`, `SNAP_SPACING`, decided by
+`Swf.AppSpacing`). Arrange lays windows on `ARRANGE_RINGS`. The map and the radar reach
+`MAP_REACH` (`radarReach` is gone); a map starts holding the whole room (`roomMapView`;
+`MAP_SCALE.initial` is gone). The panorama spans 130° down with its horizon at 0.49
+(`PANORAMA_VERTICAL`). The depth-drag and turn-drag policies are gone. The viewport stays the size
+of its element when a restored scene or an undo gives it another size.

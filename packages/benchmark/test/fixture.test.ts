@@ -5,7 +5,7 @@ import {
   cameraRotation,
   createProjectionRegistry,
   equirectangular,
-  projectionFor,
+  projectorOf,
 } from '@swf/projections';
 import { describe, expect, it } from 'vitest';
 import type { Fixture, FixtureSize } from '../src/index.js';
@@ -33,7 +33,7 @@ function made(fixture: Fixture): Workspace {
   return ws;
 }
 
-/** Surfaces any part of which a viewport shows, with its camera turned to a heading. */
+/** Surfaces any part of whose card a viewport shows, with its camera turned to a heading. */
 function visibleIn(ws: Workspace, viewportId: string, headingDegrees: number): number {
   const viewport = ws.getState().viewports.get(viewportId);
   if (viewport === undefined) {
@@ -49,15 +49,13 @@ function visibleIn(ws: Workspace, viewportId: string, headingDegrees: number): n
   }
   const state = ws.getState();
   const view = viewGeometryOf(state, viewportId);
-  const projection = projectionFor(equirectangular, view);
-  let count = 0;
-  for (const { id } of state.surfaces.values()) {
-    const geometry = ws.surfaceGeometry(id);
-    if (geometry !== undefined && projection.clipVisibility(geometry, view).state !== 'outside') {
-      count += 1;
-    }
-  }
-  return count;
+  const fragments = projectorOf(equirectangular).project(
+    state,
+    view,
+    (id) => ws.surfaceGeometry(id),
+    null,
+  );
+  return new Set(fragments.map((f) => f.surfaceId)).size;
 }
 
 describe('the standard benchmark fixture (§26.1)', () => {
@@ -104,23 +102,20 @@ describe('the standard benchmark fixture (§26.1)', () => {
     }
   });
 
-  it('places every window where it is planned in the world, its nested groups’ turns undone', () => {
+  it('stands every window where it is planned in the room, its nested groups’ turns undone, upright', () => {
     for (const w of fixture.windows) {
       const m = worldMatrix(state.nodes, w.id);
       expect(m).toBeDefined();
       const [x, y, z] = [m?.[12] ?? 0, m?.[13] ?? 0, m?.[14] ?? 0];
       const heading = (Math.atan2(x, -z) * 180) / Math.PI;
-      const elevation = (Math.atan2(y, Math.hypot(x, z)) * 180) / Math.PI;
       const wrapped = ((heading - w.heading + 540) % 360) - 180;
       expect(wrapped).toBeCloseTo(0, 9);
-      expect(elevation).toBeCloseTo(w.elevation, 9);
-      expect(Math.hypot(x, y, z)).toBeCloseTo(w.distance, 9);
-      // It faces the camera: its front (+Z) points back at the origin.
-      const front = [m?.[8] ?? 0, m?.[9] ?? 0, m?.[10] ?? 0];
-      const back = [-x, -y, -z].map((v) => v / w.distance);
-      expect(front[0]).toBeCloseTo(back[0] ?? 0, 9);
-      expect(front[1]).toBeCloseTo(back[1] ?? 0, 9);
-      expect(front[2]).toBeCloseTo(back[2] ?? 0, 9);
+      expect(Math.hypot(x, z)).toBeCloseTo(w.reach, 9);
+      expect(y).toBeCloseTo(w.y, 9);
+      // Inside the room, carrying no rotation of its own.
+      expect(w.reach).toBeGreaterThanOrEqual(2);
+      expect(Math.abs(w.y)).toBeLessThanOrEqual(3);
+      expect(state.nodes.get(w.id)?.transform.rotation).toEqual([0, 0, 0, 1]);
     }
   });
 
@@ -161,7 +156,8 @@ describe('the standard benchmark fixture (§26.1)', () => {
     // Every planned value is a whole number of tenths of a degree or hundredths of a unit.
     for (const w of fixture.windows) {
       expect(Number.isInteger(Math.round(w.heading * 10 * 1e6) / 1e6)).toBe(true);
-      expect(Number.isInteger(Math.round(w.distance * 100 * 1e6) / 1e6)).toBe(true);
+      expect(Number.isInteger(Math.round(w.reach * 100 * 1e6) / 1e6)).toBe(true);
+      expect(Number.isInteger(Math.round(w.y * 100 * 1e6) / 1e6)).toBe(true);
     }
   });
 });

@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { ViewportFrame } from '@swf/presentation';
 import { DOM_ATTRIBUTES } from '../../src/index.js';
 import type { Stage } from './fixture.js';
-import { onWindow, pageOf, screenOf, stage, W } from './fixture.js';
+import { onCard, pageOf, stage, W } from './fixture.js';
 
 let current: Stage | null = null;
 afterEach(async () => {
@@ -47,8 +47,8 @@ function nativeFragment(update: ViewportFrame, surfaceId: string): ProjectedFrag
 }
 
 describe('live DOM placement (FR-084, FR-086, ARCH-010, ARCH-012)', () => {
-  it('maps the live element onto its projected corners, declaring the shape approximate', async () => {
-    current = await stage([{ id: 'a', heading: 0.3, distance: 3 }]);
+  it('places the live element flat and upright on its window’s card, exactly, in a panorama too', async () => {
+    current = await stage([{ id: 'a', heading: 0.3, distance: 3, y: 0.4 }]);
     const view = current.views.get('v');
     const update = await view?.update();
     if (view === undefined || update === undefined) {
@@ -56,25 +56,34 @@ describe('live DOM placement (FR-084, FR-086, ARCH-010, ARCH-012)', () => {
     }
     const fragment = nativeFragment(update, 'a-view');
     const slot = view.root.querySelector<HTMLElement>(`[${DOM_ATTRIBUTES.slot}="a-view"]`);
-    if (slot === null || fragment.corners === null) {
-      throw new Error('no slot or corners');
+    if (slot === null) {
+      throw new Error('no slot');
     }
+    // Its box is the surface's place on the card: an upright rectangle, corners square.
     const root = view.root.getBoundingClientRect();
+    const [bx, by, bw, bh] = fragment.bounds;
+    const expected: [number, number][] = [
+      [bx, by],
+      [bx + bw, by],
+      [bx + bw, by + bh],
+      [bx, by + bh],
+    ];
     slotCorners(slot).forEach(([x, y], i) => {
-      const [cx, cy] = fragment.corners?.[i] ?? [NaN, NaN];
+      const [cx, cy] = expected[i] ?? [NaN, NaN];
       expect(Math.abs(x - root.left - cx)).toBeLessThan(0.75);
       expect(Math.abs(y - root.top - cy)).toBeLessThan(0.75);
     });
-    // The live element lays out at the surface's size (1.6 × 0.8 units at 400 px per unit).
-    expect(slot.style.width).toBe('640px');
-    expect(slot.style.height).toBe('320px');
-    // A panorama bends a planar element: it is placed exactly but its shape only approximated.
+    // Laid out at its size before the card's scale (1.6 × 0.8 units at 80 px a unit), then scaled.
+    expect(parseFloat(slot.style.width)).toBeCloseTo(1.6 * 80, 6);
+    expect(parseFloat(slot.style.height)).toBeCloseTo(0.8 * 80, 6);
+    // Styles keep five decimals.
+    expect(slot.style.transform).toMatch(/^scale\([0-9.]+\)$/);
+    expect(parseFloat(slot.style.transform.slice('scale('.length))).toBeCloseTo(fragment.scale, 4);
+    // A card is never bent: the element is native, placed and shaped exactly.
     const clip = slot.parentElement;
-    expect(clip?.getAttribute(DOM_ATTRIBUTES.mode)).toBe('approximated');
+    expect(clip?.getAttribute(DOM_ATTRIBUTES.mode)).toBe('native');
     expect(clip?.getAttribute(DOM_ATTRIBUTES.anchor)).toBe('exact');
-    expect(clip?.getAttribute(DOM_ATTRIBUTES.shape)).toBe('approximate');
-    expect(clip?.getAttribute(DOM_ATTRIBUTES.placement)).toBe('corners');
-    expect(update.frame.planned.every((p) => p.negotiation.shapeFidelity !== 'exact')).toBe(true);
+    expect(clip?.getAttribute(DOM_ATTRIBUTES.shape)).toBe('exact');
     // The live element really is in the slot, mounted once.
     expect(slot.querySelectorAll('[data-test-content="key-a"]')).toHaveLength(1);
   });
@@ -93,8 +102,8 @@ describe('live DOM placement (FR-084, FR-086, ARCH-010, ARCH-012)', () => {
     const clip = view.root.querySelector<HTMLElement>(
       `[${DOM_ATTRIBUTES.layer}="content-native"][${DOM_ATTRIBUTES.surface}="s-view"]`,
     );
-    // The clip box is the owner piece's visible bounds (styles keep three decimals); the slot
-    // inside reaches past the seam.
+    // The clip box is the owner copy's place on the card (styles keep three decimals); it reaches
+    // past the seam, where the view's edge clips it.
     expect(parseFloat(clip?.style.left ?? '')).toBeCloseTo(owner.bounds[0], 2);
     expect(parseFloat(clip?.style.width ?? '')).toBeCloseTo(owner.bounds[2], 2);
     expect(getComputedStyle(clip ?? document.body).overflow).toBe('hidden');
@@ -173,15 +182,15 @@ describe('live DOM placement (FR-084, FR-086, ARCH-010, ARCH-012)', () => {
     if (view === undefined) {
       throw new Error('no view');
     }
-    const contentAt = (local: [number, number, number]) => {
-      const [x, y] = pageOf(view.root, ...screenOf(s, onWindow(s, 'a', local)));
+    const contentAt = (local: [number, number]) => {
+      const [x, y] = pageOf(view.root, ...onCard(s, 'a', local));
       return document
         .elementFromPoint(x, y)
         ?.closest('[data-test-content]')
         ?.getAttribute('data-test-content');
     };
     // Where both windows cover the view, the nearer one is on top.
-    expect(contentAt([0.2, 0, 0])).toBe('key-a');
+    expect(contentAt([0.2, 0])).toBe('key-a');
     // Send `a` behind `b`: its elements keep their place in the document, its stacking changes.
     const elementA = s.lives.get('key-a')?.element;
     expect(
@@ -192,7 +201,7 @@ describe('live DOM placement (FR-084, FR-086, ARCH-010, ARCH-012)', () => {
       }).status,
     ).toBe('committed');
     await view.update();
-    expect(contentAt([0.2, 0, 0])).toBe('key-b');
+    expect(contentAt([0.2, 0])).toBe('key-b');
     expect(s.lives.get('key-a')?.element).toBe(elementA);
   });
 });

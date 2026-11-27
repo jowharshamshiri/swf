@@ -8,23 +8,22 @@ import type {
 } from '@swf/interaction';
 import {
   INTERACTION_API_VERSION,
-  placementOf,
-  translatedBy,
+  ROOM_LIMITS,
+  ROOM_PACE,
+  roomPlaceOf,
+  standingInRoom,
   wheelTurn,
-  withDepth,
-  worldOrigin,
 } from '@swf/interaction';
-import { sub } from '@swf/math';
 import type * as Lean from '@swf/models';
 import { models } from '@swf/models';
 
 /**
- * The wheel over a window with the depth modifier (Shift) held brings it nearer or sends it
- * farther. A burst of ticks over one window is one gesture: the window is shown where the ticks so
+ * The wheel over a window with the depth modifier (Shift) held brings it nearer along the floor or
+ * sends it farther (turned down, farther, at the room's wheel pace). A burst of ticks over one window is one gesture: the window is shown where the ticks so
  * far take it (a preview) and committed once, as one undoable change, when the wheel rests, when
  * other input comes (a press, a key) or when another window is wheeled; Escape, or cancelling the
  * gesture, leaves it where it was. Each step is decided by the Lean model `Swf.AppWheel`
- * (models/Swf/AppWheel.lean); this module measures how far a tick moves the window, keeps the
+ * (models/Swf/AppWheel.lean); this module measures how far a tick turns the wheel, keeps the
  * timer, and turns the decision into previews and commits. It sits between the device and the
  * framework, so every other intent passes through as it was, and so does the wheel while a
  * gesture of the framework holds the viewport (a press, pending or running, or a keyboard hold):
@@ -81,18 +80,24 @@ export function createWheelBursts(options: WheelBurstOptions): WheelBursts {
     }
   };
 
-  /** The change that puts a window `depth` world units farther from the camera than it stands. */
-  const movedBy = (nodeId: Id, depth: number): SceneCommand[] => {
+  /**
+   * The change that moves a window along the floor by the room's wheel pace for `turned` pixels of
+   * wheel (down is farther), from where it stands, inside the room.
+   */
+  const movedBy = (nodeId: Id, turned: number): SceneCommand[] => {
     const state = workspace.getState();
     const viewport = state.viewports.get(viewportId);
     const eye = viewport === undefined ? undefined : state.cameras.get(viewport.cameraId)?.position;
     if (eye === undefined) {
       throw new Error(`viewport "${viewportId}" has no camera`);
     }
-    const placement = placementOf(state, nodeId);
-    const origin = worldOrigin(placement);
-    const moved = withDepth(eye, origin, depth, router.settings().minDistance);
-    const transform = translatedBy(placement, sub(moved, origin));
+    const place = models.wheelOnFloor(
+      ROOM_LIMITS,
+      ROOM_PACE,
+      roomPlaceOf(state, nodeId, eye),
+      turned,
+    );
+    const transform = standingInRoom(state, nodeId, eye, place);
     if (transform === null) {
       throw new Error(`window "${nodeId}" cannot be moved: its group's placement is singular`);
     }
@@ -102,13 +107,13 @@ export function createWheelBursts(options: WheelBurstOptions): WheelBursts {
   const act = (action: Lean.WheelAction) => {
     switch (action.kind) {
       case 'show': {
-        const { nodeId, depth } = action.burst;
+        const { nodeId, turned } = action.burst;
         if (shown === null) {
           const burstId = `wheel-${String(next++)}`;
           shown = { burstId, previewId: `swf.${burstId}/${nodeId}` };
           options.report({ kind: 'started', burstId, nodeId });
         }
-        workspace.preview(shown.previewId, movedBy(nodeId, depth), { source: 'user' });
+        workspace.preview(shown.previewId, movedBy(nodeId, turned), { source: 'user' });
         return;
       }
       case 'commit': {
@@ -117,8 +122,8 @@ export function createWheelBursts(options: WheelBurstOptions): WheelBursts {
         if (ending === null) {
           throw new Error('a burst is committed that was never shown');
         }
-        const { nodeId, depth } = action.burst;
-        const result = workspace.transaction(movedBy(nodeId, depth), {
+        const { nodeId, turned } = action.burst;
+        const result = workspace.transaction(movedBy(nodeId, turned), {
           source: 'user',
           previewId: ending.previewId,
         });
@@ -159,7 +164,7 @@ export function createWheelBursts(options: WheelBurstOptions): WheelBursts {
   const step = (event: Lean.WheelEvent) => {
     const outcome = models.wheelStep(current, event);
     if (outcome.kind === 'invalidDelta') {
-      throw new RangeError('a wheel tick moves a window by a finite distance');
+      throw new RangeError('a wheel tick turns the wheel a finite number of pixels');
     }
     for (const action of outcome.s.actions) {
       act(action);
@@ -213,7 +218,7 @@ export function createWheelBursts(options: WheelBurstOptions): WheelBursts {
                 step({
                   kind: 'tick',
                   nodeId,
-                  delta: -wheelTurn(intent) * router.settings().wheelDepthPerPixel,
+                  delta: wheelTurn(intent),
                 });
                 timer = setTimeout(settle, WHEEL_REST_MS);
                 return CONSUMED;

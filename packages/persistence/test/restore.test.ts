@@ -13,11 +13,28 @@ import {
 } from '../src/index.js';
 import { commit, edited, layout, PANORAMA, persistenceOf, settle, workspace } from './fixtures.js';
 
-const fixtures = import.meta.glob<string>('../fixtures/swf.workspace-1/*.json', {
-  query: '?raw',
-  import: 'default',
-  eager: true,
-});
+/** Snapshots of each format, as published: each still restores. */
+const fixtures = {
+  1: import.meta.glob<string>('../fixtures/swf.workspace-1/*.json', {
+    query: '?raw',
+    import: 'default',
+    eager: true,
+  }),
+  2: import.meta.glob<string>('../fixtures/swf.workspace-2/*.json', {
+    query: '?raw',
+    import: 'default',
+    eager: true,
+  }),
+};
+
+/** A fixture of format `version` by its file name. */
+function fixtureOf(version: 1 | 2, name: string): string {
+  const text = fixtures[version][`../fixtures/swf.workspace-${String(version)}/${name}`];
+  if (text === undefined) {
+    throw new Error(`no swf.workspace/${String(version)} fixture ${name}`);
+  }
+  return text.trimEnd();
+}
 
 /** A layout's snapshot text, taken from a workspace of its own. */
 async function snapshotText(ws: Workspace = layout()): Promise<string> {
@@ -310,6 +327,11 @@ describe('policies and extensions taking back their state (FR-162, FR-169, FR-18
   });
 });
 
+interface Placed {
+  id: string;
+  transform: { position: number[]; rotation: number[] };
+}
+
 describe('migrations (MIG-003, MIG-004)', () => {
   /** A host's earlier layout format: windows by name with a position, nothing else. */
   const legacy = {
@@ -375,8 +397,47 @@ describe('migrations (MIG-003, MIG-004)', () => {
     },
   };
 
-  it('has no built-in step yet: swf.workspace/1 is the first published format', () => {
-    expect(SNAPSHOT_MIGRATIONS).toEqual([]);
+  it('steps swf.workspace/1 to /2, standing each window and surface upright and saying which', () => {
+    expect(SNAPSHOT_MIGRATIONS.map((m) => [m.from, m.to])).toEqual([
+      ['swf.workspace/1', 'swf.workspace/2'],
+    ]);
+    const v1 = JSON.parse(fixtureOf(1, 'layout.json')) as {
+      nodes: Placed[];
+      surfaces: Placed[];
+    };
+    // A surface turned on its window, too.
+    const viewer = v1.surfaces.find((surface) => surface.id === 'viewer-view');
+    if (viewer === undefined) {
+      throw new Error('no viewer-view in the fixture');
+    }
+    viewer.transform.rotation = [0, 0.6, 0, 0.8];
+    const before = new Map(v1.nodes.map((n) => [n.id, n.transform]));
+    const migrated = migrateDocument(v1);
+    expect(migrated).toMatchObject({
+      sourceVersion: 'swf.workspace/1',
+      targetVersion: 'swf.workspace/2',
+      steps: [
+        {
+          from: 'swf.workspace/1',
+          to: 'swf.workspace/2',
+          warnings: [
+            'window "editor" was turned, which a card does not show: it stands upright now',
+            'surface "viewer-view" was turned, which a card does not show: it stands upright now',
+          ],
+        },
+      ],
+    });
+    const after = new Map(migrated.document.nodes.map((n) => [n.id, n.transform]));
+    expect(after.get('editor')?.rotation).toEqual([0, 0, 0, 1]);
+    expect(
+      migrated.document.surfaces.find((surface) => surface.id === 'viewer-view')?.transform
+        .rotation,
+    ).toEqual([0, 0, 0, 1]);
+    // Where each stands is kept; a group keeps its rotation, turning its windows round the camera.
+    expect(after.get('editor')?.position).toEqual(before.get('editor')?.position);
+    expect(after.get('desk')).toEqual(before.get('desk'));
+    // The document given is not changed.
+    expect(viewer.transform.rotation).toEqual([0, 0.6, 0, 0.8]);
     expect(() => migrateDocument({ schema: 'swf.workspace/0' })).toThrow(/is not supported/);
   });
 
@@ -445,23 +506,37 @@ describe('migrations (MIG-003, MIG-004)', () => {
     expect(ws.getState()).toBe(before);
   });
 
-  it('reads every swf.workspace/1 fixture and writes it back byte for byte', async () => {
-    const names = Object.keys(fixtures).map((path) => path.split('/').at(-1));
+  /** A workspace restored from `text`, and the snapshot it writes back. */
+  const roundTrip = async (text: string) => {
+    const createdAt = (JSON.parse(text) as { createdAt: number }).createdAt;
+    const ws = createWorkspace({
+      id: 'restored',
+      projectionKinds: [PANORAMA, { id: 'fixture.pano/1', configIssue: () => null }],
+    });
+    const p = createPersistence({ workspace: ws.persistence(), now: () => createdAt });
+    const outcome = restored(await p.restore(text));
+    return { outcome, again: p.export((await p.capture()).document) };
+  };
+  const withoutId = (text: string) => text.replace(/"workspaceId":"[^"]*"/, '');
+
+  it('reads every swf.workspace/2 fixture and writes it back byte for byte', async () => {
+    const names = Object.keys(fixtures[2]).map((path) => path.split('/').at(-1));
     expect(names).toEqual(['empty.json', 'extensions.json', 'layout.json']);
-    for (const [path, text] of Object.entries(fixtures)) {
-      const fixture = text.trimEnd();
-      const createdAt = (JSON.parse(fixture) as { createdAt: number }).createdAt;
-      const ws = createWorkspace({
-        id: 'restored',
-        projectionKinds: [PANORAMA, { id: 'fixture.pano/1', configIssue: () => null }],
-      });
-      const p = createPersistence({ workspace: ws.persistence(), now: () => createdAt });
-      const outcome = restored(await p.restore(fixture));
-      expect(outcome.failures, path).toEqual([]);
-      const again = p.export((await p.capture()).document);
-      expect(again.replace(/"workspaceId":"[^"]*"/, ''), path).toBe(
-        fixture.replace(/"workspaceId":"[^"]*"/, ''),
-      );
+    for (const name of names) {
+      const fixture = fixtureOf(2, name ?? '');
+      const { outcome, again } = await roundTrip(fixture);
+      expect(outcome.failures, name).toEqual([]);
+      expect(withoutId(again), name).toBe(withoutId(fixture));
+    }
+  });
+
+  it('restores every swf.workspace/1 fixture as its swf.workspace/2 fixture', async () => {
+    const names = Object.keys(fixtures[1]).map((path) => path.split('/').at(-1));
+    expect(names).toEqual(['empty.json', 'extensions.json', 'layout.json']);
+    for (const name of names) {
+      const { outcome, again } = await roundTrip(fixtureOf(1, name ?? ''));
+      expect(outcome.sourceVersion, name).toBe('swf.workspace/1');
+      expect(withoutId(again), name).toBe(withoutId(fixtureOf(2, name ?? '')));
     }
   });
 });

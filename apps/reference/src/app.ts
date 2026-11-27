@@ -531,9 +531,7 @@ export async function createReferenceApp(options: ReferenceAppOptions): Promise<
       // Straight ahead of the camera, in the group's own turn.
       const heading =
         cameraHeading(state, VIEWPORT_ID) - (nodeHeading(state, WORKSPACE_GROUP_ID) ?? 0);
-      const window = composites([
-        { ...planned, id, heading: (heading * 180) / Math.PI, elevation: 0 },
-      ])[0];
+      const window = composites([{ ...planned, id, heading: (heading * 180) / Math.PI }])[0];
       if (window === undefined) {
         throw new Error('an added window was planned as no window');
       }

@@ -8,24 +8,18 @@ import type {
   TxOutcome,
   TxResult,
 } from '@swf/core';
-import type { Transform3D, Vec3 } from '@swf/math';
-import { mat4InvertAffine, mat4TransformDirection, mat4TransformPoint, sub } from '@swf/math';
+import type { Vec3 } from '@swf/math';
+import { models } from '@swf/models';
 import type { ViewGeometry } from '@swf/presentation';
 import type { Projection, RayResult } from '@swf/projections';
 import { cameraRotation, headingPitchOf } from '@swf/projections';
 import { eyeOf } from './commands.js';
-import type { DragFrame, Placement } from './drag.js';
-import {
-  dragAnchor,
-  dragFrame,
-  movedTransform,
-  placementOf,
-  translatedBy,
-  turnedAbout,
-  withDepth,
-} from './drag.js';
+import type { Placement } from './placement.js';
+import { placementOf, turnedAbout } from './placement.js';
 import type { PointerIntent, WheelIntent } from './intents.js';
 import { wheelTurn } from './intents.js';
+import type { RoomPlace } from './room.js';
+import { ROOM_LIMITS, RoomMotion, roomPlaceOf, standingInRoom } from './room.js';
 import type { InputRegion, PickCandidate, PickResult, ResizeEdge } from './pick.js';
 import type { InteractionSettings } from './settings.js';
 
@@ -254,28 +248,25 @@ function grabsWindow(context: ClaimContext): boolean {
   );
 }
 
-/** Moves a window with one pointer, previewing on every move and committing once. */
+/**
+ * Moves a window round the room with one pointer (`Swf.Room`), previewing on every move and
+ * committing once: across turns its heading at the view's angle a pixel, up and down raise and
+ * lower it a fixed height a pixel whatever its distance, and with Shift held up and down move it
+ * along the floor instead; the wheel moves it along the floor too. Each change of Shift, and each
+ * wheel, carries on from where the window then stands.
+ */
 class MoveGesture implements GestureHandler {
   readonly #session: GestureSession;
   readonly #nodeId: Id;
-  readonly #placement: Placement;
-  readonly #frame: DragFrame;
-  #depth = 0;
-  #pointer: PointerIntent | null = null;
+  readonly #eye: Vec3;
+  readonly #motion: RoomMotion;
   #last: SceneCommand[] | null = null;
 
-  constructor(session: GestureSession, target: PickCandidate) {
+  constructor(session: GestureSession, target: PickCandidate, down: PointerIntent) {
     this.#session = session;
     this.#nodeId = target.nodeId;
-    this.#placement = placementOf(session.scene(), target.nodeId);
-    const s = session.settings;
-    this.#frame = dragFrame(
-      s.dragMode,
-      eyeOf(session.view()),
-      target.worldPoint,
-      s.worldPlaneNormal,
-      s.minDistance,
-    );
+    this.#eye = eyeOf(session.view());
+    this.#motion = new RoomMotion(roomPlaceOf(session.scene(), target.nodeId, this.#eye), down);
   }
 
   update(pointers: readonly PointerIntent[]): void {
@@ -283,27 +274,13 @@ class MoveGesture implements GestureHandler {
     if (pointer === undefined) {
       return;
     }
-    this.#pointer = pointer;
-    const ray = this.#session.ray(pointer);
-    if (ray.kind !== 'ray') {
-      // Outside the image or where it has no inverse: hold the last position, keep the capture.
-      return;
-    }
-    const anchor = dragAnchor(this.#frame, ray.ray, this.#depth);
-    if (anchor !== null) {
-      this.#propose(anchor);
-    }
+    const fieldOfView = this.#session.projection().describeDomain().horizontalCoverage;
+    this.#propose(this.#motion.moved(pointer, this.#session.view().width, fieldOfView));
   }
 
   wheel(intent: WheelIntent): boolean {
-    this.#depth -= wheelTurn(intent) * this.#session.settings.wheelDepthPerPixel;
-    if (this.#pointer === null) {
-      this.#propose(
-        withDepth(this.#frame.eye, this.#frame.anchor, this.#depth, this.#frame.minDistance),
-      );
-    } else {
-      this.update([this.#pointer]);
-    }
+    this.#propose(this.#motion.wheeled(wheelTurn(intent)));
+    this.#motion.restart();
     return true;
   }
 
@@ -315,8 +292,8 @@ class MoveGesture implements GestureHandler {
     // Everything this gesture changed is in its preview.
   }
 
-  #propose(anchor: Vec3): void {
-    const transform = movedTransform(this.#placement, this.#frame, anchor);
+  #propose(place: RoomPlace): void {
+    const transform = standingInRoom(this.#session.scene(), this.#nodeId, this.#eye, place);
     if (transform === null) {
       return;
     }
@@ -324,15 +301,16 @@ class MoveGesture implements GestureHandler {
     // A rejected proposal (a constraint said no) leaves the last valid one in place.
     if (this.#session.preview(commands).status === 'previewed') {
       this.#last = commands;
+      this.#motion.accept(place);
     }
   }
 }
 
 /**
  * Drags a window's frame or a non-live surface (or its content during a takeover) to move the
- * window, as the `dragMode` setting maps the pointer, with the wheel adding depth. One pointer, a
- * draggable node that is not locked; previews on every move and commits once (`node.move`).
- * `swf.window-move/1`, priority 100.
+ * window round the room: across turns it, up and down raise and lower it, Shift moves it along the
+ * floor, and the wheel does too. One pointer, a draggable node that is not locked; previews on
+ * every move and commits once (`node.move`). `swf.window-move/1`, priority 100.
  */
 export const windowMovePolicy: InteractionPolicy = Object.freeze({
   id: 'swf.window-move/1',
@@ -344,34 +322,45 @@ export const windowMovePolicy: InteractionPolicy = Object.freeze({
     if (target === null || !grabsWindow(context)) {
       return null;
     }
+    const down = context.pointers[0];
+    if (down === undefined) {
+      return null;
+    }
     return {
       kind: 'drag',
       pointers: 1,
       operation: 'node.move',
       nodeId: target.nodeId,
-      begin: (session) => new MoveGesture(session, target),
+      begin: (session) => new MoveGesture(session, target, down),
     };
   },
 });
 
-/** Resizes a window from an edge or corner, keeping the opposite side in place. */
+/**
+ * Resizes a window from an edge or corner of its card, keeping its centre where it is: both sides
+ * across, or both up and down, grow by the pointer's motion, in the card's pixels a unit.
+ */
 class ResizeGesture implements GestureHandler {
   readonly #session: GestureSession;
   readonly #nodeId: Id;
   readonly #edge: ResizeEdge;
-  readonly #placement: Placement;
-  readonly #start: Vec3;
+  readonly #from: readonly [number, number];
+  readonly #pixelsPerUnit: readonly [number, number];
   readonly #bounds: Vec3;
   #last: SceneCommand[] | null = null;
 
-  constructor(session: GestureSession, target: PickCandidate, edge: ResizeEdge) {
+  constructor(
+    session: GestureSession,
+    target: PickCandidate,
+    edge: ResizeEdge,
+    down: PointerIntent,
+  ) {
     this.#session = session;
     this.#nodeId = target.nodeId;
     this.#edge = edge;
-    const scene = session.scene();
-    this.#placement = placementOf(scene, target.nodeId);
-    this.#start = target.localPoint;
-    const node = scene.nodes.get(target.nodeId);
+    this.#from = [down.x, down.y];
+    this.#pixelsPerUnit = target.pixelsPerUnit;
+    const node = session.scene().nodes.get(target.nodeId);
     if (node === undefined) {
       throw new Error(`node "${target.nodeId}" vanished before its resize began`);
     }
@@ -380,38 +369,19 @@ class ResizeGesture implements GestureHandler {
 
   update(pointers: readonly PointerIntent[]): void {
     const pointer = pointers[0];
-    const ray = pointer === undefined ? null : this.#session.ray(pointer);
-    const toLocal = mat4InvertAffine(this.#placement.world);
-    if (ray?.kind !== 'ray' || toLocal === null) {
+    if (pointer === undefined) {
       return;
     }
-    // Where the ray meets the window's own plane, in its local frame.
-    const origin = mat4TransformPoint(toLocal, ray.ray.origin);
-    const direction = mat4TransformDirection(toLocal, ray.ray.direction);
-    if (direction[2] === 0) {
-      return;
-    }
-    const t = -origin[2] / direction[2];
-    if (!(t > 0)) {
-      return;
-    }
-    const dx = origin[0] + t * direction[0] - this.#start[0];
-    const dy = origin[1] + t * direction[1] - this.#start[1];
+    const dx = (pointer.x - this.#from[0]) / this.#pixelsPerUnit[0];
+    const dy = (this.#from[1] - pointer.y) / this.#pixelsPerUnit[1];
     const min = this.#session.settings.minSize;
     const [w, h, d] = this.#bounds;
     const east = this.#edge.includes('e') ? 1 : this.#edge.includes('w') ? -1 : 0;
     const north = this.#edge.includes('n') ? 1 : this.#edge.includes('s') ? -1 : 0;
-    const width = east === 0 ? w : Math.max(min, w + east * dx);
-    const height = north === 0 ? h : Math.max(min, h + north * dy);
-    // The centre moves half the growth towards the dragged side.
-    const shiftLocal: Vec3 = [(east * (width - w)) / 2, (north * (height - h)) / 2, 0];
-    const shift = mat4TransformDirection(this.#placement.world, shiftLocal);
-    const transform: Transform3D | null = translatedBy(this.#placement, shift);
-    if (transform === null) {
-      return;
-    }
+    const width = east === 0 ? w : Math.max(min, w + 2 * east * dx);
+    const height = north === 0 ? h : Math.max(min, h + 2 * north * dy);
     const commands: SceneCommand[] = [
-      { type: 'node.patch', id: this.#nodeId, bounds: [width, height, d], transform },
+      { type: 'node.patch', id: this.#nodeId, bounds: [width, height, d] },
     ];
     if (this.#session.preview(commands).status === 'previewed') {
       this.#last = commands;
@@ -428,8 +398,8 @@ class ResizeGesture implements GestureHandler {
 }
 
 /**
- * Drags a resize handle to resize a window, keeping the opposite edge in place and no side
- * smaller than `minSize`. One pointer, a resizable node that is not locked; previews on every move
+ * Drags a resize handle to resize a window, keeping its centre in place and no side smaller than
+ * `minSize`. One pointer, a resizable node that is not locked; previews on every move
  * and commits once (`node.resize`). `swf.window-resize/1`, priority 110.
  */
 export const windowResizePolicy: InteractionPolicy = Object.freeze({
@@ -443,7 +413,8 @@ export const windowResizePolicy: InteractionPolicy = Object.freeze({
         ? movableTarget(context, 'resizable')
         : null;
     const edge = target?.edge ?? null;
-    if (target === null || edge === null) {
+    const down = context.pointers[0];
+    if (target === null || edge === null || down === undefined) {
       return null;
     }
     return {
@@ -451,36 +422,34 @@ export const windowResizePolicy: InteractionPolicy = Object.freeze({
       pointers: 1,
       operation: 'node.resize',
       nodeId: target.nodeId,
-      begin: (session) => new ResizeGesture(session, target, edge),
+      begin: (session) => new ResizeGesture(session, target, edge, down),
     };
   },
 });
 
 /**
  * Turns the view by dragging the background: the camera in camera navigation (view state,
- * applied as it goes), or the orbit root in orbit navigation (previewed, committed once). The
- * grabbed direction stays under the pointer: angles are read in the view as it was at the press.
+ * applied as it goes, the camera kept level), or the orbit root in orbit navigation (previewed,
+ * committed once), by the pointer's motion across at the view's angle a pixel.
  */
 class TurnGesture implements GestureHandler {
   readonly #session: GestureSession;
   readonly #target: 'camera' | 'orbit';
   readonly #view: ViewGeometry;
-  readonly #projection: Projection;
-  readonly #down: { longitude: number; latitude: number } | null;
+  /** The view's angle for each pixel across, in radians. */
+  readonly #perPixel: number;
+  readonly #downX: number;
   readonly #cameraId: Id;
   readonly #rotation: readonly [number, number, number, number];
   readonly #orbit: { rootId: Id; placement: Placement } | null;
-  #previous: number;
   #last: SceneCommand[] | null = null;
 
   constructor(session: GestureSession, target: 'camera' | 'orbit', down: PointerIntent) {
     this.#session = session;
     this.#target = target;
     this.#view = session.view();
-    this.#projection = session.projection();
-    const at = this.#projection.interactionRay(down.x, down.y, this.#view);
-    this.#down = at.kind === 'ray' ? { longitude: at.longitude, latitude: at.latitude } : null;
-    this.#previous = this.#down?.longitude ?? 0;
+    this.#perPixel = session.projection().describeDomain().horizontalCoverage / this.#view.width;
+    this.#downX = down.x;
     const scene = session.scene();
     const viewport = scene.viewports.get(session.viewportId);
     const camera = viewport === undefined ? undefined : scene.cameras.get(viewport.cameraId);
@@ -498,34 +467,23 @@ class TurnGesture implements GestureHandler {
 
   update(pointers: readonly PointerIntent[]): void {
     const pointer = pointers[0];
-    if (pointer === undefined || this.#down === null) {
+    if (pointer === undefined) {
       return;
     }
-    const at = this.#projection.interactionRay(pointer.x, pointer.y, this.#view, {
-      previousLongitude: this.#previous,
-    });
-    if (at.kind !== 'ray') {
-      return;
-    }
-    this.#previous = at.longitude;
-    const dLongitude = at.longitude - this.#down.longitude;
-    const dLatitude = at.latitude - this.#down.latitude;
+    // The room turns under the pointer: by the motion across, at the view's angle a pixel.
+    const turn = (pointer.x - this.#downX) * this.#perPixel;
     if (this.#target === 'camera') {
-      const { heading, pitch } = headingPitchOf(this.#rotation);
-      const nextPitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, pitch - dLatitude));
+      // The camera stays level: it turns in heading only.
+      const { heading } = headingPitchOf(this.#rotation);
       this.#session.transact([
-        {
-          type: 'camera.patch',
-          id: this.#cameraId,
-          rotation: cameraRotation(heading - dLongitude, nextPitch),
-        },
+        { type: 'camera.patch', id: this.#cameraId, rotation: cameraRotation(heading - turn, 0) },
       ]);
       return;
     }
     if (this.#orbit === null) {
       return;
     }
-    const transform = turnedAbout(this.#orbit.placement, eyeOf(this.#view), dLongitude);
+    const transform = turnedAbout(this.#orbit.placement, eyeOf(this.#view), turn);
     if (transform === null) {
       return;
     }
@@ -640,18 +598,16 @@ function tap(nodeId: Id | null, commands: readonly SceneCommand[]): GestureClaim
 class PinchDepthGesture implements GestureHandler {
   readonly #session: GestureSession;
   readonly #nodeId: Id;
-  readonly #placement: Placement;
   readonly #eye: Vec3;
-  readonly #anchor: Vec3;
+  readonly #start: RoomPlace;
   readonly #spread: number;
   #last: SceneCommand[] | null = null;
 
   constructor(session: GestureSession, target: PickCandidate, pointers: readonly PointerIntent[]) {
     this.#session = session;
     this.#nodeId = target.nodeId;
-    this.#placement = placementOf(session.scene(), target.nodeId);
     this.#eye = eyeOf(session.view());
-    this.#anchor = target.worldPoint;
+    this.#start = roomPlaceOf(session.scene(), target.nodeId, this.#eye);
     this.#spread = spreadOf(pointers);
   }
 
@@ -660,10 +616,12 @@ class PinchDepthGesture implements GestureHandler {
     if (!(spread >= 1) || !(this.#spread >= 1)) {
       return;
     }
-    const radius = Math.hypot(...sub(this.#anchor, this.#eye));
-    const depth = radius * (this.#spread / spread) - radius;
-    const anchor = withDepth(this.#eye, this.#anchor, depth, this.#session.settings.minDistance);
-    const transform = translatedBy(this.#placement, sub(anchor, this.#anchor));
+    // Spread apart, the window comes nearer along the floor, by as much as the fingers spread.
+    const place = models.keepInRoom(ROOM_LIMITS, {
+      ...this.#start,
+      floor: this.#start.floor * (this.#spread / spread),
+    });
+    const transform = standingInRoom(this.#session.scene(), this.#nodeId, this.#eye, place);
     if (transform === null) {
       return;
     }
@@ -689,7 +647,7 @@ function spreadOf(pointers: readonly PointerIntent[]): number {
 
 /**
  * Two pointers pressed on one window adjust its depth: spreading them brings it nearer, pinching
- * sends it away, never nearer the camera than `minDistance`. A draggable node that is not locked;
+ * sends it away, along the floor and within the room's limits. A draggable node that is not locked;
  * previews and commits once (`node.move`). `swf.pinch-depth/1`, priority 200.
  */
 export const pinchDepthPolicy: InteractionPolicy = Object.freeze({

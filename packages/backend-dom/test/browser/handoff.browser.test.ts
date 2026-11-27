@@ -3,7 +3,7 @@ import { commands } from 'vitest/browser';
 import { makeError } from '@swf/core';
 import { DOM_ATTRIBUTES, showDegraded } from '../../src/index.js';
 import type { Stage } from './fixture.js';
-import { drag, onWindow, pageOf, screenOf, stage } from './fixture.js';
+import { drag, onCard, pageOf, stage } from './fixture.js';
 
 let current: Stage | null = null;
 afterEach(async () => {
@@ -47,7 +47,7 @@ describe('losing the renderer in an active scene (§33.2 scenario 6, NFR-013, §
 
     // The scene still takes input: dragging the window's frame moves it.
     const before = s.ws.getState().nodes.get('a')?.transform.position ?? [0, 0, 0];
-    const start = screenOf(s, onWindow(s, 'a', [0, 0.6, 0]));
+    const start = onCard(s, 'a', [0, 0.6]);
     await drag(view.root, start, [
       [start[0] + 30, start[1]],
       [start[0] + 60, start[1] + 10],
@@ -65,7 +65,7 @@ describe('losing the renderer in an active scene (§33.2 scenario 6, NFR-013, §
     expect(s.ws.getState().nodes.get('a')?.transform.position).toEqual(moved);
 
     // And the content takes the browser's own input again.
-    const [cx, cy] = screenOf(s, onWindow(s, 'a', [0, 0.1, 0]));
+    const [cx, cy] = onCard(s, 'a', [0, 0.1]);
     const [px, py] = pageOf(view.root, cx, cy);
     expect(document.elementFromPoint(px, py)).toBe(live.button);
     await commands.mouse('move', px, py);

@@ -1,9 +1,7 @@
 import type { SceneCommand, Workspace } from '@swf/core';
-import { createWorkspace, worldMatrix } from '@swf/core';
+import { createWorkspace } from '@swf/core';
 import type { InteractionEvent, InteractionRouter } from '@swf/interaction';
 import { createInteractionRouter } from '@swf/interaction';
-import type { Vec3 } from '@swf/math';
-import { mat4TransformPoint, quatFromAxisAngle, sub } from '@swf/math';
 import { ManualFrames } from '@swf/conformance';
 import type { ProjectionRegistry } from '@swf/projections';
 import type {
@@ -14,7 +12,7 @@ import type {
   ViewportFrame,
 } from '@swf/presentation';
 import { createPresentationRegistry, createPresenter, viewGeometryOf } from '@swf/presentation';
-import { createProjectionRegistry, equirectangular } from '@swf/projections';
+import { createProjectionRegistry, equirectangular, projectorOf } from '@swf/projections';
 import type { SurfaceAdapter, SurfaceCapabilities, SurfaceRuntime } from '@swf/surfaces';
 import { createSurfaceRuntime } from '@swf/surfaces';
 import { commands } from 'vitest/browser';
@@ -148,7 +146,7 @@ export function windowCommands(placements: readonly WindowPlacement[]): SceneCom
               p.y ?? 0,
               -p.distance * Math.cos(p.heading),
             ],
-            rotation: quatFromAxisAngle([0, 1, 0], -p.heading),
+            rotation: [0, 0, 0, 1],
             scale: [1, 1, 1],
           },
         },
@@ -263,7 +261,7 @@ export async function stage(
   }
   const renderer = new DomRenderer({
     document,
-    chrome: { projections, ...(options.inks === undefined ? {} : { inks: options.inks }) },
+    chrome: options.inks === undefined ? {} : { inks: options.inks },
   });
   const unregister = presentation.registerRenderer(renderer);
   presentation.registerCompositor(new DomCompositor());
@@ -375,23 +373,26 @@ export async function drag(
   await commands.mouse('up', ex, ey);
 }
 
-/** A point on a window, in its local frame (x right, y up), placed in the world. */
-export function onWindow(s: Stage, nodeId: string, local: Vec3): Vec3 {
-  const m = worldMatrix(s.ws.getState().nodes, nodeId);
-  if (m === undefined) {
-    throw new Error(`no node ${nodeId}`);
+/**
+ * Where a point of a window's card lies in a view, in its root's coordinates: `local` in the
+ * window's own units from its centre (x right, y up), on the card the view draws at the window's
+ * own place (not a copy across the seam).
+ */
+export function onCard(
+  s: Stage,
+  nodeId: string,
+  [lx, ly]: readonly [number, number],
+  viewportId = 'v',
+): [number, number] {
+  const state = s.ws.getState();
+  const node = state.nodes.get(nodeId);
+  const view = viewGeometryOf(state, viewportId);
+  const own = projectorOf(equirectangular)
+    .project(state, view, (id) => s.ws.surfaceGeometry(id), null)
+    .find((f) => f.nativeOwner && state.surfaces.get(f.surfaceId)?.ownerNodeId === nodeId);
+  if (node === undefined || own === undefined) {
+    throw new Error(`window ${nodeId} has no card in view ${viewportId}`);
   }
-  return mat4TransformPoint(m, local);
-}
-
-/** Where a world point appears in a view, in its root's coordinates. */
-export function screenOf(s: Stage, point: Vec3, viewportId = 'v'): [number, number] {
-  const view = viewGeometryOf(s.ws.getState(), viewportId);
-  const projection = equirectangular.create(view.projectionConfig);
-  const eye: Vec3 = [view.camera[12], view.camera[13], view.camera[14]];
-  const image = projection.projectDirection(sub(point, eye), view).images[0];
-  if (image === undefined) {
-    throw new Error(`${JSON.stringify(point)} is not in view`);
-  }
-  return [image[0], image[1]];
+  const [x, y, w, h] = own.card;
+  return [x + w / 2 + (lx * w) / node.bounds[0], y + h / 2 - (ly * h) / node.bounds[1]];
 }

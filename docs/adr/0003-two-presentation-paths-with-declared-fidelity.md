@@ -1,6 +1,7 @@
 # 0003. Two presentation paths, live DOM and drawn geometry, with declared fidelity
 
-- **Status:** Accepted
+- **Status:** Accepted; its placement superseded by
+  [0015](0015-one-room-with-windows-drawn-as-flat-cards.md)
 - **Date:** 2026-11-21
 - **Requirements:** ARCH-010 to ARCH-014, FR-084, FR-086, FR-090, AC-013
 

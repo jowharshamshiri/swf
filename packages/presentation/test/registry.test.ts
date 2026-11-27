@@ -15,7 +15,7 @@ function codeOf(fn: () => unknown): string | undefined {
 }
 
 const projector: ViewProjector = {
-  profile: { id: 'test.panorama/1', mapping: 'nonlinear', seamWrapping: true, exactInverse: true },
+  profile: { id: 'test.panorama/1', seamWrapping: true, exactInverse: true },
   project: () => [],
 };
 
@@ -27,7 +27,7 @@ describe('presentation registry', () => {
     registry.registerProjector(projector);
     expect(registry.rendererIds()).toEqual(['mock.renderer/1']);
     expect(registry.compositorIds()).toEqual(['mock.compositor/1']);
-    expect(registry.projector('test.panorama/1')?.capabilities.mapping).toBe('nonlinear');
+    expect(registry.projector('test.panorama/1')?.capabilities.seamWrapping).toBe(true);
     removeRenderer();
     removeRenderer();
     expect(registry.rendererIds()).toEqual([]);
@@ -95,7 +95,7 @@ describe('presentation registry', () => {
       codeOf(() =>
         registry.registerProjector({
           ...projector,
-          profile: { ...projector.profile, mapping: 'curved' as never },
+          profile: { ...projector.profile, seamWrapping: 'sometimes' as never },
         }),
       ),
     ).toBe('UNSUPPORTED_CAPABILITY');

@@ -10,6 +10,7 @@ import { describe, expect, it } from 'vitest';
 import type {
   ProjectedFragment,
   ProjectionProfile,
+  Representation,
   RepresentationPolicy,
   ViewGeometry,
 } from '../src/index.js';
@@ -19,17 +20,16 @@ import {
   fragmentId,
   groupFallbacks,
   planFrame,
+  representationFor,
 } from '../src/index.js';
 
 const PANORAMA: ProjectionProfile = {
   id: 'test.panorama/1',
-  mapping: 'nonlinear',
   seamWrapping: true,
   exactInverse: true,
 };
 const PERSPECTIVE: ProjectionProfile = {
   id: 'test.perspective/1',
-  mapping: 'affine',
   seamWrapping: false,
   exactInverse: true,
 };
@@ -86,7 +86,9 @@ function fragment(
     viewportId: 'v',
     ordinal,
     bounds: [0, 0, 10, 10],
-    corners: null,
+    card: [0, 0, 10, 10],
+    scale: 1,
+    representation: 'full',
     depth: 3,
     geometricFidelity: 'exact',
     nativeOwner: ordinal === 0,
@@ -197,22 +199,38 @@ describe('frame planning', () => {
     owns: (id: string) => boolean = () => true,
     representation?: RepresentationPolicy,
     compositor = MOCK_COMPOSITOR_CAPABILITIES,
+    // How exactly a's card places it: approximately for a window carrying a rotation of its own.
+    placedA: 'exact' | 'approximate' = 'exact',
   ) => {
     const ws = workspace();
     const state = ws.getState();
+    const view = VIEW(profile);
+    // As a projector does: the policy is asked once per surface, and every fragment of the
+    // surface is represented alike.
+    const chosen = new Map<string, Representation>();
+    const shown = (surfaceId: string): Representation => {
+      const nodeId = state.surfaces.get(surfaceId)?.ownerNodeId ?? '';
+      const known = chosen.get(surfaceId);
+      const answer =
+        known ??
+        (representation === undefined
+          ? 'full'
+          : representationFor(representation, { scene: state, view, surfaceId, nodeId }));
+      chosen.set(surfaceId, answer);
+      return answer;
+    };
     return planFrame({
       scene: state,
-      view: VIEW(profile),
+      view,
       output: createViewOutput(state, 'v', [
-        fragment('a', 0),
-        fragment('a', 1),
-        fragment('b', 0),
-        fragment('c', 0),
+        fragment('a', 0, { representation: shown('a'), geometricFidelity: placedA }),
+        fragment('a', 1, { representation: shown('a'), geometricFidelity: placedA }),
+        fragment('b', 0, { representation: shown('b') }),
+        fragment('c', 0, { representation: shown('c') }),
       ]),
       renderer: { id: 'r/1', capabilities: MOCK_RENDERER_CAPABILITIES },
       compositor: { id: 'c/1', capabilities: compositor },
       projection: profile,
-      ...(representation === undefined ? {} : { representation }),
       condition: (id) =>
         conditionFor(
           id === 'b'
@@ -247,8 +265,16 @@ describe('frame planning', () => {
     expect(frame.fallbacks.map((f) => f.surfaceId)).toEqual(['a', 'a', 'c']);
   });
 
-  it('approximates the live element in a panorama and proxies it where another viewport owns it', () => {
-    expect(modes(plan(PANORAMA))[fragmentId('v', 'a', 0)]).toBe('approximated');
+  it('presents the live element natively in a panorama, approximates it where its card only approximates its place, and proxies it where another viewport owns it', () => {
+    expect(modes(plan(PANORAMA))[fragmentId('v', 'a', 0)]).toBe('native');
+    const turned = plan(
+      PANORAMA,
+      () => true,
+      undefined,
+      MOCK_COMPOSITOR_CAPABILITIES,
+      'approximate',
+    );
+    expect(modes(turned)[fragmentId('v', 'a', 0)]).toBe('approximated');
     expect(modes(plan(PERSPECTIVE, (id) => id !== 'a'))[fragmentId('v', 'a', 0)]).toBe('proxy');
   });
 
@@ -310,10 +336,19 @@ describe('frame planning', () => {
     expect(() => plan(PERSPECTIVE, () => true, bad)).toThrow(
       /representation policy "test.depth\/1" answered "tiny" for surface "a"/,
     );
+    // Nor does a view output hold a fragment represented so.
+    const state = workspace().getState();
+    expect(() =>
+      createViewOutput(state, 'v', [
+        fragment('a', 0, { representation: 'tiny' as unknown as Representation }),
+      ]),
+    ).toThrow(/has representation "tiny", not one of full, compact, label/);
   });
 
   it('groups identical fallbacks with a count', () => {
-    const groups = groupFallbacks(plan(PANORAMA).fallbacks);
+    const groups = groupFallbacks(
+      plan(PANORAMA, () => true, undefined, MOCK_COMPOSITOR_CAPABILITIES, 'approximate').fallbacks,
+    );
     expect(groups.map((g) => [g.example.chosen, g.count, g.surfaceIds])).toEqual([
       ['approximated', 1, ['a']],
       ['proxy', 1, ['a']],

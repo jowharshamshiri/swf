@@ -8,7 +8,7 @@ import {
   semanticDepth,
 } from '@swf/navigation';
 import { planPreset } from '../src/presets.js';
-import { policyWorld, VIEWPORT } from './policy-world.js';
+import { FOCUS, policyWorld, VIEWPORT } from './policy-world.js';
 
 const BANDS = { full: 4, compact: 5.5 };
 
@@ -25,11 +25,15 @@ describe('semantic depth (FR-122, ARCH-025)', () => {
     expect(() => representationAt(Number.NaN, BANDS)).toThrow(RangeError);
   });
 
-  it('represents each window of a scene by its distance from the camera, reading only the scene', () => {
+  it('represents each window of a scene by its distance from the camera along the floor, reading only the scene', () => {
     const w = policyWorld('dense');
     const state = w.ws.getState();
     const view = viewGeometryOf(state, VIEWPORT);
-    const policy = semanticDepth({ bands: DEFAULT_FEATURES.depth, focusModeId: FOCUS_ID });
+    const policy = semanticDepth({
+      bands: DEFAULT_FEATURES.depth,
+      focusModeId: FOCUS_ID,
+      focus: FOCUS,
+    });
     const counts = { full: 0, compact: 0, label: 0 };
     for (const planned of planPreset('dense', 1)) {
       const chosen = representationFor(policy, {
@@ -38,9 +42,10 @@ describe('semantic depth (FR-122, ARCH-025)', () => {
         surfaceId: `${planned.id}-surface`,
         nodeId: planned.id,
       });
-      // The planned distance is the window's distance from the camera, and its band decides.
+      // The planned reach is the window's distance from the camera along the floor, and its band
+      // decides, whatever its height.
       const distance = distanceFrom(state, planned.id, view);
-      expect(distance).toBeCloseTo(planned.distance, 9);
+      expect(distance).toBeCloseTo(planned.reach, 9);
       expect(chosen).toBe(representationAt(distance, DEFAULT_FEATURES.depth));
       counts[chosen] += 1;
     }
@@ -54,7 +59,7 @@ describe('semantic depth (FR-122, ARCH-025)', () => {
 
   it('follows a window as it moves nearer, and turns with the workspace without changing band', () => {
     const w = policyWorld('dense');
-    const policy = semanticDepth({ bands: BANDS, focusModeId: FOCUS_ID });
+    const policy = semanticDepth({ bands: BANDS, focusModeId: FOCUS_ID, focus: FOCUS });
     const represent = (nodeId: string) => {
       const scene = w.ws.getState();
       return representationFor(policy, {
@@ -64,7 +69,7 @@ describe('semantic depth (FR-122, ARCH-025)', () => {
         nodeId,
       });
     };
-    const far = planPreset('dense', 1).find((p) => p.distance >= 5.5);
+    const far = planPreset('dense', 1).find((p) => p.reach >= 5.5);
     if (far === undefined) {
       throw new Error('the dense scene has no far window');
     }
@@ -72,10 +77,10 @@ describe('semantic depth (FR-122, ARCH-025)', () => {
     // Turned round the camera with the workspace: as far as before.
     w.policies.turnWorkspace(90);
     expect(represent(far.id)).toBe('label');
-    // Brought nearer by the depth command: shown in full.
+    // Brought nearer along the floor, and raised high: 3 out, so shown in full, though 4.2 away.
     const node = w.ws.getState().nodes.get(far.id);
-    const [x, y, z] = node?.transform.position ?? [0, 0, 0];
-    const k = 3 / far.distance;
+    const [x, , z] = node?.transform.position ?? [0, 0, 0];
+    const k = 3 / Math.hypot(x, z);
     w.ws.transaction(
       [
         {
@@ -83,7 +88,7 @@ describe('semantic depth (FR-122, ARCH-025)', () => {
           id: far.id,
           transform: {
             ...(node?.transform ?? { rotation: [0, 0, 0, 1], scale: [1, 1, 1] }),
-            position: [x * k, y * k, z * k],
+            position: [x * k, 3, z * k],
           },
         },
       ],
@@ -94,8 +99,8 @@ describe('semantic depth (FR-122, ARCH-025)', () => {
 
   it('shows the window focus presents in full, whatever its distance', () => {
     const w = policyWorld('dense');
-    const policy = semanticDepth({ bands: BANDS, focusModeId: FOCUS_ID });
-    const far = planPreset('dense', 1).find((p) => p.distance >= 5.5);
+    const policy = semanticDepth({ bands: BANDS, focusModeId: FOCUS_ID, focus: FOCUS });
+    const far = planPreset('dense', 1).find((p) => p.reach >= 5.5);
     if (far === undefined) {
       throw new Error('the dense scene has no far window');
     }
