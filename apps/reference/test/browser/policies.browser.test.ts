@@ -5,7 +5,7 @@ import type { ViewportFrame } from '@swf/presentation';
 import { viewGeometryOf } from '@swf/presentation';
 import { equirectangular } from '@swf/projections';
 import { afterEach, describe, expect, it } from 'vitest';
-import { commands } from 'vitest/browser';
+import { commands, server, userEvent } from 'vitest/browser';
 import type { ReferenceApp } from '../../src/app.js';
 import { createReferenceApp } from '../../src/app.js';
 import type { AppConfig } from '../../src/config.js';
@@ -15,7 +15,7 @@ import { planPreset, WORKSPACE_GROUP_ID } from '../../src/presets.js';
 declare module 'vitest/browser' {
   interface BrowserCommands {
     mouse: (
-      action: 'move' | 'down' | 'up' | 'double',
+      action: 'move' | 'down' | 'up' | 'double' | 'release',
       x: number,
       y: number,
       modifiers?: readonly string[],
@@ -29,6 +29,14 @@ const H = 400;
 
 let app: ReferenceApp | null = null;
 let root: HTMLElement | null = null;
+
+/** The view's root of the test running: there is one from its start. */
+function viewRoot(): HTMLElement {
+  if (root === null) {
+    throw new Error('no view is mounted');
+  }
+  return root;
+}
 afterEach(async () => {
   await app?.dispose();
   root?.remove();
@@ -69,8 +77,14 @@ async function frame(a: ReferenceApp): Promise<ViewportFrame> {
 const nextFrame = () => new Promise((resolve) => requestAnimationFrame(resolve));
 
 /** Where a point of a window, in its local frame, appears in the view: the image nearest `nearX`. */
-function screenOf(a: ReferenceApp, nodeId: string, local: Vec3, nearX = W / 2): [number, number] {
-  const state = a.workspace.getState();
+function screenOf(
+  a: ReferenceApp,
+  nodeId: string,
+  local: Vec3,
+  nearX = W / 2,
+  presented = false,
+): [number, number] {
+  const state = presented ? a.workspace.getPresented() : a.workspace.getState();
   const m = worldMatrix(state.nodes, nodeId);
   if (m === undefined) {
     throw new Error(`no ${nodeId}`);
@@ -110,16 +124,109 @@ function virtualCursor(): { x: number; y: number } | null {
   return { x: box.left - (view?.left ?? 0), y: box.top - (view?.top ?? 0) };
 }
 
+/**
+ * Whether the browser locks a pointer to the view for a drag. Playwright's Chromium and Firefox
+ * do; its WebKit refuses a lock asked for outside a press ("requires a user gesture"), so there a
+ * drag wraps only as far as the platform's pointer goes.
+ */
+const LOCKS = server.browser !== 'webkit';
+
+/**
+ * Makes the platform refuse to lock the pointer to `element`, as a browser does that will not take
+ * it (its promise rejected with `NotAllowedError`, and `pointerlockerror` on the document), where
+ * this browser would otherwise grant it. Returns what puts the platform's own lock back.
+ */
+function refusingLocks(element: HTMLElement): () => void {
+  if (!LOCKS) {
+    return () => undefined;
+  }
+  Object.defineProperty(element, 'requestPointerLock', {
+    configurable: true,
+    value: () => {
+      queueMicrotask(() => document.dispatchEvent(new Event('pointerlockerror')));
+      return Promise.reject(new DOMException('The pointer lock was refused', 'NotAllowedError'));
+    },
+  });
+  return () => {
+    delete (element as { requestPointerLock?: unknown }).requestPointerLock;
+  };
+}
+
+/** How many samples the platform has sent of a locked pointer since the test began. */
+let platformLockedMoves = 0;
+document.addEventListener(
+  'pointermove',
+  (e) => {
+    if (e.isTrusted && document.pointerLockElement !== null) {
+      platformLockedMoves += 1;
+    }
+  },
+  { capture: true },
+);
+afterEach(() => {
+  platformLockedMoves = 0;
+});
+
+/**
+ * Waits until the view holds the pointer lock and the platform has sent its first sample under
+ * it, whose motion is the platform's own (Chromium's to the page's corner), so that motion made
+ * after it is the mouse's; then lets the frames it moves be shown.
+ */
+async function lockedAndWarped(element: HTMLElement | null): Promise<void> {
+  await lockedTo(element, true);
+  await expect.poll(() => platformLockedMoves, { timeout: 3000 }).toBeGreaterThan(0);
+  await nextFrame();
+  await nextFrame();
+}
+
+/** Waits until the view holds the pointer lock, or no longer does. */
+async function lockedTo(element: HTMLElement | null, held: boolean): Promise<void> {
+  await expect.poll(() => document.pointerLockElement === element, { timeout: 3000 }).toBe(held);
+}
+
+/**
+ * Motion of the locked pointer, as the platform reports it: a sample at the place the lock froze,
+ * carrying `movementX`/`movementY`. Browser automation moves a pointer only to places on the
+ * page, which a locked pointer no longer has (Chromium's headless shell answers each such move
+ * with its opposite, Firefox measures it from a centre it warps to), so the motion alone is made
+ * here; the press, the lock, the release and the keys stay the browser's own.
+ */
+function lockedMotion(target: HTMLElement, pointerId: number, dx: number, dy: number): void {
+  const box = target.getBoundingClientRect();
+  target.dispatchEvent(
+    new PointerEvent('pointermove', {
+      pointerId,
+      pointerType: 'mouse',
+      isPrimary: true,
+      buttons: 1,
+      clientX: box.left + box.width - 1,
+      clientY: box.top + box.height / 2,
+      movementX: dx,
+      movementY: dy,
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+    }),
+  );
+}
+
+/** The ID the browser gives the mouse's pointer, from its next press in the view. */
+function pointerIdOfNextPress(element: HTMLElement): () => number {
+  let id = -1;
+  element.addEventListener(
+    'pointerdown',
+    (e) => {
+      id = e.pointerId;
+    },
+    { capture: true, once: true },
+  );
+  return () => id;
+}
+
 describe('the wrapped cursor across the seam (§33.2 scenario 2, FR-107, FR-123)', () => {
-  it('carries a window past the view’s edge and back in at the other, under a virtual cursor, as one change', async () => {
-    const a = await start({ preset: 'seam' });
-    // Snapping would turn the window a little at release; this checks the anchor exactly.
-    a.policies.configure({ enabled: { snap: false } });
-    await frame(a);
-    const gestures = gesturesOf(a);
-    const before = a.workspace.getState();
-    // Pressed on whole pixels, as every browser reports them, left of the seam (the right edge).
-    const [sx, sy] = screenOf(a, 'window-01', [-0.7, 0, 0], W);
+  /** Presses window-01 left of the seam (the right edge), Alt held, and drags it to the edge. */
+  async function toTheEdge(a: ReferenceApp, grabbedX = -0.7) {
+    const [sx, sy] = screenOf(a, 'window-01', [grabbedX, 0, 0], W);
     const x = Math.round(sx);
     const y = Math.round(sy);
     expect(x).toBeGreaterThan(W - 60);
@@ -127,7 +234,6 @@ describe('the wrapped cursor across the seam (§33.2 scenario 2, FR-107, FR-123)
     if (pick.kind !== 'hit' || pick.target.nodeId !== 'window-01') {
       throw new Error('the press does not land on window-01');
     }
-    // The grabbed point, in the window's own frame.
     const toLocal = mat4InvertAffine(
       worldMatrix(a.workspace.getState().nodes, 'window-01') ?? IDENTITY_MAT4,
     );
@@ -135,36 +241,153 @@ describe('the wrapped cursor across the seam (§33.2 scenario 2, FR-107, FR-123)
       throw new Error('window-01 has no placement');
     }
     const grabbed = mat4TransformPoint(toLocal, pick.target.worldPoint);
-    const last = x + Math.floor((W + 60 - x) / 4) * 4;
+    const pointerId = pointerIdOfNextPress(viewRoot());
     await commands.mouse('move', x, y);
     await commands.mouse('down', x, y, ['Alt']);
-    for (let px = x + 4; px <= last; px += 4) {
+    for (let px = x + 4; px < W - 2; px += 4) {
       await commands.mouse('move', px, y);
       await nextFrame();
     }
-    // Past the edge, the pointer the page cannot move is out beyond W: a cursor is drawn wrapped.
+    await commands.mouse('move', W - 2, y);
+    await nextFrame();
+    return { grabbed, y, pointerId: pointerId() };
+  }
+
+  it.runIf(LOCKS)(
+    'locks the pointer at the edge and carries the window on across the seam by the mouse’s motion, as one change',
+    async () => {
+      const a = await start({ preset: 'seam' });
+      // Snapping would turn the window a little at release; this checks the anchor exactly.
+      a.policies.configure({ enabled: { snap: false } });
+      await frame(a);
+      const gestures = gesturesOf(a);
+      const before = a.workspace.getState();
+      const { grabbed, pointerId } = await toTheEdge(a);
+      await lockedAndWarped(root);
+      // The platform's pointer is hidden: the virtual cursor shows where the drag acts.
+      const locked = virtualCursor();
+      expect(locked).not.toBeNull();
+      expect(gestures).toEqual(['start node.move window-01']);
+      // The virtual cursor starts where the drag reached the edge, whatever motion the platform
+      // reports as the lock takes hold.
+      expect(locked?.x).toBeCloseTo(W - 2, 0);
+      // Past the seam and on, in steps: a window dragged in the camera's plane follows the pointer
+      // to a quarter turn from where it was taken, as far as the plane reaches.
+      let at = { x: locked?.x ?? 0, y: locked?.y ?? 0 };
+      for (let i = 0; i < 5; i++) {
+        lockedMotion(viewRoot(), pointerId, 30, 0);
+        // The drag's preview is announced on the next frame, and shown on the one after.
+        await nextFrame();
+        await nextFrame();
+        at = { x: (at.x + 30) % W, y: at.y };
+        const drawn = virtualCursor();
+        expect(drawn?.x).toBeCloseTo(at.x, 0);
+        // The grabbed point of the window, as the drag shows it, stays under the virtual cursor,
+        // across the seam too.
+        const [gx, gy] = screenOf(a, 'window-01', grabbed, at.x, true);
+        expect(gx).toBeCloseTo(at.x, 0);
+        expect(gy).toBeCloseTo(at.y, 0);
+      }
+      await commands.mouse('release', 0, 0);
+      await lockedTo(root, false);
+      expect(virtualCursor()).toBeNull();
+      expect(gestures).toEqual(['start node.move window-01', 'end committed']);
+      // The window taken is selected (not an undo step), then the move is committed once.
+      expect(a.workspace.getState().revision).toBe(before.revision + 2);
+      const [ax, ay] = screenOf(a, 'window-01', grabbed, at.x);
+      expect(ax).toBeCloseTo(at.x, 0);
+      expect(ay).toBeCloseTo(at.y, 0);
+      for (const node of before.nodes.values()) {
+        if (node.id !== 'window-01') {
+          expect(a.workspace.getState().nodes.get(node.id)).toBe(node);
+        }
+      }
+      expect((await a.commands.run('swf.history.undo', {})).status).toBe('done');
+      expect(a.workspace.getState().nodes.get('window-01')?.transform).toEqual(
+        before.nodes.get('window-01')?.transform,
+      );
+    },
+  );
+
+  it('where the browser refuses the lock, carries a window past the edge only as far as the pointer goes', async () => {
+    const a = await start({ preset: 'seam' });
+    const restore = refusingLocks(viewRoot());
+    a.policies.configure({ enabled: { snap: false } });
+    await frame(a);
+    const gestures = gesturesOf(a);
+    const { grabbed, y } = await toTheEdge(a);
+    const last = W + 60;
+    for (let px = W + 4; px <= last; px += 4) {
+      await commands.mouse('move', px, y);
+      await nextFrame();
+    }
+    // Past the edge, the captured pointer the page cannot move is out beyond W: a cursor is
+    // drawn wrapped, and the lock was refused.
     const drawn = virtualCursor();
+    expect(document.pointerLockElement).toBeNull();
     await commands.mouse('up', last, y);
     expect(drawn?.x).toBeCloseTo(last - W, 0);
     expect(drawn?.y).toBeCloseTo(y, 0);
     expect(virtualCursor()).toBeNull();
     expect(gestures).toEqual(['start node.move window-01', 'end committed']);
-    // The window taken is selected (not an undo step), then the move is committed once.
-    expect(a.workspace.getState().revision).toBe(before.revision + 2);
-    // The grabbed point of the same window is under where the pointer wrapped to.
+    // The grabbed point of the same window is under where the pointer wrapped to: the drag got
+    // as far as the pointer went, and stops where it stops.
     const [ax, ay] = screenOf(a, 'window-01', grabbed, last - W);
     expect(ax).toBeCloseTo(last - W, 0);
     expect(ay).toBeCloseTo(y, 0);
-    for (const node of before.nodes.values()) {
-      if (node.id !== 'window-01') {
-        expect(a.workspace.getState().nodes.get(node.id)).toBe(node);
-      }
+    restore();
+  });
+
+  it('lets the pointer go and cancels the drag on Escape', async () => {
+    const a = await start({ preset: 'seam' });
+    a.policies.configure({ enabled: { snap: false } });
+    await frame(a);
+    const gestures = gesturesOf(a);
+    const before = a.workspace.getState().nodes.get('window-01')?.transform;
+    const { pointerId } = await toTheEdge(a);
+    if (LOCKS) {
+      await lockedAndWarped(root);
+      lockedMotion(viewRoot(), pointerId, 120, 0);
+      await nextFrame();
     }
-    // One undo puts back exactly the one change.
-    expect((await a.commands.run('swf.history.undo', {})).status).toBe('done');
-    expect(a.workspace.getState().nodes.get('window-01')?.transform).toEqual(
-      before.nodes.get('window-01')?.transform,
-    );
+    await userEvent.keyboard('{Escape}');
+    await lockedTo(root, false);
+    await expect.poll(() => gestures.at(-1)).toBe('end cancelled');
+    expect(virtualCursor()).toBeNull();
+    await commands.mouse('release', 0, 0);
+    expect(a.workspace.getState().nodes.get('window-01')?.transform).toEqual(before);
+  });
+
+  it('turns the view round past its edge with the pointer locked, and lets it go at release', async () => {
+    const a = await start({ preset: 'seam' });
+    await frame(a);
+    const gestures = gesturesOf(a);
+    const pointerId = pointerIdOfNextPress(viewRoot());
+    // High above the scene's windows: the background, whose drag turns the camera.
+    await commands.mouse('move', 400, 20);
+    await commands.mouse('down', 400, 20);
+    for (let px = 404; px < W - 2; px += 8) {
+      await commands.mouse('move', px, 20);
+      await nextFrame();
+    }
+    await commands.mouse('move', W - 2, 20);
+    await nextFrame();
+    if (LOCKS) {
+      await lockedAndWarped(root);
+      const camera = a.workspace.getState().cameras.get('camera')?.rotation;
+      for (let i = 0; i < 10; i++) {
+        lockedMotion(viewRoot(), pointerId(), 80, 0);
+        await nextFrame();
+      }
+      // The view kept turning past the edge, by the motion alone.
+      expect(a.workspace.getState().cameras.get('camera')?.rotation).not.toEqual(camera);
+    } else {
+      expect(document.pointerLockElement).toBeNull();
+    }
+    await commands.mouse('release', 0, 0);
+    await lockedTo(root, false);
+    expect(gestures).toEqual(['start camera.turn ', 'end committed']);
+    expect(virtualCursor()).toBeNull();
   });
 
   it('stops at the edge with the wrapped cursor off, standard pointer input unchanged', async () => {
@@ -182,6 +405,8 @@ describe('the wrapped cursor across the seam (§33.2 scenario 2, FR-107, FR-123)
       await nextFrame();
     }
     const drawn = virtualCursor();
+    // Off, the wrapped cursor never asks for the lock.
+    expect(document.pointerLockElement).toBeNull();
     await commands.mouse('up', W + 60, y);
     expect(drawn).toBeNull();
     const [ax] = screenOf(a, 'window-01', grabbed, W);

@@ -31,3 +31,7 @@ pending and while a gesture with no `wheel`, or one that returns false, runs. Be
 was routed as if no gesture ran, so Shift and the wheel during a resize, a turn or a pinch moved a
 window in depth as a change of its own in the middle of the gesture. `captures()` names the
 viewport each held pointer was pressed in (`viewportId`).
+
+A pointer intent may carry `movement`, the motion since the pointer's previous sample while the
+platform locks the pointer to the view, whose place then stays where the lock took it; each of its
+numbers must be finite, as the intent's validation checks.

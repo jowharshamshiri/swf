@@ -30,7 +30,7 @@ import Shell from '../../src/shell/Shell.svelte';
 declare module 'vitest/browser' {
   interface BrowserCommands {
     mouse: (
-      action: 'move' | 'down' | 'up' | 'double',
+      action: 'move' | 'down' | 'up' | 'double' | 'release',
       x: number,
       y: number,
       modifiers?: readonly string[],

@@ -289,56 +289,141 @@ export type CompPlan =
 /** The descriptor of Swf.AppComposition.CompPlan: how its values cross the boundary. */
 export function compPlanType(): L.Type<CompPlan>;
 
-/** A pointer sample's phase. */
-export type WrapPhase =
+/** The wrapped cursor's state. */
+export interface CursorState {
+  /** The pointers the framework took: the ones that wrap. */
+  readonly taken: Array<string>;
+  /** The pointer lock. */
+  readonly lock: PointerLock;
+  /** The virtual cursor is drawn. */
+  readonly drawn: boolean;
+  /**
+   * The lock took hold and no sample of its pointer has come since: the first one's motion is the
+   * platform's own, moving its pointer to where it holds it (Chromium to the page's corner, Firefox to
+   * a centre it warps to), not the person's.
+   */
+  readonly fresh: boolean;
+}
+/** The descriptor of Swf.AppCursor.CursorState: how its values cross the boundary. */
+export function cursorStateType(): L.Type<CursorState>;
+
+/** What happens to the wrapped cursor besides a pointer sample. */
+export type CursorEvent =
   | {
-      /** The pointer went down: a press, never wrapped. */
-      readonly kind: "down";
+      /** The framework answered a sample of pointer `key` in phase `phase`, consuming it or not. */
+      readonly kind: "dispatched";
+      /** The field `key` of Lean's Swf.AppCursor.CursorEvent.dispatched. */
+      readonly key: string;
+      /** The field `phase` of Lean's Swf.AppCursor.CursorEvent.dispatched. */
+      readonly phase: WrapPhase;
+      /** The field `consumed` of Lean's Swf.AppCursor.CursorEvent.dispatched. */
+      readonly consumed: boolean;
     }
   | {
-      /** The pointer moved. */
-      readonly kind: "move";
+      /** The framework let pointer `key` go: its gesture ended (committed, cancelled, or lost). */
+      readonly kind: "released";
+      /** The field `key` of Lean's Swf.AppCursor.CursorEvent.released. */
+      readonly key: string;
     }
   | {
-      /** The pointer was released. */
-      readonly kind: "up";
+      /** Escape was pressed, once the framework had it. */
+      readonly kind: "escape";
     }
   | {
-      /** The platform cancelled the pointer. */
-      readonly kind: "cancel";
+      /** The platform locked the pointer to the view. */
+      readonly kind: "locked";
+    }
+  | {
+      /** The platform refused to lock the pointer. */
+      readonly kind: "refusedLock";
+    }
+  | {
+      /** The platform's lock ended. */
+      readonly kind: "unlocked";
+    }
+  | {
+      /** The wrapped cursor is taken off the device. */
+      readonly kind: "closed";
     }
 ;
-/** The descriptor of Swf.AppCursor.WrapPhase: how its values cross the boundary. */
-export function wrapPhaseType(): L.Type<WrapPhase>;
+/** The descriptor of Swf.AppCursor.CursorEvent: how its values cross the boundary. */
+export function cursorEventType(): L.Type<CursorEvent>;
 
-/** What to do with a pointer sample. */
-export type WrapOutcome =
+/** What anything else that happens leads to: the cursor's state after it, and what to do. */
+export interface CursorNext {
+  /** The cursor's state after it. */
+  readonly state: CursorState;
+  /** What the application does, in order. */
+  readonly actions: Array<CursorAction>;
+}
+/** The descriptor of Swf.AppCursor.CursorNext: how its values cross the boundary. */
+export function cursorNextType(): L.Type<CursorNext>;
+
+/** A pointer sample, as the device reports it. */
+export interface WrapSample {
+  /** The pointer, by its device and pointer ID. */
+  readonly key: string;
+  /** Where the pointer is in its stroke. */
+  readonly phase: WrapPhase;
+  /** The horizontal place, in CSS pixels from the view's left edge: finite. Frozen while locked. */
+  readonly x: number;
+  /** The vertical place, in CSS pixels from the view's top edge: finite. Frozen while locked. */
+  readonly y: number;
+  /**
+   * The horizontal motion since the previous sample, reported while the pointer is locked
+   * (zero otherwise): finite.
+   */
+  readonly dx: number;
+  /** The vertical motion since the previous sample, as `dx`: finite. */
+  readonly dy: number;
+  /** The pointer is a mouse: the only pointer a platform locks. */
+  readonly mouse: boolean;
+}
+/** The descriptor of Swf.AppCursor.WrapSample: how its values cross the boundary. */
+export function wrapSampleType(): L.Type<WrapSample>;
+
+/** The view a sample lands in. */
+export interface WrapFrame {
+  /** The view's width, in CSS pixels: finite and above zero. */
+  readonly width: number;
+  /** The view's height, in CSS pixels: finite and above zero. */
+  readonly height: number;
+  /** The view shows the whole circle with its seam at its edges, and the wrapped cursor is on. */
+  readonly wraps: boolean;
+  /** The platform offers to lock the pointer to the view. */
+  readonly lockable: boolean;
+}
+/** The descriptor of Swf.AppCursor.WrapFrame: how its values cross the boundary. */
+export function wrapFrameType(): L.Type<WrapFrame>;
+
+/** What a pointer sample leads to. */
+export type SampleStep =
   | {
-      /** Pass it on unchanged, with no virtual cursor. */
-      readonly kind: "pass";
+      /** Pass the sample on at (`x`, `y`), then do `actions`; `state` is the cursor's after it. */
+      readonly kind: "next";
+      /** The field `state` of Lean's Swf.AppCursor.SampleStep.next. */
+      readonly state: CursorState;
+      /** The field `x` of Lean's Swf.AppCursor.SampleStep.next. */
+      readonly x: number;
+      /** The field `y` of Lean's Swf.AppCursor.SampleStep.next. */
+      readonly y: number;
+      /** The field `actions` of Lean's Swf.AppCursor.SampleStep.next. */
+      readonly actions: Array<CursorAction>;
     }
   | {
       /**
-       * Pass it on at the wrapped horizontal place `x`, and draw the virtual cursor there when
-       * `cursor` (while the pointer is held; a release or cancellation ends it).
+       * The sample cannot be placed, naming the field at fault: the view's `width` or `height` is
+       * not finite and above zero, or the sample's `x`, `y` or `movement` is not finite.
        */
-      readonly kind: "wrapped";
-      /** The field `x` of Lean's Swf.AppCursor.WrapOutcome.wrapped. */
-      readonly x: number;
-      /** The field `cursor` of Lean's Swf.AppCursor.WrapOutcome.wrapped. */
-      readonly cursor: boolean;
-    }
-  | {
-      /** The view's width is not one a pointer can wrap across: it is not finite and above zero. */
-      readonly kind: "invalidWidth";
-    }
-  | {
-      /** The sample's horizontal place is not a finite number: it lies nowhere in the view. */
-      readonly kind: "invalidX";
+      readonly kind: "invalid";
+      /** The field `field` of Lean's Swf.AppCursor.SampleStep.invalid. */
+      readonly field: string;
+      /** The field `reason` of Lean's Swf.AppCursor.SampleStep.invalid. */
+      readonly reason: string;
     }
 ;
-/** The descriptor of Swf.AppCursor.WrapOutcome: how its values cross the boundary. */
-export function wrapOutcomeType(): L.Type<WrapOutcome>;
+/** The descriptor of Swf.AppCursor.SampleStep: how its values cross the boundary. */
+export function sampleStepType(): L.Type<SampleStep>;
 
 /** The windows of one frame. */
 export interface DepthQuery {
@@ -2575,6 +2660,107 @@ export type CompInto =
 /** The descriptor of Swf.AppComposition.CompInto: how its values cross the boundary. */
 export function compIntoType(): L.Type<CompInto>;
 
+/** The platform's pointer lock, as the wrapped cursor holds it. */
+export type PointerLock =
+  | {
+      /** No lock asked for or held. */
+      readonly kind: "free";
+    }
+  | {
+      /** The lock was asked for pointer `key`, which was last passed on at (`x`, `y`). */
+      readonly kind: "asked";
+      /** The field `key` of Lean's Swf.AppCursor.PointerLock.asked. */
+      readonly key: string;
+      /** The field `x` of Lean's Swf.AppCursor.PointerLock.asked. */
+      readonly x: number;
+      /** The field `y` of Lean's Swf.AppCursor.PointerLock.asked. */
+      readonly y: number;
+    }
+  | {
+      /** The platform locked pointer `key`, whose virtual place is (`x`, `y`). */
+      readonly kind: "held";
+      /** The field `key` of Lean's Swf.AppCursor.PointerLock.held. */
+      readonly key: string;
+      /** The field `x` of Lean's Swf.AppCursor.PointerLock.held. */
+      readonly x: number;
+      /** The field `y` of Lean's Swf.AppCursor.PointerLock.held. */
+      readonly y: number;
+    }
+  | {
+      /**
+       * The platform refused the lock for pointer `key`: it is not asked for again until that
+       * pointer is let go.
+       */
+      readonly kind: "refused";
+      /** The field `key` of Lean's Swf.AppCursor.PointerLock.refused. */
+      readonly key: string;
+    }
+  | {
+      /** The lock was let go; the platform has yet to say it ended. */
+      readonly kind: "letting";
+    }
+;
+/** The descriptor of Swf.AppCursor.PointerLock: how its values cross the boundary. */
+export function pointerLockType(): L.Type<PointerLock>;
+
+/** A pointer sample's phase. */
+export type WrapPhase =
+  | {
+      /** The pointer went down: a press, never wrapped. */
+      readonly kind: "down";
+    }
+  | {
+      /** The pointer moved. */
+      readonly kind: "move";
+    }
+  | {
+      /** The pointer was released. */
+      readonly kind: "up";
+    }
+  | {
+      /** The platform cancelled the pointer. */
+      readonly kind: "cancel";
+    }
+;
+/** The descriptor of Swf.AppCursor.WrapPhase: how its values cross the boundary. */
+export function wrapPhaseType(): L.Type<WrapPhase>;
+
+/** What the application does after a step, in order. */
+export type CursorAction =
+  | {
+      /** Ask the platform to lock the pointer to the view. */
+      readonly kind: "request";
+    }
+  | {
+      /** Let the platform's lock go. */
+      readonly kind: "exit";
+    }
+  | {
+      /** Cancel pointer `key` at (`x`, `y`): its drag ends, as when the platform loses a pointer. */
+      readonly kind: "cancel";
+      /** The field `key` of Lean's Swf.AppCursor.CursorAction.cancel. */
+      readonly key: string;
+      /** The field `x` of Lean's Swf.AppCursor.CursorAction.cancel. */
+      readonly x: number;
+      /** The field `y` of Lean's Swf.AppCursor.CursorAction.cancel. */
+      readonly y: number;
+    }
+  | {
+      /** Draw the virtual cursor with its tip at (`x`, `y`). */
+      readonly kind: "show";
+      /** The field `x` of Lean's Swf.AppCursor.CursorAction.show. */
+      readonly x: number;
+      /** The field `y` of Lean's Swf.AppCursor.CursorAction.show. */
+      readonly y: number;
+    }
+  | {
+      /** Take the virtual cursor away. */
+      readonly kind: "hide";
+    }
+;
+/** The descriptor of Swf.AppCursor.CursorAction: how its values cross the boundary. */
+export function cursorActionType(): L.Type<CursorAction>;
+
 /**
  * Semantic depth's bands, in world units from the camera: a window nearer than `full` shows its
  * content, one nearer than `compact` a compact preview, and one farther its label alone.
@@ -3566,21 +3752,30 @@ export class SwfModels {
    */
   compositionPlan(s: CompScene, step: CompStep): CompPlan;
   /**
-   * The pointers taken once the framework answered a sample of pointer `key`: a press it consumed
-   * takes the pointer, and its release or cancellation lets it go. None when they stay as they were.
+   * What anything besides a pointer sample leads to. The framework's answer to a sample updates the
+   * taken pointers, and a stroke's end forgets a refusal of its pointer. A pointer the framework lets
+   * go lets its lock go. Escape, when the framework did not already end the drag, lets the lock go and
+   * ends the drag. The platform's lock holds the pointer that asked for it from where it was last
+   * passed on; a lock nobody asked for is let go. A refusal holds until its pointer is let go. A lock
+   * the platform ends while it holds a pointer ends that pointer's drag where it is.
    *
-   * Lean's Swf.AppCursor.wrapAfterDispatch : List String → String → Swf.AppCursor.WrapPhase → Bool → Option (List String)
+   * Lean's Swf.AppCursor.cursorEvent : Swf.AppCursor.CursorState → Swf.AppCursor.CursorEvent → Swf.AppCursor.CursorNext
    */
-  wrapAfterDispatch(taken: Array<string>, key: string, phase: WrapPhase, consumed: boolean): L.Option<Array<string>>;
+  cursorEvent(st: CursorState, a: CursorEvent): CursorNext;
   /**
-   * A pointer sample, wrapped across the seam when the framework took the pointer (its key is in
-   * `taken`) and the view wraps. A press is never wrapped: it is where the pointer is taken. A width
-   * that is not finite and above zero is refused first, then a place that is not finite, whether or not
-   * the pointer is taken: neither lies anywhere in the view.
+   * The state before any pointer: none taken, no lock, no cursor drawn.
    *
-   * Lean's Swf.AppCursor.wrapPointerStep : List String → String → Swf.AppCursor.WrapPhase → Float → Float → Bool → Swf.AppCursor.WrapOutcome
+   * Lean's Swf.AppCursor.cursorInitial : Swf.AppCursor.CursorState
    */
-  wrapPointerStep(taken: Array<string>, key: string, phase: WrapPhase, x: number, width: number, wraps: boolean): WrapOutcome;
+  cursorInitial(): CursorState;
+  /**
+   * A pointer sample: where to pass it on, what the lock and the virtual cursor do, and the state
+   * after it. A view's width or height that is not finite and above zero is refused first, then a
+   * place or a motion that is not finite, whatever the pointer: none lies anywhere in the view.
+   *
+   * Lean's Swf.AppCursor.sampleStep : Swf.AppCursor.CursorState → Swf.AppCursor.WrapSample → Swf.AppCursor.WrapFrame → Swf.AppCursor.SampleStep
+   */
+  sampleStep(st: CursorState, s: WrapSample, f: WrapFrame): SampleStep;
   /**
    * The representation of every window of a frame.
    *

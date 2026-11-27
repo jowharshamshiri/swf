@@ -776,16 +776,13 @@ export async function createNavigation(options: NavigationOptions): Promise<Navi
     }
     const opened = await presenter.open({ viewportId: VIEWPORT_ID, container: element, backends });
     const detach = policies.attach(opened, element);
+    const dom = createDomInput({
+      root: element,
+      viewportId: VIEWPORT_ID,
+      events: (listener) => router.subscribe(listener),
+    });
     const unregisterInput = router.registerInputAdapter(
-      observed(
-        policies.input(
-          createDomInput({
-            root: element,
-            viewportId: VIEWPORT_ID,
-            events: (listener) => router.subscribe(listener),
-          }),
-        ),
-      ),
+      observed(policies.input(dom, dom.pointerLock)),
     );
     resizes.observe(element);
     const restoreElement = keyboardTarget(element, words);

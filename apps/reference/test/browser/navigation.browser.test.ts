@@ -28,7 +28,7 @@ import { layout, start } from './shell-harness.js';
 declare module 'vitest/browser' {
   interface BrowserCommands {
     mouse: (
-      action: 'move' | 'down' | 'up' | 'double',
+      action: 'move' | 'down' | 'up' | 'double' | 'release',
       x: number,
       y: number,
       modifiers?: readonly string[],
@@ -554,7 +554,8 @@ describe('the seam', () => {
     a.policies.configure({ enabled: { snap: false } });
     await settle();
     const box = a.root.getBoundingClientRect();
-    // window-01 straddles the seam behind the camera: pressed left of its centre, at the right edge.
+    // window-01 straddles the seam behind the camera: pressed left of its centre, near the right
+    // edge.
     const grab = panoramaPoint(model, centreOf(model, 'window-01'), box.width);
     const pick = a.router.pick(
       VIEWPORT_ID,
@@ -565,14 +566,56 @@ describe('the seam', () => {
     const x = Math.round(box.left + box.width - 20);
     const y = Math.round(there(grab, 'its place').y);
     const headings = [headingOf(centreOf(model, 'window-01'))];
+    let pointerId = -1;
+    a.root.addEventListener(
+      'pointerdown',
+      (e) => {
+        pointerId = e.pointerId;
+      },
+      { capture: true, once: true },
+    );
+    // The platform's own first sample under the lock: its motion is the platform's warp.
+    let warped = false;
+    const warp = (e: PointerEvent) => {
+      warped ||= e.isTrusted && document.pointerLockElement === a.root;
+    };
+    a.root.addEventListener('pointermove', warp, { capture: true });
     await commands.mouse('move', x, y);
     await commands.mouse('down', x, y, ['Alt']);
-    for (let px = x + 4; px <= x + 80; px += 4) {
+    // To the view's last two pixels, where the drag locks the pointer to the view.
+    for (let px = x + 4; px <= box.left + box.width - 2; px += 4) {
       await commands.mouse('move', px, y);
       await nextFrame();
       headings.push(headingOf(centreOf(model, 'window-01', true)));
     }
-    await commands.mouse('up', x + 80, y);
+    await commands.mouse('move', box.left + box.width - 2, y);
+    await expect.poll(() => document.pointerLockElement === a.root, { timeout: 3000 }).toBe(true);
+    await expect.poll(() => warped, { timeout: 3000 }).toBe(true);
+    a.root.removeEventListener('pointermove', warp, { capture: true });
+    // On past the seam by the locked mouse's motion, which is all a locked pointer reports
+    // (automation cannot move it, so the motion is made here).
+    for (let step = 0; step < 16; step += 1) {
+      a.root.dispatchEvent(
+        new PointerEvent('pointermove', {
+          pointerId,
+          pointerType: 'mouse',
+          isPrimary: true,
+          buttons: 1,
+          clientX: box.left + box.width - 2,
+          clientY: y,
+          movementX: 4,
+          movementY: 0,
+          bubbles: true,
+          cancelable: true,
+          composed: true,
+        }),
+      );
+      await nextFrame();
+      await nextFrame();
+      headings.push(headingOf(centreOf(model, 'window-01', true)));
+    }
+    await commands.mouse('release', 0, 0);
+    await expect.poll(() => document.pointerLockElement).toBeNull();
     await settle();
     // Each step moved it on by about the pointer's four pixels' worth of heading, through ±180°.
     const perStep = (4 * 360) / box.width;

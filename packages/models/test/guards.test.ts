@@ -22,25 +22,54 @@ import { models } from '../src/index.js';
 const NON_FINITE = [NaN, Infinity, -Infinity];
 
 describe('the wrapped cursor', () => {
-  it('refuses a pointer whose horizontal place is not finite, taken or not', () => {
-    for (const x of NON_FINITE) {
-      expect(models.wrapPointerStep(['p'], 'p', { kind: 'move' }, x, 100, true)).toEqual({
-        kind: 'invalidX',
+  const taken = { taken: ['p'], lock: { kind: 'free' as const }, drawn: false, fresh: false };
+  const frame = { width: 100, height: 50, wraps: true, lockable: true };
+  const sample = (patch: Record<string, unknown> = {}) => ({
+    key: 'p',
+    phase: { kind: 'move' as const },
+    x: 50,
+    y: 20,
+    dx: 0,
+    dy: 0,
+    mouse: true,
+    ...patch,
+  });
+
+  it('refuses a sample whose place or motion is not finite, taken or not', () => {
+    for (const v of NON_FINITE) {
+      for (const st of [taken, models.cursorInitial()]) {
+        expect(models.sampleStep(st, sample({ x: v }), frame)).toMatchObject({ field: 'x' });
+        expect(models.sampleStep(st, sample({ y: v }), frame)).toMatchObject({ field: 'y' });
+        expect(models.sampleStep(st, sample({ dx: v }), frame)).toMatchObject({
+          field: 'movement',
+        });
+        expect(models.sampleStep(st, sample({ dy: v }), frame)).toMatchObject({
+          field: 'movement',
+        });
+      }
+    }
+  });
+
+  it('refuses a view whose width, then height, is not finite and above zero, first', () => {
+    for (const v of [...NON_FINITE, 0, -1]) {
+      expect(models.sampleStep(taken, sample({ x: NaN }), { ...frame, width: v })).toMatchObject({
+        kind: 'invalid',
+        field: 'width',
       });
-      expect(models.wrapPointerStep([], 'p', { kind: 'move' }, x, 100, true)).toEqual({
-        kind: 'invalidX',
+      expect(models.sampleStep(taken, sample({ x: NaN }), { ...frame, height: v })).toMatchObject({
+        kind: 'invalid',
+        field: 'height',
       });
     }
   });
 
-  it('still wraps a finite place, and still refuses a width that is not finite first', () => {
-    expect(models.wrapPointerStep(['p'], 'p', { kind: 'move' }, 130, 100, true)).toEqual({
-      kind: 'wrapped',
+  it('still wraps a finite place, drawing its cursor', () => {
+    expect(models.sampleStep(taken, sample({ x: 130 }), frame)).toEqual({
+      kind: 'next',
+      state: { ...taken, lock: { kind: 'asked', key: 'p', x: 30, y: 20 }, drawn: true },
       x: 30,
-      cursor: true,
-    });
-    expect(models.wrapPointerStep(['p'], 'p', { kind: 'move' }, NaN, NaN, true)).toEqual({
-      kind: 'invalidWidth',
+      y: 20,
+      actions: [{ kind: 'request' }, { kind: 'show', x: 30, y: 20 }],
     });
   });
 });

@@ -287,11 +287,18 @@ describe('normalized intents (FR-100, FR-101)', () => {
     expect(intentIssue(pointer)).toBeNull();
   });
 
+  it('accepts the motion a locked pointer reports', () => {
+    expect(intentIssue({ ...pointer, movement: { x: -12.5, y: 3 } })).toBeNull();
+  });
+
   it('names the field at fault', () => {
     const issue = (patch: Record<string, unknown>) => intentIssue({ ...pointer, ...patch });
     expect(issue({ pressure: 1.5 })).toMatch(/^pressure/);
     expect(issue({ tilt: { x: 100, y: 0 } })).toMatch(/^tilt/);
     expect(issue({ twist: 360 })).toMatch(/^twist/);
+    expect(issue({ movement: { x: Infinity, y: 0 } })).toMatch(/^movement/);
+    expect(issue({ movement: { x: 1 } })).toMatch(/^movement/);
+    expect(issue({ movement: { x: 1, y: 2, z: 3 } })).toMatch(/^movement/);
     expect(issue({ pointerId: -1 })).toMatch(/^pointerId/);
     expect(issue({ pointerType: 'glove' })).toMatch(/^pointerType/);
     expect(issue({ phase: 'hover' })).toMatch(/^phase/);

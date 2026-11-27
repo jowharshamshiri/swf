@@ -345,7 +345,7 @@ export const NAVIGATION_ENGLISH = Object.freeze({
     'A window or the view carried past one edge of the panorama comes back in at the other, where the seam behind you is.',
   'cursor.enabled': 'Wrap pointers at the seam',
   'cursor.limits':
-    'Your own pointer is not moved: no page can move it. It stops at the edge of the screen, and past the panorama’s edge a drawn cursor shows where the drag acts.',
+    'A drag that reaches the panorama’s edge locks your pointer to the panorama: your pointer is hidden, the drag goes on round the circle as far as the mouse goes, and a drawn cursor shows where it acts. Releasing lets your pointer go where the lock took it; Escape cancels the drag and lets it go. Where the browser offers no lock, or refuses it, the drag stops at the edge of the screen.',
   'cursor.unavailable':
     'Wrapping needs the whole 360° panorama. This view shows less, so pointers do not wrap now.',
   'setting.invalid': 'Not set: {reason}',

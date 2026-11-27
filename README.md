@@ -354,7 +354,8 @@ input.command('node.move', { viewportId: 'main-viewport', right: 0.2 });
 
 Every device reaches the router as the same intents: pointer samples carry the viewport, device,
 pointer ID, position, buttons, modifiers, phase, timestamp and, when the device has them,
-pressure, tilt and twist. `dispatch` answers whether the framework consumed the intent; anything
+pressure, tilt and twist, and, while the platform locks the pointer to the view, its motion
+(`movement`). `dispatch` answers whether the framework consumed the intent; anything
 it does not consume is the host's to deliver natively. A pointer or wheel intent that picked also
 reports its hit query (`pick`): whether its best two candidates tied, and how long it took by the
 router's `timer` (`Date.now` unless the host gives a finer clock, such as `performance.now`).
@@ -1273,9 +1274,21 @@ experiments and the switches while the panel is there.
 - **The wrapped cursor** carries a pointer the framework took (a window being moved, the view being
   turned) past one edge of the 360° panorama back in at the other, where the seam behind the camera
   is, so a drag across the seam keeps its window and the point of it that was grabbed. A drawn
-  cursor shows where the drag acts, because a page cannot move the platform's pointer: that pointer
-  stops at the edge of the screen, as the experiment panel says. Pointers left to content, and every
-  pointer while the view shows less than the whole circle (in focus), are not wrapped.
+  cursor shows where the drag acts. A page cannot move the platform's pointer, which stops at the
+  edge of the screen, so a mouse drag that reaches the panorama's edge asks the browser to lock the
+  pointer to the view (the DOM input's `pointerLock`): the platform's pointer is hidden and the drag
+  goes on by the mouse's motion, round the circle as far as the mouse goes, kept within the view's
+  height. The motion the browser reports as the lock takes hold is its own (Chromium's to the page's
+  corner, Firefox's to a centre it moves the pointer to) and moves nothing: the drag goes on from
+  where it reached the edge. The view turns round without end; a window moved in the camera's
+  plane, the framework's default drag, follows the pointer until it is a quarter turn from where
+  the window was taken, where that plane runs out. The lock lives only as long as the drag: releasing lets it go, as does the framework
+  ending the gesture; Escape cancels the drag and lets it go, and a lock the browser takes away
+  cancels the drag as a lost pointer does. Where the browser offers no lock or refuses it, the drag
+  wraps as far as the platform's pointer goes and stops at the screen's edge, as the experiment panel
+  says. Pointers left to content, and every pointer while the view shows less than the whole circle
+  (in focus), are not wrapped. There is no free-roaming locked cursor outside a drag: a lock held
+  beyond a gesture would take the mouse away from the rest of the page and the host.
 
 - **Composition** and **saving and opening workspaces** are described below.
 
@@ -1457,7 +1470,7 @@ attachments); the model decides each state it passes through and each request it
 | `Swf.ViewMode`       | The reference application's view-mode switch and the view a mode returns to                                                                                                                                    |
 | `Swf.Order`          | An order key for doubles, so the models' claims about order (priorities, distances) are proved over integers                                                                                                   |
 | `Swf.AppOrbit`       | The reference application's workspace orbit: which group it turns, what a background drag navigates, and the commands of each change                                                                           |
-| `Swf.AppCursor`      | Which pointers the wrapped cursor carries across the panorama's seam, where it wraps them, and when its virtual cursor is drawn                                                                                |
+| `Swf.AppCursor`      | Which pointers the wrapped cursor carries across the seam and where, when it locks the pointer to the view and lets it go, what a lost lock ends, and when its cursor is drawn                                 |
 | `Swf.AppFeatures`    | Which feature toggles and settings a patch may set, refused field by field, and what changes                                                                                                                   |
 | `Swf.AppExperiments` | The experiments: the modules each turns on (one alone, or all), the view it sets up from what the scene offers, and which experiment a combination of switches is, any other being custom                      |
 | `Swf.AppSnap`        | The magnetic snap: which neighbour edge or line-up, spoke round the camera or ring a moved window snaps to, nearest first, within its thresholds                                                               |
@@ -1538,11 +1551,13 @@ release` builds a versioned release from a commit ([Release the packages](docs/h
 A budget is raised only deliberately, by hand, to the package's measured gzip size rounded up to the
 next 256 bytes, so it leaves no room for growth nobody looked at; the measured sizes are recorded
 with `npm run size -- --record` in the same commit, whose message gives the old and the new budget.
-`@swf/models` is at 58624 bytes: it is the compiled program of every proved decision model the
-framework and the reference application run, so it grows with each model (58501 bytes
-measured, the named spaces model and the restore that starts the history afresh included).
+`@swf/models` is at 61184 bytes: it is the compiled program of every proved decision model the
+framework and the reference application run, so it grows with each model (60938 bytes
+measured, the named spaces model, the restore that starts the history afresh and the wrapped
+cursor's pointer lock included).
 `@swf/persistence` is at 13312 bytes (13255 measured): snapshots, stores and the saver, with named
 spaces (`createSpaces`).
+`@swf/backend-dom` is at 7680 bytes (7568 measured), the DOM input's pointer lock included.
 `@swf/navigation-ui` starts at 40704 bytes, 10% over its measured size (36801) rounded up to
 the next 256: the navigation controls compiled as a host's build compiles them, with Svelte, the kit
 and the framework's packages left out; it is measured only where the kit is.

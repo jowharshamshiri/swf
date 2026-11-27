@@ -31,6 +31,49 @@ export interface DomInputOptions {
   readonly events: (listener: (event: InteractionEvent) => void) => () => void;
 }
 
+/** What the platform says of its pointer lock on a view's root. */
+export type PointerLockChange =
+  /** It locked the pointer to the root. */
+  | 'locked'
+  /** It refused to lock the pointer, or failed to. */
+  | 'refused'
+  /** Its lock on the root ended: let go, or taken away (Escape, the page losing focus). */
+  | 'unlocked';
+
+/**
+ * The platform's pointer lock on a view's root. While the pointer is locked, the platform hides
+ * its own pointer, keeps reporting the pointer's samples to the root at the place the lock took
+ * it, and reports the pointer's motion with each, which the DOM input passes on as the intent's
+ * `movement`. A page cannot take the lock outside a short while after the person pressed
+ * something, and the platform may refuse it at any time.
+ */
+export interface DomPointerLock {
+  /** Whether the platform offers pointer lock on the root. */
+  readonly available: boolean;
+  /**
+   * Asks the platform to lock the pointer to the root. Its answer, `locked` or `refused`,
+   * arrives through {@link DomPointerLock.subscribe}, never during this call.
+   *
+   * @throws {@link @swf/core!SwfFailure} `INVALID_TRANSITION` while the input is not connected, while a
+   *   request is unanswered or a lock is held, and `UNSUPPORTED_CAPABILITY` where the platform
+   *   offers no lock.
+   */
+  request(): void;
+  /**
+   * Lets the lock go: `unlocked` follows. A request still unanswered cannot be withdrawn; its
+   * answer arrives as usual. Does nothing while no lock is held.
+   */
+  exit(): void;
+  /** Listens for what the platform says of the lock; returns what stops listening. */
+  subscribe(listener: (change: PointerLockChange) => void): () => void;
+}
+
+/** A view's DOM input, with the platform's pointer lock on its root. */
+export interface DomInput extends InputAdapter {
+  /** The platform's pointer lock on the view's root. */
+  readonly pointerLock: DomPointerLock;
+}
+
 /** CSS pixels one wheel "line" scrolls when the platform reports lines. */
 const LINE_PX = 16;
 
@@ -46,17 +89,101 @@ const LINE_PX = 16;
  * pressed inside a live slot are offered with focus `content`, others with focus `workspace`.
  * Pen and touch pointers carry pressure (clamped to 0 to 1), tilt and twist.
  *
+ * It offers the platform's pointer lock on the root ({@link DomInput.pointerLock}), for an input
+ * policy that carries a pointer beyond where the platform's pointer can go. While the root holds
+ * the lock, every pointer sample carries the pointer's `movement`. Taking the lock takes the
+ * platform's capture of a pressed pointer with it; that is no loss of the pointer, whose samples
+ * reach the locked root as captured ones do, and its gesture goes on. A capture lost while a
+ * request is unanswered counts as lost if the platform then refuses the lock.
+ *
  * The adapter connects to one router at a time: `connect` adds its listeners to the root and
- * subscribes to `events`, and the function it returns removes and unsubscribes them again. A
- * second `connect` before that throws {@link SwfFailure} (`INVALID_TRANSITION`).
+ * subscribes to `events`, and the function it returns removes and unsubscribes them again and
+ * lets any lock on the root go. A second `connect` before that throws {@link SwfFailure}
+ * (`INVALID_TRANSITION`).
  */
-export function createDomInput(options: DomInputOptions): InputAdapter {
+export function createDomInput(options: DomInputOptions): DomInput {
   const { root, viewportId } = options;
   const id = options.id ?? 'swf.dom-input/1';
+  const document = root.ownerDocument;
+  const available = typeof root.requestPointerLock === 'function';
   let connected = false;
+  /** Where the lock stands: none, asked for and unanswered, or held by the root. */
+  let lock: 'none' | 'asking' | 'held' = 'none';
+  const lockListeners = new Set<(change: PointerLockChange) => void>();
+  const tell = (change: PointerLockChange) => {
+    for (const listener of [...lockListeners]) {
+      listener(change);
+    }
+  };
+  /** A capture lost while a request was unanswered: lost if the platform refuses the lock. */
+  let lostWhileAsking: (() => void) | null = null;
+  const answer = (change: 'locked' | 'refused') => {
+    if (lock !== 'asking') {
+      return;
+    }
+    const lost = lostWhileAsking;
+    lostWhileAsking = null;
+    lock = change === 'locked' ? 'held' : 'none';
+    tell(change);
+    if (change === 'refused') {
+      lost?.();
+    }
+  };
+  const pointerLock: DomPointerLock = Object.freeze({
+    available,
+    request() {
+      if (!available) {
+        throw new SwfFailure(
+          makeError('UNSUPPORTED_CAPABILITY', 'the platform offers no pointer lock'),
+        );
+      }
+      if (!connected) {
+        throw new SwfFailure(makeError('INVALID_TRANSITION', `DOM input "${id}" is not connected`));
+      }
+      if (lock !== 'none') {
+        throw new SwfFailure(
+          makeError(
+            'INVALID_TRANSITION',
+            lock === 'asking'
+              ? 'the pointer lock was asked for and is unanswered'
+              : 'the pointer lock is held',
+          ),
+        );
+      }
+      lock = 'asking';
+      let asked: unknown;
+      try {
+        asked = root.requestPointerLock();
+      } catch {
+        // Refused at once (some platforms throw): answered after this call, as every answer is.
+        queueMicrotask(() => {
+          answer('refused');
+        });
+        return;
+      }
+      // Some platforms answer with a promise as well as with the document's events.
+      if (asked instanceof Promise) {
+        asked.catch(() => {
+          answer('refused');
+        });
+      }
+    },
+    exit() {
+      if (document.pointerLockElement === root) {
+        document.exitPointerLock();
+      }
+    },
+    subscribe(listener: (change: PointerLockChange) => void) {
+      lockListeners.add(listener);
+      return () => {
+        lockListeners.delete(listener);
+      };
+    },
+  });
   return Object.freeze({
     id,
     apiVersion: INTERACTION_API_VERSION,
+    pointerLock,
     connect(dispatch: (intent: InputIntent) => DispatchResult): () => void {
       if (connected) {
         throw new SwfFailure(
@@ -64,6 +191,7 @@ export function createDomInput(options: DomInputOptions): InputAdapter {
         );
       }
       connected = true;
+      const locked = () => document.pointerLockElement === root;
       const deviceOf = (e: PointerEvent) => (e.pointerType === '' ? 'pointer' : e.pointerType);
       const position = (e: MouseEvent) => {
         const box = root.getBoundingClientRect();
@@ -91,6 +219,7 @@ export function createDomInput(options: DomInputOptions): InputAdapter {
           modifiers: modifiersOf(e),
           timestamp: e.timeStamp,
           ...penDetails(e),
+          ...(locked() ? { movement: { x: e.movementX, y: e.movementY } } : {}),
         });
         // A press the framework takes is captured on the root: the release then targets the root,
         // so the click that follows lands there too and never reaches the content.
@@ -102,19 +231,42 @@ export function createDomInput(options: DomInputOptions): InputAdapter {
       const lost = (event: Event) => {
         const e = event as PointerEvent;
         const { x, y } = position(e);
-        dispatch({
-          kind: 'pointer',
-          viewportId,
-          deviceId: deviceOf(e),
-          pointerId: e.pointerId,
-          pointerType: pointerTypeOf(e.pointerType),
-          phase: 'cancel',
-          x,
-          y,
-          buttons: 0,
-          modifiers: modifiersOf(e),
-          timestamp: e.timeStamp,
-        });
+        const cancel = () =>
+          dispatch({
+            kind: 'pointer',
+            viewportId,
+            deviceId: deviceOf(e),
+            pointerId: e.pointerId,
+            pointerType: pointerTypeOf(e.pointerType),
+            phase: 'cancel',
+            x,
+            y,
+            buttons: 0,
+            modifiers: modifiersOf(e),
+            timestamp: e.timeStamp,
+          });
+        // The lock takes the capture with it: the pointer is not lost, and reaches the root still.
+        if (locked()) {
+          return;
+        }
+        if (lock === 'asking') {
+          lostWhileAsking = () => {
+            cancel();
+          };
+          return;
+        }
+        cancel();
+      };
+      const lockChanged = () => {
+        if (locked()) {
+          answer('locked');
+        } else if (lock === 'held') {
+          lock = 'none';
+          tell('unlocked');
+        }
+      };
+      const lockFailed = () => {
+        answer('refused');
       };
       const wheel = (event: Event) => {
         const e = event as WheelEvent;
@@ -169,6 +321,8 @@ export function createDomInput(options: DomInputOptions): InputAdapter {
       for (const [type, listener] of listeners) {
         root.addEventListener(type, listener, { capture: true, passive: false });
       }
+      document.addEventListener('pointerlockchange', lockChanged);
+      document.addEventListener('pointerlockerror', lockFailed);
       const unsubscribe = options.events((event) => {
         if (
           event.type === 'capture.released' &&
@@ -182,8 +336,19 @@ export function createDomInput(options: DomInputOptions): InputAdapter {
         for (const [type, listener] of listeners) {
           root.removeEventListener(type, listener, { capture: true });
         }
+        document.removeEventListener('pointerlockchange', lockChanged);
+        document.removeEventListener('pointerlockerror', lockFailed);
         unsubscribe();
         connected = false;
+        lostWhileAsking = null;
+        const held = lock === 'held';
+        lock = 'none';
+        if (locked()) {
+          document.exitPointerLock();
+        }
+        if (held) {
+          tell('unlocked');
+        }
       };
     },
   });

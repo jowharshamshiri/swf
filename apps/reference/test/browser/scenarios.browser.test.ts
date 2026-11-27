@@ -15,7 +15,7 @@ import { endVisits, layout, same, start } from './shell-harness.js';
 declare module 'vitest/browser' {
   interface BrowserCommands {
     mouse: (
-      action: 'move' | 'down' | 'up' | 'double',
+      action: 'move' | 'down' | 'up' | 'double' | 'release',
       x: number,
       y: number,
       modifiers?: readonly string[],
@@ -203,8 +203,9 @@ describe('a blank workspace, end to end (§33.2 scenario 1, WF-01, AC-001, AC-00
     expect(layout(model)).toEqual(behind);
 
     // Revealed on the map: panned back to straight ahead, it is behind the camera again; pressed
-    // on the map, it is revealed from the windows list.
-    await drag([bx, by], -(width / 2 - 4));
+    // on the map, it is revealed from the windows list. Panned from the right, the drag stays in
+    // the view (one reaching its edge would lock the pointer, which automation cannot move).
+    await drag([rootBox.right - 40, by], -(width / 2 - 4));
     await settle();
     expect(pageOf(app, NOTE.id, [0, 0, 0])?.[0]).not.toBeCloseTo(
       rootBox.left + rootBox.width / 2,

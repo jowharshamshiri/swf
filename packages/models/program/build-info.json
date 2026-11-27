@@ -1,5 +1,5 @@
 {
-  "build_key": "3e9f77a845881b00b1a6776919323af900443532e6da992520242fc7faef1b35",
+  "build_key": "ff719e5f14b8a0db2418a44ca8052a60c577d606d55736beeb67b80f4f3375ea",
   "lean_version": "4.35.0",
   "lean_githash": "eb6cafb7290e8bd5f2937522d8d804f58f02bafc",
   "bir_version": 3,
@@ -11,7 +11,7 @@
     "Swf.lean": "3ebf67104f3450601c7554aca6880120d2f8ea32e04461f12ccac7140df3278d",
     "Swf/AppChallenge.lean": "746c6675931e4af153a180187045200a7dccf311831f61dc0940952dcecf6501",
     "Swf/AppComposition.lean": "7a6a673922943cc4f59b08b897196736d7263797709ddad1740240cb667b22db",
-    "Swf/AppCursor.lean": "0dd3b5872225738d8c53e8833bf4b0395f0b808bebbbf5e532641172b2af802b",
+    "Swf/AppCursor.lean": "e09b25539102e361da94e6f11592e530a7faa7131850034750c668d7420e6b8e",
     "Swf/AppDepth.lean": "25f2b92dc3e1f676b790e6dfccf260704a0769d9580435933de89c9eb9c10b5e",
     "Swf/AppExperiments.lean": "1122d1b5f0846631a6c3338125ea8a5d667c0c2f49883feb4a6ff06bfd929b6b",
     "Swf/AppFeatures.lean": "3780f0b9e775065f44abb759d40d276e3b5438145d70aa44ceeb3a3be4cb66c4",
@@ -44,9 +44,9 @@
   "project": ".",
   "link_directives": [],
   "output_digests": {
-    "assurance.json": "f11f8ff547c8b29b8c52c79842b4854263c1fc2f2ea6b446ce30631925655e87",
-    "index.d.ts": "8da410f37e14f5f3695c27dee3a43ba62e1a531cc3d9698112e3d9093faa1640",
-    "index.js": "0a6a77ae17ae37c3604be9fcde0b68992c44492335e854d3cd9ca761cc78bd8c"
+    "assurance.json": "7cc0acbcacac905b2739243382ec55f42ddd8ef93d9c83701b1cb2627d174056",
+    "index.d.ts": "5c4883f9d5cb39c1d0672a0f747b1667ee47880a67da885f4c6c2a50cfe0ce6e",
+    "index.js": "e749b832e0f0bdf7257a564d49d1b1a023f4d684bfa8d204ff662c1993e174b7"
   },
   "platform_products": [
     "program.wasm"

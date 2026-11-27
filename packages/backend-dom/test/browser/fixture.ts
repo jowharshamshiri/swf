@@ -32,7 +32,7 @@ import {
 declare module 'vitest/browser' {
   interface BrowserCommands {
     mouse: (
-      action: 'move' | 'down' | 'up',
+      action: 'move' | 'down' | 'up' | 'release',
       x: number,
       y: number,
       modifiers?: readonly string[],

@@ -83,9 +83,14 @@ async function frameBox(ctx) {
 /**
  * Moves, presses and releases the real mouse at a point of the test frame, so the browser
  * produces genuine (trusted) pointer events; `double` presses and releases twice, as one double
- * press (the browser counts the clicks, and fires `dblclick`).
+ * press (the browser counts the clicks, and fires `dblclick`). `release` lets the button go where
+ * the mouse is, without moving it: a pointer locked to an element has no place to move to.
  */
 export async function mouse(ctx, action, x, y, modifiers = []) {
+  if (action === 'release') {
+    await ctx.page.mouse.up();
+    return;
+  }
   const box = await frameBox(ctx);
   for (const key of modifiers) {
     await ctx.page.keyboard.down(key);

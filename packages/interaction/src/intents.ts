@@ -77,6 +77,17 @@ export interface PointerIntent {
   };
   /** Pen rotation about its axis in degrees, in [0, 360), when the device reports it. */
   readonly twist?: number;
+  /**
+   * The motion since the pointer's previous sample, in CSS pixels, while the platform locks the
+   * pointer to the view: its place then stays where the lock took it, and the motion is all the
+   * platform reports of where it goes. Absent while the pointer is not locked. Each finite.
+   */
+  readonly movement?: {
+    /** Horizontal motion, positive to the right. */
+    readonly x: number;
+    /** Vertical motion, positive downwards. */
+    readonly y: number;
+  };
 }
 
 /**
@@ -195,7 +206,7 @@ const FIELDS: Record<InputIntent['kind'], { required: string[]; optional: string
       'modifiers',
       'timestamp',
     ],
-    optional: ['pressure', 'tilt', 'twist'],
+    optional: ['pressure', 'tilt', 'twist', 'movement'],
   },
   wheel: {
     required: [
@@ -368,6 +379,19 @@ function pointerIssue(record: Record<string, unknown>): string | null {
   const twist = record['twist'];
   if (twist !== undefined && !(finite(twist) && twist >= 0 && twist < 360)) {
     return 'twist must be a number of degrees in [0, 360)';
+  }
+  const movement = record['movement'];
+  if (movement !== undefined) {
+    const m = movement as Record<string, unknown> | null;
+    if (
+      typeof m !== 'object' ||
+      m === null ||
+      Object.keys(m).length !== 2 ||
+      !finite(m['x']) ||
+      !finite(m['y'])
+    ) {
+      return 'movement must be { x, y } in CSS pixels, each finite';
+    }
   }
   return null;
 }

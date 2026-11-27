@@ -23,7 +23,7 @@ declare module 'vitest/browser' {
       modifiers?: readonly string[],
     ) => Promise<void>;
     mouse: (
-      action: 'move' | 'down' | 'up' | 'double',
+      action: 'move' | 'down' | 'up' | 'double' | 'release',
       x: number,
       y: number,
       modifiers?: readonly string[],

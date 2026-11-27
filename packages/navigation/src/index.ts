@@ -179,7 +179,7 @@ export type { StripCard, StripLayout, StripMetrics, StripWindow } from './strip.
 export { stripLayout, stripWindows } from './strip.js';
 export type { ViewTransitions, ViewTransitionsOptions } from './transition.js';
 export { TRANSITION_MS, TRANSITION_PREVIEW, createViewTransitions } from './transition.js';
-export type { WrapFrame, WrapState, Wrapped, WrappedInputOptions } from './wrapped-cursor.js';
-export { NO_POINTERS, afterDispatch, wrapPointer, wrappedInput } from './wrapped-cursor.js';
+export type { WrapFrame, WrappedInputOptions } from './wrapped-cursor.js';
+export { wrappedInput } from './wrapped-cursor.js';
 export type { ViewSettings } from './mode-machine.js';
 export type { SemanticDepthOptions } from './semantic-depth.js';

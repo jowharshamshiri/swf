@@ -1,3 +1,4 @@
+import type { DomPointerLock } from '@swf/backend-dom';
 import { createVirtualCursor } from '@swf/backend-dom';
 import type {
   CancelReason,
@@ -141,9 +142,10 @@ export interface Policies {
   representationOf(nodeId: Id): Representation | null;
   /**
    * The device's adapter with the wheel's bursts and the wrapped cursor between it and the
-   * framework.
+   * framework; the wrapped cursor locks the pointer to the view with `lock`, the platform's
+   * pointer lock on it, or never where that is null.
    */
-  input(device: InputAdapter): InputAdapter;
+  input(device: InputAdapter, lock: DomPointerLock | null): InputAdapter;
   /**
    * Cancels the gesture running, the framework's or a wheel burst, leaving what it moved where it
    * was; false when none is running.
@@ -231,7 +233,11 @@ export function createPolicies(options: PolicyOptions): Policies {
       throw new Error(`projection "${view.projectionId}" is not registered`);
     }
     const domain = projectionFor(module, view).describeDomain();
-    return { width: view.width, wraps: domain.fullCircle && domain.seamWrapping };
+    return {
+      width: view.width,
+      height: view.height,
+      wraps: domain.fullCircle && domain.seamWrapping,
+    };
   };
 
   /** The preview a control turning the workspace has open, by its ID. */
@@ -466,9 +472,12 @@ export function createPolicies(options: PolicyOptions): Policies {
       const surfaces = new Set(frame.scene.nodes.get(nodeId)?.surfaceIds ?? []);
       return frame.planned.find((p) => surfaces.has(p.fragment.surfaceId))?.representation ?? null;
     },
-    input(device: InputAdapter): InputAdapter {
+    input(device: InputAdapter, lock: DomPointerLock | null): InputAdapter {
       return wrappedInput({
         device: bursts.input(device),
+        lock,
+        viewportId,
+        events: (listener) => router.subscribe(listener),
         enabled: () => features.enabled.cursor,
         frame: wrapFrame,
         cursor: (at) => {

@@ -36,6 +36,16 @@ export interface SyntheticPointerOptions {
   };
   /** Pen rotation in degrees, in [0, 360); absent from the intent when not given. */
   readonly twist?: number;
+  /**
+   * The motion since the previous sample, in CSS pixels, as a locked pointer reports it; absent
+   * from the intent when not given.
+   */
+  readonly movement?: {
+    /** Horizontal motion, positive to the right. */
+    readonly x: number;
+    /** Vertical motion, positive downwards. */
+    readonly y: number;
+  };
 }
 
 /**
@@ -152,6 +162,7 @@ export function createSyntheticInput(
         ...(o.pressure === undefined ? {} : { pressure: o.pressure }),
         ...(o.tilt === undefined ? {} : { tilt: o.tilt }),
         ...(o.twist === undefined ? {} : { twist: o.twist }),
+        ...(o.movement === undefined ? {} : { movement: o.movement }),
       };
       return send(intent);
     },

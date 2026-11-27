@@ -86,7 +86,7 @@ export function policyWorld(
     ...(features === undefined ? {} : { features }),
   });
   const input = createSyntheticInput();
-  router.registerInputAdapter(policies.input(input));
+  router.registerInputAdapter(policies.input(input, null));
   const events: InteractionEvent[] = [];
   router.subscribe((event) => events.push(event));
   return { ws, projections, router, policies, modes, input, events };

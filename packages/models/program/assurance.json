@@ -638,13 +638,13 @@
       }
     },
     {
-      "name": "Swf.AppCursor.cursor_only_while_moving",
+      "name": "Swf.AppCursor.asks_only_at_the_edge_of_a_held_drag",
       "relation": "lungo.law",
       "subjects": [
-        "Swf.AppCursor.wrapPointerStep"
+        "Swf.AppCursor.sampleStep"
       ],
       "specifications": [],
-      "statement": "∀ (taken : List String) (key : String) (phase : Swf.AppCursor.WrapPhase) (x width y : Float) (wraps : Bool),\n  Swf.AppCursor.wrapPointerStep taken key phase x width wraps = Swf.AppCursor.WrapOutcome.wrapped y true →\n    phase = Swf.AppCursor.WrapPhase.move",
+      "statement": "∀ (st st' : Swf.AppCursor.CursorState) (s : Swf.AppCursor.WrapSample) (f : Swf.AppCursor.WrapFrame) (x y : Float)\n  (as : List Swf.AppCursor.CursorAction),\n  Swf.AppCursor.sampleStep st s f = Swf.AppCursor.SampleStep.next st' x y as →\n    Swf.AppCursor.CursorAction.request ∈ as →\n      st.lock = Swf.AppCursor.PointerLock.free ∧\n        s.key ∈ st.taken ∧\n          f.wraps = true ∧\n            f.lockable = true ∧\n              s.mouse = true ∧ s.phase = Swf.AppCursor.WrapPhase.move ∧ Swf.AppCursor.nearEdge s.x f.width = true",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -656,28 +656,91 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "c4316888c8e5b0104c8a7dd695e824cf4cfb5a64742e31a909bcea22aeab0670",
+      "fingerprint": "033da1d9f79a0283cfed57d1c78381d1652822bbb56c258dfe16fa7c1567328f",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppCursor.lean",
         "start": {
-          "line": 98,
+          "line": 370,
           "column": 1
         },
         "end": {
-          "line": 115,
-          "column": 38
+          "line": 385,
+          "column": 51
         }
       }
     },
     {
-      "name": "Swf.AppCursor.invalid_width_refused",
+      "name": "Swf.AppCursor.closing_leaves_nothing",
       "relation": "lungo.law",
       "subjects": [
-        "Swf.AppCursor.wrapPointerStep"
+        "Swf.AppCursor.cursorEvent"
       ],
       "specifications": [],
-      "statement": "∀ (taken : List String) (key : String) (phase : Swf.AppCursor.WrapPhase) (x width : Float) (wraps : Bool),\n  (!decide (width > 0) || !width.isFinite) = true →\n    Swf.AppCursor.wrapPointerStep taken key phase x width wraps = Swf.AppCursor.WrapOutcome.invalidWidth",
+      "statement": "∀ (st : Swf.AppCursor.CursorState),\n  (Swf.AppCursor.cursorEvent st Swf.AppCursor.CursorEvent.closed).state = Swf.AppCursor.cursorInitial ∧\n    (st.lock ≠ Swf.AppCursor.PointerLock.free →\n        (∀ (k : String), st.lock ≠ Swf.AppCursor.PointerLock.refused k) →\n          Swf.AppCursor.CursorAction.exit ∈ (Swf.AppCursor.cursorEvent st Swf.AppCursor.CursorEvent.closed).actions) ∧\n      (st.drawn = true →\n        Swf.AppCursor.CursorAction.hide ∈ (Swf.AppCursor.cursorEvent st Swf.AppCursor.CursorEvent.closed).actions)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "9dd37c2bf2c2ad9e61f6496665e8917e10ad14b678971332e322cdc66fc425b2",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppCursor.lean",
+        "start": {
+          "line": 554,
+          "column": 1
+        },
+        "end": {
+          "line": 564,
+          "column": 35
+        }
+      }
+    },
+    {
+      "name": "Swf.AppCursor.escape_ends_the_locked_drag",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppCursor.cursorEvent"
+      ],
+      "specifications": [],
+      "statement": "∀ (st : Swf.AppCursor.CursorState) (key : String) (x y : Float),\n  st.lock = Swf.AppCursor.PointerLock.held key x y ∨ st.lock = Swf.AppCursor.PointerLock.asked key x y →\n    (Swf.AppCursor.cursorEvent st Swf.AppCursor.CursorEvent.escape).state.lock = Swf.AppCursor.PointerLock.letting ∧\n      List.take 2 (Swf.AppCursor.cursorEvent st Swf.AppCursor.CursorEvent.escape).actions =\n        [Swf.AppCursor.CursorAction.exit, Swf.AppCursor.CursorAction.cancel key x y]",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "192db18404abd14215add114ca1288844f9ec055b1759dfbf2bde79141e8970a",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppCursor.lean",
+        "start": {
+          "line": 523,
+          "column": 1
+        },
+        "end": {
+          "line": 530,
+          "column": 64
+        }
+      }
+    },
+    {
+      "name": "Swf.AppCursor.fresh_lock_takes_no_motion",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppCursor.sampleStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (st : Swf.AppCursor.CursorState) (s : Swf.AppCursor.WrapSample) (f : Swf.AppCursor.WrapFrame) (dx dy : Float),\n  st.fresh = true →\n    s.dx.isFinite = true ∧ s.dy.isFinite = true →\n      dx.isFinite = true ∧ dy.isFinite = true →\n        Swf.AppCursor.sampleStep st s f =\n          Swf.AppCursor.sampleStep st\n            { key := s.key, phase := s.phase, x := s.x, y := s.y, dx := dx, dy := dy, mouse := s.mouse } f",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -689,28 +752,89 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "571d79cfb5b87698a44875e60c8b2476418e036791b12454dc3ed1f630b97376",
+      "fingerprint": "220772e4de2a54132a7357b2c9552f4123efb0470aaeaaa3e887854b2aa7677d",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppCursor.lean",
         "start": {
-          "line": 117,
+          "line": 470,
           "column": 1
         },
         "end": {
-          "line": 122,
-          "column": 28
+          "line": 483,
+          "column": 16
         }
       }
     },
     {
-      "name": "Swf.AppCursor.nonfinite_x_refused",
+      "name": "Swf.AppCursor.initial_holds_nothing",
       "relation": "lungo.law",
       "subjects": [
-        "Swf.AppCursor.wrapPointerStep"
+        "Swf.AppCursor.cursorInitial"
       ],
       "specifications": [],
-      "statement": "∀ (taken : List String) (key : String) (phase : Swf.AppCursor.WrapPhase) (x width : Float) (wraps : Bool),\n  (!decide (width > 0) || !width.isFinite) = false →\n    (Swf.AppCursor.wrapPointerStep taken key phase x width wraps = Swf.AppCursor.WrapOutcome.invalidX ↔\n      x.isFinite = false)",
+      "statement": "Swf.AppCursor.cursorInitial.taken = [] ∧\n  Swf.AppCursor.cursorInitial.lock = Swf.AppCursor.PointerLock.free ∧ Swf.AppCursor.cursorInitial.drawn = false",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "64d694fd15b16574d0893f6660cef5303f76ac47205b01567fff8abed6f0354a",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppCursor.lean",
+        "start": {
+          "line": 613,
+          "column": 1
+        },
+        "end": {
+          "line": 617,
+          "column": 18
+        }
+      }
+    },
+    {
+      "name": "Swf.AppCursor.lock_holds_only_what_asked",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppCursor.cursorEvent"
+      ],
+      "specifications": [],
+      "statement": "∀ (st : Swf.AppCursor.CursorState),\n  (∀ (k : String) (x y : Float),\n      st.lock = Swf.AppCursor.PointerLock.asked k x y →\n        (Swf.AppCursor.cursorEvent st Swf.AppCursor.CursorEvent.locked).state.lock =\n            Swf.AppCursor.PointerLock.held k x y ∧\n          (Swf.AppCursor.cursorEvent st Swf.AppCursor.CursorEvent.locked).actions =\n            [Swf.AppCursor.CursorAction.show x y]) ∧\n    ((∀ (k : String) (x y : Float), st.lock ≠ Swf.AppCursor.PointerLock.asked k x y) →\n      (∀ (k : String) (x y : Float), st.lock ≠ Swf.AppCursor.PointerLock.held k x y) →\n        (Swf.AppCursor.cursorEvent st Swf.AppCursor.CursorEvent.locked).actions = [Swf.AppCursor.CursorAction.exit])",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "1cdc4b74acb124db98e003bdb5328682e474a49f72130d0bcabf2d2cb6368e1c",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppCursor.lean",
+        "start": {
+          "line": 542,
+          "column": 1
+        },
+        "end": {
+          "line": 552,
+          "column": 48
+        }
+      }
+    },
+    {
+      "name": "Swf.AppCursor.locked_pointer_draws_its_cursor",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppCursor.sampleStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (st st' : Swf.AppCursor.CursorState) (s : Swf.AppCursor.WrapSample) (f : Swf.AppCursor.WrapFrame) (x y lx ly : Float)\n  (as : List Swf.AppCursor.CursorAction),\n  st.lock = Swf.AppCursor.PointerLock.held s.key lx ly →\n    s.phase.ends = false →\n      Swf.AppCursor.sampleStep st s f = Swf.AppCursor.SampleStep.next st' x y as →\n        as = [Swf.AppCursor.CursorAction.show x y] ∧\n          st'.lock = Swf.AppCursor.PointerLock.held s.key x y ∧ st'.drawn = true",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -722,28 +846,92 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "8c76b8255bdc5d8d299bc5ea13f730069e88e59c250acae695800d4842522b24",
+      "fingerprint": "e929ae9becb0a6d4bc526c876c654b2d20f266915913b351e95f7cff2b4192db",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppCursor.lean",
         "start": {
-          "line": 124,
+          "line": 453,
           "column": 1
         },
         "end": {
-          "line": 137,
-          "column": 41
+          "line": 468,
+          "column": 25
         }
       }
     },
     {
-      "name": "Swf.AppCursor.released_on_up_or_cancel",
+      "name": "Swf.AppCursor.lost_lock_cancels_the_drag",
       "relation": "lungo.law",
       "subjects": [
-        "Swf.AppCursor.wrapAfterDispatch"
+        "Swf.AppCursor.cursorEvent"
       ],
       "specifications": [],
-      "statement": "∀ (taken : List String) (key : String) (phase : Swf.AppCursor.WrapPhase) (consumed : Bool),\n  phase = Swf.AppCursor.WrapPhase.up ∨ phase = Swf.AppCursor.WrapPhase.cancel →\n    key ∈ taken →\n      ∃ taken',\n        Swf.AppCursor.wrapAfterDispatch taken key phase consumed = some taken' ∧\n          ¬key ∈ taken' ∧ ∀ (k : String), k ∈ taken → k ≠ key → k ∈ taken'",
+      "statement": "∀ (st : Swf.AppCursor.CursorState) (key : String) (x y : Float),\n  st.lock = Swf.AppCursor.PointerLock.held key x y →\n    (Swf.AppCursor.cursorEvent st Swf.AppCursor.CursorEvent.unlocked).state.lock = Swf.AppCursor.PointerLock.free ∧\n      (Swf.AppCursor.cursorEvent st Swf.AppCursor.CursorEvent.unlocked).state.drawn = false ∧\n        (Swf.AppCursor.cursorEvent st Swf.AppCursor.CursorEvent.unlocked).actions.head? =\n          some (Swf.AppCursor.CursorAction.cancel key x y)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "ec0117168a95c67e6f7e9901e57790fee92049145c7cd6fd24c2d95429ef2066",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppCursor.lean",
+        "start": {
+          "line": 532,
+          "column": 1
+        },
+        "end": {
+          "line": 540,
+          "column": 25
+        }
+      }
+    },
+    {
+      "name": "Swf.AppCursor.no_lock_where_unavailable",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppCursor.sampleStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (st st' : Swf.AppCursor.CursorState) (s : Swf.AppCursor.WrapSample) (f : Swf.AppCursor.WrapFrame) (x y : Float)\n  (as : List Swf.AppCursor.CursorAction),\n  f.lockable = false →\n    Swf.AppCursor.sampleStep st s f = Swf.AppCursor.SampleStep.next st' x y as →\n      ¬Swf.AppCursor.CursorAction.request ∈ as",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "13ff286343447223e5159ed1b3b5fff98182af6984d9bf14e45ad50b9164edc9",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppCursor.lean",
+        "start": {
+          "line": 387,
+          "column": 1
+        },
+        "end": {
+          "line": 395,
+          "column": 11
+        }
+      }
+    },
+    {
+      "name": "Swf.AppCursor.only_samples_ask",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppCursor.cursorEvent"
+      ],
+      "specifications": [],
+      "statement": "∀ (st : Swf.AppCursor.CursorState) (e : Swf.AppCursor.CursorEvent),\n  ¬Swf.AppCursor.CursorAction.request ∈ (Swf.AppCursor.cursorEvent st e).actions",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -754,17 +942,148 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "7fb290d68d33daf03549e3d6aa933574c30c6ab814edd373c2edea6d49c616fd",
+      "fingerprint": "28519f73bb7949e695b46dedcd2e40944ce06f94d80009f034d60428131329a0",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppCursor.lean",
         "start": {
-          "line": 152,
+          "line": 316,
           "column": 1
         },
         "end": {
-          "line": 158,
-          "column": 60
+          "line": 322,
+          "column": 29
+        }
+      }
+    },
+    {
+      "name": "Swf.AppCursor.refusal_holds_for_the_stroke",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppCursor.sampleStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (st st' : Swf.AppCursor.CursorState) (s : Swf.AppCursor.WrapSample) (f : Swf.AppCursor.WrapFrame) (x y : Float)\n  (as : List Swf.AppCursor.CursorAction) (k : String),\n  st.lock = Swf.AppCursor.PointerLock.refused k →\n    Swf.AppCursor.sampleStep st s f = Swf.AppCursor.SampleStep.next st' x y as →\n      ¬Swf.AppCursor.CursorAction.request ∈ as",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "adc649590ef5e998f8532b09eac8e05d30486312fa06b5eceba1888b74587fca",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppCursor.lean",
+        "start": {
+          "line": 397,
+          "column": 1
+        },
+        "end": {
+          "line": 404,
+          "column": 11
+        }
+      }
+    },
+    {
+      "name": "Swf.AppCursor.released_pointer_keeps_no_lock",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppCursor.cursorEvent"
+      ],
+      "specifications": [],
+      "statement": "∀ (st : Swf.AppCursor.CursorState) (key : String) (x y : Float),\n  st.lock = Swf.AppCursor.PointerLock.held key x y ∨ st.lock = Swf.AppCursor.PointerLock.asked key x y →\n    (Swf.AppCursor.cursorEvent st (Swf.AppCursor.CursorEvent.released key)).state.lock =\n        Swf.AppCursor.PointerLock.letting ∧\n      Swf.AppCursor.CursorAction.exit ∈\n          (Swf.AppCursor.cursorEvent st (Swf.AppCursor.CursorEvent.released key)).actions ∧\n        ¬key ∈ (Swf.AppCursor.cursorEvent st (Swf.AppCursor.CursorEvent.released key)).state.taken",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "b643c6182c4dca0318c391dafad8f2bbd536a474165826a5e28f7615b8890900",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppCursor.lean",
+        "start": {
+          "line": 513,
+          "column": 1
+        },
+        "end": {
+          "line": 521,
+          "column": 63
+        }
+      }
+    },
+    {
+      "name": "Swf.AppCursor.stroke_end_lets_the_lock_go",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppCursor.sampleStep"
+      ],
+      "specifications": [],
+      "statement": "∀ (st st' : Swf.AppCursor.CursorState) (s : Swf.AppCursor.WrapSample) (f : Swf.AppCursor.WrapFrame) (x y lx ly : Float)\n  (as : List Swf.AppCursor.CursorAction),\n  st.lock = Swf.AppCursor.PointerLock.held s.key lx ly ∨ st.lock = Swf.AppCursor.PointerLock.asked s.key lx ly →\n    s.phase.ends = true →\n      Swf.AppCursor.sampleStep st s f = Swf.AppCursor.SampleStep.next st' x y as →\n        Swf.AppCursor.CursorAction.exit ∈ as ∧\n          st'.lock = Swf.AppCursor.PointerLock.letting ∧ ∀ (a b : Float), ¬Swf.AppCursor.CursorAction.show a b ∈ as",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "c0ace79b22577f720c948e325343d0bf6840ce2e670b2c8c7aabf76a3d5c674a",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppCursor.lean",
+        "start": {
+          "line": 485,
+          "column": 1
+        },
+        "end": {
+          "line": 511,
+          "column": 27
+        }
+      }
+    },
+    {
+      "name": "Swf.AppCursor.stroke_end_lets_the_pointer_go",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppCursor.cursorEvent"
+      ],
+      "specifications": [],
+      "statement": "∀ (st : Swf.AppCursor.CursorState) (key : String) (phase : Swf.AppCursor.WrapPhase) (consumed : Bool),\n  phase.ends = true →\n    ¬key ∈ (Swf.AppCursor.cursorEvent st (Swf.AppCursor.CursorEvent.dispatched key phase consumed)).state.taken",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "b528ac6c56edb1da94f4d582c2c3f45305e37150109ae48ce1d2f9552464ce42",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppCursor.lean",
+        "start": {
+          "line": 587,
+          "column": 1
+        },
+        "end": {
+          "line": 596,
+          "column": 56
         }
       }
     },
@@ -772,41 +1091,10 @@
       "name": "Swf.AppCursor.taken_only_on_consumed_down",
       "relation": "lungo.law",
       "subjects": [
-        "Swf.AppCursor.wrapAfterDispatch"
+        "Swf.AppCursor.cursorEvent"
       ],
       "specifications": [],
-      "statement": "∀ (taken taken' : List String) (key k : String) (phase : Swf.AppCursor.WrapPhase) (consumed : Bool),\n  Swf.AppCursor.wrapAfterDispatch taken key phase consumed = some taken' →\n    k ∈ taken' → ¬k ∈ taken → phase = Swf.AppCursor.WrapPhase.down ∧ consumed = true ∧ k = key",
-      "status": "proved",
-      "evidence_trust": {
-        "axioms": [
-          "propext"
-        ],
-        "depends_on_sorry": false
-      },
-      "assumptions": [],
-      "package": "swf_models",
-      "fingerprint": "3d24166b755479f45f182233cac6eccd42fb5ce2ad3e473d41e4bd665266b998",
-      "source": {
-        "package": "swf_models",
-        "file": "Swf/AppCursor.lean",
-        "start": {
-          "line": 139,
-          "column": 1
-        },
-        "end": {
-          "line": 150,
-          "column": 13
-        }
-      }
-    },
-    {
-      "name": "Swf.AppCursor.taken_stays_distinct",
-      "relation": "lungo.law",
-      "subjects": [
-        "Swf.AppCursor.wrapAfterDispatch"
-      ],
-      "specifications": [],
-      "statement": "∀ (taken taken' : List String) (key : String) (phase : Swf.AppCursor.WrapPhase) (consumed : Bool),\n  taken.Nodup → Swf.AppCursor.wrapAfterDispatch taken key phase consumed = some taken' → taken'.Nodup",
+      "statement": "∀ (st : Swf.AppCursor.CursorState) (key k : String) (phase : Swf.AppCursor.WrapPhase) (consumed : Bool),\n  k ∈ (Swf.AppCursor.cursorEvent st (Swf.AppCursor.CursorEvent.dispatched key phase consumed)).state.taken →\n    ¬k ∈ st.taken → phase = Swf.AppCursor.WrapPhase.down ∧ consumed = true ∧ k = key",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -817,16 +1105,48 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "a158be224efa305e5b814788ebc320c59ed0e3b0ef16088827acc575e204e3ea",
+      "fingerprint": "94da924171a47d33c77eccb13479fc5e218d532b6e3f27864b46cbdacd7b3627",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppCursor.lean",
         "start": {
-          "line": 160,
+          "line": 566,
           "column": 1
         },
         "end": {
-          "line": 171,
+          "line": 585,
+          "column": 48
+        }
+      }
+    },
+    {
+      "name": "Swf.AppCursor.taken_stays_distinct",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppCursor.takenAfter"
+      ],
+      "specifications": [],
+      "statement": "∀ (taken : List String) (key : String) (phase : Swf.AppCursor.WrapPhase) (consumed : Bool),\n  taken.Nodup → (Swf.AppCursor.takenAfter taken key phase consumed).Nodup",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "ebe8af0165796dd90f06a815e39d8f786342248777d853e5a5c056c42866cc69",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppCursor.lean",
+        "start": {
+          "line": 598,
+          "column": 1
+        },
+        "end": {
+          "line": 611,
           "column": 22
         }
       }
@@ -835,10 +1155,10 @@
       "name": "Swf.AppCursor.untaken_passes_unchanged",
       "relation": "lungo.law",
       "subjects": [
-        "Swf.AppCursor.wrapPointerStep"
+        "Swf.AppCursor.sampleStep"
       ],
       "specifications": [],
-      "statement": "∀ (taken : List String) (key : String) (phase : Swf.AppCursor.WrapPhase) (x width : Float) (wraps : Bool),\n  ¬key ∈ taken →\n    Swf.AppCursor.wrapPointerStep taken key phase x width wraps = Swf.AppCursor.WrapOutcome.pass ∨\n      Swf.AppCursor.wrapPointerStep taken key phase x width wraps = Swf.AppCursor.WrapOutcome.invalidWidth ∨\n        Swf.AppCursor.wrapPointerStep taken key phase x width wraps = Swf.AppCursor.WrapOutcome.invalidX",
+      "statement": "∀ (st st' : Swf.AppCursor.CursorState) (s : Swf.AppCursor.WrapSample) (f : Swf.AppCursor.WrapFrame) (x y : Float)\n  (as : List Swf.AppCursor.CursorAction),\n  ¬s.key ∈ st.taken ∨ f.wraps = false →\n    (∀ (lx ly : Float), st.lock ≠ Swf.AppCursor.PointerLock.held s.key lx ly) →\n      Swf.AppCursor.sampleStep st s f = Swf.AppCursor.SampleStep.next st' x y as → x = s.x ∧ y = s.y",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -850,17 +1170,17 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "6fc79058c384f7759480b89b301b87b69a55c5cd7490e6ba2cd1210c09c82fe4",
+      "fingerprint": "461018283ab54235d5e3ab96a303004a3b9f6bcb4f81f80376a103a66b3f326a",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppCursor.lean",
         "start": {
-          "line": 66,
+          "line": 422,
           "column": 1
         },
         "end": {
-          "line": 79,
-          "column": 15
+          "line": 434,
+          "column": 39
         }
       }
     },
@@ -868,10 +1188,10 @@
       "name": "Swf.AppCursor.wraps_only_held_pointers_in_wrapping_views",
       "relation": "lungo.law",
       "subjects": [
-        "Swf.AppCursor.wrapPointerStep"
+        "Swf.AppCursor.sampleStep"
       ],
       "specifications": [],
-      "statement": "∀ (taken : List String) (key : String) (phase : Swf.AppCursor.WrapPhase) (x width y : Float) (wraps cursor : Bool),\n  Swf.AppCursor.wrapPointerStep taken key phase x width wraps = Swf.AppCursor.WrapOutcome.wrapped y cursor →\n    wraps = true ∧ phase ≠ Swf.AppCursor.WrapPhase.down ∧ key ∈ taken ∧ x.isFinite = true",
+      "statement": "∀ (st st' : Swf.AppCursor.CursorState) (s : Swf.AppCursor.WrapSample) (f : Swf.AppCursor.WrapFrame) (x y : Float)\n  (as : List Swf.AppCursor.CursorAction),\n  (∀ (lx ly : Float), st.lock ≠ Swf.AppCursor.PointerLock.held s.key lx ly) →\n    Swf.AppCursor.sampleStep st s f = Swf.AppCursor.SampleStep.next st' x y as →\n      x ≠ s.x → f.wraps = true ∧ s.key ∈ st.taken ∧ s.phase ≠ Swf.AppCursor.WrapPhase.down",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -883,17 +1203,17 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "66f6eed178d54f13b06b7bcb899008e83195f2e45e77a695115e778716e6446a",
+      "fingerprint": "f5febece6c92ba4976a602209a7219e59ec4ebdccda39cbe74f9c7f9eb1979a8",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppCursor.lean",
         "start": {
-          "line": 81,
+          "line": 436,
           "column": 1
         },
         "end": {
-          "line": 96,
-          "column": 17
+          "line": 451,
+          "column": 24
         }
       }
     },
@@ -7431,11 +7751,13 @@
       }
     },
     {
-      "name": "Swf.AppCursor.wrapAfterDispatch",
+      "name": "Swf.AppCursor.cursorEvent",
       "module": "Swf.AppCursor",
       "async": false,
       "trust": {
-        "axioms": [],
+        "axioms": [
+          "propext"
+        ],
         "depends_on_sorry": false,
         "unsafe_dependencies": [],
         "partial_dependencies": [],
@@ -7444,9 +7766,14 @@
         ]
       },
       "claims": [
-        "Swf.AppCursor.released_on_up_or_cancel",
-        "Swf.AppCursor.taken_only_on_consumed_down",
-        "Swf.AppCursor.taken_stays_distinct"
+        "Swf.AppCursor.closing_leaves_nothing",
+        "Swf.AppCursor.escape_ends_the_locked_drag",
+        "Swf.AppCursor.lock_holds_only_what_asked",
+        "Swf.AppCursor.lost_lock_cancels_the_drag",
+        "Swf.AppCursor.only_samples_ask",
+        "Swf.AppCursor.released_pointer_keeps_no_lock",
+        "Swf.AppCursor.stroke_end_lets_the_pointer_go",
+        "Swf.AppCursor.taken_only_on_consumed_down"
       ],
       "assumptions": [],
       "facilities": [],
@@ -7455,17 +7782,47 @@
         "package": "swf_models",
         "file": "Swf/AppCursor.lean",
         "start": {
-          "line": 55,
+          "line": 272,
           "column": 1
         },
         "end": {
-          "line": 62,
-          "column": 18
+          "line": 312,
+          "column": 67
         }
       }
     },
     {
-      "name": "Swf.AppCursor.wrapPointerStep",
+      "name": "Swf.AppCursor.cursorInitial",
+      "module": "Swf.AppCursor",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": []
+      },
+      "claims": [
+        "Swf.AppCursor.initial_holds_nothing"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppCursor.lean",
+        "start": {
+          "line": 94,
+          "column": 1
+        },
+        "end": {
+          "line": 95,
+          "column": 98
+        }
+      }
+    },
+    {
+      "name": "Swf.AppCursor.sampleStep",
       "module": "Swf.AppCursor",
       "async": false,
       "trust": {
@@ -7481,7 +7838,9 @@
           "floor",
           "lean_array_fget_borrowed",
           "lean_array_push",
+          "lean_float_add",
           "lean_float_beq",
+          "lean_float_decLe",
           "lean_float_decLt",
           "lean_float_div",
           "lean_float_isfinite",
@@ -7517,9 +7876,12 @@
         ]
       },
       "claims": [
-        "Swf.AppCursor.cursor_only_while_moving",
-        "Swf.AppCursor.invalid_width_refused",
-        "Swf.AppCursor.nonfinite_x_refused",
+        "Swf.AppCursor.asks_only_at_the_edge_of_a_held_drag",
+        "Swf.AppCursor.fresh_lock_takes_no_motion",
+        "Swf.AppCursor.locked_pointer_draws_its_cursor",
+        "Swf.AppCursor.no_lock_where_unavailable",
+        "Swf.AppCursor.refusal_holds_for_the_stroke",
+        "Swf.AppCursor.stroke_end_lets_the_lock_go",
         "Swf.AppCursor.untaken_passes_unchanged",
         "Swf.AppCursor.wraps_only_held_pointers_in_wrapping_views"
       ],
@@ -7530,12 +7892,12 @@
         "package": "swf_models",
         "file": "Swf/AppCursor.lean",
         "start": {
-          "line": 41,
+          "line": 231,
           "column": 1
         },
         "end": {
-          "line": 53,
-          "column": 69
+          "line": 240,
+          "column": 29
         }
       }
     },

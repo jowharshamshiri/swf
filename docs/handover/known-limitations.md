@@ -9,8 +9,12 @@ What SWF does not do, or does not do yet. Each item says why and what a host can
   Content that must look exact in a curve is drawn by the geometry backend instead.
 - **Live and drawn content occlude by layers**, not per pixel: the browser has no depth test
   between an element and a canvas.
-- **The platform pointer cannot be moved.** The wrapped cursor is drawn by the page and stops at
-  the screen's edge.
+- **The platform pointer cannot be moved.** The wrapped cursor is drawn by the page. A drag that
+  reaches the panorama's edge locks the pointer to the view and goes on by the mouse's motion (a
+  view turn round the circle, a window moved in the camera's plane until the pointer is a quarter
+  turn from where it was taken); when the lock ends, the platform's pointer shows again where the
+  lock took it, not where the drawn cursor was. Where the browser offers no pointer lock, or
+  refuses it, the drag stops at the screen's edge.
 - **No trust model.** SWF does not sandbox content or the modules a host loads; the host and the
   browser decide what runs.
 - **Content is outside the accessibility guarantee.** The reference application's controls meet

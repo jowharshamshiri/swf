@@ -32,7 +32,9 @@ IndexedDB, as the host chooses. The packages without a DOM (`@swf/math`, `@swf/m
   stacked by `z-index`, each layer wholly in front of or behind another; there is no per-pixel
   depth between them, and every composed frame says so (`occlusion: 'layer-order'`).
 - **The pointer cannot be moved.** A page cannot move the platform's pointer, so the wrapped
-  cursor is drawn by the page (`createVirtualCursor`) and stops at the screen's edge.
+  cursor is drawn by the page (`createVirtualCursor`). A drag that reaches the panorama's edge
+  locks the pointer to the view (Pointer Lock) and goes on by the mouse's motion; where the browser
+  offers no lock or refuses it, the drag stops at the screen's edge.
 - **Cross-origin content keeps its own input.** Content in a cross-origin frame gets its input
   from the browser alone; the framework sees presses only on window chrome and resize handles.
 - **A hidden tab gets no animation frames.** Presentation waits there and resumes from the latest
