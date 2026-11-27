@@ -137,17 +137,23 @@ describe('the standard benchmark fixture (§26.1)', () => {
     }
   });
 
-  it('shows 30 to 50 surfaces in each viewport, wherever its camera turns', () => {
-    const fresh = made(fixture);
-    for (const v of fixture.viewports) {
-      const counts: number[] = [];
-      for (let heading = -180; heading < 180; heading += 2.5) {
-        counts.push(visibleIn(fresh, v.id, heading));
+  // Turns each viewport through 144 headings over 300 surfaces: about 2.5 s alone, and twice that
+  // or more beside the rest of the suite's workers, past the default 5 s.
+  it(
+    'shows 30 to 50 surfaces in each viewport, wherever its camera turns',
+    { timeout: 30_000 },
+    () => {
+      const fresh = made(fixture);
+      for (const v of fixture.viewports) {
+        const counts: number[] = [];
+        for (let heading = -180; heading < 180; heading += 2.5) {
+          counts.push(visibleIn(fresh, v.id, heading));
+        }
+        expect(Math.min(...counts)).toBeGreaterThanOrEqual(30);
+        expect(Math.max(...counts)).toBeLessThanOrEqual(50);
       }
-      expect(Math.min(...counts)).toBeGreaterThanOrEqual(30);
-      expect(Math.max(...counts)).toBeLessThanOrEqual(50);
-    }
-  });
+    },
+  );
 
   it('plans the same scene from the same seed, and another from another', () => {
     expect(planFixture(STANDARD, 1)).toEqual(fixture);
