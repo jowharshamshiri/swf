@@ -1,3 +1,5 @@
+import { makeError, SwfFailure } from '@swf/core';
+import type { SnapshotStore } from '@swf/persistence';
 import { createMemoryStore } from '@swf/persistence';
 import { describe, expect, it } from 'vitest';
 import { ENGLISH } from '../../src/messages.js';
@@ -11,19 +13,31 @@ const HINTS = Object.freeze({
   focus: 'application.panel.focus',
 });
 
+/** How wide a part of an element is shown: its box, within every ancestor that clips it. */
+function shownWidth(element: HTMLElement): number {
+  const box = element.getBoundingClientRect();
+  let [left, right] = [box.left, box.right];
+  for (let a = element.parentElement; a !== null; a = a.parentElement) {
+    if (getComputedStyle(a).overflowX !== 'visible' || a === document.documentElement) {
+      const clip = a.getBoundingClientRect();
+      left = Math.max(left, clip.left);
+      right = Math.min(right, clip.right);
+    }
+  }
+  return Math.max(0, right - left);
+}
+
 /**
- * Every item of the status bar whose words are cut: shown narrower than they are, or reaching past
- * the page's edge.
+ * Every item of the status bar, and its tab, whose words are cut: shown narrower than they are,
+ * whether by their own box or by a box around them.
  */
 function cut(root: HTMLElement): string[] {
-  const edge = root.getBoundingClientRect();
-  return [...root.querySelectorAll<HTMLElement>('.wsb-status-item__label')]
-    .filter((label) => {
-      const box = label.getBoundingClientRect();
-      return (
-        label.scrollWidth > label.clientWidth || box.left < edge.left || box.right > edge.right
-      );
-    })
+  return [
+    ...root.querySelectorAll<HTMLElement>(
+      '.wsb-status-item__label, [data-wsb="application.panel.tabs"] .wsb-tabs__label',
+    ),
+  ]
+    .filter((label) => shownWidth(label) + 0.5 < label.scrollWidth)
     .map((label) => label.closest('[data-wsb]')?.getAttribute('data-wsb') ?? label.textContent);
 }
 
@@ -68,6 +82,32 @@ describe('the status bar’s hints', () => {
       expect(m.root.querySelector(`[data-wsb="${HINTS.focus}"]`)?.getAttribute('title')).toBe(
         ENGLISH['focus.hint'],
       );
+    });
+
+    it(`says a save failed in short at ${String(size.width)} × ${String(size.height)}, its reason when asked, and cuts nothing beside it`, async () => {
+      const memory = createMemoryStore();
+      const store: SnapshotStore = {
+        guarantees: memory.guarantees,
+        load: (key) => memory.load(key),
+        list: () => memory.list(),
+        delete: (key) => memory.delete(key),
+        // A full storage, as the browser's own store says it.
+        save: () =>
+          Promise.reject(
+            new SwfFailure(
+              makeError('QUOTA_EXCEEDED', 'saving "space/Studio" failed: the storage is full'),
+            ),
+          ),
+      };
+      const m = await start('?preset=studio', { store, autosaveDelayMs: 0 }, { size });
+      await m.model.run('swf.navigation.set', { target: 'orbit' });
+      await m.model.run('swf.window.sendBehind', { id: 'desk' });
+      await expect.poll(() => m.model.workspaces?.save, { timeout: 10_000 }).toBe('failed');
+      await m.settle();
+      expect(cut(m.root)).toEqual([]);
+      const save = m.root.querySelector('[data-wsb="application.panel.save"]');
+      expect(save?.textContent.trim()).toBe(ENGLISH['save.failed.short']);
+      expect(save?.getAttribute('title')).toContain('the storage is full');
     });
   }
 });

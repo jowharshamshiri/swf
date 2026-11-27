@@ -140,11 +140,15 @@
       return null;
     }
     if (!status.autosave) {
-      return t('save.off');
+      return { label: t('save.off') };
     }
+    // A failure is said in short beside the other items, its reason when asked (its title).
     return status.save === 'failed'
-      ? t('save.failed', { reason: status.saveError?.message ?? '' })
-      : t(`save.${status.save}`);
+      ? {
+          label: t('save.failed.short'),
+          title: t('save.failed', { reason: status.saveError?.message ?? '' }),
+        }
+      : { label: t(`save.${status.save}`) };
   });
   const sideViews = (
     views: {
@@ -391,7 +395,12 @@
     />
   {/if}
   {#if saveStatus !== null}
-    <StatusItem handle={handleOf`application.panel.save`} label={saveStatus} icon="save" />
+    <StatusItem
+      handle={handleOf`application.panel.save`}
+      label={saveStatus.label}
+      title={saveStatus.title}
+      icon="save"
+    />
   {/if}
   {#if model.panoramaFocused}
     <!-- The panorama has the keyboard: what its keys do, where the reader looks for hints. -->

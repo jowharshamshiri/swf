@@ -128,6 +128,7 @@ const OWN = Object.freeze({
   'save.dirty': 'Not saved yet',
   'save.saving': 'Saving…',
   'save.failed': 'Not saved: {reason}',
+  'save.failed.short': 'Not saved',
   'save.off': 'Not saving',
   'workspaces.name': 'Name',
   'workspaces.name.hint':
