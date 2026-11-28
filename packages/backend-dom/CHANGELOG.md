@@ -34,3 +34,6 @@ carry no cursor of their own. `createDomInput` offers `leave` when the pointer l
 a sample of the pointer where it is when a modifier goes down or up anywhere on the page.
 `chrome.hover` edges the window a press would take in the `selected` ink, or draws the edge of its
 band hovered.
+
+A window in front (the one focus shows) is drawn over every other window's title bar, its own bar in
+a layer of its own over everything (`overlay:front-bars`).

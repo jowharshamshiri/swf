@@ -51,4 +51,5 @@ export { RADAR_MARGIN } from './map-drawer.js';
 export { default as ModeSwitcher } from './ModeSwitcher.svelte';
 export type { OfferedMode } from './modes.js';
 export { COMPACT_BELOW, compactView, offeredModes } from './modes.js';
-export { navigationKey, takesTyping } from './keys.js';
+export type { NavigationKeys } from './keys.js';
+export { DEFAULT_NAVIGATION_KEYS, navigationKey, takesTyping } from './keys.js';

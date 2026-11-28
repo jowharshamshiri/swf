@@ -92,6 +92,7 @@ function fragment(
     depth: 3,
     geometricFidelity: 'exact',
     nativeOwner: ordinal === 0,
+    front: false,
     ...over,
   };
 }

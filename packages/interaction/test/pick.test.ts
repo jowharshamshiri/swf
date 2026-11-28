@@ -99,6 +99,32 @@ describe('input regions (FR-103)', () => {
     expect(picked.candidates.map((c) => [c.nodeId, c.region])).toContainEqual(['near', 'content']);
   });
 
+  it('picks a window the view brings in front over every other, a nearer one’s title bar included', () => {
+    const front = {
+      id: 'test.front/1',
+      representationOf: () => 'full' as const,
+      frontOf: ({ nodeId }: { nodeId: string }) => nodeId === 'far',
+    };
+    // A nearer window's title bar lies over the middle of the farther one's content.
+    const { ws, router } = world(
+      [
+        { id: 'near', heading: 0.02, distance: 3, y: -0.6 },
+        { id: 'far', heading: 0, distance: 6, y: 0.4, size: [4, 3] },
+      ],
+      { router: { representation: () => front } },
+    );
+    const [nx, ny, nw] = cardOf(ws, 'near', 'v', front);
+    const at: [number, number] = [nx + nw / 2, ny - TITLE_BAR_HEIGHT / 2];
+    const [fx, fy, fw, fh] = cardOf(ws, 'far', 'v', front);
+    expect(at[0] > fx && at[0] < fx + fw && at[1] > fy && at[1] < fy + fh).toBe(true);
+    const picked = hit(router.pick('v', ...at));
+    expect(picked.target).toMatchObject({ nodeId: 'far', front: true });
+    expect(picked.candidates.map((c) => [c.nodeId, c.region])).toContainEqual([
+      'near',
+      'title-bar',
+    ]);
+  });
+
   it('counts a press on the handles over larger sizes for a coarse pointer', () => {
     const { ws, router } = world([{ id: 'a', heading: 0, distance: 3 }]);
     const [x, y, w] = cardOf(ws, 'a');

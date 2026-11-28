@@ -12,6 +12,7 @@ import type {
 import {
   cardScale,
   cardScaleFor,
+  frontFor,
   fragmentId,
   representationFor,
   viewGeometryIssue,
@@ -126,6 +127,7 @@ export function projectorOf(module: ProjectionModule): ViewProjector {
           scale: representation === null ? natural : cardScaleFor(representation, context, natural),
         });
         const { scale } = card;
+        const front = representation === null ? false : frontFor(representation, context);
         const [cx, cy] = projection.placeDirection(direction, view);
         // The window's own units to the card's pixels, across and up.
         const [toX, toY] = card.perUnit;
@@ -175,6 +177,7 @@ export function projectorOf(module: ProjectionModule): ViewProjector {
             depth,
             geometricFidelity: fidelity,
             nativeOwner: ordinal === 0,
+            front,
           });
         });
       }

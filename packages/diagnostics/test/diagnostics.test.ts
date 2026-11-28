@@ -45,6 +45,7 @@ const flat: ViewProjector = {
         depth: 3,
         geometricFidelity: 'exact',
         nativeOwner: true,
+        front: false,
       });
     }
     return out;

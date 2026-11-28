@@ -51,6 +51,12 @@ export interface NavigationCommandSpecs {
     /** The window's ID. */
     readonly id: string;
   };
+  /**
+   * Takes the keyboard out of the window's live content that has it, to the view, from where
+   * Escape and every key of the view's act: the window becomes the selection unless it is already
+   * among the selected (`selectionOnPress`). Refused while no window's content has the keyboard.
+   */
+  'swf.content.leave': Readonly<Record<string, never>>;
   /** Focuses the next window round the reader that way, round the circle past the last. */
   'swf.focus.step': {
     /** Which way: `left` or `right`. */
@@ -396,6 +402,7 @@ export const NAVIGATION_COMMAND_IDS: readonly NavigationCommandId[] = Object.fre
   'swf.focus.enter',
   'swf.focus.exit',
   'swf.focus.toggle',
+  'swf.content.leave',
   'swf.focus.step',
   'swf.window.map',
   'swf.window.inspect',
@@ -570,6 +577,30 @@ export function createNavigationCommands(navigation: () => Navigation): Navigati
         return rejected('mode', 'no window is in focus');
       }
       return viewChange(() => navigation().modes.back());
+    },
+    'swf.content.leave': async () => {
+      const app = navigation();
+      const active = app.root.ownerDocument.activeElement;
+      const slot = active instanceof Element ? active.closest('[data-swf-slot]') : null;
+      const surfaceId =
+        slot !== null && app.root.contains(slot) ? slot.getAttribute('data-swf-slot') : null;
+      const state = app.workspace.getState();
+      const windowId =
+        surfaceId === null ? null : (state.surfaces.get(surfaceId)?.ownerNodeId ?? null);
+      if (windowId === null) {
+        return rejected('keyboard', 'the keyboard is not in a window’s content');
+      }
+      const next = models.selectionOnPress([...state.selection], windowId);
+      if (next !== null) {
+        const selected = await committed(
+          app.workspace.transaction([{ type: 'selection.set', ids: next }], { source: 'user' }),
+        );
+        if (selected.status === 'rejected') {
+          return selected;
+        }
+      }
+      app.root.focus({ preventScroll: true });
+      return DONE;
     },
     'swf.focus.toggle': async ({ id }) => {
       const focusOff = off('focus', 'focus');

@@ -380,7 +380,27 @@ export class DomRendererSession implements RendererSession {
         lastOfNode.set(nodeId, i);
       }
     });
+    // The windows the view brings in front (the one focus shows), planned last: every other
+    // window's title bar is drawn under them, theirs over them.
+    const front = new Set(
+      frame.planned.flatMap((p) => {
+        const nodeId = frame.scene.surfaces.get(p.fragment.surfaceId)?.ownerNodeId;
+        return p.fragment.front && nodeId !== undefined ? [nodeId] : [];
+      }),
+    );
+    const of = (inFront: boolean) =>
+      new Map([...chrome].filter(([nodeId]) => front.has(nodeId) === inFront));
+    let barsLaid = false;
+    const layBars = () => {
+      if (this.#chrome !== null && !barsLaid) {
+        barsLaid = true;
+        layers.push(this.#barsLayer(frame, of(false), lastOfNode, usedElements, 'overlay:bars'));
+      }
+    };
     frame.planned.forEach((planned, i) => {
+      if (planned.fragment.front) {
+        layBars();
+      }
       layers.push(this.#content(frame, planned, usedSlots, usedElements));
       for (const [nodeId, last] of lastOfNode) {
         if (last === i) {
@@ -390,8 +410,13 @@ export class DomRendererSession implements RendererSession {
         }
       }
     });
+    layBars();
     if (this.#chrome !== null) {
-      layers.push(this.#barsLayer(frame, chrome, lastOfNode, usedElements));
+      if (front.size > 0) {
+        layers.push(
+          this.#barsLayer(frame, of(true), lastOfNode, usedElements, 'overlay:front-bars'),
+        );
+      }
       layers.push(this.#namesLayer(frame, chrome, usedElements));
     }
     // Slots of surfaces not live here this frame stay in place, hidden, so their content is not
@@ -689,12 +714,12 @@ export class DomRendererSession implements RendererSession {
     frames: ReadonlyMap<Id, readonly ScreenRect[]>,
     nearness: ReadonlyMap<Id, number>,
     usedElements: Set<string>,
+    id: 'overlay:bars' | 'overlay:front-bars',
   ): CompositionLayer {
     const chrome = this.#chrome;
     if (chrome === null) {
       throw new Error('title bars were drawn without chrome');
     }
-    const id = 'overlay:bars';
     usedElements.add(id);
     const layer = this.#element(id, () => {
       const e = this.#document.createElement('div');

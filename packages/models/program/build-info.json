@@ -23,7 +23,7 @@
     "Swf/AppSpacing.lean": "3571be1f63c14c16e45d0ce29dc70cd5b3836023ba8cc859bd752720cbcd6df0",
     "Swf/AppWheel.lean": "eaebe21e2566ac484e8a35ae0a8cadd0e232d9d1876593bf29b269e2bfeb42ad",
     "Swf/AppWorkspaces.lean": "f5a80d6775fd91b054a3856aaae2c3538ae2f6ca90156fffe66791d74bbb69d5",
-    "Swf/Arbitration.lean": "cb91f99434935e8efc6c53d9dd0a0de1197f76015f7bc9c531600c2c2cfe58d4",
+    "Swf/Arbitration.lean": "4503a4985aba3ed73705b6883e098057f048b351387ea9a49a81d8b72e28f745",
     "Swf/Fallback.lean": "db0262b4bb6c56d827cab0345e38de7324f7124b0403286d1468a84e43129f7c",
     "Swf/Gesture.lean": "0d20fc5538ac9da7b999cfb4e4c4c0187c15911d9963834e8392c00fd68426ae",
     "Swf/Handoff.lean": "36619e1132d6c8a9966e96c19b2850897a347505e70c955336d62e38031c34d1",
@@ -46,9 +46,9 @@
   "project": ".",
   "link_directives": [],
   "output_digests": {
-    "assurance.json": "0ffe45e86499880b1022e8ab80aed1d898dd834e96b660846461012345f7c1b9",
-    "index.d.ts": "51bab14532e12afa0b17a77daa0f48296e7f01d2fb58eac556f9ec1cad94e369",
-    "index.js": "983009d3b7a4f739948643ac29a0971fafbfacc45c4bfeb767899b62e47b3b2b"
+    "assurance.json": "56ed2abc181fabb59053916d169013af6372bca987fc4939b4dfcd6a23e55b7d",
+    "index.d.ts": "2c2cc6d363bdc22dd1cdce5d3a99c36afa7a3a95d24f5029a5dcfa33edc204a2",
+    "index.js": "4b8f58d682a98e53eecf7d9fbdc9440707bb6680fe96e29ecde57c8171acef99"
   },
   "platform_products": [
     "program.wasm"

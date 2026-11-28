@@ -25,6 +25,10 @@ export const NAVIGATION_ENGLISH = Object.freeze({
   'command.focus.enter.named': 'Focus {label}',
   'command.focus.exit': 'Close focus',
   'command.focus.toggle': 'Focus a window, or close its focus',
+  'command.content.leave': 'Leave the window’s content',
+  'content.typing.short': 'Typing in {name} · F6 to leave',
+  'content.typing':
+    'The keyboard is in {name}’s content, which keeps every key, Escape included. Press F6 to bring the keyboard back to the view, where Escape and the view’s keys act.',
   'command.focus.step': 'Focus the next window',
   'command.focus.step.left': 'Focus the next window to the left',
   'command.focus.step.right': 'Focus the next window to the right',
@@ -540,6 +544,7 @@ export const NAVIGATION_COMMAND_NAMES: Readonly<Record<NavigationCommandId, Navi
     'swf.focus.enter': 'command.focus.enter',
     'swf.focus.exit': 'command.focus.exit',
     'swf.focus.toggle': 'command.focus.toggle',
+    'swf.content.leave': 'command.content.leave',
     'swf.focus.step': 'command.focus.step',
     'swf.window.map': 'command.window.map',
     'swf.window.inspect': 'command.window.inspect',

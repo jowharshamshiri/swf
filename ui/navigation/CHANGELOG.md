@@ -24,3 +24,8 @@ and on its card in the overview do.
 
 The key help says the wheel over a title bar brings a window nearer or farther, a scroll sideways
 over the background turns the view, and a pinch, or Ctrl and the wheel, widens or narrows it.
+
+`navigationKey` takes every key, those typed in a window's content too, and there takes only the
+key that leaves it (`NavigationKeys.leaveContent`, F6 by default, `DEFAULT_NAVIGATION_KEYS`), which
+runs `swf.content.leave`. `NavigationModel.contentFocused` says which window's content has the
+keyboard, and the messages say how to leave it.

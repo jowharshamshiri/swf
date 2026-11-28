@@ -71,6 +71,11 @@ export interface PickCandidate {
    * this viewport, and the operator can focus or activate it instead.
    */
   readonly proxy: boolean;
+  /**
+   * The view brings the window in front of every other, their title bars included (the one focus
+   * shows): it is picked before them.
+   */
+  readonly front: boolean;
 }
 
 /**
@@ -272,6 +277,7 @@ export function pick(
       priority: hit.priority,
       occluding:
         options.occlusion({ nodeId: hit.nodeId, surfaceId: hit.surfaceId }) === 'occluding',
+      front: hit.front,
     })),
     options.depthTolerance,
   );
@@ -364,6 +370,7 @@ function surfaceHit(ctx: PickContext, fragment: ProjectedFragment, x: number, y:
     pixelsPerUnit: [bw / w, bh / h] as const,
     priority: (owner?.flags.presentationPriority ?? 0) + surface.flags.presentationPriority,
     proxy,
+    front: fragment.front,
   };
 }
 
@@ -424,5 +431,6 @@ function nodeHit(
     pixelsPerUnit: [cw / w, ch / h] as const,
     priority: node.flags.presentationPriority,
     proxy: false,
+    front: fragment.front,
   };
 }

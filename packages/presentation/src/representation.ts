@@ -52,6 +52,12 @@ export interface RepresentationPolicy {
    * number above zero fails the frame with `INVALID_INPUT`, and what it throws propagates.
    */
   scaleOf?(context: RepresentationContext, natural: number): number;
+  /**
+   * Whether the view brings the surface's window in front of every other window, their title bars
+   * included (the one focus shows, say): drawn after them and picked first. Without it, no window
+   * is brought in front. An answer that is not a boolean fails the frame with `INVALID_INPUT`.
+   */
+  frontOf?(context: RepresentationContext): boolean;
 }
 
 /**
@@ -72,6 +78,9 @@ export function representationPolicyIssue(value: unknown): string | null {
   }
   if (policy.scaleOf !== undefined && typeof policy.scaleOf !== 'function') {
     return `representation policy "${policy.id}" has a scaleOf that is not a function`;
+  }
+  if (policy.frontOf !== undefined && typeof policy.frontOf !== 'function') {
+    return `representation policy "${policy.id}" has a frontOf that is not a function`;
   }
   return null;
 }
@@ -118,6 +127,27 @@ export function cardScaleFor(
       makeError(
         'INVALID_INPUT',
         `representation policy "${policy.id}" gave card scale ${JSON.stringify(answer)} for surface "${context.surfaceId}"; a scale is a finite number above zero`,
+        { entityId: context.surfaceId },
+      ),
+    );
+  }
+  return answer;
+}
+
+/**
+ * Whether a policy brings a surface's window in front, holding it to its contract: false without
+ * `frontOf`. Throws {@link SwfFailure} (`INVALID_INPUT`) for an answer that is not a boolean.
+ */
+export function frontFor(policy: RepresentationPolicy, context: RepresentationContext): boolean {
+  if (policy.frontOf === undefined) {
+    return false;
+  }
+  const answer: unknown = policy.frontOf(context);
+  if (typeof answer !== 'boolean') {
+    throw new SwfFailure(
+      makeError(
+        'INVALID_INPUT',
+        `representation policy "${policy.id}" said ${JSON.stringify(answer)} of whether surface "${context.surfaceId}" is in front; it is true or false`,
         { entityId: context.surfaceId },
       ),
     );

@@ -76,6 +76,7 @@ const flat: ViewProjector = {
         depth: -node.transform.position[2],
         geometricFidelity: 'exact',
         nativeOwner: true,
+        front: false,
       });
     }
     return out;

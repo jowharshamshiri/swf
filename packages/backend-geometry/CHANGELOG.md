@@ -22,3 +22,7 @@ once a frame.
 
 `hover` edges the frame and title bar of the window a press would take in the `selected` ink, or
 draws the edge of its band hovered.
+
+A window in front (the one focus shows) is drawn over every other window's title bar, the others'
+bars stacked under its cards and its own in a layer of its own over everything
+(`overlay:front-bars`).

@@ -201,6 +201,36 @@ describe('geometry renderer', () => {
     expect(layer('chrome:b')).toEqual(['stroke rgb(1, 1, 1)']);
   });
 
+  it('draws a window the view brings in front over every other window’s title bar, its own bar over everything', async () => {
+    const { frame, rendered } = await render(
+      [
+        { id: 'a', kind: 'drawn', heading: 0, distance: 3, label: 'A' },
+        { id: 'b', kind: 'drawn', heading: 0.3, distance: 6, label: 'B' },
+      ],
+      {},
+      360,
+      true,
+      {
+        id: 'test.front/1',
+        representationOf: () => 'full',
+        frontOf: ({ nodeId }) => nodeId === 'b',
+      },
+    );
+    // B, though farther, is planned last; A's bar lies under B's card, B's over everything.
+    expect(frame.planned.at(-1)?.fragment.surfaceId).toBe('b-s');
+    const ids = rendered.layers.map((l) => l.id);
+    const lastOfA = frame.planned.findLastIndex((p) => p.fragment.surfaceId === 'a-s');
+    const bars = rendered.layers.find((l) => l.id === 'overlay:bars');
+    const content = bars?.content;
+    expect(isGeometryLayer(content) && content.after).toBe(frame.planned[lastOfA]?.fragment.id);
+    expect(ids.indexOf('overlay:bars')).toBeLessThan(ids.findIndex((id) => id.includes('/b-s/')));
+    expect(ids.indexOf('overlay:front-bars')).toBeGreaterThan(ids.indexOf('chrome:b'));
+    expect(drawn(rendered.layers.find((l) => l.id === 'overlay:bars'))).toContain('fillText:A');
+    expect(drawn(rendered.layers.find((l) => l.id === 'overlay:front-bars'))).toEqual([
+      'fillText:B',
+    ]);
+  });
+
   it('draws a compact window as its proxy, and a label-only one as a mark named beside it, without chrome (FR-122)', async () => {
     const chosen: Record<string, 'compact' | 'label'> = { near: 'compact', far: 'label' };
     const { rendered } = await render(

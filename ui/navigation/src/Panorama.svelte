@@ -52,9 +52,17 @@
         guides = new PanoramaGuides({ app, messages: model.messages, container: element });
       }
     });
-    // Whether the panorama itself has the keyboard, so its keys can be shown where hints are.
+    // Whether the panorama itself has the keyboard, so its keys can be shown where hints are, or
+    // which window's live content in it has, so the way out of it can be.
     const follow = () => {
-      model.panoramaFocused = element.ownerDocument.activeElement === element;
+      const active = element.ownerDocument.activeElement;
+      model.panoramaFocused = active === element;
+      const slot = active !== null && element.contains(active) ? active.closest('[data-swf-slot]') : null;
+      const surfaceId = slot?.getAttribute('data-swf-slot') ?? null;
+      model.contentFocused =
+        surfaceId === null
+          ? null
+          : (model.navigation?.workspace.getState().surfaces.get(surfaceId)?.ownerNodeId ?? null);
     };
     element.addEventListener('focusin', follow);
     element.addEventListener('focusout', follow);

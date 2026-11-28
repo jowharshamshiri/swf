@@ -327,6 +327,8 @@ export class NavigationModel<S extends NavigationCommandSpecs = NavigationComman
   keyRefusal = $state<string | null>(null);
   /** Whether the panorama itself has the keyboard (not a window's content in it). */
   panoramaFocused = $state(false);
+  /** The window whose live content has the keyboard, or null while none's has. */
+  contentFocused = $state<string | null>(null);
 
   /** The messages the controls speak in. */
   readonly messages: NavigationMessages;

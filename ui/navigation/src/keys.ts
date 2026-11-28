@@ -19,9 +19,25 @@ export function takesTyping(target: EventTarget | null): boolean {
   );
 }
 
+/** The keys a host may give navigation's keys other than their defaults. */
+export interface NavigationKeys {
+  /**
+   * The key that takes the keyboard out of a window's live content to the view
+   * (`swf.content.leave`), as `KeyboardEvent.key` names it with no modifier held. Default `F6`, the
+   * key browsers and editors move the keyboard between a page's parts by, which terminals and
+   * editors seldom bind: a host whose content needs F6 gives another.
+   */
+  readonly leaveContent: string;
+}
+
+/** Navigation's keys as they are by default. */
+export const DEFAULT_NAVIGATION_KEYS: NavigationKeys = Object.freeze({ leaveContent: 'F6' });
+
 /**
  * Navigation's keys, for a host's page-wide key handler to call with every key it does not take
- * first. Wherever the keyboard is but in a field or a window's own content (UX-012), as VS Code:
+ * first, those typed in a field or a window's content included. In a window's live content, only
+ * the key that leaves it (`keys.leaveContent`, F6 by default) is navigation's: it takes the
+ * keyboard out to the view, so Escape and the view's keys reach it again. Wherever the keyboard is but in a field or a window's own content (UX-012), as VS Code:
  * Ctrl+Z undoes, Ctrl+Shift+Z or Ctrl+Y redoes (Cmd on a Mac); Escape cancels a gesture running, or
  * else closes the focus, as it leaves VS Code's zen mode. While the panorama itself has the
  * keyboard, and only then (so a single key never acts from anywhere else, WCAG 2.1.4): 1 to 9 show
@@ -30,9 +46,26 @@ export function takesTyping(target: EventTarget | null): boolean {
  * map or the overview for the view it was opened from. In the panorama the framework's own keys
  * act first. True when it took the key, which it then keeps from the page.
  */
-export function navigationKey(model: NavigationModel, event: KeyboardEvent): boolean {
+export function navigationKey(
+  model: NavigationModel,
+  event: KeyboardEvent,
+  keys: NavigationKeys = DEFAULT_NAVIGATION_KEYS,
+): boolean {
   const navigation = model.navigation;
-  if (event.defaultPrevented || navigation === null || takesTyping(event.target)) {
+  if (event.defaultPrevented || navigation === null) {
+    return false;
+  }
+  const inContent =
+    event.target instanceof Element &&
+    event.target.closest('[data-swf-slot]') !== null &&
+    navigation.root.contains(event.target);
+  const plain = !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey;
+  if (inContent && plain && event.key === keys.leaveContent) {
+    event.preventDefault();
+    void model.runNavigation('swf.content.leave', {});
+    return true;
+  }
+  if (takesTyping(event.target)) {
     return false;
   }
   const command = event.ctrlKey || event.metaKey;

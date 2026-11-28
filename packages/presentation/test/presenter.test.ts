@@ -99,6 +99,7 @@ function flatProjector(): ViewProjector & {
         depth: -z,
         geometricFidelity: 'exact',
         nativeOwner: true,
+        front: false,
       });
     }
     return out;

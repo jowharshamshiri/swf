@@ -275,7 +275,36 @@ export class GeometryRendererSession implements RendererSession {
       }
     }
     const frames = windowFrames(frame);
+    // One measure for the frame, made when a name is first measured: the font is set once for
+    // every name it measures.
+    let measuring: ((text: string, font: string) => number) | null = null;
+    const measure = (text: string, font: string) => {
+      measuring ??= this.#measure();
+      return measuring(text, font);
+    };
+    // The windows the view brings in front (the one focus shows), planned last: every other
+    // window's title bar is drawn under them, theirs over them.
+    const front = new Set(
+      frame.planned.flatMap((p) => {
+        const nodeId = frame.scene.surfaces.get(p.fragment.surfaceId)?.ownerNodeId;
+        return p.fragment.front && nodeId !== undefined ? [nodeId] : [];
+      }),
+    );
+    const of = (inFront: boolean) =>
+      new Map([...frames].filter(([nodeId]) => front.has(nodeId) === inFront));
+    let barsLaid = false;
+    let previous: string | null = null;
+    const layBars = () => {
+      if (!barsLaid) {
+        barsLaid = true;
+        layers.push(this.#bars(frame, of(false), lastOfNode, measure, 'overlay:bars', previous));
+      }
+    };
     for (const planned of frame.planned) {
+      if (planned.fragment.front) {
+        layBars();
+      }
+      previous = planned.fragment.id;
       if (planned.negotiation.layer === 'content-native') {
         if (!elsewhere.has(planned.fragment.id)) {
           throw new SwfFailure(
@@ -296,9 +325,10 @@ export class GeometryRendererSession implements RendererSession {
         }
       }
     }
-    // One measure for the frame: the font is set once for every name it measures.
-    const measure = this.#measure();
-    layers.push(this.#bars(frame, frames, lastOfNode, measure));
+    layBars();
+    if (front.size > 0) {
+      layers.push(this.#bars(frame, of(true), lastOfNode, measure, 'overlay:front-bars', null));
+    }
     layers.push(...this.#names(frame, projection, frames, measure));
     return Object.freeze({
       viewportId: frame.viewportId,
@@ -558,17 +588,20 @@ export class GeometryRendererSession implements RendererSession {
   }
 
   /**
-   * The windows' title bars, one layer over every card: across the top of each window's card at
-   * every place it is drawn, {@link TITLE_BAR_HEIGHT} pixels high, in the host's colours for it or
-   * the ground and text inks, its name written on it (cut short with an ellipsis where it is too
-   * long), outlined in the selected or the focused window's ink for theirs. Nearer windows' bars lie
-   * over farther ones'.
+   * The title bars of `frames`' windows, one layer: across the top of each window's card at every
+   * place it is drawn, {@link TITLE_BAR_HEIGHT} pixels high, in the host's colours for it or the
+   * ground and text inks, its name written on it (cut short with an ellipsis where it is too long),
+   * outlined in the selected or the focused window's ink for theirs. Nearer windows' bars lie over
+   * farther ones'. Every window's bar but those of windows in front lies over every card but
+   * theirs (stacked after the last fragment before them, `after`); theirs lie over everything.
    */
   #bars(
     frame: RenderFrame,
     frames: ReadonlyMap<Id, WindowFrame>,
     nearness: ReadonlyMap<Id, string>,
     measure: (text: string, font: string) => number,
+    id: 'overlay:bars' | 'overlay:front-bars',
+    after: string | null,
   ): CompositionLayer {
     const { scene } = frame;
     const inks = this.#inks;
@@ -594,14 +627,14 @@ export class GeometryRendererSession implements RendererSession {
               : null,
         }));
       });
-    const signature = JSON.stringify([bars, font]);
+    const signature = JSON.stringify([bars, font, after]);
     return Object.freeze({
-      id: 'overlay:bars',
+      id,
       category: 'overlay',
       fragmentId: null,
       surfaceId: null,
-      content: this.#keep('overlay:bars', signature, () =>
-        layer(null, (ctx) => {
+      content: this.#keep(id, signature, () =>
+        layer(after, (ctx) => {
           ctx.font = font;
           ctx.textAlign = 'start';
           ctx.textBaseline = 'middle';

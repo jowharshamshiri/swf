@@ -49,3 +49,7 @@ drawn with a card is named on its bar (`windowTitle` gives the name).
 
 `WindowHover` and `HoverLookup` say which window a press would take where the pointer hovers, for
 renderers to show it.
+
+A representation policy may bring a window in front of every other, their title bars included
+(`frontOf`, held to its contract by `frontFor`): its fragments are `front`, ordered after every
+other, drawn over them and picked first.

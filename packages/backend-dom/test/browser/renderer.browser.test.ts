@@ -74,6 +74,7 @@ function frame(placed: 'exact' | 'approximate' = 'exact', bound = true, scale = 
         depth: 2,
         geometricFidelity: placed,
         nativeOwner: true,
+        front: false,
       },
     ]),
     renderer: { id: 'swf.dom-renderer/1', capabilities: DOM_RENDERER_CAPABILITIES },

@@ -87,6 +87,11 @@ export interface ProjectedFragment {
    * and viewport owns it; the others are presentation proxies routing to the same surface.
    */
   readonly nativeOwner: boolean;
+  /**
+   * The view brings the surface's window in front of every other window, their title bars
+   * included, as focus brings forward the window it shows: drawn after them and picked first.
+   */
+  readonly front: boolean;
 }
 
 /**
@@ -217,6 +222,9 @@ function fragmentIssue(f: ProjectedFragment, viewportId: Id): string | null {
   if (!Number.isFinite(f.depth)) {
     return `fragment "${f.id}" has a non-finite depth`;
   }
+  if (typeof f.front !== 'boolean') {
+    return `fragment "${f.id}" does not say whether it is in front`;
+  }
   return null;
 }
 
@@ -254,6 +262,8 @@ function compareFragments(
     return (owner?.flags.presentationPriority ?? 0) + (surface?.flags.presentationPriority ?? 0);
   };
   return (
+    // A window the view brings in front comes after every other, whatever its depth.
+    Number(a.front) - Number(b.front) ||
     b.depth - a.depth ||
     priority(a) - priority(b) ||
     (rank.get(a.surfaceId) ?? 0) - (rank.get(b.surfaceId) ?? 0) ||

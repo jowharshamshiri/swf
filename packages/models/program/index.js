@@ -1540,11 +1540,12 @@ export function hitType() {
       L.FLOAT.encode(w, v.distance);
       L.FLOAT.encode(w, v.priority);
       L.BOOL.encode(w, v.occluding);
+      L.BOOL.encode(w, v.front);
     },
     (r) => {
       const c = r.u32();
       if (c !== 0) throw new L.MalformedError(`constructor index ${c} of Swf.Arbitration.Hit`);
-      return ({ node: L.STRING.decode(r), surface: L.option(L.STRING).decode(r), region: hitRegionType().decode(r), distance: L.FLOAT.decode(r), priority: L.FLOAT.decode(r), occluding: L.BOOL.decode(r) });
+      return ({ node: L.STRING.decode(r), surface: L.option(L.STRING).decode(r), region: hitRegionType().decode(r), distance: L.FLOAT.decode(r), priority: L.FLOAT.decode(r), occluding: L.BOOL.decode(r), front: L.BOOL.decode(r) });
     },
   );
 }
@@ -9228,17 +9229,50 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "9bd65c7c5928cc21a8edb69d3ae8f360ea8825621fefd52f9baac1a85cd5b65d",
+      "fingerprint": "9452179fcfdc6dd5ca0cdf2522b091199a001ec5cdc4ce98e57a936e1b833ccc",
       "source": {
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 397,
+          "line": 402,
           "column": 1
         },
         "end": {
-          "line": 417,
+          "line": 422,
           "column": 33
+        }
+      }
+    },
+    {
+      "name": "Swf.Arbitration.front_before",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Arbitration.hitKey"
+      ],
+      "specifications": [],
+      "statement": "∀ (hits : Array Swf.Arbitration.Hit) (kept : List Nat) (tolerance : Float) (i j : Nat),\n  hits[i]!.front = true →\n    hits[j]!.front = false →\n      Swf.Order.floatKey hits[i]!.priority = Swf.Order.floatKey hits[j]!.priority →\n        Swf.Arbitration.keyLe (Swf.Arbitration.hitKey hits kept tolerance i)\n            (Swf.Arbitration.hitKey hits kept tolerance j) =\n          true",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "35af57cb1a9574b726880f242e43dcddd221a36c15ae4729afb039057a773beb",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Arbitration.lean",
+        "start": {
+          "line": 466,
+          "column": 1
+        },
+        "end": {
+          "line": 483,
+          "column": 18
         }
       }
     },
@@ -9261,16 +9295,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "9831ea4643d1a5772750812c06a3dba953bade0412824ebb447c122db6bf06a6",
+      "fingerprint": "56bc94e2e2a496da5206fb0ed839df8d73db443b1376a0699a91c05d754e11e7",
       "source": {
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 573,
+          "line": 605,
           "column": 1
         },
         "end": {
-          "line": 596,
+          "line": 628,
           "column": 14
         }
       }
@@ -9315,7 +9349,7 @@ export const ASSURANCE = L.parseAssurance({
         "Swf.Arbitration.pickOrder"
       ],
       "specifications": [],
-      "statement": "∀ (hits : Array Swf.Arbitration.Hit) (tolerance : Float) (po : Swf.Arbitration.PickOrder),\n  Swf.Arbitration.pickOrder hits tolerance = Swf.Arbitration.PickOutcome.ordered po →\n    ∀ (k : Nat),\n      k < po.order.length →\n        (po.occluded[k]! = true ↔\n          hits[po.order[k]!]!.region ≠ Swf.Arbitration.HitRegion.titleBar ∧\n            ∃ j,\n              j ∈ List.filter (Swf.Arbitration.keeps hits) (List.range hits.size) ∧\n                j ≠ po.order[k]! ∧\n                  hits[j]!.occluding = true ∧\n                    Swf.Order.floatKey (hits[j]!.distance + tolerance) <\n                      Swf.Order.floatKey hits[po.order[k]!]!.distance)",
+      "statement": "∀ (hits : Array Swf.Arbitration.Hit) (tolerance : Float) (po : Swf.Arbitration.PickOrder),\n  Swf.Arbitration.pickOrder hits tolerance = Swf.Arbitration.PickOutcome.ordered po →\n    ∀ (k : Nat),\n      k < po.order.length →\n        (po.occluded[k]! = true ↔\n          hits[po.order[k]!]!.region ≠ Swf.Arbitration.HitRegion.titleBar ∧\n            hits[po.order[k]!]!.front = false ∧\n              ∃ j,\n                j ∈ List.filter (Swf.Arbitration.keeps hits) (List.range hits.size) ∧\n                  j ≠ po.order[k]! ∧\n                    hits[j]!.occluding = true ∧\n                      Swf.Order.floatKey (hits[j]!.distance + tolerance) <\n                        Swf.Order.floatKey hits[po.order[k]!]!.distance)",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -9327,16 +9361,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "3192fbc49d6b38fbff347c687e28552a8136897dac4b23870b0cf9aca38793b4",
+      "fingerprint": "111aa349b2ef544e02e6d5cdfa5a01b85d511abdccda6be0cf4e695309952eb4",
       "source": {
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 536,
+          "line": 568,
           "column": 1
         },
         "end": {
-          "line": 547,
+          "line": 579,
           "column": 47
         }
       }
@@ -9360,16 +9394,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "f82c743b2fe722fae25cd796d58925a769e317bcfc8ffb745dbb75f614d7bb39",
+      "fingerprint": "13be3bb5552f5481b818977f6e57e942a00ec09919c092888a0810099dd81c07",
       "source": {
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 518,
+          "line": 550,
           "column": 1
         },
         "end": {
-          "line": 524,
+          "line": 556,
           "column": 38
         }
       }
@@ -9393,16 +9427,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "ddb48089adb0ecf4176c6715570595ac62334eed142b0ed63766029b4f4944ad",
+      "fingerprint": "19566d83cc062e2bfc13492c8b91fc87a17ff5a5edf0bf5956f2544ef87f9c23",
       "source": {
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 549,
+          "line": 581,
           "column": 1
         },
         "end": {
-          "line": 571,
+          "line": 603,
           "column": 26
         }
       }
@@ -9459,16 +9493,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "92c98dc237fa1084b34a1dc10ea3eeca1524daed4a6299a7a2be055cfa3b003c",
+      "fingerprint": "c4a8f2e84f1920715f70840d9f321affd4874c539a6ee3dc47f3fd0291f6c45d",
       "source": {
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 526,
+          "line": 558,
           "column": 1
         },
         "end": {
-          "line": 534,
+          "line": 566,
           "column": 59
         }
       }
@@ -9480,7 +9514,7 @@ export const ASSURANCE = L.parseAssurance({
         "Swf.Arbitration.hitKey"
       ],
       "specifications": [],
-      "statement": "∀ (hits : Array Swf.Arbitration.Hit) (kept : List Nat) (tolerance : Float) (i j : Nat),\n  hits[i]!.region = Swf.Arbitration.HitRegion.titleBar →\n    hits[j]!.region ≠ Swf.Arbitration.HitRegion.titleBar →\n      Swf.Order.floatKey hits[i]!.priority = Swf.Order.floatKey hits[j]!.priority →\n        Swf.Arbitration.keyLe (Swf.Arbitration.hitKey hits kept tolerance i)\n            (Swf.Arbitration.hitKey hits kept tolerance j) =\n          true",
+      "statement": "∀ (hits : Array Swf.Arbitration.Hit) (kept : List Nat) (tolerance : Float) (i j : Nat),\n  hits[i]!.region = Swf.Arbitration.HitRegion.titleBar →\n    hits[i]!.front = false →\n      hits[j]!.region ≠ Swf.Arbitration.HitRegion.titleBar →\n        hits[j]!.front = false →\n          Swf.Order.floatKey hits[i]!.priority = Swf.Order.floatKey hits[j]!.priority →\n            Swf.Arbitration.keyLe (Swf.Arbitration.hitKey hits kept tolerance i)\n                (Swf.Arbitration.hitKey hits kept tolerance j) =\n              true",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -9492,16 +9526,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "69ba7a440e21670d23074b6cf7a3e25029c1beb8e06204d610adb06a80c9ed65",
+      "fingerprint": "7eab099ad8d020630d5031ef9a616ce5a73b7024a53b2848d75363e9eb0c73c9",
       "source": {
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 438,
+          "line": 446,
           "column": 1
         },
         "end": {
-          "line": 451,
+          "line": 464,
           "column": 18
         }
       }
@@ -9524,16 +9558,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "7aa3ab2465a89db133c8ccfc21ba60ed28af30d1ad0fa7ab1a40786fc61a7451",
+      "fingerprint": "7f6a16f28694949544d30b0512306a314a3cdc0ab0e16f2a25b0b79308487447",
       "source": {
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 453,
+          "line": 485,
           "column": 1
         },
         "end": {
-          "line": 464,
+          "line": 496,
           "column": 31
         }
       }
@@ -15065,11 +15099,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 486,
+          "line": 518,
           "column": 1
         },
         "end": {
-          "line": 496,
+          "line": 528,
           "column": 50
         }
       }
@@ -17547,7 +17581,7 @@ export const leanTypes = Object.freeze({
   "Swf.Arbitration.Bid": Object.freeze({ fingerprint: "ddbeedade876221719b0ee1aa1fad0b1e5c104a8b3fe06c661628df04e02346f", type: bidType }),
   "Swf.Arbitration.BidKind": Object.freeze({ fingerprint: "5f0d5191f18c37447a5584ef118f036eb8327d158b455c24e5e5262e0685ed07", type: bidKindType }),
   "Swf.Arbitration.BidOutcome": Object.freeze({ fingerprint: "76161e5d5a85091dc2d6199d0fd9ce594b233a0e5ccbf6268b15dfa1497a2a57", type: bidOutcomeType }),
-  "Swf.Arbitration.Hit": Object.freeze({ fingerprint: "e26860946bb9bc9ea330a319ced9ee37b4c41f32be0c1a6c38109f2f104c686d", type: hitType }),
+  "Swf.Arbitration.Hit": Object.freeze({ fingerprint: "c88155468ebe1f88cbf6f857b44042f9e634262945d5d8c6ecd1a4a12f4e1479", type: hitType }),
   "Swf.Arbitration.PickOutcome": Object.freeze({ fingerprint: "c6b2b4632ca32ec83658f11f653d2815e91f43076e37999537d7d610a5f8f0b9", type: pickOutcomeType }),
   "Swf.Fallback.NegotiationContext": Object.freeze({ fingerprint: "0c0838204cdcf2f6d5d4e42ececc08831c4d82327bf7695a334a28891fee0316", type: negotiationContextType }),
   "Swf.Fallback.FragmentFacts": Object.freeze({ fingerprint: "c24eecba8b238681c16656957f2f215d0f97ca9973d0eae1978ca6bf46af7bf0", type: fragmentFactsType }),

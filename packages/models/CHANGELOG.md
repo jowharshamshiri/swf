@@ -76,3 +76,6 @@ scroll, and routes the wheel over a window's title bar, frame or picture to move
 content always to the content, and over the background to turn or zoom the view
 (`depth_move_iff`, `content_keeps_the_wheel`, `background_turns_and_zooms`). `Swf.AppWheel`'s bursts
 carry a window along the floor or the workspace round the camera (`Carries`).
+
+`Swf.Arbitration` orders a window in front before every other window's hits of the same priority,
+title bars included, and never marks it occluded (`Hit.front`, `front_before`).

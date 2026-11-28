@@ -126,6 +126,7 @@ function fragments(order: 'forward' | 'reverse'): ProjectedFragment[] {
           depth: 3 + (i % 2),
           geometricFidelity: 'exact',
           nativeOwner: ordinal === 0,
+          front: false,
         }),
       );
     }

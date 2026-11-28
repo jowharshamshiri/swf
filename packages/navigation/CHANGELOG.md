@@ -61,3 +61,7 @@ trackpad's pinch, over the background widen or narrow the panorama's field of vi
 (`WheelBurstOptions.zoom`, `ZOOM_PACE`). A burst reports what it carries (`node.move` or
 `orbit.turn`). The panorama's element carries no scroll past it (`overscroll-behavior: none`), so a
 trackpad's swipe sideways turns the view instead of going back a page.
+
+The window in focus stands in front of every other, their title bars included, in both focus
+policies (`frontOf`). `swf.content.leave` takes the keyboard out of a window's live content to the
+view, the window selected.

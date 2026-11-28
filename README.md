@@ -1171,7 +1171,13 @@ content is attached or detached by a switch.
   level camera to face it, setting the panorama's horizon so the window's card and title bar stand
   in the middle of the view (narrowing the panorama's span down only as far as a window standing
   high or low needs, its image reaching no further than a pole), and scaling its card so its title
-  bar is always in view; a view too short to hold the bar refuses the focus, saying why. Its content stays live: a note is the same element, edited in place. A
+  bar is always in view; a view too short to hold the bar refuses the focus, saying why. The window
+  in focus stands in front of every other, their title bars included (its representation policy's
+  `frontOf`): drawn after them and picked first, so all of its content is its own. Inside its live
+  content the content keeps every key, Escape included; F6 (`swf.content.leave`, which a host may
+  bind to another key, `navigationKey`'s `NavigationKeys`) brings the keyboard back to the view,
+  the window selected, where Escape closes the focus, and the status bar says when a window's
+  content has the keyboard and how to leave it. Its content stays live: a note is the same element, edited in place. A
   bar above names it, steps to the next window to the right (round the circle, past the last) and
   closes the focus. Under it, with a movable edge between them, the focus strip holds a card for
   every window: the focused one in the middle, the others left and right of it in the order they

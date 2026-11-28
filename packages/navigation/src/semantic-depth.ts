@@ -70,7 +70,8 @@ function focusScale(scene: SceneState, view: ViewGeometry, nodeId: Id, focus: Fo
 
 /**
  * Focus's representation policy for a view that shows every window in full (semantic depth off):
- * every surface is shown in full, the focused window's card, in focus, scaled to read, and every
+ * every surface is shown in full, the focused window's card, in focus, scaled to read and in front
+ * of every other window, and every
  * other card by the card rules' geometric scale (by its distance and the view's field of view).
  */
 export function focusCards(options: {
@@ -92,6 +93,9 @@ export function focusCards(options: {
       }
       return cardScale('full', distanceOf(world, eyeOf(view)), horizontal, false);
     },
+    // The window focus shows stands in front of every other, their title bars included.
+    frontOf: ({ scene, view, nodeId }: RepresentationContext): boolean =>
+      focusedIn(scene, view, options.focusModeId) === nodeId,
   });
 }
 
@@ -134,6 +138,9 @@ export function semanticDepth(options: SemanticDepthOptions): RepresentationPoli
         ? focusScale(scene, view, nodeId, focus)
         : natural;
     },
+    // The window focus shows stands in front of every other, their title bars included.
+    frontOf: ({ scene, view, nodeId }: RepresentationContext): boolean =>
+      focusedIn(scene, view, focusModeId) === nodeId,
   });
 }
 

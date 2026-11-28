@@ -595,3 +595,72 @@ describe('the wheel and the trackpad', () => {
     expect(m.app.workspace.history()).toHaveLength(history + 1);
   });
 });
+
+describe('leaving live content by the keyboard', () => {
+  it('takes the keyboard out of a note in focus by F6, so Escape closes the focus', async () => {
+    const m = await visit();
+    expect(await m.model.run('swf.focus.enter', { id: 'desk' })).toBe(true);
+    await m.settle();
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    // Into the note's text, and typing there.
+    const text = m.app.root.querySelector<HTMLElement>(
+      '[data-swf-slot="desk-surface"] [contenteditable]',
+    );
+    if (text === null) {
+      throw new Error('the note has no text');
+    }
+    const box = text.getBoundingClientRect();
+    const [x, y] = [Math.round(box.left + box.width / 2), Math.round(box.top + box.height / 2)];
+    await commands.mouse('move', x, y);
+    await commands.mouse('down', x, y);
+    await commands.mouse('up', x, y);
+    await userEvent.keyboard('ok');
+    await m.settle();
+    expect(text.textContent).toContain('ok');
+    // The status says where the keyboard is and how to bring it back.
+    expect(m.driver.has('application.panel.content')).toBe(true);
+    expect(
+      m.app.root.ownerDocument.querySelector('[data-wsb="application.panel.content"]')?.textContent,
+    ).toContain('Typing in Writing Desk · F6 to leave');
+    // Escape is the note's: the focus stays.
+    await userEvent.keyboard('{Escape}');
+    await m.settle();
+    expect(m.app.modes.current()).toBe('focus');
+    // F6: the keyboard is the view's, the window selected, and Escape closes the focus.
+    await userEvent.keyboard('{F6}');
+    await m.settle();
+    expect(m.app.root.ownerDocument.activeElement).toBe(m.app.root);
+    expect(m.app.workspace.getState().selection).toEqual(['desk']);
+    expect(m.driver.has('application.panel.content')).toBe(false);
+    await userEvent.keyboard('{Escape}');
+    await m.settle();
+    expect(m.app.modes.current()).toBe('panorama');
+  });
+});
+
+describe('the window in focus in front of every other', () => {
+  it('leaves every point of the focused window’s content to it, over every other window’s title bar', async () => {
+    const m = await visit();
+    expect(await m.model.run('swf.focus.enter', { id: 'desk' })).toBe(true);
+    await m.settle();
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    const slot = m.app.root.querySelector('[data-swf-slot="desk-surface"]');
+    const box = slot?.getBoundingClientRect();
+    const root = m.app.root.getBoundingClientRect();
+    if (box === undefined) {
+      throw new Error('the focused note has no slot');
+    }
+    const regions = new Set<string>();
+    for (let i = 1; i < 10; i += 1) {
+      for (let j = 1; j < 6; j += 1) {
+        const x = box.left - root.left + (box.width * i) / 10;
+        const y = box.top - root.top + (box.height * j) / 6;
+        const picked = m.app.router.pick(m.app.viewport.viewportId, x, y);
+        regions.add(
+          picked.kind === 'hit' ? `${picked.target.nodeId} ${picked.region}` : picked.kind,
+        );
+      }
+    }
+    expect([...regions]).toEqual(['desk content']);
+  });
+});

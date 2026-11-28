@@ -231,6 +231,7 @@ describe('arbitration', () => {
     distance: 1,
     priority: 0,
     occluding: false,
+    front: false,
     ...fields,
   });
 

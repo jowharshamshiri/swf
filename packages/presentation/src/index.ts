@@ -95,6 +95,7 @@ export type {
 } from './representation.js';
 export {
   cardScaleFor,
+  frontFor,
   representationFor,
   representationPolicyIssue,
   representedOrder,

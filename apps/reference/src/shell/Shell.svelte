@@ -61,6 +61,8 @@
   let { model, developer = null, experiments = null }: Props = $props();
   const t = (id: MessageId, params?: Readonly<Record<string, string | number>>) =>
     model.messages.format(id, params);
+  /** A window's name as the view writes it on its title bar: its label, else its ID. */
+  const windowName = (id: string) => model.app?.workspace.getState().nodes.get(id)?.label ?? id;
 
   let leftView = $state<string | null>('scene');
   let rightView = $state<string | null>('inspector');
@@ -85,14 +87,15 @@
       paletteOpen = true;
       return;
     }
-    if (event.defaultPrevented || paletteOpen || takesTyping(event.target) || model.app === null) {
+    if (event.defaultPrevented || paletteOpen || model.app === null) {
       return;
     }
-    if (command && !event.altKey && key === 's' && !event.shiftKey) {
+    if (!takesTyping(event.target) && command && !event.altKey && key === 's' && !event.shiftKey) {
       event.preventDefault();
       void model.run('reference.workspace.saveNow', {});
       return;
     }
+    // Navigation's own keys, the one that leaves a window's content among them.
     navigationKey(model, event);
   }
 
@@ -402,7 +405,15 @@
       icon="save"
     />
   {/if}
-  {#if model.panoramaFocused}
+  {#if model.contentFocused !== null}
+    <!-- A window's content has the keyboard: how to bring it back to the view. -->
+    <StatusItem
+      handle={handleOf`application.panel.content`}
+      label={t('content.typing.short', { name: windowName(model.contentFocused) })}
+      title={t('content.typing', { name: windowName(model.contentFocused) })}
+      icon="hint"
+    />
+  {:else if model.panoramaFocused}
     <!-- The panorama has the keyboard: what its keys do, where the reader looks for hints. -->
     <StatusItem
       handle={handleOf`application.panel.keys`}

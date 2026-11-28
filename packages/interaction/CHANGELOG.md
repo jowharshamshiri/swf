@@ -70,3 +70,6 @@ window's title bar, its frame or a picture of its content the wheel moves the wi
 farther, with no modifier (Ctrl there is the page's zoom); over the background a scroll sideways
 turns the camera by the angle it crosses, and Ctrl and the wheel are left to the host that sets the
 view's field of view. The `depthModifier` setting is gone.
+
+A pick candidate says whether its window is in front (`front`): picked before every other window's
+hits of the same priority, title bars included.

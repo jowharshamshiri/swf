@@ -1205,6 +1205,11 @@ export interface Hit {
   readonly priority: number;
   /** The host says this hit hides what lies behind it. */
   readonly occluding: boolean;
+  /**
+   * The view brings the hit's window in front of every other window, their title bars included
+   * (the one focus shows).
+   */
+  readonly front: boolean;
 }
 /** The descriptor of Swf.Arbitration.Hit: how its values cross the boundary. */
 export function hitType(): L.Type<Hit>;
