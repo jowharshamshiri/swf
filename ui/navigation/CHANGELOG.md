@@ -36,3 +36,7 @@ the map moves past the slop of the pointer that pressed it.
 
 A finger or a pen takes a window's mark on the radar or the map within 22 pixels of it (a 44 pixel
 target), a mouse within 12; a double press there reaches as far as the presses before it.
+
+The inspector's sliders hold a value measured a rounding past the room's edge (a distance taken
+back from a window's world position at the far wall reads 13.500000000000002): the range reaches the
+next step past it. Before, the slider refused the value and the page stopped.

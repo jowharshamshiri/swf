@@ -28,6 +28,7 @@
   } from '@wsb/uikit/components';
   import { handleOf, keyed } from '@wsb/uikit/handles';
   import { ROOM_LIMITS } from '@swf/interaction';
+  import { sliderRange } from './slider-range.js';
   import type { NavigationMessageId } from './messages.js';
   import type { NavigationModel } from './model.svelte.js';
   import WindowActions from './WindowActions.svelte';
@@ -234,16 +235,8 @@
     }
   };
   /** A slider's range, held on its step's grid, reaching the value wherever it is. */
-  const rangeOf = (field: PoseField): { min: number; max: number } => {
-    const { min, max, step } = SCALE[field];
-    const value = valueOf(field);
-    const decimals = String(step).split('.')[1]?.length ?? 0;
-    const grid = (n: number) => Number((n * step).toFixed(decimals));
-    return {
-      min: Math.min(min, grid(Math.floor(value / step))),
-      max: Math.max(max, grid(Math.ceil(value / step))),
-    };
-  };
+  const rangeOf = (field: PoseField): { min: number; max: number } =>
+    sliderRange(valueOf(field), SCALE[field]);
   const enabledFor = (field: PoseField): boolean =>
     field === 'width' || field === 'height' ? canSize : canMove;
 
