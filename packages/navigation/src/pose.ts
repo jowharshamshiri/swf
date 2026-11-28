@@ -7,6 +7,9 @@ import { models } from '@swf/models';
 /**
  * Where a window is in the room around the camera, as an operator reads it: what the
  * inspector shows, what is announced when it changes, and what the inspector's exact entries set.
+ * Its place is the room's (`roomPlaceOf`, the Lean model `Swf.Room`'s `placeOf`): the same place
+ * every move of the window starts from, inside the room, so a window the room keeps at a wall reads
+ * as standing exactly there.
  */
 export interface Pose {
   /** Degrees to the right of straight ahead, from −180 to 180. */
@@ -44,7 +47,7 @@ export function wrapDegrees(degrees: number): number {
   return wrapped === 0 ? 0 : wrapped;
 }
 
-/** A window's pose seen from `eye`; null when there is no such node. */
+/** A window's pose seen from `eye`, its place read by the room; null when there is no such node. */
 export function poseOf(scene: SceneState, id: Id, eye: Vec3): Pose | null {
   const node = scene.nodes.get(id);
   const world = worldMatrix(scene.nodes, id);
@@ -52,15 +55,14 @@ export function poseOf(scene: SceneState, id: Id, eye: Vec3): Pose | null {
     return null;
   }
   const position: Vec3 = [world[12], world[13], world[14]];
-  const [x, y, z] = [position[0] - eye[0], position[1] - eye[1], position[2] - eye[2]];
-  const heading = Math.atan2(x, -z);
+  const place = roomPlaceOf(scene, id, eye);
   return Object.freeze({
-    heading: wrapDegrees(heading * DEGREES),
+    heading: wrapDegrees(place.heading * DEGREES),
     // Derived from its height and its distance along the floor, as the room derives it.
-    elevation: models.elevationOf({ heading, floor: Math.hypot(x, z), height: y }) * DEGREES,
-    distance: Math.hypot(x, y, z),
-    reach: Math.hypot(x, z),
-    above: y,
+    elevation: models.elevationOf(place) * DEGREES,
+    distance: Math.hypot(place.floor, place.height),
+    reach: place.floor,
+    above: place.height,
     position,
     width: node.bounds[0],
     height: node.bounds[1],

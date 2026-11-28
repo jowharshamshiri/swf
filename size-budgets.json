@@ -7,10 +7,10 @@
     }
   },
   "@swf/models": {
-    "budget": 67328,
+    "budget": 67584,
     "recorded": {
-      "minified": 407562,
-      "gzip": 67079
+      "minified": 410943,
+      "gzip": 67543
     }
   },
   "@swf/core": {
@@ -51,8 +51,8 @@
   "@swf/backend-dom": {
     "budget": 8448,
     "recorded": {
-      "minified": 23608,
-      "gzip": 8218
+      "minified": 23642,
+      "gzip": 8232
     }
   },
   "@swf/backend-geometry": {
@@ -86,8 +86,8 @@
   "@swf/navigation": {
     "budget": 29440,
     "recorded": {
-      "minified": 83906,
-      "gzip": 27634
+      "minified": 83835,
+      "gzip": 27615
     }
   },
   "@swf/benchmark": {
@@ -100,8 +100,8 @@
   "@swf/navigation-ui": {
     "budget": 40704,
     "recorded": {
-      "minified": 144843,
-      "gzip": 37246
+      "minified": 144939,
+      "gzip": 37295
     }
   }
 }

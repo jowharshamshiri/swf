@@ -71,10 +71,28 @@ def keepInRoom (l : RoomLimits) (p : RoomPlace) : RoomPlace :=
     floor := keepWithin p.floor l.nearest l.farthest,
     height := keepWithin p.height l.lowest l.highest }
 
+/-- How near a limit of the room a reading lies to read as the limit itself, in world units: a
+billionth of a unit, far coarser than the rounding a point's coordinates carry once a place has been
+turned into them (a few units in the last place of a double near the room's 13.5, through a heading's
+sine and cosine and the windows' groups), and far finer than any place a window is put at. -/
+def readTolerance : Float := 1e-9
+
+/-- A distance or height read back against the room's limits `lo` and `hi`: a reading within
+`readTolerance` of a limit is that limit exactly, so a window the room keeps at a wall reads as
+standing at it; any other reading is left as it is, so no move that starts from it is changed. -/
+def readAt (v lo hi : Float) : Float :=
+  if (v - lo).abs ≤ readTolerance then lo
+  else if (v - hi).abs ≤ readTolerance then hi
+  else v
+
 /-- The place of a point of the room, `x` to the right, `y` up and `z` toward the viewer as the
-room starts (straight ahead is `-z`), kept inside the room. -/
+room starts (straight ahead is `-z`), its distance along the floor and its height read against the
+room's limits (`readAt`), kept inside the room. -/
 def placeOf (l : RoomLimits) (x y z : Float) : RoomPlace :=
-  keepInRoom l { heading := Float.atan2 x (-z), floor := Float.sqrt (x * x + z * z), height := y }
+  keepInRoom l
+    { heading := Float.atan2 x (-z),
+      floor := readAt (Float.sqrt (x * x + z * z)) l.nearest l.farthest,
+      height := readAt y l.lowest l.highest }
 
 /-- A point of the room relative to its centre, in world units: `x` to the right, `y` up, `z`
 toward the viewer as the room starts (straight ahead is `-z`). -/
@@ -188,6 +206,33 @@ theorem wheel_stays_in_room (l : RoomLimits) (pace : RoomPace) (p : RoomPlace) (
 theorem drop_stays_in_room (l : RoomLimits) (p : RoomPlace) (x z : Float) (h : l.ordered) :
     l.holds (floorDrop l p x z) :=
   keepInRoom_holds l _ h
+
+/-- A reading within the tolerance of the room's far limit, and not of its near one, is the far
+limit exactly. -/
+@[lungo_claim "lungo.law" subject readAt]
+theorem read_at_far_limit (v lo hi : Float) (near : ¬ (v - lo).abs ≤ readTolerance)
+    (far : (v - hi).abs ≤ readTolerance) : readAt v lo hi = hi := by
+  simp [readAt, near, far]
+
+/-- A reading within the tolerance of the room's near limit is the near limit exactly. -/
+@[lungo_claim "lungo.law" subject readAt]
+theorem read_at_near_limit (v lo hi : Float) (near : (v - lo).abs ≤ readTolerance) :
+    readAt v lo hi = lo := by
+  simp [readAt, near]
+
+/-- A reading farther than the tolerance from both limits is left as it is. -/
+@[lungo_claim "lungo.law" subject readAt]
+theorem read_elsewhere_unchanged (v lo hi : Float) (near : ¬ (v - lo).abs ≤ readTolerance)
+    (far : ¬ (v - hi).abs ≤ readTolerance) : readAt v lo hi = v := by
+  simp [readAt, near, far]
+
+/-- A point's place is read against the room's limits before it is kept inside the room. -/
+@[lungo_claim "lungo.law" subject placeOf]
+theorem place_read_at_limits (l : RoomLimits) (x y z : Float) :
+    placeOf l x y z = keepInRoom l
+      { heading := Float.atan2 x (-z),
+        floor := readAt (Float.sqrt (x * x + z * z)) l.nearest l.farthest,
+        height := readAt y l.lowest l.highest } := rfl
 
 /-- Every point of the room has its place inside it. -/
 @[lungo_claim "lungo.law" subject placeOf]

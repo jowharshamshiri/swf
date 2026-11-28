@@ -89,3 +89,8 @@ reach past what its window draws after every hit on something drawn, and never l
 held (`modifier`) and content that keeps it (`keepsModifier`) apart; `takesOver` decides whether a
 takeover takes a press (`takes_over_iff`), and content that keeps the modifier keeps the press
 (`kept_modifier_stays_native`, `modifier_takes_free_content`).
+
+`Swf.Room.placeOf` reads a point's distance along the floor and its height against the room's
+limits (`readAt`): a reading within a billionth of a unit of a limit is that limit exactly, so a
+window the room keeps at a wall reads as standing at it, and every other reading is left as it is
+(`read_at_far_limit`, `read_at_near_limit`, `read_elsewhere_unchanged`, `place_read_at_limits`).

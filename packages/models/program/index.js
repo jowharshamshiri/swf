@@ -12461,11 +12461,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Room.lean",
         "start": {
-          "line": 224,
+          "line": 269,
           "column": 1
         },
         "end": {
-          "line": 229,
+          "line": 274,
           "column": 33
         }
       }
@@ -12494,11 +12494,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Room.lean",
         "start": {
-          "line": 216,
+          "line": 261,
           "column": 1
         },
         "end": {
-          "line": 222,
+          "line": 267,
           "column": 33
         }
       }
@@ -12527,11 +12527,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Room.lean",
         "start": {
-          "line": 173,
+          "line": 191,
           "column": 1
         },
         "end": {
-          "line": 178,
+          "line": 196,
           "column": 41
         }
       }
@@ -12555,16 +12555,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "2f3a8c6ffcfb17a0fff8dce9d437e2d3354261d48ebfdec0a80a24331c2d03a3",
+      "fingerprint": "154b13e0b22d5954d3075f787ec92f74573979b77b69333ac033ca7fd4096843",
       "source": {
         "package": "swf_models",
         "file": "Swf/Room.lean",
         "start": {
-          "line": 186,
+          "line": 204,
           "column": 1
         },
         "end": {
-          "line": 190,
+          "line": 208,
           "column": 25
         }
       }
@@ -12593,11 +12593,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Room.lean",
         "start": {
-          "line": 239,
+          "line": 284,
           "column": 1
         },
         "end": {
-          "line": 243,
+          "line": 288,
           "column": 63
         }
       }
@@ -12626,11 +12626,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Room.lean",
         "start": {
-          "line": 208,
+          "line": 253,
           "column": 1
         },
         "end": {
-          "line": 214,
+          "line": 259,
           "column": 16
         }
       }
@@ -12659,11 +12659,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Room.lean",
         "start": {
-          "line": 198,
+          "line": 243,
           "column": 1
         },
         "end": {
-          "line": 206,
+          "line": 251,
           "column": 16
         }
       }
@@ -12691,11 +12691,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Room.lean",
         "start": {
-          "line": 165,
+          "line": 183,
           "column": 1
         },
         "end": {
-          "line": 171,
+          "line": 189,
           "column": 29
         }
       }
@@ -12719,17 +12719,50 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "d04cd38988cab24107936c95d2fb6cb6616760f44195e594ed1a0cba47ecdf8f",
+      "fingerprint": "d1ba87d563dd8685475eb30b6e250d742b5f2b42930fec4d9121041f7fd92a48",
       "source": {
         "package": "swf_models",
         "file": "Swf/Room.lean",
         "start": {
-          "line": 192,
+          "line": 237,
           "column": 1
         },
         "end": {
-          "line": 196,
+          "line": 241,
           "column": 25
+        }
+      }
+    },
+    {
+      "name": "Swf.Room.place_read_at_limits",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Room.placeOf"
+      ],
+      "specifications": [],
+      "statement": "∀ (l : Swf.Room.RoomLimits) (x y z : Float),\n  Swf.Room.placeOf l x y z =\n    Swf.Room.keepInRoom l\n      { heading := x.atan2 (-z), floor := Swf.Room.readAt (x * x + z * z).sqrt l.nearest l.farthest,\n        height := Swf.Room.readAt y l.lowest l.highest }",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "40cab2879d93ff19047f92a408a124d95911470c46935133b3e2a2f49241aa36",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Room.lean",
+        "start": {
+          "line": 229,
+          "column": 1
+        },
+        "end": {
+          "line": 235,
+          "column": 55
         }
       }
     },
@@ -12757,12 +12790,111 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Room.lean",
         "start": {
-          "line": 245,
+          "line": 290,
           "column": 1
         },
         "end": {
-          "line": 248,
+          "line": 293,
           "column": 78
+        }
+      }
+    },
+    {
+      "name": "Swf.Room.read_at_far_limit",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Room.readAt"
+      ],
+      "specifications": [],
+      "statement": "∀ (v lo hi : Float),\n  ¬(v - lo).abs ≤ Swf.Room.readTolerance → (v - hi).abs ≤ Swf.Room.readTolerance → Swf.Room.readAt v lo hi = hi",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "32788819d48cf2ec2d28ac3e055459a6591dd4591a7fb2c07e09aa2fba512080",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Room.lean",
+        "start": {
+          "line": 210,
+          "column": 1
+        },
+        "end": {
+          "line": 215,
+          "column": 27
+        }
+      }
+    },
+    {
+      "name": "Swf.Room.read_at_near_limit",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Room.readAt"
+      ],
+      "specifications": [],
+      "statement": "∀ (v lo hi : Float), (v - lo).abs ≤ Swf.Room.readTolerance → Swf.Room.readAt v lo hi = lo",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "586db8925649b2e669b39d1528e37c7c7a0a110855297c17488669f7d08e3993",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Room.lean",
+        "start": {
+          "line": 217,
+          "column": 1
+        },
+        "end": {
+          "line": 221,
+          "column": 22
+        }
+      }
+    },
+    {
+      "name": "Swf.Room.read_elsewhere_unchanged",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Room.readAt"
+      ],
+      "specifications": [],
+      "statement": "∀ (v lo hi : Float),\n  ¬(v - lo).abs ≤ Swf.Room.readTolerance → ¬(v - hi).abs ≤ Swf.Room.readTolerance → Swf.Room.readAt v lo hi = v",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "110b04ea93e80393b274349a4061edf55b7a4d83195dbe232c00ea748c0ebeaa",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Room.lean",
+        "start": {
+          "line": 223,
+          "column": 1
+        },
+        "end": {
+          "line": 227,
+          "column": 27
         }
       }
     },
@@ -12790,11 +12922,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Room.lean",
         "start": {
-          "line": 231,
+          "line": 276,
           "column": 1
         },
         "end": {
-          "line": 237,
+          "line": 282,
           "column": 34
         }
       }
@@ -12823,11 +12955,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Room.lean",
         "start": {
-          "line": 180,
+          "line": 198,
           "column": 1
         },
         "end": {
-          "line": 184,
+          "line": 202,
           "column": 25
         }
       }
@@ -16834,11 +16966,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Room.lean",
         "start": {
-          "line": 122,
+          "line": 140,
           "column": 1
         },
         "end": {
-          "line": 130,
+          "line": 148,
           "column": 75
         }
       }
@@ -16905,11 +17037,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Room.lean",
         "start": {
-          "line": 94,
+          "line": 112,
           "column": 1
         },
         "end": {
-          "line": 98,
+          "line": 116,
           "column": 84
         }
       }
@@ -16930,16 +17062,45 @@ export const ASSURANCE = L.parseAssurance({
         "extern_dependencies": [
           "atan2",
           "cos",
+          "fabs",
+          "lean_array_fget_borrowed",
+          "lean_array_push",
           "lean_float_add",
+          "lean_float_decLe",
+          "lean_float_div",
           "lean_float_mul",
           "lean_float_negate",
+          "lean_float_of_bits",
+          "lean_float_sub",
           "lean_float_to_bits",
+          "lean_int_add",
+          "lean_int_dec_le",
           "lean_int_dec_lt",
           "lean_int_neg",
+          "lean_int_neg_succ_of_nat",
+          "lean_int_sub",
+          "lean_mk_empty_array_with_capacity",
+          "lean_nat_abs",
+          "lean_nat_add",
+          "lean_nat_dec_eq",
+          "lean_nat_dec_le",
+          "lean_nat_dec_lt",
+          "lean_nat_div",
+          "lean_nat_log2",
+          "lean_nat_lor",
+          "lean_nat_mod",
+          "lean_nat_mul",
+          "lean_nat_pow",
+          "lean_nat_shiftl",
+          "lean_nat_shiftr",
+          "lean_nat_sub",
           "lean_nat_to_int",
           "lean_uint64_complement",
           "lean_uint64_dec_eq",
           "lean_uint64_land",
+          "lean_uint64_of_nat",
+          "lean_uint64_of_nat_mk",
+          "lean_uint64_to_float",
           "lean_uint64_to_nat",
           "sin",
           "sqrt"
@@ -16955,11 +17116,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Room.lean",
         "start": {
-          "line": 137,
+          "line": 155,
           "column": 1
         },
         "end": {
-          "line": 140,
+          "line": 158,
           "column": 25
         }
       }
@@ -17025,23 +17186,53 @@ export const ASSURANCE = L.parseAssurance({
         "extern_dependencies": [
           "atan2",
           "cos",
+          "fabs",
+          "lean_array_fget_borrowed",
+          "lean_array_push",
           "lean_float_add",
+          "lean_float_decLe",
+          "lean_float_div",
           "lean_float_mul",
           "lean_float_negate",
+          "lean_float_of_bits",
+          "lean_float_sub",
           "lean_float_to_bits",
+          "lean_int_add",
+          "lean_int_dec_le",
           "lean_int_dec_lt",
           "lean_int_neg",
+          "lean_int_neg_succ_of_nat",
+          "lean_int_sub",
+          "lean_mk_empty_array_with_capacity",
+          "lean_nat_abs",
+          "lean_nat_add",
+          "lean_nat_dec_eq",
+          "lean_nat_dec_le",
+          "lean_nat_dec_lt",
+          "lean_nat_div",
+          "lean_nat_log2",
+          "lean_nat_lor",
+          "lean_nat_mod",
+          "lean_nat_mul",
+          "lean_nat_pow",
+          "lean_nat_shiftl",
+          "lean_nat_shiftr",
+          "lean_nat_sub",
           "lean_nat_to_int",
           "lean_uint64_complement",
           "lean_uint64_dec_eq",
           "lean_uint64_land",
+          "lean_uint64_of_nat",
+          "lean_uint64_of_nat_mk",
+          "lean_uint64_to_float",
           "lean_uint64_to_nat",
           "sin",
           "sqrt"
         ]
       },
       "claims": [
-        "Swf.Room.place_in_room"
+        "Swf.Room.place_in_room",
+        "Swf.Room.place_read_at_limits"
       ],
       "assumptions": [],
       "facilities": [],
@@ -17050,12 +17241,12 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Room.lean",
         "start": {
-          "line": 74,
+          "line": 88,
           "column": 1
         },
         "end": {
-          "line": 77,
-          "column": 99
+          "line": 95,
+          "column": 46
         }
       }
     },
@@ -17089,11 +17280,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Room.lean",
         "start": {
-          "line": 90,
+          "line": 108,
           "column": 1
         },
         "end": {
-          "line": 92,
+          "line": 110,
           "column": 95
         }
       }
@@ -17138,11 +17329,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Room.lean",
         "start": {
-          "line": 132,
+          "line": 150,
           "column": 1
         },
         "end": {
-          "line": 135,
+          "line": 153,
           "column": 85
         }
       }
