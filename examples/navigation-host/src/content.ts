@@ -487,6 +487,8 @@ export function createHostViews(document: Document): HostViews {
         const kind = kindOf(node);
         return kind === null ? null : KINDS[kind];
       },
+      // The host's views are drawn on its neutral ground: their bars in the chrome's own colours.
+      titleBar: () => null,
       arrangeKey: (node: NodeRecord) => kindOf(node) ?? '',
       newWindowFor(surface: { readonly bindingKey: string | null }) {
         const kind: Kind | null =

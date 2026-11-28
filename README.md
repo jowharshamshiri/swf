@@ -577,25 +577,33 @@ A surface whose endpoint has a single owner is live in one view only, and in one
 another view, or the other side of a seam, shows a proxy with the surface's label instead. If two
 views race for the same endpoint, the runtime refuses the second, and that view shows the proxy.
 
-Window chrome (frame outline and resize handles) is a layer of its own that takes no pointer
-input, so it never intercepts content. Its frame is drawn in `chrome.inks` (CSS colours, custom
-properties included): every frame in `frame`, the selected window's thicker in `selected` and the
-focused one's in `focused`, so the window keys act on is seen. With chrome, every window's name is
-written flat in a layer of names on top (`data-swf-layer="names"`, each name `data-swf-label` with
-its window's `data-swf-node`), on a plate of `ground` in `text` (the selected and the focused
-window's in their own inks, a window's shown by its label alone in the quieter `frame`), where it
-can be read: wholly inside the view, over no other window's frame or mark and over no other name.
-A window's name goes just above its frame as drawn (at its left, else its right), else just inside one of
-its top corners, else in its middle, else just below it; a window shown by its label alone is a
-mark (`data-swf-mark`) in the middle of where it is, named beside it, else above or below it; the
-selected window's name is placed first, the focused one's next, then nearer windows' before
-farther ones', and a name with no free place is not written. `placeNames` and `windowNames` of
+Window chrome is drawn round each window's card. Every window drawn with a card has a title bar
+across the top of its card, 24 CSS pixels high whatever the card's scale (`TITLE_BAR_HEIGHT`),
+named for the window, in a layer of title bars over every card (`data-swf-layer="title-bars"`,
+each bar `data-swf-title-bar` with its window's node ID): a press on it selects the window, a drag
+moves it round the room, a double press focuses it, and a window behind a nearer one's card is
+still reached by its bar. Its colours are the host's for that window (`chrome.titleBars`, a
+`TitleBarColouring`: a fill, and text that stands out from it by 4.5:1), else `ground` with its
+name in `text`; the selected window's bar is edged in `selected`, the focused one's in `focused`.
+The frame outline round the card and its bar takes no pointer input, so it never intercepts
+content; it is drawn in `chrome.inks` (CSS colours, custom properties included): every frame in
+`frame`, the selected window's thicker in `selected` and the focused one's in `focused`, so the
+window keys act on is seen. The resize band lies round the window's outline, 8 pixels outside it
+and 4 inside at the sides and bottom (above the bar at the top), with square corners 20 pixels on a
+side; for a coarse pointer (a finger, a pen) a press counts on a bar 44 pixels high and a band 16
+pixels outside and 6 inside (`WINDOW_HANDLES`, `bandEdgeAt`, `bandZones` of `@swf/presentation`).
+A window shown by its label alone is a mark (`data-swf-mark`) in the middle of where it is, its
+whole small card its title bar, and its name is written flat in a layer of names on top
+(`data-swf-layer="names"`, each name `data-swf-label` with its window's `data-swf-node`), on a plate
+of `ground` in `frame`, where it can be read: wholly inside the view, over no other window's
+outline or mark and over no other name: beside its mark, else above or below it; the selected
+window's name is placed first, the focused one's next, then nearer windows' before farther ones',
+and a name with no free place is not written. `placeNames` and `windowNames` of
 `@swf/presentation` place them, by the Lean model `Swf.Names`, for any renderer; places over
-another window's frame or mark are left out before the model is asked, which its proofs show
-changes none of its answers. The defaults stand
-out on a light page; a host gives the colours its own design system checks against its grounds;
-only the resize handles along a window's edges take input, so a press
-there reaches the framework even over a cross-origin frame. `createDomInput` offers every pointer,
+another window's outline or mark are left out before the model is asked, which its proofs show
+changes none of its answers. The defaults stand out on a light page; a host gives the colours its
+own design system checks against its grounds. Only the title bars and the resize handles take
+input, so a press there reaches the framework even over a cross-origin frame. `createDomInput` offers every pointer,
 wheel and key event over the view to the interaction router. What the router consumes stops there
 (and a pressed pointer is captured until its gesture ends); what it does not consume reaches the
 content as the browser's own event. Nothing is synthesized, and content in a cross-origin frame
@@ -625,18 +633,23 @@ const compositor = new LayerCompositor();
 The geometry renderer draws: content a `drawable` adapter supplies (an image source with its
 size), drawn into its surface's rectangle on its window's card and clipped to the view, so a card
 across the panorama seam is drawn at both edges; proxies and placeholders,
-each on a ground of its own, saying why they stand in; window frames round each window's card; every window's name; and markers at the edge of a narrow view pointing to windows outside
-it, each ringed in the ground ink so it reads over a window reaching that edge, and each with its
-window's name. Names are placed as the DOM renderer places them (`placeNames`): wholly inside the
-view, over no other window's frame (as drawn, its stroke and handles included) or mark and
-over no other name; a marker's name goes inward of it, else as near it along the edge as there is
+each on a ground of its own, saying why they stand in; window frames round each window's card and
+title bar, at every place the card is drawn; the title bars, one layer over every card, in the
+host's colours for each window (`titleBars`) or the inks, each window's name written on its bar
+and cut short with an ellipsis where the bar is too narrow; the names of windows shown by their
+label alone; and markers at the edge of a narrow view pointing to windows outside it, each ringed
+in the ground ink so it reads over a window reaching that edge, and each with its window's name.
+Names beside a mark or a marker are placed as the DOM renderer places them (`placeNames`): wholly
+inside the view, over no other window's outline (as drawn, its title bar, stroke and handles
+included) or mark and over no other name; a marker's name goes inward of it, else as near it along the edge as there is
 room, and the markers at an edge whose names find no room there are counted at its end instead
-("+3"). `windowFrames` gives each window's frame as the renderer draws it, with the box it is drawn
-in, for a host drawing over the view to keep clear of. Frames, the selection, the focus,
+("+3"). `windowFrames` gives each window's frame as the renderer draws it, round its card and title
+bar at every place the card is drawn, with the box it is drawn in, for a host drawing over the view
+to keep clear of. Frames, the selection, the focus,
 names and markers are drawn in `inks`, a function the renderer reads every frame so a host's change
 of appearance is drawn at the next one; a canvas takes no custom property, so the host gives
 resolved colours, and names are written in `typeface`, read the same way. Names are measured by an
-`OffscreenCanvas`, or by `measureText` where there is none. Drawn content is drawn exactly on its
+`OffscreenCanvas`, or by `measureText` where there is none, the font set once a frame. Drawn content is drawn exactly on its
 card, by 2D affine transforms alone. On its own it shows live surfaces as proxies; paired with a
 native renderer by `LayeredRenderer`, live content comes from that renderer and everything else
 from the geometry renderer, merged in plan order.
@@ -1225,9 +1238,10 @@ degrees, the horizon the strongest; where the camera faces, a dashed line down t
 "Facing" and its heading over it; the parts of the view behind the camera, shaded and named; the
 seam at both edges of a whole circle; and a dashed line from each part to the window it came from.
 Each word is written where it overlaps no other: a heading gives way to where the camera faces.
-Every window's name is written flat over the panorama where it can be read (see Presenting in the
-browser), the selected window's in the selection's colour on a ringed plate, so a window is found
-and told apart by its name and frame, never by reading its coordinates.
+Every window drawn with a card is named on its title bar, in the colour of what it holds, the
+selected window's bar edged in the selection's colour; a far window shown by its label alone is
+named beside its mark where the name can be read (see Presenting in the browser). So a window is
+found and told apart by its name and frame, never by reading its coordinates.
 
 Each window's actions, in the inspector, the Windows view's rows and the overview, focus it,
 centre the view on it, bring it straight in front of the camera or send it straight behind (at the
@@ -1572,19 +1586,22 @@ release` builds a versioned release from a commit ([Release the packages](docs/h
 A budget is raised only deliberately, by hand, to the package's measured gzip size rounded up to the
 next 256 bytes, so it leaves no room for growth nobody looked at; the measured sizes are recorded
 with `npm run size -- --record` in the same commit, whose message gives the old and the new budget.
-`@swf/models` is at 64000 bytes: it is the compiled program of every proved decision model the
-framework and the reference application run, so it grows with each model (63864 bytes
-measured, the room (`Swf.Room`) and the spacing after a snap (`Swf.AppSpacing`) included).
+`@swf/models` is at 64256 bytes: it is the compiled program of every proved decision model the
+framework and the reference application run, so it grows with each model (64203 bytes
+measured, the room (`Swf.Room`), the spacing after a snap (`Swf.AppSpacing`) and the title bars'
+place in picking (`Swf.Arbitration`) included).
 `@swf/persistence` is at 13568 bytes (13513 measured): snapshots, stores and the saver, with named
 spaces (`createSpaces`) and the step that brings `swf.workspace/1` layouts into the room.
-`@swf/backend-dom` is at 7680 bytes (7055 measured), the DOM input's pointer lock included.
+`@swf/backend-dom` is at 7680 bytes (7448 measured), the DOM input's pointer lock and the
+windows' title bars included.
 `@swf/navigation-ui` starts at 40704 bytes, 10% over its measured size (36801) rounded up to
 the next 256: the navigation controls compiled as a host's build compiles them, with Svelte, the kit
 and the framework's packages left out; it is measured only where the kit is.
 `@swf/navigation` starts at 29440 bytes, 10% over its measured size (26635) rounded up to the
 next 256: the composition of the framework into the navigation experience and its capabilities.
-`@swf/presentation` is at 15104 bytes (14915 measured): placing every window's name over a view
-(`placeNames`, `windowNames`) and the cards windows are drawn on (`cardScale`, `windowCard`).
+`@swf/presentation` is at 15616 bytes (15415 measured): placing names over a view (`placeNames`,
+`windowNames`), the cards windows are drawn on (`cardScale`, `windowCard`) and their title bars and
+resize bands (`WINDOW_HANDLES`, `bandEdgeAt`, `bandZones`).
 `@swf/backend-geometry` (8704) is where the geometry renderer's names, frames and edge marks take
 it.
 

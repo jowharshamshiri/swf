@@ -334,7 +334,8 @@ describe('dragging across the seam (§33.2 scenario 2, FR-065, FR-104, FR-123)',
   /** Presses window-01 (on the seam behind the camera) left of its centre and drags it right past the view's edge. */
   function seamDrag(features = updateFeatures(DEFAULT_FEATURES, { enabled: { snap: false } })) {
     const w = policyWorld('seam', features);
-    const grabbed = [-0.6, 0] as const;
+    // Low on its card, clear of the title bars of the windows standing in front of it.
+    const grabbed = [-0.6, -0.35] as const;
     const [x, y] = across(w, grabbed);
     expect(x).toBeGreaterThan(W - 100);
     const before = w.ws.getState();

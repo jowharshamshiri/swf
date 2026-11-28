@@ -1,3 +1,4 @@
+import type { Id } from '@swf/core';
 import type { Representation } from './representation.js';
 
 /**
@@ -121,3 +122,179 @@ export function windowCard(input: CardInput): WindowCard {
     perUnit: Object.freeze([width / Math.max(1e-9, w), height / Math.max(1e-9, h)] as const),
   });
 }
+
+/**
+ * How precisely a pointer points: `fine` for a mouse or a trackpad, `coarse` for a finger or a pen
+ * without hover. Coarse pointers get larger handles.
+ */
+export type PointerPrecision = 'fine' | 'coarse';
+
+/** The sizes of a window's handles for one pointer precision, in CSS pixels. */
+export interface HandleSizes {
+  /** The title bar's height a press counts in, from the card's top edge up. */
+  readonly titleBar: number;
+  /** How far outside the window's outline its resize band reaches. */
+  readonly outside: number;
+  /** How far inside the window's outline its resize band reaches, at its sides and bottom. */
+  readonly inside: number;
+  /** How far a corner's resize zone reaches along each edge from the band's outer edge. */
+  readonly corner: number;
+}
+
+/**
+ * A window's handles: the title bar across the top of its card, drawn {@link TITLE_BAR_HEIGHT}
+ * pixels high whatever the card's scale, where a press selects the window, a drag moves it and a
+ * double press focuses it; and the resize band round its outline (its card with its title bar),
+ * reaching `outside` beyond it and `inside` within it at the sides and bottom, never into the title
+ * bar, with larger zones at the corners. A press counts on the title bar over `titleBar` pixels,
+ * more than it is drawn for a coarse pointer, reaching up into the space above it. Sizes follow
+ * WCAG 2.5.8's 24 CSS pixels for a fine pointer, and the 44 pixels of touch norms for a coarse one.
+ */
+export const WINDOW_HANDLES: Readonly<Record<PointerPrecision, HandleSizes>> = Object.freeze({
+  fine: Object.freeze({ titleBar: 24, outside: 8, inside: 4, corner: 20 }),
+  coarse: Object.freeze({ titleBar: 44, outside: 16, inside: 6, corner: 34 }),
+});
+
+/** The height a window's title bar is drawn at, in CSS pixels, whatever the card's scale. */
+export const TITLE_BAR_HEIGHT = 24;
+
+/** A rectangle in CSS pixels: left, top, width, height. */
+type Rect = readonly [number, number, number, number];
+
+/**
+ * A window's title bar on a view, for a card drawn at `card` as `representation`: the bar across
+ * the top of the card, `height` pixels high above it (by default as drawn); a window shown by its
+ * label alone has the label's card as its title bar.
+ */
+export function titleBarOf(
+  card: Rect,
+  representation: Representation,
+  height: number = TITLE_BAR_HEIGHT,
+): Rect {
+  const [x, y, w] = card;
+  return representation === 'label' ? card : [x, y - height, w, height];
+}
+
+/** A window's outline on a view: its card with its title bar as drawn. */
+export function outlineOf(card: Rect, representation: Representation): Rect {
+  const [x, y, w, h] = card;
+  return representation === 'label' ? card : [x, y - TITLE_BAR_HEIGHT, w, h + TITLE_BAR_HEIGHT];
+}
+
+/** The edge or corner of a window's resize band, by compass point: `n` its top, `e` its right. */
+export type ResizeEdge = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
+
+/**
+ * The edge or corner of a window's resize band a point lies in, or null when it lies in none. The
+ * band is the ring round the window's outline (its card with its title bar, as a press counts it
+ * for this precision) reaching `outside` beyond it and `inside` within it at the sides and bottom;
+ * at the top, which is the title bar's, only beyond it; and all round only beyond it for a window
+ * shown by its label alone, whose whole card is its title bar. Each corner of the ring's outer edge
+ * has a square zone `corner` pixels on a side, which is that corner's wherever the point lies in it.
+ */
+export function bandEdgeAt(
+  card: Rect,
+  representation: Representation,
+  precision: PointerPrecision,
+  px: number,
+  py: number,
+): ResizeEdge | null {
+  const { outside, inside, corner } = bandSizes(representation, precision);
+  const [left, top, right, bottom] = outerBox(card, representation, precision);
+  if (px < left || px > right || py < top || py > bottom) {
+    return null;
+  }
+  const west = px < left + corner;
+  const east = px > right - corner;
+  const north = py < top + corner;
+  const south = py > bottom - corner;
+  if (north && west) return 'nw';
+  if (north && east) return 'ne';
+  if (south && west) return 'sw';
+  if (south && east) return 'se';
+  if (py < top + outside) return 'n';
+  if (py > bottom - outside - inside) return 's';
+  if (px < left + outside + inside) return 'w';
+  if (px > right - outside - inside) return 'e';
+  return null;
+}
+
+/**
+ * A window's handle sizes as its resize band takes them: a window shown by its label alone, whose
+ * whole card is its title bar, has its band outside the card only, so the bar keeps its height.
+ */
+function bandSizes(representation: Representation, precision: PointerPrecision): HandleSizes {
+  const sizes = WINDOW_HANDLES[precision];
+  return representation === 'label' ? { ...sizes, inside: 0 } : sizes;
+}
+
+/**
+ * The outer edge of a window's resize band, as left, top, right and bottom: its outline (its card
+ * with its title bar, as a press counts it for this precision) grown by the band's `outside`.
+ */
+function outerBox(
+  card: Rect,
+  representation: Representation,
+  precision: PointerPrecision,
+): readonly [number, number, number, number] {
+  const { outside, titleBar } = WINDOW_HANDLES[precision];
+  const bar = titleBarOf(card, representation, titleBar);
+  return [
+    card[0] - outside,
+    Math.min(bar[1], card[1]) - outside,
+    card[0] + card[2] + outside,
+    card[1] + card[3] + outside,
+  ];
+}
+
+/**
+ * Where each zone of a window's resize band lies, for a pointer of `precision`, relative to the
+ * card's top-left corner: the rectangle `bandEdgeAt` gives that edge or corner in. A renderer lays
+ * its handles out by it.
+ */
+export function bandZones(
+  card: Rect,
+  representation: Representation,
+  precision: PointerPrecision,
+): Readonly<Record<ResizeEdge, Rect>> {
+  const { outside, inside, corner } = bandSizes(representation, precision);
+  const [l, t, r, b] = outerBox(card, representation, precision);
+  const [x, y] = card;
+  const at = (left: number, top: number, width: number, height: number): Rect => [
+    left - x,
+    top - y,
+    width,
+    height,
+  ];
+  const across = r - l - 2 * corner;
+  const down = b - t - 2 * corner;
+  const side = outside + inside;
+  return {
+    nw: at(l, t, corner, corner),
+    ne: at(r - corner, t, corner, corner),
+    sw: at(l, b - corner, corner, corner),
+    se: at(r - corner, b - corner, corner, corner),
+    n: at(l + corner, t, across, outside),
+    s: at(l + corner, b - side, across, side),
+    w: at(l, t + corner, side, down),
+    e: at(r - side, t + corner, side, down),
+  };
+}
+
+/**
+ * The colours a window's title bar is drawn in, as CSS colours: its fill, and its name's text, which
+ * should stand out from the fill by 4.5:1 (WCAG 1.4.3).
+ */
+export interface TitleBarColours {
+  /** The bar's fill: a non-blank CSS colour. */
+  readonly fill: string;
+  /** The name written on it: a non-blank CSS colour. */
+  readonly text: string;
+}
+
+/**
+ * The colours of a window's title bar, by its node ID, as a host gives them (the colour of what
+ * the window holds, say); null for a window the host gives none, whose bar a renderer draws in
+ * its own inks.
+ */
+export type TitleBarColouring = (nodeId: Id) => TitleBarColours | null;

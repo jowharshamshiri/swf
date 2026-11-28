@@ -20,3 +20,9 @@ a translation and that scale: exact in a panorama too, and `approximated` (said 
 declares `affine-2d` transforms. The `pixelsPerUnit` option, `ChromeOptions.projections` and
 `data-swf-placement` are gone; chrome is drawn round each card, at both edges for a card across the
 seam. The package no longer depends on `@swf/projections`.
+
+Each window drawn with a card has a title bar element (`data-swf-title-bar`, with its
+`data-swf-node`) across the top of its card, in a layer over every card, named for the window, in
+the host's colours (`chrome.titleBars`) or the inks, taking input; its resize handles lie round its
+outline as `bandZones` lays them out. Floating names are written only for windows shown by their
+label alone. `chrome.handlePx` is gone.

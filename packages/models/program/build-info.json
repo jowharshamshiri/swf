@@ -23,9 +23,9 @@
     "Swf/AppSpacing.lean": "3571be1f63c14c16e45d0ce29dc70cd5b3836023ba8cc859bd752720cbcd6df0",
     "Swf/AppWheel.lean": "8a96448d11b145a6958353c061832f945412679d31949491a361516e915aa5b5",
     "Swf/AppWorkspaces.lean": "f5a80d6775fd91b054a3856aaae2c3538ae2f6ca90156fffe66791d74bbb69d5",
-    "Swf/Arbitration.lean": "47ef2f12b3479a3ca4a066653f2c8f5010b5cea840dd1c0fa40d69bca01a8de0",
+    "Swf/Arbitration.lean": "cb91f99434935e8efc6c53d9dd0a0de1197f76015f7bc9c531600c2c2cfe58d4",
     "Swf/Fallback.lean": "db0262b4bb6c56d827cab0345e38de7324f7124b0403286d1468a84e43129f7c",
-    "Swf/Gesture.lean": "9816510b87f9262f409a297a1fc54b098ce3bd0a86d919dd41d75c99951e5595",
+    "Swf/Gesture.lean": "98fe9d42b6e2a64d93c7d9675811f94f542fd7118946ce1c1d0d593a995a5e75",
     "Swf/Handoff.lean": "36619e1132d6c8a9966e96c19b2850897a347505e70c955336d62e38031c34d1",
     "Swf/Hierarchy.lean": "7f30f759bfb333e8ed5fae95c977f7afbe907b1f054e782f5c9572ba6efc94ec",
     "Swf/Json.lean": "efdc7f4f6f6e1c84ebac2b3fc39f887f8c3634cb87b10d5fe298635fa5a26631",
@@ -46,9 +46,9 @@
   "project": ".",
   "link_directives": [],
   "output_digests": {
-    "assurance.json": "74871a361cb3af4fae0c262cbf8d1e1fcb8fd6adb9492139ed1c623123772972",
-    "index.d.ts": "bddffccb7626fa4423e05bf38a619d7239ffab55a7926d1dbb32366c0233e2e5",
-    "index.js": "0d73e58f033d0c5f42afc146e19de8d1021e10725a64565f5e44ca7cac26f768"
+    "assurance.json": "70d2423ef110f14666b3602a8e707b08d01f7d1a87696ea4a4a58796631dacb5",
+    "index.d.ts": "fbbb9969b8f23d970be53ecbd8b2e6af3184e8f252fc20d6240ccda9cde349f6",
+    "index.js": "a0aa4962bde941c72a75537b45175fc8d85d7c90e273681ccc8a00aba2efe522"
   },
   "platform_products": [
     "program.wasm"

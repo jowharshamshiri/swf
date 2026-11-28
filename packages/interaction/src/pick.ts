@@ -4,24 +4,30 @@ import type { Ray, Vec3 } from '@swf/math';
 import { mat4TransformPoint } from '@swf/math';
 import type { HitRegion } from '@swf/models';
 import { models } from '@swf/models';
-import type { ProjectedFragment, ScreenRect, ViewGeometry } from '@swf/presentation';
+import type {
+  PointerPrecision,
+  ProjectedFragment,
+  ResizeEdge,
+  ScreenRect,
+  ViewGeometry,
+} from '@swf/presentation';
+import { bandEdgeAt, titleBarOf, WINDOW_HANDLES } from '@swf/presentation';
 import type { Continuity, Projection } from '@swf/projections';
 
 /**
  * What part of the workspace a point is over:
  * - `content`: a surface's content, whose input stays native unless a takeover gesture is active;
- * - `chrome`: a window's frame, or a surface that only shows something;
- * - `resize-handle`: the band along a window's edges;
+ * - `chrome`: a window's card where no content takes input: its frame, a surface that only shows
+ *   something, or a picture of content (a copy of a card across a seam);
+ * - `title-bar`: the bar across the top of a window's card, drawn over every card;
+ * - `resize-handle`: the band round a window's outline;
  * - `background`: no window;
  * - `modal-overlay`: anything outside an active modal, which takes no input.
  */
-export type InputRegion = 'content' | 'chrome' | 'resize-handle' | 'background' | 'modal-overlay';
+export type InputRegion =
+  'content' | 'chrome' | 'title-bar' | 'resize-handle' | 'background' | 'modal-overlay';
 
-/**
- * The edge or corner of a resize handle, by compass point in the window's own frame: `n` is its
- * top (+Y), `e` its right (+X).
- */
-export type ResizeEdge = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
+export type { ResizeEdge } from '@swf/presentation';
 
 /**
  * One thing a pointer ray hits. Only entities that are visible, take pointer input (they and every
@@ -33,10 +39,11 @@ export interface PickCandidate {
   /** The surface hit, or null for a node's own frame. */
   readonly surfaceId: Id | null;
   /**
-   * What was hit: a surface whose interaction is `content`, a surface that only shows something or
-   * a node's frame (`chrome`), or the resize band along a resizable node's edges.
+   * What was hit: a surface whose interaction is `content`, a surface that only shows something, a
+   * picture of a surface's content or a node's frame (`chrome`), a window's title bar, or the
+   * resize band round a resizable node's outline.
    */
-  readonly region: 'content' | 'chrome' | 'resize-handle';
+  readonly region: 'content' | 'chrome' | 'title-bar' | 'resize-handle';
   /**
    * The edge or corner whose resize band the hit lies in, for a resizable node's frame; null for
    * a surface, the frame's interior, or a node that is not resizable.
@@ -149,10 +156,10 @@ export type OcclusionLookup = (candidate: {
  */
 export interface PickOptions {
   /**
-   * Width of the resize band along a window's edges, in CSS pixels, converted to a world width at
-   * the hit's distance; a band never takes more than a quarter of the window's width or height.
+   * How precisely the pointer points, which sizes the windows' title bars and resize bands as a
+   * press counts them (`WINDOW_HANDLES` of `@swf/presentation`).
    */
-  readonly handlePx: number;
+  readonly precision: PointerPrecision;
   /** Depths closer than this (world units) count as a tie. */
   readonly depthTolerance: number;
   /**
@@ -188,15 +195,17 @@ export interface PickContext {
 /** Each hit region as the arbitration model names it. */
 const HIT_REGIONS: Readonly<Record<PickCandidate['region'], HitRegion['kind']>> = Object.freeze({
   'resize-handle': 'resizeHandle',
+  'title-bar': 'titleBar',
   content: 'content',
   chrome: 'chrome',
 });
 
 /**
  * Picks at a viewport point what the view draws there: each surface where it lies on its window's
- * card, and each window's frame (its card), with a resize band `handlePx` wide along a resizable
- * window's edges. Hits are kept only for entities that are visible and take pointer input, then
- * ordered by presentation priority, occlusion and depth (the card's distance). A card drawn at
+ * card, each window's card and its title bar, and the resize band round a resizable window's
+ * outline, sized for the pointer's precision (`WINDOW_HANDLES`). Hits are kept only for entities
+ * that are visible and take pointer input, then ordered by presentation priority, title bars before
+ * the rest (they are drawn over every card), occlusion and depth (the card's distance). A card drawn at
  * both edges of a seam is one window, so it is picked as one Surface ID at either. The projection's
  * inverse gives the ray the point looks along; where it has none the point is reported
  * unpickable, never guessed.
@@ -242,9 +251,9 @@ export function pick(
       }
     }
     const copy = `${nodeId}\u0000${String(fragment.ordinal)}`;
-    if (!framed.has(copy) && inside(fragment.card, x, y)) {
+    if (!framed.has(copy)) {
       framed.add(copy);
-      const hit = nodeHit(scene, nodeId, fragment, x, y, options.handlePx);
+      const hit = nodeHit(scene, nodeId, fragment, x, y, options.precision);
       if (hit !== null) {
         raw.push(hit);
       }
@@ -340,10 +349,13 @@ function surfaceHit(ctx: PickContext, fragment: ProjectedFragment, x: number, y:
   const localPoint: Vec3 = [(uv[0] - 0.5) * w, (0.5 - uv[1]) * h, 0];
   const owner = ctx.scene.nodes.get(surface.ownerNodeId);
   const proxy = ctx.options.presentation(surfaceId, ctx.view.viewportId) === 'proxy';
+  // Live content takes input only where it is itself: a copy of its card across a seam shows a
+  // picture of it, which is handled as the window's card.
+  const live = surface.interaction === 'content' && (proxy || fragment.nativeOwner);
   return {
     nodeId: surface.ownerNodeId,
     surfaceId,
-    region: surface.interaction === 'content' ? ('content' as const) : ('chrome' as const),
+    region: live ? ('content' as const) : ('chrome' as const),
     edge: null,
     distance: fragment.depth,
     worldPoint: mat4TransformPoint(geometry.world, localPoint),
@@ -366,8 +378,9 @@ function takesPointer(scene: SceneState, nodeId: Id): boolean {
 }
 
 /**
- * A hit at (`x`, `y`) on a window's frame, its card, with a resize band `handlePx` wide along its
- * edges (never more than a quarter of the card, so a small window keeps its middle).
+ * A hit at (`x`, `y`) on a window's handles or its card: the resize band round a resizable window's
+ * outline first, then its title bar, then its card (its frame), each sized for the pointer's
+ * precision (`WINDOW_HANDLES`); null where the point is on none of them.
  */
 function nodeHit(
   scene: SceneState,
@@ -375,28 +388,35 @@ function nodeHit(
   fragment: ProjectedFragment,
   x: number,
   y: number,
-  handlePx: number,
+  precision: PointerPrecision,
 ) {
   const node = scene.nodes.get(nodeId);
   const world = worldMatrix(scene.nodes, nodeId);
   if (node === undefined || world === undefined || !takesPointer(scene, nodeId)) {
     return null;
   }
-  const [cx, cy, cw, ch] = fragment.card;
+  const { card, representation } = fragment;
+  const edge = node.flags.resizable ? bandEdgeAt(card, representation, precision, x, y) : null;
+  const bar = titleBarOf(card, representation, WINDOW_HANDLES[precision].titleBar);
+  const region =
+    edge !== null
+      ? ('resize-handle' as const)
+      : inside(bar, x, y)
+        ? ('title-bar' as const)
+        : inside(card, x, y)
+          ? ('chrome' as const)
+          : null;
+  if (region === null) {
+    return null;
+  }
+  const [cx, cy, cw, ch] = card;
   const [w, h] = node.bounds;
   const localPoint: Vec3 = [((x - cx) / cw - 0.5) * w, (0.5 - (y - cy) / ch) * h, 0];
-  const bx = Math.min(handlePx, cw / 4);
-  const by = Math.min(handlePx, ch / 4);
-  const vertical = y - cy <= by ? 'n' : cy + ch - y <= by ? 's' : '';
-  const horizontal = cx + cw - x <= bx ? 'e' : x - cx <= bx ? 'w' : '';
-  const edge = `${vertical}${horizontal}`;
-  const resize = edge === '' ? null : (edge as ResizeEdge);
   return {
     nodeId,
     surfaceId: null,
-    region:
-      resize === null || !node.flags.resizable ? ('chrome' as const) : ('resize-handle' as const),
-    edge: node.flags.resizable ? resize : null,
+    region,
+    edge,
     distance: fragment.depth,
     worldPoint: mat4TransformPoint(world, localPoint),
     localPoint,

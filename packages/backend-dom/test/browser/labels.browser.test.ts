@@ -20,9 +20,9 @@ describe('labels and host metadata as text (SEC-010, QA-011)', () => {
     );
     const v = current.views.get('v');
     const w = current.views.get('w');
+    // A window drawn with a card is named on its title bar.
     const names = (root: HTMLElement | undefined) => [
-      ...(root?.querySelectorAll(`[${DOM_ATTRIBUTES.layer}="names"] [${DOM_ATTRIBUTES.label}]`) ??
-        []),
+      ...(root?.querySelectorAll(`[${DOM_ATTRIBUTES.titleBar}]`) ?? []),
     ];
     expect(names(v?.root).map((t) => t.textContent)).toEqual([HOSTILE]);
     expect(w?.root.querySelector(`[${DOM_ATTRIBUTES.layer}="proxy"]`)).not.toBeNull();
@@ -47,9 +47,7 @@ describe('labels and host metadata as text (SEC-010, QA-011)', () => {
       'placeholder',
     );
     expect(placeholder).not.toBeNull();
-    const name = current.views
-      .get('v')
-      ?.root.querySelector(`[${DOM_ATTRIBUTES.layer}="names"] [${DOM_ATTRIBUTES.label}]`);
+    const name = current.views.get('v')?.root.querySelector(`[${DOM_ATTRIBUTES.titleBar}="a"]`);
     expect(name?.textContent).toBe(HOSTILE);
     expect(current.views.get('v')?.root.querySelector('img')).toBeNull();
   });
@@ -95,7 +93,7 @@ async function fontSettings(run: () => Promise<unknown>): Promise<{
 }
 
 describe('the names’ cost', () => {
-  it('measures a frame’s names in one setting of the font, on no canvas of the document', async () => {
+  it('names windows on their title bars by style alone, setting no canvas’s font in the document', async () => {
     // Setting a context's font parses it; a canvas in the document resolves it against the
     // document's style, which WebKit then recalculates in the middle of the frame (3 ms a frame
     // with sixty names over five hundred windows).
@@ -109,10 +107,10 @@ describe('the names’ cost', () => {
     );
     const view = current.views.get('v');
     const settings = await fontSettings(async () => view?.update());
-    const names = view?.root.querySelectorAll(
-      `[${DOM_ATTRIBUTES.layer}="names"] [${DOM_ATTRIBUTES.label}]`,
-    );
-    expect(names?.length).toBeGreaterThan(5);
-    expect(settings).toEqual({ document: 0, offscreen: 1 });
+    const bars = view?.root.querySelectorAll(`[${DOM_ATTRIBUTES.titleBar}]`);
+    expect(bars?.length).toBeGreaterThan(5);
+    // The bars are written by style; only names placed beside a mark are measured, offscreen.
+    expect(settings.document).toBe(0);
+    expect(settings.offscreen).toBeLessThanOrEqual(1);
   });
 });

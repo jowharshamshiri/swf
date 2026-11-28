@@ -39,12 +39,12 @@ in the command list (Ctrl+Shift+P or F1).
 1. Open `?preset=sparse`. Six windows stand all the way round the camera.
 2. Drag the background left and right: the view turns through the full circle.
 3. Click into a note and type: notes are the page's own elements, live and editable in place.
-4. Drag a window by its frame: it follows the pointer and commits once when released. Press
+4. Drag a window by its title bar: it follows the pointer and commits once when released. Press
    Escape during a drag: it goes back.
 
 ## Handling windows directly
 
-1. Open the studio. Drag a window by its frame: it moves round you and up or down, the same
+1. Open the studio. Drag a window by its title bar: it moves round you and up or down, the same
    height a pixel however far it is, and the bar above the panorama says where it would be as it
    goes (its angle, distance and height). The inspector's sliders follow it. Let go: one change,
    which Undo in that bar puts back. Drag it all the way round: it comes back where it began.

@@ -39,7 +39,7 @@ function drag(w: World, dx: number, dy: number, modifiers: { shift?: boolean } =
     consumed: true,
     route: 'gesture',
     gestureId: null,
-    region: 'chrome',
+    region: 'title-bar',
   });
   const moved = w.input.pointer('move', 'v', x + dx, y + dy, { modifiers });
   expect(moved.gestureId).not.toBeNull();
@@ -353,7 +353,7 @@ describe('cancellation (FR-112)', () => {
       priority: 1000,
       operations: ['node.move'],
       claim: (context) =>
-        context.region === 'chrome'
+        context.region === 'title-bar'
           ? {
               kind: 'drag',
               pointers: 1,

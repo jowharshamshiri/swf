@@ -36,3 +36,13 @@ policy, which may give a card's scale outright (`RepresentationPolicy.scaleOf`, 
 `FrameInput` no longer takes the policy. A `ProjectionProfile` no longer declares a `mapping`: a card
 is never bent, so negotiation asks only for transforms that scale it (`affine-2d` or more) to present
 content exactly or natively, and a renderer declares a handle kind `exact` only with such transforms.
+
+Every window drawn with a card has a title bar across the top of it, `TITLE_BAR_HEIGHT` (24) CSS
+pixels high whatever the card's scale, and a resize band round its outline; a window shown by its
+label alone has its small card as its title bar. `WINDOW_HANDLES` gives the sizes a press counts
+them at for each `PointerPrecision` (a mouse: a 24 px bar, a band 8 px out and 4 in; a finger or a
+pen: 44, 16 and 6), and `titleBarOf`, `outlineOf`, `bandEdgeAt` and `bandZones` lay them out for
+picking and renderers alike. `ResizeEdge` is defined here. `TitleBarColours` and
+`TitleBarColouring` are how a host colours each window's bar. `windowNames` names only the windows
+shown by their label alone, keeping their names clear of every other window's outline; a window
+drawn with a card is named on its bar (`windowTitle` gives the name).

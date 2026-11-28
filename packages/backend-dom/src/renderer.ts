@@ -11,16 +11,21 @@ import type {
   RenderFrame,
   ScreenRect,
   StandInReason,
+  TitleBarColouring,
   ViewGeometry,
 } from '@swf/presentation';
 import {
+  bandZones,
   NAME_MARK,
+  outlineOf,
   placeNames,
   PRESENTATION_API_VERSION,
   STAND_IN_TEXT,
   standInReason,
+  TITLE_BAR_HEIGHT,
   viewGeometryIssue,
   windowNames,
+  windowTitle,
 } from '@swf/presentation';
 import { DomWriter } from './writer.js';
 
@@ -78,23 +83,27 @@ export const DEFAULT_CHROME_INKS: ChromeInks = Object.freeze({
 
 /** How a window's name is written: its size, the height of its line, and its plate's margin. */
 const NAME = Object.freeze({ size: 12, line: 15, margin: 3 });
+/** How a title bar writes its window's name: the text's size, and its margin at either end. */
+const BAR = Object.freeze({ size: 12, margin: 8 });
 
 /**
- * Window chrome: frames, names and resize handles drawn round each window's card. Each window's
- * name is written flat, where it can be read: wholly inside the view, over no other window and
- * over no other name (`placeNames` of `@swf/presentation`).
+ * Window chrome: each window's frame, its title bar across the top of its card, drawn over every
+ * card and taking input, and its resize handles round its outline (`WINDOW_HANDLES` of
+ * `@swf/presentation`). A window shown by its label alone is marked, and its name written flat
+ * where it can be read: wholly inside the view, over no other window and over no other name
+ * (`placeNames` of `@swf/presentation`).
  */
 export interface ChromeOptions {
-  /**
-   * Thickness of the resize handles along window edges, in CSS px: positive and finite. Default
-   * 12.
-   */
-  readonly handlePx?: number;
   /**
    * The colours chrome is drawn in, copied when the renderer is made. Default
    * {@link DEFAULT_CHROME_INKS}.
    */
   readonly inks?: ChromeInks;
+  /**
+   * Each window's title bar colours, read at every frame; a window given none has its bar in the
+   * `ground` ink with its name in the `text` ink. Default: none for every window.
+   */
+  readonly titleBars?: TitleBarColouring;
 }
 
 /** What a DOM renderer realizes views in, and how. Checked when the renderer is made. */
@@ -120,7 +129,7 @@ export const DOM_ATTRIBUTES = Object.freeze({
   surface: 'data-swf-surface',
   /** On a live clip box, proxy or placeholder: the fragment's ID. */
   fragment: 'data-swf-fragment',
-  /** On a window's chrome: the window's node ID. */
+  /** On a window's chrome, title bar and name: the window's node ID. */
   node: 'data-swf-node',
   /** On a live slot, the element content is mounted in: the surface's ID. */
   slot: 'data-swf-slot',
@@ -138,6 +147,8 @@ export const DOM_ATTRIBUTES = Object.freeze({
   focused: 'data-swf-focused',
   /** On a window's name, in the layer of names. */
   label: 'data-swf-label',
+  /** On a window's title bar, in the layer of title bars: the window's node ID. */
+  titleBar: 'data-swf-title-bar',
   /** On the mark of a window shown by its label alone. */
   mark: 'data-swf-mark',
   /** On {@link showDegraded}'s status line: the error's code. */
@@ -181,16 +192,9 @@ export class DomRenderer implements RendererBackend {
   /**
    * A renderer for `options.document`, which is not checked.
    *
-   * @throws `RangeError` for a `chrome.handlePx` that is not positive and finite, or a
-   *   `chrome.inks` colour that is not a non-blank string.
+   * @throws `RangeError` for a `chrome.inks` colour that is not a non-blank string.
    */
   constructor(options: DomRendererOptions) {
-    const handlePx = options.chrome?.handlePx ?? 12;
-    if (!(handlePx > 0 && Number.isFinite(handlePx))) {
-      throw new RangeError(
-        `chrome.handlePx must be a positive finite number (got ${String(handlePx)})`,
-      );
-    }
     const inks = options.chrome?.inks ?? DEFAULT_CHROME_INKS;
     for (const name of ['frame', 'selected', 'focused', 'text', 'ground'] as const) {
       const ink: unknown = inks[name];
@@ -204,7 +208,7 @@ export class DomRenderer implements RendererBackend {
         options.chrome === undefined
           ? null
           : {
-              handlePx,
+              titleBars: options.chrome.titleBars ?? (() => null),
               inks: Object.freeze({
                 frame: inks.frame,
                 selected: inks.selected,
@@ -378,6 +382,7 @@ export class DomRendererSession implements RendererSession {
       }
     });
     if (this.#chrome !== null) {
+      layers.push(this.#barsLayer(frame, chrome, lastOfNode, usedElements));
       layers.push(this.#namesLayer(frame, chrome, usedElements));
     }
     // Slots of surfaces not live here this frame stay in place, hidden, so their content is not
@@ -570,10 +575,10 @@ export class DomRendererSession implements RendererSession {
   }
 
   /**
-   * The windows' names, flat over the view, each written where it can be read: wholly inside the
-   * view, over no other window and over no other name (`placeNames`), on a plate of the ground
-   * ink, in the selected or the focused window's ink for theirs. A name with no such place is not
-   * written.
+   * The names of the windows shown by their label alone, flat over the view, each written where it
+   * can be read: wholly inside the view, over no other window and over no other name
+   * (`placeNames`), on a plate of the ground ink, in the selected or the focused window's ink for
+   * theirs. A name with no such place is not written. Every other window is named on its title bar.
    */
   #namesLayer(
     frame: RenderFrame,
@@ -600,7 +605,7 @@ export class DomRendererSession implements RendererSession {
       (text) => [Math.ceil(measure(text, font)) + 2 * NAME.margin, NAME.line + 2 * NAME.margin],
       new Map(
         [...frames].flatMap(([nodeId, cards]) =>
-          cards[0] === undefined ? [] : [[nodeId, cards[0]] as const],
+          cards[0] === undefined ? [] : [[nodeId, outlineOf(cards[0], 'full')] as const],
         ),
       ),
     );
@@ -654,6 +659,94 @@ export class DomRendererSession implements RendererSession {
         'outline-offset': '-1px',
       });
     });
+    return Object.freeze({
+      id,
+      category: 'overlay',
+      fragmentId: null,
+      surfaceId: null,
+      content: layer,
+    });
+  }
+
+  /**
+   * The windows' title bars, one layer over every card: across the top of each window's card at
+   * every place it is drawn, {@link TITLE_BAR_HEIGHT} pixels high, in the host's colours for it or
+   * the ground and text inks, its name written on it, outlined in the selected or the focused
+   * window's ink for theirs. Nearer windows' bars lie over farther ones'. Each bar takes input, so a
+   * press on it reaches the framework wherever it lies over other windows' content.
+   */
+  #barsLayer(
+    frame: RenderFrame,
+    frames: ReadonlyMap<Id, readonly ScreenRect[]>,
+    nearness: ReadonlyMap<Id, number>,
+    usedElements: Set<string>,
+  ): CompositionLayer {
+    const chrome = this.#chrome;
+    if (chrome === null) {
+      throw new Error('title bars were drawn without chrome');
+    }
+    const id = 'overlay:bars';
+    usedElements.add(id);
+    const layer = this.#element(id, () => {
+      const e = this.#document.createElement('div');
+      e.setAttribute(DOM_ATTRIBUTES.layer, 'title-bars');
+      style(e, { position: 'absolute', left: '0px', top: '0px', 'pointer-events': 'none' });
+      return e;
+    });
+    const font = `${String(BAR.size)}px ${this.#fontFamily()}`;
+    const { scene } = frame;
+    // Farther first, so the nearer lie over them.
+    const order = [...frames.keys()].sort(
+      (a, b) => (nearness.get(a) ?? 0) - (nearness.get(b) ?? 0),
+    );
+    let index = 0;
+    for (const nodeId of order) {
+      const colours = chrome.titleBars(nodeId);
+      const selected = scene.selection.includes(nodeId);
+      const focused = scene.focusedId === nodeId;
+      const title = windowTitle(scene, nodeId) ?? '';
+      (frames.get(nodeId) ?? []).forEach((card, copy) => {
+        const key = copy === 0 ? `bar:${nodeId}` : `bar:${nodeId}/${String(copy)}`;
+        usedElements.add(key);
+        const bar = this.#element(key, () => {
+          const e = this.#document.createElement('div');
+          e.setAttribute(DOM_ATTRIBUTES.titleBar, nodeId);
+          e.setAttribute(DOM_ATTRIBUTES.node, nodeId);
+          style(e, {
+            position: 'absolute',
+            'box-sizing': 'border-box',
+            'white-space': 'nowrap',
+            overflow: 'hidden',
+            'text-overflow': 'ellipsis',
+            'pointer-events': 'auto',
+          });
+          return e;
+        });
+        if (layer.children[index] !== bar) {
+          layer.insertBefore(bar, layer.children[index] ?? null);
+          this.#write.structure();
+        }
+        index += 1;
+        const [x, y, w] = card;
+        const ink = focused ? chrome.inks.focused : selected ? chrome.inks.selected : null;
+        // Names are text, never markup.
+        this.#write.text(bar, title);
+        this.#write.style(bar, {
+          left: `${String(x)}px`,
+          top: `${String(y - TITLE_BAR_HEIGHT)}px`,
+          width: `${String(w)}px`,
+          height: `${String(TITLE_BAR_HEIGHT)}px`,
+          padding: `0 ${String(BAR.margin)}px`,
+          font,
+          'line-height': `${String(TITLE_BAR_HEIGHT)}px`,
+          color: colours?.text ?? chrome.inks.text,
+          background: colours?.fill ?? chrome.inks.ground,
+          'box-shadow': ink === null ? 'none' : `inset 0 0 0 2px ${ink}`,
+        });
+        this.#write.toggle(bar, DOM_ATTRIBUTES.selected, selected);
+        this.#write.toggle(bar, DOM_ATTRIBUTES.focused, focused);
+      });
+    }
     return Object.freeze({
       id,
       category: 'overlay',
@@ -729,8 +822,9 @@ export class DomRendererSession implements RendererSession {
   }
 
   /**
-   * A window's chrome element, built once: a frame outline (taking no input) and the eight resize
-   * handles (taking input), shown or hidden as the window's edges allow.
+   * A window's chrome element, built once: a frame outline round its card and title bar (taking no
+   * input) and the eight resize handles round it (taking input), shown or hidden as the window's
+   * edges allow.
    */
   #chromeElement(nodeId: Id): HTMLElement {
     const e = this.#document.createElement('div');
@@ -780,10 +874,11 @@ export class DomRendererSession implements RendererSession {
   }
 
   /**
-   * A window's chrome, a layer of its own: its frame outline (which takes no input, so
-   * nothing over content is intercepted) and, for a resizable window, handles along the frame
-   * edges that lie inside the view, which take input so presses on them reach the framework even
-   * where the content under them is a cross-origin frame.
+   * A window's chrome, a layer of its own: its frame outline round its card and title bar (which
+   * takes no input, so nothing over content is intercepted) and, for a resizable window, the
+   * handles of its resize band (`bandZones`) along the edges that lie inside the view, which take
+   * input so presses on them reach the framework even where the content under them is a
+   * cross-origin frame.
    */
   #chromeLayer(
     frame: RenderFrame,
@@ -811,8 +906,9 @@ export class DomRendererSession implements RendererSession {
     const selected = scene.selection.includes(nodeId);
     const focused = scene.focusedId === nodeId;
     this.#write.style(outline, {
+      top: `${String(-TITLE_BAR_HEIGHT)}px`,
       width: `${String(w)}px`,
-      height: `${String(h)}px`,
+      height: `${String(h + TITLE_BAR_HEIGHT)}px`,
       // The window keys act on is marked, and the one in focus above it.
       border: `${focused || selected ? '3px' : '1px'} solid ${
         focused ? chrome.inks.focused : selected ? chrome.inks.selected : chrome.inks.frame
@@ -821,10 +917,10 @@ export class DomRendererSession implements RendererSession {
     this.#write.toggle(element, DOM_ATTRIBUTES.selected, selected);
     this.#write.toggle(element, DOM_ATTRIBUTES.focused, focused);
     const resizable = node.flags.resizable && !node.flags.locked;
-    const t = chrome.handlePx;
+    const zones = bandZones(card, 'full', 'fine');
     // An edge takes a handle only where it lies inside the view.
     const has = {
-      n: y >= 0,
+      n: y - TITLE_BAR_HEIGHT >= 0,
       s: y + h <= view.height,
       w: x >= 0,
       e: x + w <= view.width,
@@ -832,19 +928,16 @@ export class DomRendererSession implements RendererSession {
     for (const handle of element.querySelectorAll<HTMLElement>(`[${DOM_ATTRIBUTES.handle}]`)) {
       const edge = handle.getAttribute(DOM_ATTRIBUTES.handle) as keyof typeof RESIZE_EDGES;
       const shown = resizable && RESIZE_EDGES[edge].every((side) => has[side]);
-      const north = edge.includes('n');
-      const south = edge.includes('s');
-      const east = edge.includes('e');
-      const west = edge.includes('w');
+      const [left, top, width, height] = zones[edge];
       this.#write.style(
         handle,
         shown
           ? {
               display: '',
-              left: `${String(east ? w - t : 0)}px`,
-              top: `${String(south ? h - t : 0)}px`,
-              width: `${String(east || west ? t : w)}px`,
-              height: `${String(north || south ? t : h)}px`,
+              left: `${String(left)}px`,
+              top: `${String(top)}px`,
+              width: `${String(width)}px`,
+              height: `${String(height)}px`,
             }
           : { display: 'none' },
       );

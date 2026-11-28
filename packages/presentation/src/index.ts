@@ -101,7 +101,7 @@ export {
   REPRESENTATIONS,
 } from './representation.js';
 export type { NameObstacle, NameRequest, WindowName, WindowNames } from './names.js';
-export { NAME_MARK, placeNames, windowNames } from './names.js';
+export { NAME_MARK, placeNames, windowNames, windowTitle } from './names.js';
 export type { StandInReason, SurfaceCondition } from './conditions.js';
 export {
   conditionFor,
@@ -111,6 +111,26 @@ export {
   surfaceCondition,
 } from './conditions.js';
 export type { FrameInput, ViewProjector } from './stages.js';
-export type { CardInput, WindowCard } from './cards.js';
-export { CARD_PIXELS_PER_UNIT, cardScale, COMPACT_CARD, LABEL_CARD, windowCard } from './cards.js';
+export type {
+  CardInput,
+  HandleSizes,
+  PointerPrecision,
+  ResizeEdge,
+  TitleBarColouring,
+  TitleBarColours,
+  WindowCard,
+} from './cards.js';
+export {
+  bandEdgeAt,
+  bandZones,
+  CARD_PIXELS_PER_UNIT,
+  cardScale,
+  COMPACT_CARD,
+  LABEL_CARD,
+  outlineOf,
+  TITLE_BAR_HEIGHT,
+  titleBarOf,
+  WINDOW_HANDLES,
+  windowCard,
+} from './cards.js';
 export { groupFallbacks, planFrame, PRESENTATION_STAGES } from './stages.js';

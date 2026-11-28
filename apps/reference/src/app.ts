@@ -1,4 +1,4 @@
-import type { JsonValue, NodeRecord, SceneCommand, TxResult } from '@swf/core';
+import type { JsonValue, NodeRecord, SceneCommand, SceneState, TxResult } from '@swf/core';
 import { worldMatrix } from '@swf/core';
 import { MAX_SEED, seedIssue } from '@swf/math';
 import type { FeaturePatch, Navigation, NavigationStatus, WindowTraits } from '@swf/navigation';
@@ -153,7 +153,7 @@ function download(document: Document, name: string, text: string): void {
 /**
  * What the demo says of its windows: a part keeps the window it came from under
  * {@link PART_OF_KEY}; the overview groups by category, arrangement orders by colour, search reads
- * both; and a window composition makes for a surface is tagged with what the surface shows and
+ * both; a title bar is in the colour of what its window holds; and a window composition makes for a surface is tagged with what the surface shows and
  * given its colour and category.
  */
 function demoTraits(content: DemoContent): WindowTraits {
@@ -161,6 +161,18 @@ function demoTraits(content: DemoContent): WindowTraits {
     partOfKey: PART_OF_KEY,
     searchKeys: SEARCHABLE_METADATA,
     category: categoryOf,
+    titleBar: (node: NodeRecord, state: SceneState) => {
+      // In the colour of what the window holds first: a deeper shade of its card's.
+      for (const surfaceId of node.surfaceIds) {
+        const key = state.surfaces.get(surfaceId)?.bindingKey ?? null;
+        const planned = key === null ? null : content.find(key);
+        if (planned !== null) {
+          const hue = String(planned.hue);
+          return { fill: `hsl(${hue} 45% 84%)`, text: `hsl(${hue} 40% 16%)` };
+        }
+      }
+      return null;
+    },
     arrangeKey: (node: NodeRecord) => colourOf(node) ?? '',
     newWindowFor(surface: { readonly adapterTypeId: string; readonly bindingKey: string | null }) {
       const kind = contentOf(surface.adapterTypeId);

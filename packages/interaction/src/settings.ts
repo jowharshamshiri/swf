@@ -71,8 +71,6 @@ export interface InteractionSettings {
    * drag. Non-negative. Default 4.
    */
   readonly slopPx: number;
-  /** Width of the resize band along window edges, in CSS px: positive. Default 12. */
-  readonly handlePx: number;
   /**
    * Depths closer than this count as a tie when picking, in world units: positive. Default 1e-6.
    */
@@ -163,7 +161,6 @@ export function defaultKeymap(given: Partial<KeyboardSteps> = {}): KeyBinding[] 
  */
 export const DEFAULT_SETTINGS: InteractionSettings = Object.freeze({
   slopPx: 4,
-  handlePx: 12,
   depthTolerance: 1e-6,
   takeoverModifier: 'alt',
   depthModifier: 'shift',
@@ -215,8 +212,7 @@ export function mergeSettings(current: InteractionSettings, patch: unknown): Int
   for (const [key, value] of Object.entries(p)) {
     switch (key) {
       case 'slopPx':
-      case 'handlePx':
-        next[key] = positive(key, value, key === 'slopPx');
+        next[key] = positive(key, value, true);
         break;
       case 'depthTolerance':
       case 'minSize':

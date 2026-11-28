@@ -239,9 +239,10 @@ function movableTarget(
   return node !== undefined && node.flags[flag] && !node.flags.locked ? target : null;
 }
 
-/** A press on chrome, or on content when content is not live input here. */
+/** A press on a window's title bar or card, or on content when content is not live input here. */
 function grabsWindow(context: ClaimContext): boolean {
   return (
+    context.region === 'title-bar' ||
     context.region === 'chrome' ||
     (context.region === 'content' &&
       (context.takeover || (context.pick.kind === 'hit' && context.pick.target.proxy)))

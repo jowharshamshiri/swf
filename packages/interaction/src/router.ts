@@ -13,7 +13,12 @@ import type {
   WorkspaceReader,
 } from '@swf/core';
 import { descendantIds, makeError, SwfFailure, VERSIONED_ID } from '@swf/core';
-import type { ProjectedFragment, RepresentationPolicy, ViewGeometry } from '@swf/presentation';
+import type {
+  PointerPrecision,
+  ProjectedFragment,
+  RepresentationPolicy,
+  ViewGeometry,
+} from '@swf/presentation';
 import { viewGeometryOf } from '@swf/presentation';
 import type { Continuity, Projection, ProjectionModule, RayResult } from '@swf/projections';
 import { projectionFor, projectorOf } from '@swf/projections';
@@ -700,15 +705,22 @@ export class InteractionRouter {
 
   /**
    * Picks at a viewport point in the current scene, as {@link pick} does, with the router's
-   * settings, modal and lookups. `x` and `y` are in the viewport's CSS pixels from its top-left
-   * corner. Throws {@link SwfFailure}: `UNKNOWN_ENTITY` for an unknown viewport,
-   * `UNSUPPORTED_CAPABILITY` when its projection is not registered.
+   * settings, modal and lookups, for a pointer of `precision` (default `fine`). `x` and `y` are in
+   * the viewport's CSS pixels from its top-left corner. Throws {@link SwfFailure}:
+   * `UNKNOWN_ENTITY` for an unknown viewport, `UNSUPPORTED_CAPABILITY` when its projection is not
+   * registered.
    */
-  pick(viewportId: Id, x: number, y: number, continuity?: Continuity): PickResult {
+  pick(
+    viewportId: Id,
+    x: number,
+    y: number,
+    continuity?: Continuity,
+    precision: PointerPrecision = 'fine',
+  ): PickResult {
     this.#live();
     const scene = this.#workspace.getState();
     const view = viewGeometryOf(scene, viewportId);
-    return this.#pickIn(scene, view, x, y, continuity);
+    return this.#pickIn(scene, view, x, y, continuity, precision);
   }
 
   /**
@@ -821,7 +833,14 @@ export class InteractionRouter {
   #press(intent: PointerIntent, key: string): Routed {
     const scene = this.#workspace.getState();
     const view = viewGeometryOf(scene, intent.viewportId);
-    const result = this.#pickIn(scene, view, intent.x, intent.y);
+    const result = this.#pickIn(
+      scene,
+      view,
+      intent.x,
+      intent.y,
+      undefined,
+      precisionOf(intent.pointerType),
+    );
     const picked = result.kind === 'hit' || result.kind === 'background' ? result : null;
     const target = picked?.kind === 'hit' ? picked.target : null;
     const takeover = this.#takeover || intent.modifiers[this.#settings.takeoverModifier];
@@ -1512,6 +1531,7 @@ export class InteractionRouter {
     x: number,
     y: number,
     continuity?: Continuity,
+    precision: PointerPrecision = 'fine',
   ): PickResult {
     const started = this.#timer();
     const modal =
@@ -1530,7 +1550,7 @@ export class InteractionRouter {
         cards: this.#cards(scene, view),
         geometry: (id) => this.#workspace.surfaceGeometry(id),
         options: {
-          handlePx: this.#settings.handlePx,
+          precision,
           depthTolerance: this.#settings.depthTolerance,
           modal,
           presentation: this.#presentation,
@@ -1683,10 +1703,16 @@ function messageOf(error: unknown): string {
 
 const IDLE: GesturePhase = Object.freeze({ kind: 'idle' });
 
+/** How precisely a pointer of a type points: a finger or a pen is coarse, a mouse fine. */
+function precisionOf(type: PointerIntent['pointerType']): PointerPrecision {
+  return type === 'touch' || type === 'pen' ? 'coarse' : 'fine';
+}
+
 /** Each input region as the gesture model names it. */
 const REGIONS: Readonly<Record<InputRegion, Region['kind']>> = Object.freeze({
   content: 'content',
   chrome: 'chrome',
+  'title-bar': 'titleBar',
   'resize-handle': 'resizeHandle',
   background: 'background',
   'modal-overlay': 'modalOverlay',

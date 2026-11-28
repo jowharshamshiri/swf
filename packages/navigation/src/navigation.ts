@@ -42,6 +42,7 @@ import type {
   Presenter,
   StandInReason,
   SwitchOutcome,
+  TitleBarColours,
 } from '@swf/presentation';
 import { createPresentationRegistry, createPresenter } from '@swf/presentation';
 import type { ProjectionRegistry } from '@swf/projections';
@@ -274,6 +275,11 @@ export interface WindowTraits {
   /** The category the overview shows a window in, or null for none. */
   readonly category: (node: NodeRecord) => string | null;
   /**
+   * The colours a window's title bar is drawn in (the colour of what it holds, say), or null for a
+   * bar in the chrome's own colours.
+   */
+  readonly titleBar: (node: NodeRecord, state: SceneState) => TitleBarColours | null;
+  /**
    * What windows arranged round the camera are ordered by after what they show: such as a colour.
    * Windows with the same key stand together.
    */
@@ -459,8 +465,8 @@ export interface Navigation {
     },
   ): TxResult;
   /**
-   * Poses a window as the inspector's controls set it: round the camera, out from it, up, turned
-   * and sized, each left out staying as it is ({@link posedPatch}). With `preview`, the change is
+   * Poses a window as the inspector's controls set it: round the camera, out from it, up and
+   * sized, each left out staying as it is ({@link posedPatch}). With `preview`, the change is
    * shown and not committed, replacing the pose shown before; without it, it is committed as one
    * undoable change, ending the pose shown. A control dragged previews as it moves and commits
    * once when let go: one undo puts it back. Posing another window ends the pose shown first.
@@ -625,12 +631,17 @@ export async function createNavigation(options: NavigationOptions): Promise<Navi
   const domChrome = domInks(options.chrome);
   const geometryInks = resolvedInks(document, options.chrome);
   const standIn = (reason: StandInReason) => words.standIn(reason);
+  const titleBars = (nodeId: Id): TitleBarColours | null => {
+    const state = workspace.getState();
+    const node = state.nodes.get(nodeId);
+    return node === undefined ? null : options.windows.titleBar(node, state);
+  };
   const renderers: Readonly<Record<BackendId, () => () => void>> = {
     dom: () =>
       presentation.registerRenderer(
         new DomRenderer({
           document,
-          chrome: { inks: domChrome },
+          chrome: { inks: domChrome, titleBars },
           standIn,
         }),
       ),
@@ -644,6 +655,7 @@ export async function createNavigation(options: NavigationOptions): Promise<Navi
             drawables: (surfaceId) => runtime.handleOf(surfaceId),
             standIn,
             inks: geometryInks,
+            titleBars,
             // Names in the page's typeface, as the page writes its own text.
             typeface: () => view.getComputedStyle(document.body).fontFamily,
           }),

@@ -63,6 +63,18 @@ centre, the window's own size at `CARD_PIXELS_PER_UNIT` times a scale that follo
 along the floor (`cardScale`, `windowCard`). A projected fragment (`ProjectedFragment`) carries its
 card, its scale and how the window is represented, and its surface's rectangle on the card.
 
+Every window drawn with a card has a title bar across the top of the card, `TITLE_BAR_HEIGHT` (24)
+CSS pixels high whatever the card's scale, drawn over every card; a window shown by its label alone
+has its small card as its title bar (`titleBarOf`, `outlineOf`). Its resize band lies round its
+outline (`bandEdgeAt`, `bandZones`). How large a press counts them depends on the pointer
+(`WINDOW_HANDLES`, by `PointerPrecision`): for a mouse a bar of 24 pixels and a band 8 pixels out
+and 4 in, for a finger or a pen a bar of 44 pixels and a band 16 out and 6 in. Picking reports a
+press on a bar in the `title-bar` region; the Lean model `Swf.Arbitration` orders title bars before
+every other hit of the same presentation priority, however near that hit is, and never marks a bar
+occluded. A copy of a live window's card across a panorama's seam is a picture of its content, and
+picks as the window's card (`chrome`). A host colours each window's bar (`TitleBarColouring`;
+`WindowTraits.titleBar` in `@swf/navigation`).
+
 A card shows no rotation. A window or surface that carries a rotation of its own (set by a host
 through `node.patch` or `surface.patch`), or a surface whose geometry is not a `rect`, is drawn
 upright as its rectangle, and the framework says so: the fragment's `geometricFidelity` is

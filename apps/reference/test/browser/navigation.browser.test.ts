@@ -575,8 +575,9 @@ describe('the seam', () => {
     await settle();
     const box = a.root.getBoundingClientRect();
     // window-01 straddles the seam behind the camera: pressed left of its centre, near the right
-    // edge.
-    const grab = panoramaPoint(model, centreOf(model, 'window-01'), box.width);
+    // edge, low on its card, clear of the title bars of the windows standing in front of it.
+    const [cx, cy, cz] = centreOf(model, 'window-01');
+    const grab = panoramaPoint(model, [cx, cy - 0.4, cz], box.width);
     const pick = a.router.pick(
       VIEWPORT_ID,
       Math.round(box.width - 20),

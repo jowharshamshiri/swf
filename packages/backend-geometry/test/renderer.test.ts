@@ -110,7 +110,7 @@ describe('geometry renderer', () => {
     expect(images).toEqual([[...(planned?.fragment.bounds ?? [])]]);
   });
 
-  it('stacks each window’s chrome after its last fragment, then the names, and indicators on top', async () => {
+  it('stacks each window’s chrome after its last fragment, then the title bars, and indicators on top', async () => {
     const { frame, rendered } = await render(
       [
         { id: 'a', kind: 'drawn', heading: 0, distance: 3, label: 'A' },
@@ -133,10 +133,38 @@ describe('geometry renderer', () => {
       const content = rendered.layers[at]?.content;
       expect(isGeometryLayer(content) && content.after).toBe(fragment);
     }
-    // The windows' names over every window; the window behind the camera is out of a 120° view:
-    // an indicator points the way.
-    expect(ids.slice(-2)).toEqual(['overlay:names', 'overlay:indicators']);
+    // The windows' title bars over every window, each named on its own (no window here is shown by
+    // its label alone, so no name is written elsewhere); the window behind the camera is out of a
+    // 120° view: an indicator points the way.
+    expect(ids.slice(-2)).toEqual(['overlay:bars', 'overlay:indicators']);
+    expect(ids).not.toContain('overlay:names');
+    const bars = drawn(rendered.layers.find((l) => l.id === 'overlay:bars'));
+    // B stands farther: its bar is drawn first, and A's over it.
+    expect(bars.filter((call) => call.startsWith('fillText:'))).toEqual([
+      'fillText:B',
+      'fillText:A',
+    ]);
     expect(frame.planned.some((p) => p.fragment.surfaceId === 'away-s')).toBe(false);
+  });
+
+  it('draws each window’s title bar in the host’s colours for it, at every place its card is drawn', async () => {
+    const { frame, rendered } = await render(
+      [
+        // Straddling the seam behind the camera: its card drawn at both edges.
+        { id: 'seam', kind: 'drawn', heading: Math.PI - 0.02, distance: 3, label: 'Seam' },
+        { id: 'plain', kind: 'drawn', heading: 0, distance: 3, label: 'Plain' },
+      ],
+      {
+        titleBars: (nodeId) =>
+          nodeId === 'seam' ? { fill: 'rgb(10, 20, 30)', text: 'rgb(40, 50, 60)' } : null,
+      },
+    );
+    expect(frame.planned.filter((p) => p.fragment.surfaceId === 'seam-s')).toHaveLength(2);
+    const bars = inked(rendered.layers.find((l) => l.id === 'overlay:bars'));
+    expect(bars.filter((call) => call === 'fillText:Seam rgb(40, 50, 60)')).toHaveLength(2);
+    expect(bars).toContain('fill rgb(10, 20, 30)');
+    // A window the host gives no colours is drawn in the inks.
+    expect(bars).toContain(`fillText:Plain ${DEFAULT_GEOMETRY_INKS.text}`);
   });
 
   it('draws a compact window as its proxy, and a label-only one as a mark named beside it, without chrome (FR-122)', async () => {
@@ -161,9 +189,11 @@ describe('geometry renderer', () => {
     const ids = rendered.layers.map((l) => l.id);
     expect(ids).toContain('chrome:near');
     expect(ids).not.toContain('chrome:far');
+    // The compact window named on its title bar, the label alone beside its mark.
+    const bars = drawn(rendered.layers.find((l) => l.id === 'overlay:bars'));
+    expect(bars).toEqual(['fillText:Near']);
     const names = drawn(rendered.layers.find((l) => l.id === 'overlay:names'));
-    expect(names).toContain('fillText:Near');
-    expect(names).toContain('fillText:Far');
+    expect(names).toEqual(['fillText:Far']);
   });
 
   it('draws chrome, labels and indicators in the host’s inks, read every frame (WCAG 1.4.3, 1.4.11, 2.4.7)', async () => {
@@ -210,16 +240,24 @@ describe('geometry renderer', () => {
     expect(layer('chrome:a')).toEqual(['stroke rgb(2, 2, 2)', 'fill rgb(2, 2, 2)']);
     expect(layer('chrome:b')).toEqual(['stroke rgb(3, 3, 3)']);
     expect(layer('chrome:c')).toEqual(['stroke rgb(1, 1, 1)']);
-    // Each name on its ground: the selected window's first, in its ink, then the focused one's in
-    // its, then any other's in the text ink.
-    expect(layer('overlay:names')).toEqual([
+    // Each title bar in the ground ink with its name in the text ink, the selected one's edged in
+    // its ink and the focused one's in its (the host gives no colours of its own here).
+    const bars = layer('overlay:bars');
+    const barOf = (name: string) => {
+      const at = bars.indexOf(`fillText:${name} rgb(4, 4, 4)`);
+      return bars.slice(bars.lastIndexOf('fill rgb(5, 5, 5)', at), at + 1);
+    };
+    expect(barOf('A')).toEqual([
       'fill rgb(5, 5, 5)',
-      'fillText:A rgb(2, 2, 2)',
-      'fill rgb(5, 5, 5)',
-      'fillText:B rgb(3, 3, 3)',
-      'fill rgb(5, 5, 5)',
-      'fillText:C rgb(4, 4, 4)',
+      'stroke rgb(2, 2, 2)',
+      'fillText:A rgb(4, 4, 4)',
     ]);
+    expect(barOf('B')).toEqual([
+      'fill rgb(5, 5, 5)',
+      'stroke rgb(3, 3, 3)',
+      'fillText:B rgb(4, 4, 4)',
+    ]);
+    expect(barOf('C')).toEqual(['fill rgb(5, 5, 5)', 'fillText:C rgb(4, 4, 4)']);
     // Each mark at the edge ringed in the ground ink, so it reads over a window there too, then
     // its window's name on its ground.
     expect(layer('overlay:indicators')).toEqual([
@@ -232,10 +270,8 @@ describe('geometry renderer', () => {
     inks = { ...inks, frame: 'rgb(9, 9, 9)', text: 'rgb(8, 8, 8)', ground: 'rgb(7, 7, 7)' };
     layer = await draw();
     expect(layer('chrome:c')).toEqual(['stroke rgb(9, 9, 9)']);
-    expect(layer('overlay:names').slice(-2)).toEqual([
-      'fill rgb(7, 7, 7)',
-      'fillText:C rgb(8, 8, 8)',
-    ]);
+    expect(layer('overlay:bars')).toContain('fillText:C rgb(8, 8, 8)');
+    expect(layer('overlay:bars')).toContain('fill rgb(7, 7, 7)');
     expect(layer('overlay:indicators').slice(0, 2)).toEqual([
       'stroke rgb(7, 7, 7)',
       'fill rgb(9, 9, 9)',
@@ -384,7 +420,7 @@ function inked(layer: CompositionLayer | undefined): string[] {
           }
         };
       }
-      if (name === 'stroke') {
+      if (name === 'stroke' || name === 'strokeRect') {
         return () => calls.push(`stroke ${target.strokeStyle}`);
       }
       if (name === 'fillText') {

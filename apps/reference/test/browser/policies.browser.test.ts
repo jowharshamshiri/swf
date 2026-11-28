@@ -7,7 +7,7 @@ import { createReferenceApp } from '../../src/app.js';
 import type { AppConfig } from '../../src/config.js';
 import { VIEWPORT_ID, orbitHeading } from '@swf/navigation';
 import { planPreset, WORKSPACE_GROUP_ID } from '../../src/presets.js';
-import { cardPoint, framePoint } from './cards.js';
+import { cardPoint, titleBarPoint } from './cards.js';
 
 declare module 'vitest/browser' {
   interface BrowserCommands {
@@ -220,7 +220,7 @@ describe('the wrapped cursor across the seam (§33.2 scenario 2, FR-107, FR-123)
    * drags it to the edge.
    */
   async function toTheEdge(a: ReferenceApp, grabbedX = -0.7) {
-    const [sx, sy] = framePoint(a, 'window-01', grabbedX, W);
+    const [sx, sy] = titleBarPoint(a, 'window-01', grabbedX, W);
     const x = Math.round(sx);
     const y = Math.round(sy);
     expect(x).toBeGreaterThan(W - 60);
@@ -385,7 +385,8 @@ describe('the wrapped cursor across the seam (§33.2 scenario 2, FR-107, FR-123)
     const a = await start({ preset: 'seam' });
     a.policies.configure({ enabled: { snap: false, cursor: false } });
     await frame(a);
-    const grabbed = [-0.7, 0] as const;
+    // Low on its card, clear of the title bars of the windows standing in front of it.
+    const grabbed = [-0.7, -0.35] as const;
     const [sx, sy] = screenOf(a, 'window-01', grabbed, W);
     const x = Math.round(sx);
     const y = Math.round(sy);

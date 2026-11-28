@@ -161,7 +161,7 @@ export const NAVIGATION_ENGLISH = Object.freeze({
   'panorama.role': 'spatial workspace',
   'panorama.label': 'Panorama',
   'panorama.keys':
-    'Drag a window by its frame to move it round you, its edges to resize it; Shift and drag, or Shift and the wheel, bring it nearer or farther; Ctrl (⌘) and click add it to the selection. Arrows move the selected window, Page Up and Page Down bring it nearer or farther, + and − resize it; N and P select the next and previous window, Enter focuses it, Space picks it up, Delete removes it; Alt with arrows, or A and D, turn the camera; 1 to 4 show the views in the switcher’s order, F shows the selected window in focus, M shows the map, Escape goes back; Tab leaves the view. The Windows view lists every window.',
+    'Drag a window by its title bar to move it round you, its edges to resize it, and double-click its title bar to focus it; Shift and drag, or Shift and the wheel, bring it nearer or farther; Ctrl (⌘) and click add it to the selection. Arrows move the selected window, Page Up and Page Down bring it nearer or farther, + and − resize it; N and P select the next and previous window, Enter focuses it, Space picks it up, Delete removes it; Alt with arrows, or A and D, turn the camera; 1 to 4 show the views in the switcher’s order, F shows the selected window in focus, M shows the map, Escape goes back; Tab leaves the view. The Windows view lists every window.',
   'panorama.held.keys':
     'Arrows, Page Up/Down and + − change it · Enter or Space puts it down · Escape cancels',
   'where.text': '{heading}° {side}, {distance} units away, {height} units {updown}',
@@ -200,7 +200,7 @@ export const NAVIGATION_ENGLISH = Object.freeze({
   'inspector.title': 'Selection',
   'inspector.none': 'Nothing selected',
   'inspector.none.detail':
-    'Hold Alt and press a window, press its frame, or go to it from the command list.',
+    'Press a window’s title bar, hold Alt and press its content, or go to it from the command list.',
   'inspector.label': 'Selected window',
   'inspector.id': 'ID',
   'inspector.name': 'Name',

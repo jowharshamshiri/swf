@@ -37,7 +37,8 @@ IndexedDB, as the host chooses. The packages without a DOM (`@swf/math`, `@swf/m
   locks the pointer to the view (Pointer Lock) and goes on by the mouse's motion; where the browser
   offers no lock or refuses it, the drag stops at the screen's edge.
 - **Cross-origin content keeps its own input.** Content in a cross-origin frame gets its input
-  from the browser alone; the framework sees presses only on window chrome and resize handles.
+  from the browser alone; the framework sees presses there only on title bars and resize handles,
+  which the DOM renderer draws as elements of their own over it.
 - **A hidden tab gets no animation frames.** Presentation waits there and resumes from the latest
   state.
 

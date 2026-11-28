@@ -192,10 +192,9 @@ export interface WindowNames {
   /** Each window's frame pieces, and the mark of each window shown by its label alone. */
   readonly obstacles: readonly NameObstacle[];
   /**
-   * Each window's name, the selected and focused windows' first, then the nearer windows' before
-   * the farther: a window with a frame named just above it (at its left, else its right), else
-   * just inside its top corners, else in its middle, else just below it; one shown by its label
-   * alone named beside its mark, else above or below it.
+   * The name of each window shown by its label alone, the selected and focused windows' first,
+   * then the nearer windows' before the farther, beside its mark, else above or below it. A window
+   * drawn with a card is named on its title bar, which the renderer writes, not here.
    */
   readonly names: readonly WindowName[];
   /** The centre of each mark of a window shown by its label alone, by the window's node ID. */
@@ -203,12 +202,13 @@ export interface WindowNames {
 }
 
 /**
- * The names a frame's windows are written by, with the places offered for each and what they keep
- * clear of; `measure` gives a text's width and height as the renderer writes it, and `frames` the
- * box each window's frame is drawn in, stroke and handles included, for the windows drawn with one.
- * A window with a drawn frame is named by that frame and keeps other names clear of all of it; one
- * without, by its fragments. A window is named by its own label, else by its first surface's; a
- * window with neither is not named.
+ * The names of a frame's windows shown by their label alone, with the places offered for each and
+ * what they keep clear of; `measure` gives a text's width and height as the renderer writes it,
+ * and `frames` the box each window's outline is drawn in (its card with its title bar, stroke and
+ * handles included), for the windows drawn with one. Other names keep clear of all of a window's
+ * outline, or of its fragments where it has none drawn. A window drawn with a card is named on its
+ * title bar, so it asks for no place here. A window is named as {@link windowTitle} names it; a
+ * window with no name is not named.
  */
 export function windowNames(
   frame: RenderFrame,
@@ -231,7 +231,7 @@ export function windowNames(
       entry = {
         framed: [],
         marks: [],
-        label: scene.nodes.get(nodeId)?.label ?? surface.label ?? null,
+        label: windowTitle(scene, nodeId),
         nearest: i,
       };
       byNode.set(nodeId, entry);
@@ -268,34 +268,18 @@ export function windowNames(
         box: [cx - NAME_MARK / 2, cy - NAME_MARK / 2, NAME_MARK, NAME_MARK],
       });
     }
-    if (entry.label === null || entry.label === '') {
+    // A window drawn with a card is named on its title bar.
+    if (framed.length > 0 || entry.label === null || entry.label === '') {
       continue;
     }
     const size = measure(entry.label);
     const [nw, nh] = size;
-    const places: ScreenPoint[] =
-      framed.length > 0
-        ? [
-            ...framed.flatMap(([x, y, w]): ScreenPoint[] => [
-              [x, y - nh - GAP],
-              [x + w - nw, y - nh - GAP],
-            ]),
-            ...framed.flatMap(([x, y, w]): ScreenPoint[] => [
-              [x + GAP + 1, y + GAP + 1],
-              [x + w - nw - GAP - 1, y + GAP + 1],
-            ]),
-            ...framed.flatMap(([x, y, w, h]): ScreenPoint[] => [
-              [x + w / 2 - nw / 2, y + h / 2 - nh / 2],
-              [x, y + h + GAP],
-              [x + w - nw, y + h + GAP],
-            ]),
-          ]
-        : marked.flatMap(([cx, cy]): ScreenPoint[] => [
-            [cx + NAME_MARK / 2 + GAP, cy - nh / 2],
-            [cx - NAME_MARK / 2 - GAP - nw, cy - nh / 2],
-            [cx - nw / 2, cy - NAME_MARK / 2 - GAP - nh],
-            [cx - nw / 2, cy + NAME_MARK / 2 + GAP],
-          ]);
+    const places: ScreenPoint[] = marked.flatMap(([cx, cy]): ScreenPoint[] => [
+      [cx + NAME_MARK / 2 + GAP, cy - nh / 2],
+      [cx - NAME_MARK / 2 - GAP - nw, cy - nh / 2],
+      [cx - nw / 2, cy - NAME_MARK / 2 - GAP - nh],
+      [cx - nw / 2, cy + NAME_MARK / 2 + GAP],
+    ]);
     names.push({
       owner: nodeId,
       text: entry.label,
@@ -310,4 +294,25 @@ export function windowNames(
   const nearest = (name: WindowName) => byNode.get(name.owner)?.nearest ?? 0;
   names.sort((a, b) => rank(a) - rank(b) || nearest(b) - nearest(a));
   return { obstacles, names, marks };
+}
+
+/**
+ * A window's name as its title bar shows it: its own label, else its first surface's that has one;
+ * null when neither has one.
+ */
+export function windowTitle(scene: RenderFrame['scene'], nodeId: Id): string | null {
+  const node = scene.nodes.get(nodeId);
+  if (node === undefined) {
+    return null;
+  }
+  if (node.label !== null && node.label !== '') {
+    return node.label;
+  }
+  for (const surfaceId of node.surfaceIds) {
+    const label = scene.surfaces.get(surfaceId)?.label ?? null;
+    if (label !== null && label !== '') {
+      return label;
+    }
+  }
+  return null;
 }

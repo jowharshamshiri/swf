@@ -12,3 +12,10 @@ Drawn content is drawn into its surface's rectangle on its window's card, exactl
 transforms; the `meshCells` option and the mesh helpers are gone. Window frames are drawn round
 each card (`WindowFrame.card`), and `windowFrames(frame)` takes no projection modules: they are
 needed only for the indicators of windows out of view.
+
+Each window drawn with a card has its title bar drawn across the top of its card at every place the
+card is drawn, in a layer over every card (`overlay:bars`), named for the window and cut short with
+an ellipsis where the bar is narrow, in the host's colours (`titleBars`) or the inks. Frames are
+drawn round each card and its bar (`WindowFrame.cards`, every place the card is drawn), and
+floating names are written only for windows shown by their label alone, measured with the font set
+once a frame.

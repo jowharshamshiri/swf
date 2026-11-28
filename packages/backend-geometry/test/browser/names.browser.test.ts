@@ -1,4 +1,4 @@
-import type { RenderedFrame } from '@swf/presentation';
+import type { RenderedFrame, RepresentationPolicy } from '@swf/presentation';
 import { describe, expect, it } from 'vitest';
 import {
   GeometryRenderer,
@@ -152,7 +152,11 @@ async function fontSettings<T>(run: () => Promise<T>): Promise<{ settings: numbe
   }
 }
 
-async function rendered(placed: readonly Placed[], horizontal: number): Promise<RenderedFrame> {
+async function rendered(
+  placed: readonly Placed[],
+  horizontal: number,
+  representation?: RepresentationPolicy,
+): Promise<RenderedFrame> {
   const { ws, projections, kinds } = scene(placed, horizontal);
   const renderer = new GeometryRenderer({ drawables: () => drawable, projections });
   const frame = plan(
@@ -161,6 +165,8 @@ async function rendered(placed: readonly Placed[], horizontal: number): Promise<
     kinds,
     { id: renderer.id, capabilities: renderer.capabilities() },
     { id: LAYER_COMPOSITOR_ID, capabilities: LAYER_COMPOSITOR_CAPABILITIES },
+    false,
+    representation,
   );
   const session = await renderer.prepare(frame.scene, frame.view);
   return session.render(frame);
@@ -233,9 +239,9 @@ describe('names over a drawn view', () => {
     expect(settings).toBe(1);
   });
 
-  it('keeps every name clear of every other window’s frame as drawn, curved round a narrow view', async () => {
-    // Near windows in a narrow view, each surface smaller than its window: each frame is drawn
-    // round its surface's fragment, curved.
+  it('keeps every name beside a mark clear of every other window’s frame as drawn, in a narrow view', async () => {
+    // Near windows in a narrow view, each surface smaller than its window, the middle row shown by
+    // its label alone: each other window's frame is drawn round its card and title bar.
     const placed: Placed[] = [];
     for (let i = 0; i < 4; i++) {
       for (let j = 0; j < 3; j++) {
@@ -251,15 +257,23 @@ describe('names over a drawn view', () => {
         });
       }
     }
-    const frame = await rendered(placed, 70);
-    const written = writtenIn(frame);
+    const frame = await rendered(placed, 70, {
+      id: 'test.rows/1',
+      representationOf: ({ nodeId }) => (nodeId.endsWith('-1') ? 'label' : 'full'),
+    });
+    // The names written beside marks and at the view's edge; each title bar names its own window
+    // over whatever lies under it.
+    const written = writtenIn({
+      ...frame,
+      layers: frame.layers.filter((l) => l.id !== 'overlay:bars'),
+    });
     const owners = new Map(placed.map((p) => [p.label, p.id]));
     const frames = frame.layers.flatMap((l) => {
       const box = l.id.startsWith('chrome:') ? paintedBox(l.content) : null;
       return box === null ? [] : [{ id: l.id.slice('chrome:'.length), box }];
     });
     expect(frames.length).toBeGreaterThan(6);
-    expect(written.length).toBeGreaterThan(4);
+    expect(written.length).toBeGreaterThan(2);
     const over: string[] = [];
     for (const {
       text,

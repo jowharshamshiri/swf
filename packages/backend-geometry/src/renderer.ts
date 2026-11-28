@@ -15,16 +15,20 @@ import type {
   ScreenPoint,
   ScreenRect,
   StandInReason,
+  TitleBarColouring,
   ViewGeometry,
 } from '@swf/presentation';
 import {
   NAME_MARK,
+  outlineOf,
   placeNames,
   PRESENTATION_API_VERSION,
   STAND_IN_TEXT,
   standInReason,
+  TITLE_BAR_HEIGHT,
   viewGeometryIssue,
   windowNames,
+  windowTitle,
 } from '@swf/presentation';
 import type { Projection, ProjectionModule } from '@swf/projections';
 import { projectionFor } from '@swf/projections';
@@ -72,6 +76,8 @@ export const DEFAULT_GEOMETRY_INKS: GeometryInks = Object.freeze({
 
 /** How a window's name is written: its size, the height of its line, and its plate's margin. */
 const NAME = Object.freeze({ size: 12, line: 15, margin: 3 });
+/** How a title bar writes its window's name: the text's size, and its margin at either end. */
+const BAR = Object.freeze({ size: 12, margin: 8 });
 /**
  * A mark at the view's edge, in CSS pixels: how far round it other names keep clear, how far its
  * own name stands off it, and how wide the ring of the ground ink round it is.
@@ -106,6 +112,11 @@ export interface GeometryRendererOptions {
    * Default {@link STAND_IN_TEXT}, in English.
    */
   readonly standIn?: (reason: StandInReason) => string;
+  /**
+   * Each window's title bar colours, read at every frame; a window given none has its bar in the
+   * `ground` ink with its name in the `text` ink. Default: none for every window.
+   */
+  readonly titleBars?: TitleBarColouring;
   /**
    * The inks, read at every frame so a change of the host's appearance is drawn at the next one.
    * Default {@link DEFAULT_GEOMETRY_INKS}. An ink that is not a non-blank string makes that frame
@@ -278,7 +289,10 @@ export class GeometryRendererSession implements RendererSession {
         }
       }
     }
-    layers.push(...this.#names(frame, projection, frames));
+    // One measure for the frame: the font is set once for every name it measures.
+    const measure = this.#measure();
+    layers.push(this.#bars(frame, frames, lastOfNode, measure));
+    layers.push(...this.#names(frame, projection, frames, measure));
     return Object.freeze({
       viewportId: frame.viewportId,
       sceneRevision: frame.sceneRevision,
@@ -464,12 +478,14 @@ export class GeometryRendererSession implements RendererSession {
     return value as Drawable;
   }
 
-  /** A window's frame, drawn round its card, stacked after `after`. */
+  /**
+   * A window's frame, drawn round its card and its title bar at every place the card is drawn,
+   * stacked after `after`.
+   */
   #chrome(nodeId: Id, drawn: WindowFrame, after: string): CompositionLayer {
-    const { card, selected, focused, handles } = drawn;
-    const corners = rectQuad(card);
+    const { cards, selected, focused, handles } = drawn;
     const inks = this.#inks;
-    const signature = JSON.stringify([card, selected, focused, handles, after, inks]);
+    const signature = JSON.stringify([cards, selected, focused, handles, after, inks]);
     return Object.freeze({
       id: `chrome:${nodeId}`,
       category: 'chrome',
@@ -477,20 +493,92 @@ export class GeometryRendererSession implements RendererSession {
       surfaceId: null,
       content: this.#keep(`chrome:${nodeId}`, signature, () =>
         layer(after, (ctx) => {
-          outline(ctx, corners);
-          ctx.strokeStyle = focused ? inks.focused : selected ? inks.selected : inks.frame;
-          ctx.lineWidth = selected || focused ? FRAME_STROKE.emphasised : FRAME_STROKE.plain;
-          ctx.stroke();
-          if (handles) {
-            const side = FRAME_STROKE.handle;
-            ctx.fillStyle = inks.selected;
-            for (const [x, y] of corners) {
-              ctx.fillRect(x - side / 2, y - side / 2, side, side);
+          for (const card of cards) {
+            const corners = rectQuad(outlineOf(card, 'full'));
+            outline(ctx, corners);
+            ctx.strokeStyle = focused ? inks.focused : selected ? inks.selected : inks.frame;
+            ctx.lineWidth = selected || focused ? FRAME_STROKE.emphasised : FRAME_STROKE.plain;
+            ctx.stroke();
+            if (handles) {
+              const side = FRAME_STROKE.handle;
+              ctx.fillStyle = inks.selected;
+              for (const [x, y] of corners) {
+                ctx.fillRect(x - side / 2, y - side / 2, side, side);
+              }
             }
           }
         }),
       ),
     });
+  }
+
+  /**
+   * The windows' title bars, one layer over every card: across the top of each window's card at
+   * every place it is drawn, {@link TITLE_BAR_HEIGHT} pixels high, in the host's colours for it or
+   * the ground and text inks, its name written on it (cut short with an ellipsis where it is too
+   * long), outlined in the selected or the focused window's ink for theirs. Nearer windows' bars lie
+   * over farther ones'.
+   */
+  #bars(
+    frame: RenderFrame,
+    frames: ReadonlyMap<Id, WindowFrame>,
+    nearness: ReadonlyMap<Id, string>,
+    measure: (text: string, font: string) => number,
+  ): CompositionLayer {
+    const { scene } = frame;
+    const inks = this.#inks;
+    const family = this.#typeface();
+    const font = `${String(BAR.size)}px ${family}`;
+    const order = frame.planned.map((p) => p.fragment.id);
+    const rank = (nodeId: Id) => order.indexOf(nearness.get(nodeId) ?? '');
+    const bars = [...frames]
+      .sort(([a], [b]) => rank(a) - rank(b))
+      .flatMap(([nodeId, drawn]) => {
+        const colours = this.#options.titleBars?.(nodeId) ?? null;
+        const title = windowTitle(scene, nodeId) ?? '';
+        return drawn.cards.map((card) => ({
+          box: [card[0], card[1] - TITLE_BAR_HEIGHT, card[2], TITLE_BAR_HEIGHT] as ScreenRect,
+          fill: colours?.fill ?? inks.ground,
+          text: fitted(title, card[2] - 2 * BAR.margin, (t) => measure(t, font)),
+          ink: colours?.text ?? inks.text,
+          edge: drawn.focused ? inks.focused : drawn.selected ? inks.selected : null,
+        }));
+      });
+    const signature = JSON.stringify([bars, font]);
+    return Object.freeze({
+      id: 'overlay:bars',
+      category: 'overlay',
+      fragmentId: null,
+      surfaceId: null,
+      content: this.#keep('overlay:bars', signature, () =>
+        layer(null, (ctx) => {
+          ctx.font = font;
+          ctx.textAlign = 'start';
+          ctx.textBaseline = 'middle';
+          for (const bar of bars) {
+            const [x, y, w, h] = bar.box;
+            ctx.fillStyle = bar.fill;
+            ctx.fillRect(x, y, w, h);
+            if (bar.edge !== null) {
+              ctx.strokeStyle = bar.edge;
+              ctx.lineWidth = 2;
+              ctx.strokeRect(x + 1, y + 1, w - 2, h - 2);
+            }
+            ctx.fillStyle = bar.ink;
+            ctx.fillText(bar.text, x + BAR.margin, y + h / 2);
+          }
+        }),
+      ),
+    });
+  }
+
+  /** The font family names are written in, as the host gives it for this frame. */
+  #typeface(): string {
+    const family = this.#options.typeface?.() ?? 'sans-serif';
+    if (family.trim() === '') {
+      throw new RangeError(`typeface must be a font family (got "${family}")`);
+    }
+    return family;
   }
 
   /**
@@ -508,14 +596,10 @@ export class GeometryRendererSession implements RendererSession {
     frame: RenderFrame,
     projection: Projection | null,
     frames: ReadonlyMap<Id, WindowFrame>,
+    measure: (text: string, font: string) => number,
   ): CompositionLayer[] {
     const { view } = frame;
-    const measure = this.#measure();
-    const family = this.#options.typeface?.() ?? 'sans-serif';
-    if (family.trim() === '') {
-      throw new RangeError(`typeface must be a font family (got "${family}")`);
-    }
-    const font = `${String(NAME.size)}px ${family}`;
+    const font = `${String(NAME.size)}px ${this.#typeface()}`;
     const size = (label: string): readonly [number, number] => [
       Math.ceil(measure(label, font)) + 2 * NAME.margin,
       NAME.line + 2 * NAME.margin,
@@ -903,6 +987,23 @@ function edgeMark(
   const dy = -Math.sign(latitude - lat);
   const length = Math.hypot(dx, dy);
   return { at: image, toward: [dx / length, dy / length] };
+}
+
+/**
+ * A text cut short to fit `width` pixels as `measure` measures it, ending in an ellipsis where it
+ * was cut; empty when not even the ellipsis fits.
+ */
+function fitted(text: string, width: number, measure: (text: string) => number): string {
+  if (measure(text) <= width) {
+    return text;
+  }
+  for (let n = text.length - 1; n > 0; n -= 1) {
+    const cut = `${text.slice(0, n).trimEnd()}…`;
+    if (measure(cut) <= width) {
+      return cut;
+    }
+  }
+  return measure('…') <= width ? '…' : '';
 }
 
 function layer(after: string | null, draw: (ctx: CanvasRenderingContext2D) => void): GeometryLayer {

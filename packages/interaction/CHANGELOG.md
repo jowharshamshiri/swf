@@ -48,3 +48,10 @@ view draws, with the viewport's representation policy (the router's `representat
 a candidate says its card's `pixelsPerUnit`. The plane drags (`dragFrame`, `dragAnchor`,
 `withDepth`, `movedTransform`, `translatedBy`, `headingOf`, `DRAG_MODES`) and the scene index are
 gone; `placementOf`, `worldOrigin` and `turnedAbout` stay.
+
+Picking finds a window's title bar (the `title-bar` region), which takes a press, a drag and a
+double press as the window's own and is ordered before every other hit of the same presentation
+priority, and its resize band round the window's outline, both sized for the pointer: `pick` and
+the router's `pick` take a `PointerPrecision` (a press by a finger or a pen is `coarse`).
+`PickOptions.handlePx` and the `handlePx` setting are gone. A copy of a live window's card across a
+seam picks as the window's card (`chrome`), not as content.

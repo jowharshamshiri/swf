@@ -4,9 +4,11 @@ import Swf.Order
 /-!
 Picking arbitration: which hit under a pointer is the target, and which gesture wins a press. The
 hits a ray makes are merged (a window's frame counts inside it only where none of its surfaces
-covers it, except along its resize band), marked occluded when a nearer occluding hit lies in front,
-and ordered by presentation priority, occlusion, depth, region and identity; the first is the
-target, ambiguous when the next is another window that ties with it. Among the gestures the
+covers it, and a surface only where its window's resize band and title bar do not lie over it),
+marked occluded when a nearer occluding hit lies in front (a title bar never is: title bars are drawn
+over every card), and ordered by presentation priority, then title bars before everything else,
+then occlusion, depth, region and identity; the first is the target, ambiguous when the next is
+another window that ties with it. Among the gestures the
 policies bid for a press, the highest priority wins, then the lower policy ID. Priorities, distances
 and the depth tolerance are compared by order keys (`Swf.Order`), so a number that is not finite is
 refused before anything is ordered. The interaction layer intersects the geometry; this model
@@ -289,13 +291,17 @@ inductive HitRegion where
   | chrome
   /-- The resize band along a resizable node's edges. -/
   | resizeHandle
+  /-- A window's title bar: the bar across the top of its card, drawn over every card. -/
+  | titleBar
 deriving DecidableEq, Inhabited
 
-/-- The band along a window's edges comes first, then content, then the frame. -/
+/-- The band along a window's edges comes first, then content, then the frame (title bars are
+ordered before every other region whatever its depth: `hitKey`). -/
 def HitRegion.rank : HitRegion → Nat
   | .resizeHandle => 0
   | .content => 1
   | .chrome => 2
+  | .titleBar => 3
 
 /-- A hit of the ray: on a surface, or on a node's own frame (`surface` none). -/
 structure Hit where
@@ -314,25 +320,33 @@ structure Hit where
 deriving Inhabited
 
 /-- Whether a hit counts: a node's frame inside the window only where no surface of its own covers
-it, a surface only where its window's resize band does not lie over it. -/
+it, a surface only where neither its window's resize band nor its title bar lies over it. -/
 def keeps (hits : Array Hit) (i : Nat) : Bool :=
   let h := hits[i]!
   let all := List.range hits.size
   match h.surface with
   | none => !(h.region = .chrome && all.any (fun j => (hits[j]!).surface.isSome && (hits[j]!).node = h.node))
   | some _ => !all.any (fun j => (hits[j]!).surface.isNone && (hits[j]!).node = h.node &&
-      (hits[j]!).region = .resizeHandle)
+      ((hits[j]!).region = .resizeHandle || (hits[j]!).region = .titleBar))
 
-/-- A kept hit is occluded when another kept hit that occludes lies nearer than it by more than the
-depth tolerance. -/
+/-- A kept hit other than a title bar is occluded when another kept hit that occludes lies nearer
+than it by more than the depth tolerance. A title bar is drawn over every card, so nothing occludes
+it. -/
 def occludedAt (hits : Array Hit) (kept : List Nat) (tolerance : Float) (i : Nat) : Bool :=
-  kept.any fun j => j != i && (hits[j]!).occluding &&
+  (hits[i]!).region != .titleBar && kept.any fun j => j != i && (hits[j]!).occluding &&
     decide (floatKey ((hits[j]!).distance + tolerance) < floatKey (hits[i]!).distance)
 
-/-- Presentation priority first (higher), then not occluded, nearer, region, and identity. -/
+/-- Where a hit lies among the layers a view draws: title bars over everything (0), then whatever
+is not occluded (1), then the occluded (2). -/
+def layerOf (hits : Array Hit) (kept : List Nat) (tolerance : Float) (i : Nat) : Nat :=
+  if (hits[i]!).region = .titleBar then 0
+  else if occludedAt hits kept tolerance i then 2 else 1
+
+/-- Presentation priority first (higher), then the layer (title bars, then the rest not occluded,
+then the occluded), nearer, region, and identity. -/
 def hitKey (hits : Array Hit) (kept : List Nat) (tolerance : Float) (i : Nat) : SortKey :=
   let h := hits[i]!
-  ⟨-floatKey h.priority, if occludedAt hits kept tolerance i then 1 else 0, floatKey h.distance,
+  ⟨-floatKey h.priority, layerOf hits kept tolerance i, floatKey h.distance,
     h.region.rank, h.node ++ "\u0000" ++ h.surface.getD ""⟩
 
 /-- The hits that count, best first, whether each is occluded, and whether the target is
@@ -402,11 +416,12 @@ theorem covered_frames_dropped (hits : Array Hit) (i j : Nat) (hi : i < hits.siz
       simp
       exact ⟨j, hj, by simp_all⟩
 
-/-- A hit is occluded exactly when another kept, occluding hit lies nearer than it by more than the
-tolerance. -/
+/-- A hit is occluded exactly when it is not a title bar and another kept, occluding hit lies nearer
+than it by more than the tolerance. -/
 theorem orderHits_occluded (hits : Array Hit) (tolerance : Float) (k : Nat)
     (hk : k < (orderHits hits tolerance).order.length) :
     (orderHits hits tolerance).occluded[k]! = true ↔
+      (hits[(orderHits hits tolerance).order[k]!]!).region ≠ .titleBar ∧
       ∃ j ∈ (List.range hits.size).filter (keeps hits),
         j ≠ (orderHits hits tolerance).order[k]! ∧ (hits[j]!).occluding = true ∧
         floatKey ((hits[j]!).distance + tolerance) <
@@ -416,9 +431,37 @@ theorem orderHits_occluded (hits : Array Hit) (tolerance : Float) (k : Nat)
   simp only [Option.map_some, Option.getD_some, occludedAt, List.any_eq_true, Bool.and_eq_true,
     bne_iff_ne, ne_eq, decide_eq_true_eq, List.getElem!_eq_getElem?_getD, List.getElem?_eq_getElem hk]
   constructor
-  · rintro ⟨j, hj, ⟨hne, ho⟩, hlt⟩; exact ⟨j, hj, hne, ho, hlt⟩
-  · rintro ⟨j, hj, hne, ho, hlt⟩; exact ⟨j, hj, ⟨hne, ho⟩, hlt⟩
+  · rintro ⟨hr, j, hj, ⟨hne, ho⟩, hlt⟩; exact ⟨hr, j, hj, hne, ho, hlt⟩
+  · rintro ⟨hr, j, hj, hne, ho, hlt⟩; exact ⟨hr, j, hj, ⟨hne, ho⟩, hlt⟩
 
+
+/-- A title bar ranks before every hit that is not one, of the same presentation priority, however
+near that hit is: title bars are drawn over every card, so the one under the pointer is pressed. -/
+@[lungo_claim "lungo.law" subject hitKey]
+theorem titleBar_before (hits : Array Hit) (kept : List Nat) (tolerance : Float) (i j : Nat)
+    (hi : (hits[i]!).region = .titleBar) (hj : (hits[j]!).region ≠ .titleBar)
+    (hp : floatKey (hits[i]!).priority = floatKey (hits[j]!).priority) :
+    keyLe (hitKey hits kept tolerance i) (hitKey hits kept tolerance j) = true := by
+  have li : layerOf hits kept tolerance i = 0 := by simp [layerOf, hi]
+  have lj : 0 < layerOf hits kept tolerance j := by
+    unfold layerOf; simp only [hj, ite_false]; split <;> omega
+  simp only [keyLe, hitKey, hp, li]
+  simp only [ite_true]
+  have : (0 : Nat) ≠ layerOf hits kept tolerance j := by omega
+  simp [this, lj]
+
+/-- A surface under its own window's title bar does not count: the bar is drawn over it. -/
+@[lungo_claim "lungo.law" subject keeps]
+theorem titleBar_covers_own_surface (hits : Array Hit) (i j : Nat) (hj : j < hits.size)
+    (same : (hits[i]!).node = (hits[j]!).node) (hs : (hits[i]!).surface.isSome)
+    (hn : (hits[j]!).surface = none) (hr : (hits[j]!).region = .titleBar) :
+    keeps hits i = false := by
+  cases hsi : (hits[i]!).surface with
+  | none => simp [hsi] at hs
+  | some s =>
+    simp only [keeps, hsi]
+    simp
+    exact ⟨j, hj, by simp_all⟩
 
 /-- What picking decides for the hits a ray makes. -/
 inductive PickOutcome where
@@ -490,12 +533,13 @@ theorem target_ranks_first (hits : Array Hit) (tolerance : Float) (po : PickOrde
   rw [pickOrder_ordered h] at ht
   exact orderHits_target_first hits tolerance t ht j hj hk
 
-/-- A hit is occluded exactly when another kept, occluding hit lies nearer than it by more than the
-tolerance. -/
+/-- A hit is occluded exactly when it is not a title bar and another kept, occluding hit lies nearer
+than it by more than the tolerance. -/
 @[lungo_claim "lungo.law" subject pickOrder]
 theorem occluded_by_nearer (hits : Array Hit) (tolerance : Float) (po : PickOrder)
     (h : pickOrder hits tolerance = .ordered po) (k : Nat) (hk : k < po.order.length) :
     po.occluded[k]! = true ↔
+      (hits[po.order[k]!]!).region ≠ .titleBar ∧
       ∃ j ∈ (List.range hits.size).filter (keeps hits),
         j ≠ po.order[k]! ∧ (hits[j]!).occluding = true ∧
         floatKey ((hits[j]!).distance + tolerance) < floatKey (hits[po.order[k]!]!).distance := by

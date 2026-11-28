@@ -55,3 +55,8 @@ drop on the floor plan and the derived elevation. `Swf.AppSpacing` keeps a windo
 clear of its neighbours. `Swf.Fallback` no longer weighs whether a projection is nonlinear: exact
 and native presentation need transforms that scale a card (`cards_need_scaling`). A wheel burst
 counts the wheel's turn in pixels (`Burst.turned`).
+
+`Swf.Arbitration` knows a window's title bar (`HitRegion.titleBar`): a title bar is never occluded,
+orders before every other hit of the same priority however near (`titleBar_before`), and a surface
+under its own window's title bar does not count (`titleBar_covers_own_surface`). `Swf.Gesture`'s
+`Region` has the title bar too.

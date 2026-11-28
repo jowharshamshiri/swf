@@ -38,9 +38,7 @@ it('presents the host’s own elements, which stay natively interactive', async 
   // Both windows' content is live in the view: the page's own elements, placed by the backend.
   const notes = page.getByRole('textbox', { name: 'Notes' });
   await expect.poll(() => notes.isVisible()).toBe(true);
-  await expect
-    .poll(() => page.getByText('Drag a window by the band across its top').isVisible())
-    .toBe(true);
+  await expect.poll(() => page.getByText('Drag a window by its title bar').isVisible()).toBe(true);
 
   // Typing reaches the element natively, as on any page.
   await notes.click();
@@ -59,7 +57,7 @@ it('presents the host’s own elements, which stay natively interactive', async 
   await page.close();
 });
 
-it('draws each window as a flat card in the room, and moves one dragged by its title band round the room', async () => {
+it('draws each window as a flat card in the room, and moves one dragged by its title bar round the room', async () => {
   const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
   await page.goto(`${server.url}/examples/browser-host/`);
   await page.waitForSelector('html[data-swf-example="ready"]', { timeout: 30_000 });
@@ -77,19 +75,29 @@ it('draws each window as a flat card in the room, and moves one dragged by its t
     ['tips', 25],
   ] as const) {
     const card = await box(`[data-swf-layer="chrome"][data-swf-node="${id}-window"]`);
-    // Upright and undistorted: the window's own 1.6 by 1.3, centred where its centre projects.
+    // Upright and undistorted: the window's own 1.6 by 1.0, centred where its centre projects.
     expect(card.width).toBeCloseTo(1.6 * unit, 1);
-    expect(card.height).toBeCloseTo(1.3 * unit, 1);
+    expect(card.height).toBeCloseTo(1.0 * unit, 1);
     expect(card.x + card.width / 2).toBeCloseTo(640 + (heading / 120) * 1280, 1);
     expect(card.y + card.height / 2).toBeCloseTo(360, 1);
-    // The content fills the card below the title band, live and in place.
+    // The content fills the card, live and in place.
     const content = page.locator(`[data-swf-surface="${id}-view"]`);
     expect(await content.getAttribute('data-swf-mode')).toBe('native');
     expect(await content.getAttribute('data-swf-anchor')).toBe('exact');
     const slot = await box(`[data-swf-surface="${id}-view"]`);
-    expect(slot.width).toBeCloseTo(card.width, 1);
-    expect(slot.height).toBeCloseTo(1.0 * unit, 1);
-    expect(slot.y + slot.height).toBeCloseTo(card.y + card.height, 1);
+    expect([slot.x, slot.y, slot.width, slot.height]).toEqual([
+      card.x,
+      card.y,
+      card.width,
+      card.height,
+    ]);
+    // The window's title bar across the top of its card, 24 px high, named for it.
+    const bar = await box(`[data-swf-title-bar="${id}-window"]`);
+    expect([bar.x, bar.width, bar.height]).toEqual([card.x, card.width, 24]);
+    expect(bar.y + bar.height).toBeCloseTo(card.y, 1);
+    expect(await page.locator(`[data-swf-title-bar="${id}-window"]`).textContent()).toBe(
+      id === 'notes' ? 'Notes' : 'Tips',
+    );
   }
 
   const notes = page.getByRole('textbox', { name: 'Notes' });
@@ -98,18 +106,19 @@ it('draws each window as a flat card in the room, and moves one dragged by its t
   await page.keyboard.type(' Kept.');
   const element = await notes.elementHandle();
 
-  // Pressed on the title band, below the resize band along its top edge.
-  const card = await box('[data-swf-layer="chrome"][data-swf-node="notes-window"]');
-  const [x, y] = [card.x + card.width / 2, card.y + 24];
+  // Pressed on the middle of its title bar.
+  const bar = await box('[data-swf-title-bar="notes-window"]');
+  const [x, y] = [bar.x + bar.width / 2, bar.y + bar.height / 2];
   expect(
     await page.evaluate(
       ([px, py]) =>
         document
           .elementFromPoint(px ?? 0, py ?? 0)
-          ?.closest('[data-swf-handle],[data-swf-surface]') ?? null,
+          ?.closest('[data-swf-title-bar]')
+          ?.getAttribute('data-swf-title-bar') ?? null,
       [x, y],
     ),
-  ).toBeNull();
+  ).toBe('notes-window');
   await page.mouse.move(x, y);
   await page.mouse.down();
   await page.mouse.move(x + 50, y - 34, { steps: 5 });

@@ -457,7 +457,8 @@ describe('settings (FR-004, CFG-001)', () => {
     const before = router.settings();
     const bad = (patch: Record<string, unknown>) => codeOf(() => router.configure(patch));
     expect(bad({ slopPx: -1 })).toMatch(/^INVALID_INPUT: settings.slopPx/);
-    expect(bad({ handlePx: 0 })).toMatch(/settings.handlePx/);
+    // The windows' handles are sized by the card rules (`WINDOW_HANDLES`), not a setting.
+    expect(bad({ handlePx: 12 })).toMatch(/settings.handlePx is not a setting/);
     // A drag moves a window round the room: there is no other way to choose.
     expect(bad({ dragMode: 'world-plane' })).toMatch(/settings.dragMode is not a setting/);
     expect(bad({ takeoverModifier: 'hyper' })).toMatch(/settings.takeoverModifier/);

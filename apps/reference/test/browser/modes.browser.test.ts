@@ -435,6 +435,38 @@ function panoramaNames(app: ReferenceApp, f: ViewportFrame): PanoramaName[] {
   return names;
 }
 
+/**
+ * The names written on the windows' title bars, in either backend: the bar elements' text, or what
+ * the bars' layer writes.
+ */
+function barNames(app: ReferenceApp, f: ViewportFrame): string[] {
+  const written = [...app.root.querySelectorAll<HTMLElement>('[data-swf-title-bar]')].map(
+    (bar) => bar.textContent,
+  );
+  const drawn = f.rendered.layers.find((l) => l.id === 'overlay:bars')?.content as
+    { draw?: (ctx: CanvasRenderingContext2D) => void } | undefined;
+  if (drawn?.draw !== undefined) {
+    const real = document.createElement('canvas').getContext('2d');
+    if (real === null) throw new Error('no 2D context');
+    const recorder = new Proxy(real, {
+      get(target, name) {
+        if (name === 'fillText') {
+          return (text: string) => written.push(text);
+        }
+        const value: unknown = Reflect.get(target, name, target);
+        return typeof value === 'function'
+          ? (value as (...a: unknown[]) => unknown).bind(target)
+          : value;
+      },
+      set(target, name, value) {
+        return Reflect.set(target, name, value, target);
+      },
+    });
+    drawn.draw(recorder);
+  }
+  return written.filter((text) => text !== '');
+}
+
 /** Each name cut by the view's edge, over another name, or over another window's frame or mark. */
 function illegible(f: ViewportFrame, names: readonly PanoramaName[]): string[] {
   const { width, height } = f.frame.view;
@@ -471,7 +503,7 @@ function illegible(f: ViewportFrame, names: readonly PanoramaName[]): string[] {
 }
 
 describe('names in the panorama (FR-122)', () => {
-  it('names the windows in the strip under the overview and the map legibly, in either backend: none cut at its edge, none over another window or name', async () => {
+  it('names the windows in the strip under the overview and the map, in either backend: on their title bars, or beside their marks over no other window or name', async () => {
     const { model, app, settle } = await start('?preset=studio', { width: 1600, height: 1000 });
     for (const backend of ['dom', 'geometry'] as const) {
       await model.run('swf.backend.switch', { backend });
@@ -480,9 +512,11 @@ describe('names in the panorama (FR-122)', () => {
         await model.run('swf.mode.switch', { mode });
         await settle();
         const f = await frame(app);
+        // A window drawn with a card is named on its title bar; one shown by its name alone is
+        // marked and named beside the mark, over no other window, name or edge.
         const names = panoramaNames(app, f);
-        // Most windows are named; a window shown by its name alone is always marked.
-        expect(names.length, `${backend} ${mode}`).toBeGreaterThan(6);
+        const bars = barNames(app, f);
+        expect(names.length + bars.length, `${backend} ${mode}`).toBeGreaterThan(6);
         expect(illegible(f, names), `${backend} ${mode}`).toEqual([]);
       }
     }

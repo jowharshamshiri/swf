@@ -7,7 +7,7 @@ import type { ReferenceApp } from '../../src/app.js';
 import { ENGLISH } from '../../src/messages.js';
 import { CAMERA_ID, poseOf } from '@swf/navigation';
 import type { Mounted } from './shell-harness.js';
-import { cardPoint, framePoint } from './cards.js';
+import { cardPoint, titleBarPoint } from './cards.js';
 import { same, start } from './shell-harness.js';
 
 declare module 'vitest/browser' {
@@ -67,7 +67,7 @@ function onPage(app: ReferenceApp, id: string, local: readonly [number, number])
 
 /** A point on a window's frame, in its title band, on the page. */
 function onFrame(app: ReferenceApp, id: string): [number, number] {
-  const [x, y] = framePoint(app, id);
+  const [x, y] = titleBarPoint(app, id);
   const box = app.root.getBoundingClientRect();
   return [Math.round(box.left + x), Math.round(box.top + y)];
 }
@@ -493,7 +493,7 @@ describe('a window handled directly in the panorama', () => {
       expect(app.status().backend).toBe(backend);
       const view = app.root.getBoundingClientRect();
       // A note's text, in sight: inside the view and on top at its centre (not under another
-      // window's card, nor clipped off at the seam).
+      // window's card or title bar, nor clipped off at the seam), where a press is its content's.
       const text = [
         ...m.root.querySelectorAll<HTMLElement>('[data-reference-content] [contenteditable]'),
       ].find((element) => {
@@ -501,7 +501,11 @@ describe('a window handled directly in the panorama', () => {
         const [x, y] = [box.left + box.width / 2, box.top + box.height / 2];
         const inView =
           box.width > 0 && x > view.left && x < view.right && y > view.top && y < view.bottom;
-        return inView && element.contains(document.elementFromPoint(x, y));
+        return (
+          inView &&
+          element.contains(document.elementFromPoint(x, y)) &&
+          app.router.pick(app.viewport.viewportId, x - view.left, y - view.top).region === 'content'
+        );
       });
       if (text === undefined) {
         throw new Error('no note in sight');

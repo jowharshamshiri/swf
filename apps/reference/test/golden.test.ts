@@ -207,7 +207,8 @@ describe('golden scenes and scripted traces: the eight behaviour modules (QA-012
 
   it('wrapped cursor: a window carried past the right edge comes in at the left', async () => {
     const { world, trace } = scripted('seam', only({ cursor: true }));
-    const [cx, y] = onCard(world, 'window-01', [-0.6, 0]);
+    // Low on its card, clear of the title bars of the windows standing in front of it.
+    const [cx, y] = onCard(world, 'window-01', [-0.6, -0.35]);
     // The copy of its card at the right edge.
     const x = ((cx % W) + W) % W;
     world.input.pointer('down', VIEWPORT, x, y, { modifiers: { alt: true } });

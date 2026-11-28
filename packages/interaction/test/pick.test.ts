@@ -2,7 +2,8 @@ import { SwfFailure } from '@swf/core';
 import { describe, expect, it } from 'vitest';
 import type { PickResult } from '../src/index.js';
 import { intentIssue, NO_MODIFIERS, wheelTurn } from '../src/index.js';
-import { contentOf, H, onCard, titleBar, W, world } from './fixtures.js';
+import { TITLE_BAR_HEIGHT } from '@swf/presentation';
+import { cardOf, contentOf, H, onCard, titleBar, W, world } from './fixtures.js';
 
 function hit(result: PickResult) {
   if (result.kind !== 'hit') {
@@ -12,7 +13,7 @@ function hit(result: PickResult) {
 }
 
 describe('input regions (FR-103)', () => {
-  it('tells content, chrome, resize handles, background and modal overlays apart', () => {
+  it('tells content, chrome, title bars, resize handles, background and modal overlays apart', () => {
     const { ws, router } = world([
       { id: 'a', heading: 0, distance: 3 },
       { id: 'b', heading: 1.2, distance: 3 },
@@ -29,18 +30,39 @@ describe('input regions (FR-103)', () => {
     expect(content.target.distance).toBeCloseTo(3, 9);
     expect(content.confidence).toBe('exact');
 
-    const [tx, ty] = titleBar(ws, 'a');
-    expect(hit(router.pick('v', tx, ty))).toMatchObject({
+    // The title bar across the top of the card, over its whole height and width but its corners.
+    const [x, y, w, h] = cardOf(ws, 'a');
+    for (const [px, py] of [
+      [x + w / 2, y - TITLE_BAR_HEIGHT / 2],
+      [x + w / 2, y - TITLE_BAR_HEIGHT + 0.5],
+      [x + w / 2, y - 0.5],
+      [x + 24, y - 6],
+      [x + w - 24, y - 6],
+    ] as const) {
+      expect(hit(router.pick('v', px, py))).toMatchObject({
+        region: 'title-bar',
+        target: { nodeId: 'a', surfaceId: null, edge: null },
+      });
+    }
+    // The card's frame, between its edge's band and the content.
+    expect(hit(router.pick('v', x + w / 2, y + 10))).toMatchObject({
       region: 'chrome',
       target: { nodeId: 'a', surfaceId: null, edge: null },
     });
-    const [ex, ey] = onCard(ws, 'a', [0.99, 0]);
-    expect(hit(router.pick('v', ex, ey))).toMatchObject({
-      region: 'resize-handle',
-      target: { nodeId: 'a', edge: 'e' },
-    });
-    const [nx, ny] = onCard(ws, 'a', [-0.99, 0.59]);
-    expect(hit(router.pick('v', nx, ny)).target.edge).toBe('nw');
+    // The resize band: 8 px outside the outline, 4 px inside it at the sides and bottom, above the
+    // bar at the top, and square corners 20 px on a side at the band's outer edge.
+    const band = (px: number, py: number) => hit(router.pick('v', px, py)).target.edge;
+    expect(band(x + w + 6, y + h / 2)).toBe('e');
+    expect(band(x + w - 3, y + h / 2)).toBe('e');
+    expect(band(x - 6, y + h / 2)).toBe('w');
+    expect(band(x + w / 2, y + h + 6)).toBe('s');
+    expect(band(x + w / 2, y + h - 3)).toBe('s');
+    expect(band(x + w / 2, y - TITLE_BAR_HEIGHT - 6)).toBe('n');
+    expect(band(x - 6, y - TITLE_BAR_HEIGHT - 6)).toBe('nw');
+    expect(band(x + w + 6, y + h + 6)).toBe('se');
+    expect(hit(router.pick('v', x + w + 6, y + h / 2)).region).toBe('resize-handle');
+    // Past the band there is nothing of the window's (b stands beyond its right edge).
+    expect(router.pick('v', x - 10, y + h / 2)).toMatchObject({ kind: 'background' });
     // Behind the camera there is nothing.
     expect(router.pick('v', 2, H / 2)).toMatchObject({ kind: 'background', region: 'background' });
 
@@ -57,6 +79,64 @@ describe('input regions (FR-103)', () => {
     expect(() => {
       router.setModal(['none']);
     }).toThrow(SwfFailure);
+  });
+
+  it('picks a window by its title bar over a nearer window’s card, as the bar is drawn over it', () => {
+    // A farther window whose bar lies over the middle of a nearer one's content.
+    const { ws, router } = world([
+      { id: 'near', heading: 0, distance: 3, y: 0.3 },
+      { id: 'far', heading: 0.05, distance: 6, y: -0.2 },
+    ]);
+    const [fx, fy, fw] = cardOf(ws, 'far');
+    const [nx, ny, nw, nh] = cardOf(ws, 'near');
+    const at: [number, number] = [fx + fw / 2, fy - TITLE_BAR_HEIGHT / 2];
+    // The point is on the nearer window's content.
+    expect(at[0] > nx && at[0] < nx + nw && at[1] > ny && at[1] < ny + nh).toBe(true);
+    const picked = hit(router.pick('v', ...at));
+    expect(picked).toMatchObject({ region: 'title-bar', target: { nodeId: 'far' } });
+    expect(picked.target.occluded).toBe(false);
+    // The nearer window's content is still a candidate, after the bar.
+    expect(picked.candidates.map((c) => [c.nodeId, c.region])).toContainEqual(['near', 'content']);
+  });
+
+  it('counts a press on the handles over larger sizes for a coarse pointer', () => {
+    const { ws, router } = world([{ id: 'a', heading: 0, distance: 3 }]);
+    const [x, y, w] = cardOf(ws, 'a');
+    // 36 px above the card: past a fine pointer's bar and band, on a coarse pointer's bar.
+    expect(router.pick('v', x + w / 2, y - 36)).toMatchObject({ kind: 'background' });
+    expect(hit(router.pick('v', x + w / 2, y - 36, undefined, 'coarse')).region).toBe('title-bar');
+    // 12 px past the right edge: past a fine pointer's band, in a coarse pointer's.
+    expect(router.pick('v', x + w + 12, y + 50)).toMatchObject({ kind: 'background' });
+    expect(hit(router.pick('v', x + w + 12, y + 50, undefined, 'coarse')).target.edge).toBe('e');
+  });
+
+  it('makes the whole card of a window shown by its label alone its title bar', () => {
+    const label = { id: 'test.label/1', representationOf: () => 'label' as const };
+    const { ws, router } = world([{ id: 'a', heading: 0, distance: 3 }], {
+      router: { representation: () => label },
+    });
+    const [x, y, w, h] = cardOf(ws, 'a', 'v', label);
+    // Across its middle, top to bottom: the bar, its resize band outside it.
+    for (const py of [y + 0.5, y + h / 2, y + h - 0.5]) {
+      expect(hit(router.pick('v', x + w / 2, py)).region).toBe('title-bar');
+    }
+    expect(hit(router.pick('v', x + w / 2, y + h + 4)).target.edge).toBe('s');
+  });
+
+  it('handles a copy of a live window’s card across the seam as its card, not as content', () => {
+    // Straddling the seam behind the camera: drawn at both edges, live only at its own place.
+    const { ws, router } = world([{ id: 'a', heading: Math.PI - 0.05, distance: 3 }], {
+      router: { presentation: () => 'live' },
+    });
+    const own = cardOf(ws, 'a');
+    // The copy lies a whole view to the other side.
+    const copyX = own[0] + own[2] / 2 > W / 2 ? own[0] - W : own[0] + W;
+    const inCopy = copyX < 0 ? copyX + own[2] - 30 : copyX + 30;
+    const [, cy] = contentOf(ws, 'a');
+    expect(hit(router.pick('v', inCopy, cy))).toMatchObject({
+      region: 'chrome',
+      target: { nodeId: 'a' },
+    });
   });
 
   it('picks on the cards as the viewport’s representation policy draws them', () => {

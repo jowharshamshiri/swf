@@ -157,8 +157,10 @@ describe('the panorama on the DOM backend (UX-002, WF-01)', () => {
     expect(modes.map((m) => m.mode).sort()).toEqual(['native', 'proxy']);
     expect(modes[0]?.x).toBeLessThan(1);
     expect(modes[1]?.x).toBeGreaterThan(W / 2);
+    // Low on its card, clear of the title bars of the windows standing in front of it.
+    const [, low] = screenOf(a, 'window-01', [0, -0.35]);
     for (const x of [4, 30, W - 30, W - 4]) {
-      const hit = a.router.pick(VIEWPORT_ID, x, H / 2);
+      const hit = a.router.pick(VIEWPORT_ID, x, low);
       expect(hit.kind === 'hit' && hit.target.surfaceId, `at ${String(x)}`).toBe(
         'window-01-surface',
       );
@@ -180,7 +182,7 @@ describe('the panorama on the DOM backend (UX-002, WF-01)', () => {
     });
     const revision = a.workspace.getState().revision;
     // The window's content left of the seam (the right edge), taken with the takeover modifier.
-    const [x, y] = screenOf(a, 'window-01', [-0.7, 0]);
+    const [x, y] = screenOf(a, 'window-01', [-0.7, -0.35]);
     expect(x).toBeGreaterThan(W - 120);
     const headings: number[] = [];
     const unwatch = a.workspace.subscribe((event) => {
@@ -274,8 +276,9 @@ describe('the panorama on the geometry backend', () => {
         .map((m) => m.mode)
         .sort(),
     ).toEqual(['native', 'proxy']);
-    const left = a.router.pick(VIEWPORT_ID, 4, H / 2);
-    const right = a.router.pick(VIEWPORT_ID, W - 4, H / 2);
+    const [, low] = screenOf(a, 'window-01', [0, -0.35]);
+    const left = a.router.pick(VIEWPORT_ID, 4, low);
+    const right = a.router.pick(VIEWPORT_ID, W - 4, low);
     expect(left.kind === 'hit' && left.target.surfaceId).toBe('window-01-surface');
     expect(right.kind === 'hit' && right.target.surfaceId).toBe('window-01-surface');
     // Live content was handed over, never made again.

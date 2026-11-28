@@ -55,7 +55,16 @@ describe('representations in the DOM backend (FR-122, ARCH-025)', () => {
       view.root.querySelector<HTMLElement>(
         `[${DOM_ATTRIBUTES.layer}="names"] [${DOM_ATTRIBUTES.node}="${nodeId}"]`,
       );
-    expect(['near', 'mid', 'far'].map((n) => name(n)?.textContent)).toEqual(['Near', 'Mid', 'Far']);
+    // The windows drawn with a card are named on their title bars; the far one beside its mark.
+    const bar = (nodeId: string) =>
+      view.root.querySelector<HTMLElement>(`[${DOM_ATTRIBUTES.titleBar}="${nodeId}"]`);
+    expect(['near', 'mid'].map((n) => bar(n)?.textContent)).toEqual(['Near', 'Mid']);
+    expect(bar('far')).toBeNull();
+    expect(['near', 'mid', 'far'].map((n) => name(n)?.textContent)).toEqual([
+      undefined,
+      undefined,
+      'Far',
+    ]);
     const farName = name('far')?.getBoundingClientRect();
     const farMark = mark?.getBoundingClientRect();
     expect(farName !== undefined && farMark !== undefined && farName.left >= farMark.right).toBe(

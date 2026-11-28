@@ -3,7 +3,7 @@ import { createWorkspace, worldMatrix } from '@swf/core';
 import type { Quat, Vec3 } from '@swf/math';
 import { mat4TransformPoint } from '@swf/math';
 import type { RepresentationPolicy, ScreenRect } from '@swf/presentation';
-import { createPresentationRegistry, viewGeometryOf } from '@swf/presentation';
+import { createPresentationRegistry, TITLE_BAR_HEIGHT, viewGeometryOf } from '@swf/presentation';
 import type { ProjectionRegistry } from '@swf/projections';
 import { createProjectionRegistry, equirectangular, projectorOf } from '@swf/projections';
 import type {
@@ -121,7 +121,6 @@ export function world(
     workspace: ws,
     projections,
     ...options.router,
-    settings: { handlePx: 4, ...options.router?.settings },
   });
   const input = createSyntheticInput();
   router.registerInputAdapter(input);
@@ -195,23 +194,10 @@ export function onCard(
   return [x + w / 2 + (lx * w) / node.bounds[0], y + h / 2 - (ly * h) / node.bounds[1]];
 }
 
-/**
- * The screen point of a window's title bar: on its card, midway between the resize band along the
- * top edge (`handlePx`, 4 px in these worlds) and the top of its surface (0.2 below the frame's
- * edge by default).
- */
-export function titleBar(ws: Workspace, nodeId: string, handlePx = 4): [number, number] {
-  const node = ws.getState().nodes.get(nodeId);
-  const surface = [...ws.getState().surfaces.values()].find((s) => s.ownerNodeId === nodeId);
-  if (node === undefined || surface === undefined) {
-    throw new Error(`no window ${nodeId} with a surface`);
-  }
-  const [x, y, w, h] = cardOf(ws, nodeId);
-  const surfaceTop = ((node.bounds[1] - surface.bounds[1]) / 2 / node.bounds[1]) * h;
-  if (!(surfaceTop > handlePx)) {
-    throw new Error(`window ${nodeId}'s card is too small for a title bar outside its resize band`);
-  }
-  return [x + w / 2, y + (handlePx + surfaceTop) / 2];
+/** The screen point in the middle of a window's title bar, across the top of its card. */
+export function titleBar(ws: Workspace, nodeId: string): [number, number] {
+  const [x, y, w] = cardOf(ws, nodeId);
+  return [x + w / 2, y - TITLE_BAR_HEIGHT / 2];
 }
 
 /** The screen point of a window's content centre. */

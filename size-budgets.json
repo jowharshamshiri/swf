@@ -7,10 +7,10 @@
     }
   },
   "@swf/models": {
-    "budget": 64000,
+    "budget": 64256,
     "recorded": {
-      "minified": 387789,
-      "gzip": 63864
+      "minified": 389671,
+      "gzip": 64203
     }
   },
   "@swf/core": {
@@ -28,10 +28,10 @@
     }
   },
   "@swf/presentation": {
-    "budget": 15104,
+    "budget": 15616,
     "recorded": {
-      "minified": 47518,
-      "gzip": 14915
+      "minified": 48663,
+      "gzip": 15415
     }
   },
   "@swf/projections": {
@@ -44,22 +44,22 @@
   "@swf/interaction": {
     "budget": 17408,
     "recorded": {
-      "minified": 45422,
-      "gzip": 14451
+      "minified": 45614,
+      "gzip": 14542
     }
   },
   "@swf/backend-dom": {
     "budget": 7680,
     "recorded": {
-      "minified": 19871,
-      "gzip": 7055
+      "minified": 21335,
+      "gzip": 7448
     }
   },
   "@swf/backend-geometry": {
     "budget": 8704,
     "recorded": {
-      "minified": 19935,
-      "gzip": 7305
+      "minified": 21157,
+      "gzip": 7742
     }
   },
   "@swf/conformance": {
@@ -86,8 +86,8 @@
   "@swf/navigation": {
     "budget": 29440,
     "recorded": {
-      "minified": 80177,
-      "gzip": 26447
+      "minified": 80301,
+      "gzip": 26482
     }
   },
   "@swf/benchmark": {
@@ -100,7 +100,7 @@
   "@swf/navigation-ui": {
     "budget": 40704,
     "recorded": {
-      "minified": 143269,
+      "minified": 143282,
       "gzip": 36815
     }
   }

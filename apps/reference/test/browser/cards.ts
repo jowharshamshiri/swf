@@ -1,6 +1,6 @@
 import type { Workspace } from '@swf/core';
 import type { PresentedViewport } from '@swf/presentation';
-import { viewGeometryOf } from '@swf/presentation';
+import { TITLE_BAR_HEIGHT, viewGeometryOf } from '@swf/presentation';
 import { equirectangular, projectorOf } from '@swf/projections';
 
 /**
@@ -45,35 +45,20 @@ export function cardPoint(
 }
 
 /**
- * A point of a window's frame in the application's view, in its title band: `x` across in the
- * window's own units from its centre, midway down between the band along its top edge that a resize
- * takes (`handlePx`) and the top of its first surface, in the card's pixels; on the copy nearest
+ * A point of a window's title bar in the application's view: `x` across in the window's own units
+ * from its centre, halfway down the bar, which runs across the top of its card; on the copy nearest
  * `nearX` when it is given.
  */
-export function framePoint(
-  app: {
-    readonly workspace: Workspace;
-    readonly viewport: PresentedViewport;
-    readonly router: { settings(): { readonly handlePx: number } };
-  },
+export function titleBarPoint(
+  app: { readonly workspace: Workspace; readonly viewport: PresentedViewport },
   id: string,
   x = 0,
   nearX?: number,
 ): [number, number] {
-  const state = app.workspace.getState();
-  const node = state.nodes.get(id);
-  const surface = state.surfaces.get(node?.surfaceIds[0] ?? '');
+  const node = app.workspace.getState().nodes.get(id);
   const top = cardPoint(app, id, [x, (node?.bounds[1] ?? 0) / 2], false, nearX);
-  const bottom = cardPoint(app, id, [x, -(node?.bounds[1] ?? 0) / 2], false, nearX);
-  if (node === undefined || surface === undefined || top === null || bottom === null) {
-    throw new Error(`${id} has no card with a surface in view`);
+  if (node === undefined || top === null) {
+    throw new Error(`${id} has no card in view`);
   }
-  const perUnit = (bottom[1] - top[1]) / node.bounds[1];
-  const surfaceTop =
-    (node.bounds[1] / 2 - (surface.transform.position[1] + surface.bounds[1] / 2)) * perUnit;
-  const band = app.router.settings().handlePx;
-  if (!(surfaceTop > band + 2)) {
-    throw new Error(`${id}'s card has no title band outside its resize band`);
-  }
-  return [top[0], top[1] + (band + surfaceTop) / 2];
+  return [top[0], top[1] - TITLE_BAR_HEIGHT / 2];
 }

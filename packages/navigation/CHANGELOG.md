@@ -34,3 +34,6 @@ window let go on a spoke clear of its neighbours (`spacedPlace`, `SNAP_SPACING`,
 `MAP_SCALE.initial` is gone). The panorama spans 130° down with its horizon at 0.49
 (`PANORAMA_VERTICAL`). The depth-drag and turn-drag policies are gone. The viewport stays the size
 of its element when a restored scene or an undo gives it another size.
+
+A host says how each window's title bar is coloured (`WindowTraits.titleBar`, or null for the
+chrome's own colours); both backends draw the bars.

@@ -416,15 +416,16 @@ describe('the reference controls (QA-009, UX-013, NFR-024)', () => {
           focused: kit('--vscode-editorWarning-foreground'),
         });
         probe.remove();
-        // The windows' titles are the framework's text, over the view's ground (axe cannot decide
-        // them: the layers overlap).
+        // The windows' titles are the framework's text on their title bars, in the colours of what
+        // each window holds (axe cannot decide them: the layers overlap).
         const titles = [
-          ...app.root.querySelectorAll<HTMLElement>(`[${DOM_ATTRIBUTES.label}]`),
+          ...app.root.querySelectorAll<HTMLElement>(`[${DOM_ATTRIBUTES.titleBar}]`),
         ].filter((title) => title.textContent !== '');
         expect(titles.length).toBeGreaterThan(0);
         for (const title of titles) {
+          const style = getComputedStyle(title);
           expect(
-            contrast(getComputedStyle(title).color, ground),
+            contrast(style.color, style.backgroundColor),
             title.textContent,
           ).toBeGreaterThanOrEqual(4.5);
         }

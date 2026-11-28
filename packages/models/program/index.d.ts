@@ -3116,6 +3116,10 @@ export type HitRegion =
       /** The resize band along a resizable node's edges. */
       readonly kind: "resizeHandle";
     }
+  | {
+      /** A window's title bar: the bar across the top of its card, drawn over every card. */
+      readonly kind: "titleBar";
+    }
 ;
 /** The descriptor of Swf.Arbitration.HitRegion: how its values cross the boundary. */
 export function hitRegionType(): L.Type<HitRegion>;
@@ -3345,11 +3349,15 @@ export type Region =
       readonly kind: "content";
     }
   | {
-      /** A window's frame, or a surface that only shows something. */
+      /** A window's frame, a surface that only shows something, or a picture of content. */
       readonly kind: "chrome";
     }
   | {
-      /** The band along a resizable window's edges. */
+      /** A window's title bar. */
+      readonly kind: "titleBar";
+    }
+  | {
+      /** The band round a resizable window's outline. */
       readonly kind: "resizeHandle";
     }
   | {

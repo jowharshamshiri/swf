@@ -24,9 +24,13 @@ const reasonOf = (error: SwfError): CancelReason =>
     ? 'constraint-rejected'
     : 'commit-rejected';
 
-/** Where a press may take a window with a modifier: its frame, its edges, or grabbable content. */
+/**
+ * Where a press may take a window with a modifier: its title bar, its card, its edges, or grabbable
+ * content.
+ */
 function onWindow(context: ClaimContext): boolean {
   return (
+    context.region === 'title-bar' ||
     context.region === 'chrome' ||
     context.region === 'resize-handle' ||
     (context.region === 'content' &&

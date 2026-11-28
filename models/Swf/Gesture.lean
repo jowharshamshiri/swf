@@ -65,9 +65,11 @@ inductive PressPick where
 inductive Region where
   /-- A surface's content, whose input stays native unless a takeover is active. -/
   | content
-  /-- A window's frame, or a surface that only shows something. -/
+  /-- A window's frame, a surface that only shows something, or a picture of content. -/
   | chrome
-  /-- The band along a resizable window's edges. -/
+  /-- A window's title bar. -/
+  | titleBar
+  /-- The band round a resizable window's outline. -/
   | resizeHandle
   /-- No window. -/
   | background

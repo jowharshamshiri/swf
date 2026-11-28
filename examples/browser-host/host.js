@@ -3,7 +3,7 @@
 /**
  * A host page presenting its own DOM content in a panorama with the framework's DOM
  * backend: two windows, each showing an element the host made, which stay the host's and stay
- * natively interactive; drag a window by the band across its top to move it round the room, and
+ * natively interactive; drag a window by its title bar to move it round the room, and
  * turn the view by dragging the background.
  *
  * It is plain JavaScript loaded by the browser as ES modules, with the packages found through an
@@ -74,13 +74,12 @@ function elementAdapter(elements) {
   };
 }
 
-/** A window's size, and its content's below a title band to drag it by, in world units. */
-const WINDOW = /** @type {const} */ ([1.6, 1.3, 0.01]);
-const CONTENT = /** @type {const} */ ([1.6, 1.0, 0.01]);
+/** A window's size, which its content fills, in world units. */
+const SIZE = /** @type {const} */ ([1.6, 1.0, 0.01]);
 
 /**
  * A window `heading` degrees to the right of straight ahead, 3 units out, upright: the view draws it
- * as a flat card facing the camera, its content filling the card below the title band.
+ * as a flat card facing the camera, its content filling the card, its title bar across its top.
  *
  * @param {string} id
  * @param {string} label
@@ -91,7 +90,7 @@ function windowAt(id, label, heading) {
   return {
     id,
     kind: 'window',
-    bounds: WINDOW,
+    bounds: SIZE,
     transform: {
       position: /** @type {const} */ ([3 * Math.sin(radians), 0, -3 * Math.cos(radians)]),
       rotation: /** @type {const} */ ([0, 0, 0, 1]),
@@ -119,7 +118,7 @@ export async function start(container) {
   notes.style.cssText =
     'width:100%;height:100%;box-sizing:border-box;padding:0.75em;font:16px sans-serif';
   const list = document.createElement('ul');
-  for (const tip of ['Drag a window by the band across its top', 'Drag the background to turn']) {
+  for (const tip of ['Drag a window by its title bar', 'Drag the background to turn']) {
     // Text is set as text: nothing the page shows is parsed as markup.
     const item = document.createElement('li');
     item.textContent = tip;
@@ -175,13 +174,7 @@ export async function start(container) {
         ownerNodeId: String(owner),
         bindingKey: String(key),
         adapterTypeId: 'example.element/1',
-        bounds: CONTENT,
-        // Down by half the title band, from the window's centre.
-        transform: {
-          position: /** @type {const} */ ([0, (CONTENT[1] - WINDOW[1]) / 2, 0]),
-          rotation: /** @type {const} */ ([0, 0, 0, 1]),
-          scale: /** @type {const} */ ([1, 1, 1]),
-        },
+        bounds: SIZE,
       },
     })),
   ]);

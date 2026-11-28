@@ -1,5 +1,6 @@
 import { DomRenderer } from '@swf/backend-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { TITLE_BAR_HEIGHT } from '@swf/presentation';
 import type { LayeredRendererSession, LayerCompositorSession } from '../../src/index.js';
 import {
   GeometryRenderer,
@@ -147,14 +148,18 @@ describe('drawn content (ARCH-011)', () => {
     const { compositor, screen } = await drawn([
       { id: 'wide', kind: 'drawn', heading: 0, distance: 3, size: [8, 2] },
     ]);
-    // A panorama never bends a card: just inside its top edge there is content all along, and just
-    // above it none, at its middle as at its ends.
+    // A panorama never bends a card: just inside its bottom edge there is content all along, and
+    // just below it none, at its middle as at its ends; its title bar runs straight along its top,
+    // with nothing above the bar.
     for (const x of [-3.8, 0, 3.8]) {
-      const [ix, iy] = screen('wide', [x, 0.97]);
-      const [ox, oy] = screen('wide', [x, 1.03]);
-      expect(iy).toBeCloseTo(screen('wide', [0, 0.97])[1], 9);
+      const [ix, iy] = screen('wide', [x, -0.97]);
+      const [ox, oy] = screen('wide', [x, -1.03]);
+      expect(iy).toBeCloseTo(screen('wide', [0, -0.97])[1], 9);
       expect(pixelAt(compositor.root, ix, iy)[3]).toBe(255);
       expect(pixelAt(compositor.root, ox, oy)[3]).toBe(0);
+      const [tx, ty] = screen('wide', [x, 1]);
+      expect(pixelAt(compositor.root, tx, ty - TITLE_BAR_HEIGHT / 2)[3]).toBe(255);
+      expect(pixelAt(compositor.root, tx, ty - TITLE_BAR_HEIGHT - 4)[3]).toBe(0);
     }
   });
 

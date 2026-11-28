@@ -238,7 +238,7 @@ describe('the names of a frame’s windows', () => {
   }
   const measure = (text: string) => [7 * text.length, 15] as const;
 
-  it('offers a framed window’s name above its frame, then inside it, then below; a far one’s beside its mark', () => {
+  it('names a window shown by its label alone beside its mark, and a framed one on its title bar, not here', () => {
     const { names, obstacles, marks } = windowNames(
       frameOf([
         { node: 'near', bounds: [100, 80, 120, 60], representation: 'full' },
@@ -247,22 +247,19 @@ describe('the names of a frame’s windows', () => {
       measure,
       new Map(),
     );
-    const near = names.find((n) => n.owner === 'near');
-    // "Window near": 77 by 15.
-    expect(near?.places).toEqual([
-      [100, 80 - 15 - 3],
-      [100 + 120 - 77, 62],
-      [104, 84],
-      [100 + 120 - 77 - 4, 84],
-      [100 + 60 - 38.5, 80 + 30 - 7.5],
-      [100, 143],
-      [143, 143],
-    ]);
-    expect(near?.marked).toBe(false);
+    // The framed window asks for no place: its name is on its title bar.
+    expect(names.map((n) => n.owner)).toEqual(['far']);
     const far = names.find((n) => n.owner === 'far');
     expect(far?.marked).toBe(true);
-    expect(far?.places[0]).toEqual([310 + NAME_MARK / 2 + 3, 95 - 7.5]);
+    // "Window far": 70 by 15, beside its mark, then left of it, then above and below it.
+    expect(far?.places).toEqual([
+      [310 + NAME_MARK / 2 + 3, 95 - 7.5],
+      [310 - NAME_MARK / 2 - 3 - 70, 95 - 7.5],
+      [310 - 35, 95 - NAME_MARK / 2 - 3 - 15],
+      [310 - 35, 95 + NAME_MARK / 2 + 3],
+    ]);
     expect(marks.get('far')).toEqual([[310, 95]]);
+    // Names keep clear of the framed window's card as well as of the mark.
     expect(obstacles).toEqual([
       { owner: 'near', box: [100, 80, 120, 60] },
       { owner: 'far', box: [310 - NAME_MARK / 2, 95 - NAME_MARK / 2, NAME_MARK, NAME_MARK] },
@@ -273,7 +270,7 @@ describe('the names of a frame’s windows', () => {
     const fragments = ['a', 'b', 'c', 'd'].map((node, i) => ({
       node,
       bounds: [i * 50, 50, 40, 30] as ScreenRect,
-      representation: 'full' as const,
+      representation: 'label' as const,
     }));
     // Planned back to front: d is the nearest.
     expect(windowNames(frameOf(fragments), measure, new Map()).names.map((n) => n.owner)).toEqual([
@@ -287,31 +284,25 @@ describe('the names of a frame’s windows', () => {
     ).toEqual(['b', 'a', 'd', 'c']);
   });
 
-  it('names a window by its frame as drawn, where that is larger than its fragments, and keeps other names clear of all of it', () => {
-    // The frame is drawn round the window, its stroke and handles outside its surface's fragment.
+  it('keeps names clear of all of a framed window’s outline as drawn, its title bar included', () => {
+    // The outline is drawn round the card and its title bar, larger than the surface's fragment.
     const frame = frameOf([
       { node: 'near', bounds: [100, 80, 120, 60], representation: 'full' },
       { node: 'far', bounds: [300, 90, 20, 10], representation: 'label' },
     ]);
-    const drawn = new Map([['near', [92, 70, 136, 80] as ScreenRect]]);
+    const drawn = new Map([['near', [92, 46, 136, 104] as ScreenRect]]);
     const { names, obstacles } = windowNames(frame, measure, drawn);
-    const near = names.find((n) => n.owner === 'near');
-    // Above the drawn frame, then above its right, then inside its top corners.
-    expect(near?.places.slice(0, 3)).toEqual([
-      [92, 70 - 15 - 3],
-      [92 + 136 - 77, 52],
-      [96, 74],
-    ]);
-    expect(obstacles).toContainEqual({ owner: 'near', box: [92, 70, 136, 80] });
-    // A name of another window offered a place over the frame's stroke, outside the fragment, is
-    // not written there.
+    expect(names.map((n) => n.owner)).toEqual(['far']);
+    expect(obstacles).toContainEqual({ owner: 'near', box: [92, 46, 136, 104] });
+    // A name of another window offered a place over the title bar, above the fragment, is not
+    // written there.
     const placed = placeNames(VIEW, obstacles, [
       {
         owner: 'other',
         text: 'Other',
         size: [40, 15],
         places: [
-          [60, 72],
+          [120, 56],
           [20, 20],
         ],
       },

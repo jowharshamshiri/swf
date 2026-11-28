@@ -4082,6 +4082,9 @@ export function hitRegionType() {
         case "resizeHandle":
           w.u32(2);
           return;
+        case "titleBar":
+          w.u32(3);
+          return;
         default:
           throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.Arbitration.HitRegion`);
       }
@@ -4092,6 +4095,7 @@ export function hitRegionType() {
         case 0: return ({ kind: "content" });
         case 1: return ({ kind: "chrome" });
         case 2: return ({ kind: "resizeHandle" });
+        case 3: return ({ kind: "titleBar" });
         default: throw new L.MalformedError(`constructor index ${c} of Swf.Arbitration.HitRegion`);
       }
     },
@@ -4449,14 +4453,17 @@ export function regionType() {
         case "chrome":
           w.u32(1);
           return;
-        case "resizeHandle":
+        case "titleBar":
           w.u32(2);
           return;
-        case "background":
+        case "resizeHandle":
           w.u32(3);
           return;
-        case "modalOverlay":
+        case "background":
           w.u32(4);
+          return;
+        case "modalOverlay":
+          w.u32(5);
           return;
         default:
           throw new L.MalformedError(`${String(v.kind)} is not a constructor of Swf.Gesture.Region`);
@@ -4467,9 +4474,10 @@ export function regionType() {
       switch (c) {
         case 0: return ({ kind: "content" });
         case 1: return ({ kind: "chrome" });
-        case 2: return ({ kind: "resizeHandle" });
-        case 3: return ({ kind: "background" });
-        case 4: return ({ kind: "modalOverlay" });
+        case 2: return ({ kind: "titleBar" });
+        case 3: return ({ kind: "resizeHandle" });
+        case 4: return ({ kind: "background" });
+        case 5: return ({ kind: "modalOverlay" });
         default: throw new L.MalformedError(`constructor index ${c} of Swf.Gesture.Region`);
       }
     },
@@ -9029,16 +9037,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "2438fde89fa7393f7ab4ba1ea7489b7438f980aae1f133f3c63b67d167595dad",
+      "fingerprint": "9bd65c7c5928cc21a8edb69d3ae8f360ea8825621fefd52f9baac1a85cd5b65d",
       "source": {
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 383,
+          "line": 397,
           "column": 1
         },
         "end": {
-          "line": 403,
+          "line": 417,
           "column": 33
         }
       }
@@ -9062,16 +9070,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "9f466a0c22a48108891eaf2dfb7612dc859ae8e507a31138b08bb43c2eebf04d",
+      "fingerprint": "9831ea4643d1a5772750812c06a3dba953bade0412824ebb447c122db6bf06a6",
       "source": {
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 529,
+          "line": 573,
           "column": 1
         },
         "end": {
-          "line": 552,
+          "line": 596,
           "column": 14
         }
       }
@@ -9100,11 +9108,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 242,
+          "line": 244,
           "column": 1
         },
         "end": {
-          "line": 263,
+          "line": 265,
           "column": 39
         }
       }
@@ -9116,7 +9124,7 @@ export const ASSURANCE = L.parseAssurance({
         "Swf.Arbitration.pickOrder"
       ],
       "specifications": [],
-      "statement": "∀ (hits : Array Swf.Arbitration.Hit) (tolerance : Float) (po : Swf.Arbitration.PickOrder),\n  Swf.Arbitration.pickOrder hits tolerance = Swf.Arbitration.PickOutcome.ordered po →\n    ∀ (k : Nat),\n      k < po.order.length →\n        (po.occluded[k]! = true ↔\n          ∃ j,\n            j ∈ List.filter (Swf.Arbitration.keeps hits) (List.range hits.size) ∧\n              j ≠ po.order[k]! ∧\n                hits[j]!.occluding = true ∧\n                  Swf.Order.floatKey (hits[j]!.distance + tolerance) < Swf.Order.floatKey hits[po.order[k]!]!.distance)",
+      "statement": "∀ (hits : Array Swf.Arbitration.Hit) (tolerance : Float) (po : Swf.Arbitration.PickOrder),\n  Swf.Arbitration.pickOrder hits tolerance = Swf.Arbitration.PickOutcome.ordered po →\n    ∀ (k : Nat),\n      k < po.order.length →\n        (po.occluded[k]! = true ↔\n          hits[po.order[k]!]!.region ≠ Swf.Arbitration.HitRegion.titleBar ∧\n            ∃ j,\n              j ∈ List.filter (Swf.Arbitration.keeps hits) (List.range hits.size) ∧\n                j ≠ po.order[k]! ∧\n                  hits[j]!.occluding = true ∧\n                    Swf.Order.floatKey (hits[j]!.distance + tolerance) <\n                      Swf.Order.floatKey hits[po.order[k]!]!.distance)",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -9128,16 +9136,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "7a4feb124efceb441addfae59dc9ac104abd63e53f99c7768018bfd6e5880374",
+      "fingerprint": "3192fbc49d6b38fbff347c687e28552a8136897dac4b23870b0cf9aca38793b4",
       "source": {
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 493,
+          "line": 536,
           "column": 1
         },
         "end": {
-          "line": 503,
+          "line": 547,
           "column": 47
         }
       }
@@ -9161,16 +9169,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "a04a5c3b886215c4a7375b493601294d8beeb83e23b985e2c7b03e5c58179cf9",
+      "fingerprint": "f82c743b2fe722fae25cd796d58925a769e317bcfc8ffb745dbb75f614d7bb39",
       "source": {
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 475,
+          "line": 518,
           "column": 1
         },
         "end": {
-          "line": 481,
+          "line": 524,
           "column": 38
         }
       }
@@ -9194,16 +9202,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "77e97baba86115139152e7893cbe50e9a1e9ecef6fb8b89bad861107ab7ff4b7",
+      "fingerprint": "ddb48089adb0ecf4176c6715570595ac62334eed142b0ed63766029b4f4944ad",
       "source": {
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 505,
+          "line": 549,
           "column": 1
         },
         "end": {
-          "line": 527,
+          "line": 571,
           "column": 26
         }
       }
@@ -9232,11 +9240,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 265,
+          "line": 267,
           "column": 1
         },
         "end": {
-          "line": 280,
+          "line": 282,
           "column": 58
         }
       }
@@ -9260,17 +9268,82 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "8219d1f02ae2e995a92c000147725342ba792ab665e9e8c0f8963451cfa517cc",
+      "fingerprint": "92c98dc237fa1084b34a1dc10ea3eeca1524daed4a6299a7a2be055cfa3b003c",
       "source": {
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 483,
+          "line": 526,
           "column": 1
         },
         "end": {
-          "line": 491,
+          "line": 534,
           "column": 59
+        }
+      }
+    },
+    {
+      "name": "Swf.Arbitration.titleBar_before",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Arbitration.hitKey"
+      ],
+      "specifications": [],
+      "statement": "∀ (hits : Array Swf.Arbitration.Hit) (kept : List Nat) (tolerance : Float) (i j : Nat),\n  hits[i]!.region = Swf.Arbitration.HitRegion.titleBar →\n    hits[j]!.region ≠ Swf.Arbitration.HitRegion.titleBar →\n      Swf.Order.floatKey hits[i]!.priority = Swf.Order.floatKey hits[j]!.priority →\n        Swf.Arbitration.keyLe (Swf.Arbitration.hitKey hits kept tolerance i)\n            (Swf.Arbitration.hitKey hits kept tolerance j) =\n          true",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "69ba7a440e21670d23074b6cf7a3e25029c1beb8e06204d610adb06a80c9ed65",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Arbitration.lean",
+        "start": {
+          "line": 438,
+          "column": 1
+        },
+        "end": {
+          "line": 451,
+          "column": 18
+        }
+      }
+    },
+    {
+      "name": "Swf.Arbitration.titleBar_covers_own_surface",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Arbitration.keeps"
+      ],
+      "specifications": [],
+      "statement": "∀ (hits : Array Swf.Arbitration.Hit) (i j : Nat),\n  j < hits.size →\n    hits[i]!.node = hits[j]!.node →\n      hits[i]!.surface.isSome = true →\n        hits[j]!.surface = none →\n          hits[j]!.region = Swf.Arbitration.HitRegion.titleBar → Swf.Arbitration.keeps hits i = false",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "7aa3ab2465a89db133c8ccfc21ba60ed28af30d1ad0fa7ab1a40786fc61a7451",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Arbitration.lean",
+        "start": {
+          "line": 453,
+          "column": 1
+        },
+        "end": {
+          "line": 464,
+          "column": 31
         }
       }
     },
@@ -9298,11 +9371,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 206,
+          "line": 208,
           "column": 1
         },
         "end": {
-          "line": 215,
+          "line": 217,
           "column": 75
         }
       }
@@ -9331,11 +9404,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 226,
+          "line": 228,
           "column": 1
         },
         "end": {
-          "line": 240,
+          "line": 242,
           "column": 41
         }
       }
@@ -9364,11 +9437,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 217,
+          "line": 219,
           "column": 1
         },
         "end": {
-          "line": 224,
+          "line": 226,
           "column": 65
         }
       }
@@ -9684,11 +9757,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 363,
+          "line": 365,
           "column": 1
         },
         "end": {
-          "line": 367,
+          "line": 369,
           "column": 20
         }
       }
@@ -9715,11 +9788,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 338,
+          "line": 340,
           "column": 1
         },
         "end": {
-          "line": 343,
+          "line": 345,
           "column": 83
         }
       }
@@ -9746,11 +9819,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 345,
+          "line": 347,
           "column": 1
         },
         "end": {
-          "line": 349,
+          "line": 351,
           "column": 89
         }
       }
@@ -9772,16 +9845,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "e7aac4acb82c9f340cd5ad6521c7a83d7a46350e955248c221bfc21c542e8910",
+      "fingerprint": "4195e8f94164322ce80bd138d81252700053cfb89c24f985f77d2095069d9d3a",
       "source": {
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 406,
+          "line": 408,
           "column": 1
         },
         "end": {
-          "line": 413,
+          "line": 415,
           "column": 89
         }
       }
@@ -9808,11 +9881,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 354,
+          "line": 356,
           "column": 1
         },
         "end": {
-          "line": 361,
+          "line": 363,
           "column": 89
         }
       }
@@ -9839,11 +9912,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 351,
+          "line": 353,
           "column": 1
         },
         "end": {
-          "line": 352,
+          "line": 354,
           "column": 101
         }
       }
@@ -9865,16 +9938,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "56e5c87668e1bbd90981caa9a577e2994edddf0fae2968f5a1a535baacaae854",
+      "fingerprint": "ae36660c709aafdaa3fd084b025f7873d8b4623d43a549b75c546dd6e9af8aef",
       "source": {
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 415,
+          "line": 417,
           "column": 1
         },
         "end": {
-          "line": 423,
+          "line": 425,
           "column": 39
         }
       }
@@ -9903,11 +9976,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 425,
+          "line": 427,
           "column": 1
         },
         "end": {
-          "line": 438,
+          "line": 440,
           "column": 52
         }
       }
@@ -9934,11 +10007,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 315,
+          "line": 317,
           "column": 1
         },
         "end": {
-          "line": 320,
+          "line": 322,
           "column": 38
         }
       }
@@ -9966,11 +10039,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 385,
+          "line": 387,
           "column": 1
         },
         "end": {
-          "line": 390,
+          "line": 392,
           "column": 63
         }
       }
@@ -9997,11 +10070,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 440,
+          "line": 442,
           "column": 1
         },
         "end": {
-          "line": 446,
+          "line": 448,
           "column": 101
         }
       }
@@ -10023,16 +10096,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "f5c5ca115884983bdb2b04a37036e2eaf913957d4fa1bb5111a57f5902a0d21d",
+      "fingerprint": "cd6295d67836c32ebbc09519975bdd06dbb6c0bad3ed4030015a51b249f95bf0",
       "source": {
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 328,
+          "line": 330,
           "column": 1
         },
         "end": {
-          "line": 336,
+          "line": 338,
           "column": 26
         }
       }
@@ -10054,16 +10127,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "db207c5666bbc6aac9ef123f2fbecdb1ee0a94e71ad7e6d76584e8d6bea878aa",
+      "fingerprint": "b32eebfb457f922706207dbce5ad1ad34ba628dfea4ca32c991261ffc6c33538",
       "source": {
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 399,
+          "line": 401,
           "column": 1
         },
         "end": {
-          "line": 404,
+          "line": 406,
           "column": 89
         }
       }
@@ -10085,16 +10158,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "693031b0d51e08a13ef34c45609637d071d33fd61be2ee5ab2c53522aebb08c1",
+      "fingerprint": "2831b37c451905710d5d981e323077a4bed8523121dedf738d1c3343fa4ae350",
       "source": {
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 392,
+          "line": 394,
           "column": 1
         },
         "end": {
-          "line": 397,
+          "line": 399,
           "column": 23
         }
       }
@@ -10121,11 +10194,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 322,
+          "line": 324,
           "column": 1
         },
         "end": {
-          "line": 326,
+          "line": 328,
           "column": 38
         }
       }
@@ -10153,11 +10226,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 377,
+          "line": 379,
           "column": 1
         },
         "end": {
-          "line": 383,
+          "line": 385,
           "column": 27
         }
       }
@@ -10185,11 +10258,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 369,
+          "line": 371,
           "column": 1
         },
         "end": {
-          "line": 375,
+          "line": 377,
           "column": 50
         }
       }
@@ -14496,11 +14569,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 179,
+          "line": 181,
           "column": 1
         },
         "end": {
-          "line": 189,
+          "line": 191,
           "column": 21
         }
       }
@@ -14581,11 +14654,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 443,
+          "line": 486,
           "column": 1
         },
         "end": {
-          "line": 453,
+          "line": 496,
           "column": 50
         }
       }
@@ -14771,11 +14844,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 116,
+          "line": 118,
           "column": 1
         },
         "end": {
-          "line": 118,
+          "line": 120,
           "column": 65
         }
       }
@@ -14806,11 +14879,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 215,
+          "line": 217,
           "column": 1
         },
         "end": {
-          "line": 234,
+          "line": 236,
           "column": 17
         }
       }
@@ -14836,11 +14909,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 302,
+          "line": 304,
           "column": 1
         },
         "end": {
-          "line": 311,
+          "line": 313,
           "column": 13
         }
       }
@@ -14868,11 +14941,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 275,
+          "line": 277,
           "column": 1
         },
         "end": {
-          "line": 286,
+          "line": 288,
           "column": 59
         }
       }
@@ -14931,11 +15004,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 104,
+          "line": 106,
           "column": 1
         },
         "end": {
-          "line": 114,
+          "line": 116,
           "column": 45
         }
       }
@@ -14966,11 +15039,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 157,
+          "line": 159,
           "column": 1
         },
         "end": {
-          "line": 173,
+          "line": 175,
           "column": 61
         }
       }
@@ -15007,11 +15080,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 120,
+          "line": 122,
           "column": 1
         },
         "end": {
-          "line": 127,
+          "line": 129,
           "column": 53
         }
       }
@@ -16989,7 +17062,7 @@ export const leanTypes = Object.freeze({
   "Swf.Arbitration.Bid": Object.freeze({ fingerprint: "ddbeedade876221719b0ee1aa1fad0b1e5c104a8b3fe06c661628df04e02346f", type: bidType }),
   "Swf.Arbitration.BidKind": Object.freeze({ fingerprint: "5f0d5191f18c37447a5584ef118f036eb8327d158b455c24e5e5262e0685ed07", type: bidKindType }),
   "Swf.Arbitration.BidOutcome": Object.freeze({ fingerprint: "76161e5d5a85091dc2d6199d0fd9ce594b233a0e5ccbf6268b15dfa1497a2a57", type: bidOutcomeType }),
-  "Swf.Arbitration.Hit": Object.freeze({ fingerprint: "e3bdfebc4c9ca80b74bf779c208410ef330ca230d31d53c550c2b23c52e5fdc5", type: hitType }),
+  "Swf.Arbitration.Hit": Object.freeze({ fingerprint: "e26860946bb9bc9ea330a319ced9ee37b4c41f32be0c1a6c38109f2f104c686d", type: hitType }),
   "Swf.Arbitration.PickOutcome": Object.freeze({ fingerprint: "c6b2b4632ca32ec83658f11f653d2815e91f43076e37999537d7d610a5f8f0b9", type: pickOutcomeType }),
   "Swf.Fallback.NegotiationContext": Object.freeze({ fingerprint: "0c0838204cdcf2f6d5d4e42ececc08831c4d82327bf7695a334a28891fee0316", type: negotiationContextType }),
   "Swf.Fallback.FragmentFacts": Object.freeze({ fingerprint: "c24eecba8b238681c16656957f2f215d0f97ca9973d0eae1978ca6bf46af7bf0", type: fragmentFactsType }),
@@ -17003,9 +17076,9 @@ export const leanTypes = Object.freeze({
   "Swf.Gesture.KeyRoute": Object.freeze({ fingerprint: "6c54b50780a6d623eba88b1326e6b5671355d21b735fb8df2a6de7d247272dfa", type: keyRouteType }),
   "Swf.Gesture.PointerPhase": Object.freeze({ fingerprint: "5200f0a62d2c47aaedbab825ebf4bead91afefa50763b28873d1a153b9cfd091", type: pointerPhaseType }),
   "Swf.Gesture.PointerRoute": Object.freeze({ fingerprint: "e394db296e11ede6391013732915921d77af4bb79657b13c587371b5cf0b1252", type: pointerRouteType }),
-  "Swf.Gesture.PressFacts": Object.freeze({ fingerprint: "87da0836af15447b4bf0d6813c39b7ab487d201ea55c5961a9c6d3a8397decfe", type: pressFactsType }),
+  "Swf.Gesture.PressFacts": Object.freeze({ fingerprint: "199d5ee358b6b394d52f55b034e529a154727bc0f8176e14c532757286219bef", type: pressFactsType }),
   "Swf.Gesture.PressRoute": Object.freeze({ fingerprint: "601b56817c509f3faa4fee1acdca2048593e347b08b499b2639cc71e5e1fe7dc", type: pressRouteType }),
-  "Swf.Gesture.WheelFacts": Object.freeze({ fingerprint: "83d91dcc70e7b2355c276ebb704376b19c570ec301e16d1ef2bd58e674368b3b", type: wheelFactsType }),
+  "Swf.Gesture.WheelFacts": Object.freeze({ fingerprint: "270fef54bb768a2db02c29619ea26aa8b986a44f54318d81fd2a221fd09532d4", type: wheelFactsType }),
   "Swf.Gesture.WheelRoute": Object.freeze({ fingerprint: "5a2ad5c188f19c347d2747f3cf5a6e9ee9c81ded485136e22674fd35ff7c796d", type: wheelRouteType }),
   "Swf.Handoff.ViewportState": Object.freeze({ fingerprint: "d48034198877ad49b1509eb60cee794fd46e222a1b8d66a43bc44948b1d0d7ba", type: viewportStateType }),
   "Swf.Handoff.HandoffEvent": Object.freeze({ fingerprint: "1003345b43c4439a0986800a75279cc5e04f9b1f5cff95ffadf57abf0f0823e3", type: handoffEventType }),
@@ -17074,7 +17147,7 @@ export const leanTypes = Object.freeze({
   "Swf.AppSnap.SnapCandidate": Object.freeze({ fingerprint: "bbeba7904b0baf4a010e43c1138dafe660881b627d32d7ca70a978c4dc644309", type: snapCandidateType }),
   "Swf.AppWheel.WheelStep": Object.freeze({ fingerprint: "c96b408ba3d92ee53c4fd3d740ac0cfa175ded40cedc0fe42cf47e6c0c647175", type: wheelStepType }),
   "Swf.AppWorkspaces.SaverState": Object.freeze({ fingerprint: "90da128eb07d95b58a31059160a872149140b50684da7b090f4c44806ec20de4", type: appWorkspacesSaverStateType }),
-  "Swf.Arbitration.HitRegion": Object.freeze({ fingerprint: "630e6511912da7ad8ebe5ae5914ade664c8515454874900bb0821d78cc9e0bd8", type: hitRegionType }),
+  "Swf.Arbitration.HitRegion": Object.freeze({ fingerprint: "7d58fad47d21e795f57e0affee19a03dcad81e32a6d4178883b5107a58aee5af", type: hitRegionType }),
   "Swf.Arbitration.PickOrder": Object.freeze({ fingerprint: "8db19d07cf29fa1ba79bd58480805532a5e9f258293c76d26c6e0f61d178b579", type: pickOrderType }),
   "Swf.Fallback.RendererCapabilities": Object.freeze({ fingerprint: "bbead800f5d4b28c524b28c072460acd75ceed866bfc53ff139ee0928a1d33e0", type: rendererCapabilitiesType }),
   "Swf.Fallback.CompositorCapabilities": Object.freeze({ fingerprint: "cd77db5a55cb60c9dc739837f27d4bc41d09c713f3f612fee95354749407a5e1", type: compositorCapabilitiesType }),
@@ -17087,7 +17160,7 @@ export const leanTypes = Object.freeze({
   "Swf.Gesture.Finish": Object.freeze({ fingerprint: "ca32538ae33ef449507e1483c6568068c91257672af1492e656c50ab2ef98f47", type: finishType }),
   "Swf.Gesture.KeyPhase": Object.freeze({ fingerprint: "1a330dc160307ae344d0f729d5712d142db8b6edc53762193a86007f8171c1fd", type: keyPhaseType }),
   "Swf.Gesture.PressPick": Object.freeze({ fingerprint: "17188783e5dd9891066cbbb5c8edff56d6335019893e989fd2a85ad5126a8254", type: pressPickType }),
-  "Swf.Gesture.Region": Object.freeze({ fingerprint: "f3a8c21efb288294d9c880dbb729d429a08a39e90a5e8623092610f0bf901733", type: regionType }),
+  "Swf.Gesture.Region": Object.freeze({ fingerprint: "299e1200b6af17eaa84f3b2b4309ca93996bfe67f7c1939b5646e0f08db2ca38", type: regionType }),
   "Swf.Handoff.SwapUndo": Object.freeze({ fingerprint: "a331502436983228bd62cfdc240724cff0485ef3726020d7fe05d50a3b41abc3", type: swapUndoType }),
   "Swf.Save.SaveState": Object.freeze({ fingerprint: "ae6ddcd17f2d87663d31fb876b46dd9ea0372d089378bd4509e4e6fae3d9770d", type: saveStateType }),
   "Swf.Save.AckRefusal": Object.freeze({ fingerprint: "2f6eef547b4857866a273a8b018782b993df476b5a619fa70564b0a935bb0549", type: ackRefusalType }),
