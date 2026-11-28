@@ -1234,6 +1234,9 @@ content is attached or detached by a switch.
   above or below it where that runs off the map or onto another name; it is dropped only where
   every one of those places overlaps a name already written, and the selected and the focused
   windows' names are always written (the Lean model `Swf.Names`).
+  A press takes a window's mark within 12 pixels of it for a mouse, 22 for a finger or a pen (a
+  24 or a 44 pixel target, whatever the mark's drawing); of marks nearer each other than that, the
+  one nearest the press takes it, so they split the space between them.
   Pressing a window selects it; dragging it (past the same slop as the panorama's) moves it on the
   ground as far as the pointer moves, the point it was grabbed by staying under the pointer,
   previewed in every view as it goes (the panorama below the map shows it move) and committed once

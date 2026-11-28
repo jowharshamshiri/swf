@@ -1,7 +1,8 @@
 # 0015. One room round the camera, with every window drawn as a flat card at its projected centre
 
 - **Status:** Accepted; supersedes the placement in
-  [0003](0003-two-presentation-paths-with-declared-fidelity.md)
+  [0003](0003-two-presentation-paths-with-declared-fidelity.md); the panorama's fixed span in focus
+  superseded by [0016](0016-title-bars-and-live-content-keeping-its-input.md)
 - **Date:** 2026-11-27
 - **Requirements:** ARCH-010 to ARCH-014, FR-084, FR-086, FR-090, FR-105, FR-122, FR-125, AC-013
 

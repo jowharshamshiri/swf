@@ -54,8 +54,13 @@ export const RADAR_MARGIN = 24;
 /** A bearing written round the radar's rim, and its tick. */
 const BEARINGS = Object.freeze([0, 90, 180, -90]);
 
-/** How near a press must be to a window's dot to take it, in CSS pixels. */
-const REACH = 12;
+/**
+ * How near a press must be to a window's dot to take it, in CSS pixels, by the pointer's precision:
+ * a 24 px target for a mouse, 44 px for a finger or a pen, whatever the dot's drawing. Of dots
+ * nearer each other than that, the one nearest the press takes it, so they split the space between
+ * them (`markerAt`).
+ */
+const REACH: Readonly<Record<PointerPrecision, number>> = Object.freeze({ fine: 12, coarse: 22 });
 /** Room for a window's name beside its dot on the radar, and the gap between dot and name, in CSS pixels. */
 const LABEL = Object.freeze({ width: 132, height: 30, gap: 8 });
 /** How far inside the map's edges its front and behind are named, in CSS pixels. */
@@ -176,6 +181,8 @@ export class MapDrawer {
     marker: MarkerDrag | null;
   } | null = null;
   #pan: { readonly pointer: number; x: number; y: number } | null = null;
+  /** The precision of the pointer last pressed here. */
+  #pressedWith: PointerPrecision = 'fine';
   /** The map still holds the whole room as it started: the reader has not panned or zoomed it. */
   #fitted = true;
   #frame: number | null = null;
@@ -271,7 +278,8 @@ export class MapDrawer {
     listen(viewport, 'dblclick', (event) => {
       const [x, y] = this.#local(event);
       const scene = this.#scene();
-      const marker = markerAt(this.#laidOut(scene), scene, x, y, REACH);
+      // A double press follows two presses here: it reaches as far as they did.
+      const marker = markerAt(this.#laidOut(scene), scene, x, y, REACH[this.#pressedWith]);
       if (marker !== null) {
         event.preventDefault();
         this.#options.onopen(marker.id);
@@ -408,7 +416,8 @@ export class MapDrawer {
     }
     const [x, y] = this.#local(event);
     const scene = this.#scene();
-    const marker = markerAt(this.#laidOut(scene), scene, x, y, REACH);
+    this.#pressedWith = pointerPrecision(event.pointerType);
+    const marker = markerAt(this.#laidOut(scene), scene, x, y, REACH[this.#pressedWith]);
     if (marker === null) {
       // The radar's ground takes no press: it always shows the camera at its centre.
       if (this.#kind === 'map') {

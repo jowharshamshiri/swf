@@ -63,7 +63,9 @@ centre, the window's own size at `CARD_PIXELS_PER_UNIT` times a scale that follo
 along the floor (`cardScale`, `windowCard`). A projected fragment (`ProjectedFragment`) carries its
 card, its scale and how the window is represented, and its surface's rectangle on the card.
 
-Every window drawn with a card has a title bar across the top of the card, `TITLE_BAR_HEIGHT` (24)
+[ADR 0016](../adr/0016-title-bars-and-live-content-keeping-its-input.md) decides how a window is
+pressed, moved and sized for the pointer. Every window drawn with a card has a title bar across the
+top of the card, `TITLE_BAR_HEIGHT` (24)
 CSS pixels high whatever the card's scale, drawn over every card; a window shown by its label alone
 has its small card as its title bar (`titleBarOf`, `outlineOf`). Its resize band lies round its
 outline (`bandEdgeAt`, `bandZones`). How large a press counts them depends on the pointer

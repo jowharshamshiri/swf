@@ -261,6 +261,12 @@ export function createDomInput(options: DomInputOptions): DomInput {
       let over: PointerIntent | null = null;
       const pointer = (phase: PointerPhase) => (event: Event) => {
         const e = event as PointerEvent;
+        // The browser may deliver the first sample under a lock (its own motion to where it holds
+        // the pointer) before it says the lock took hold: the lock is told first, so that sample
+        // is the first under it.
+        if (lock === 'asking' && locked()) {
+          answer('locked');
+        }
         const { x, y } = position(e);
         const intent: PointerIntent = {
           kind: 'pointer',

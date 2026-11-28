@@ -41,3 +41,8 @@ a layer of its own over everything (`overlay:front-bars`).
 The resize handles lie where the band lies on the window's card, and nowhere outside it, so a press
 just past a window's edge reaches whatever is drawn there. They are a finger's on a page whose every
 pointer is coarse, else a mouse's.
+
+A sample that reaches the view under a newly taken pointer lock before the browser says the lock
+took hold is reported after `locked`, as the first sample under the lock. Before, a drag carried to
+the panorama's seam could take the browser's own motion to where it holds the pointer as the
+mouse's, and jump half the view.

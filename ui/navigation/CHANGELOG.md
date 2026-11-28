@@ -33,3 +33,6 @@ keyboard, and the messages say how to leave it.
 The panorama focuses a window on the router's double press (`pointer.doublePressed`), not on the
 browser's `dblclick`: two presses on a window near in time and place, never two drags. A marker on
 the map moves past the slop of the pointer that pressed it.
+
+A finger or a pen takes a window's mark on the radar or the map within 22 pixels of it (a 44 pixel
+target), a mouse within 12; a double press there reaches as far as the presses before it.

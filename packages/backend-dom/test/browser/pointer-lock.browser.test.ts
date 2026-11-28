@@ -151,6 +151,47 @@ describe('the pointer lock on a view (FR-107, FR-123)', () => {
     },
   );
 
+  it.runIf(LOCKS)(
+    'says the lock took hold before the first sample under it, when the sample comes before the browser says so',
+    async () => {
+      const { root, input, seen, changes } = view();
+      // The browser's word that the lock changed, held back: under load it can follow the first
+      // sample the lock carries, which is the browser's own motion to where it holds the pointer.
+      const held: Event[] = [];
+      const holdBack = (event: Event) => {
+        held.push(event);
+        event.stopImmediatePropagation();
+      };
+      window.addEventListener('pointerlockchange', holdBack, { capture: true });
+      try {
+        let samplesWhenLocked = -1;
+        input.pointerLock.subscribe((change) => {
+          if (change === 'locked') samplesWhenLocked = seen.length;
+        });
+        const [x, y] = pageOf(root, 100, 100);
+        await commands.mouse('move', x, y);
+        await commands.mouse('down', x, y);
+        const pointerId = seen[0]?.pointerId ?? -1;
+        input.pointerLock.request();
+        await expect.poll(() => document.pointerLockElement).toBe(root);
+        lockedMotion(root, pointerId, 140, 0);
+        // Its word held back, the lock is told by the first sample under it, before that sample.
+        expect(held.length).toBeGreaterThan(0);
+        expect(changes).toEqual(['locked']);
+        expect(seen.slice(0, samplesWhenLocked).every((i) => i.movement === undefined)).toBe(true);
+        expect(seen.slice(samplesWhenLocked).every((i) => i.movement !== undefined)).toBe(true);
+        expect(seen.at(-1)).toMatchObject({ phase: 'move', movement: { x: 140, y: 0 } });
+        // The browser's word, when it comes, changes nothing more.
+        window.removeEventListener('pointerlockchange', holdBack, { capture: true });
+        document.dispatchEvent(new Event('pointerlockchange'));
+        expect(changes).toEqual(['locked']);
+      } finally {
+        window.removeEventListener('pointerlockchange', holdBack, { capture: true });
+        await commands.mouse('release', 0, 0);
+      }
+    },
+  );
+
   it.runIf(LOCKS)('lets the lock go when it is taken off the device', async () => {
     const { root, input, changes, disconnect } = view();
     const [x, y] = pageOf(root, 100, 100);

@@ -1,3 +1,4 @@
+import { worldMatrix } from '@swf/core';
 import { createMemoryStore } from '@swf/persistence';
 import { viewGeometryOf } from '@swf/presentation';
 import { equirectangular, projectorOf } from '@swf/projections';
@@ -832,5 +833,110 @@ describe('fingers, pens and the mouse', () => {
     } finally {
       await commands.coarsePointer(false);
     }
+  });
+});
+
+describe('radar dots', () => {
+  /** The radar's pixels for a unit of the room: it centres the camera, 14 units to its rim. */
+  function radarScale(m: Mounted & { app: ReferenceApp }): number {
+    const radar = m.app.root.ownerDocument.querySelector<HTMLElement>(
+      '[data-wsb="page.radar"] canvas',
+    );
+    if (radar === null) {
+      throw new Error('no radar');
+    }
+    const box = radar.getBoundingClientRect();
+    return (Math.min(box.width, box.height) / 2 - 24) / 14;
+  }
+
+  /** Where each window's dot is on the page: ahead is up. */
+  function dots(m: Mounted & { app: ReferenceApp }): Map<string, [number, number]> {
+    const radar = m.app.root.ownerDocument.querySelector<HTMLElement>(
+      '[data-wsb="page.radar"] canvas',
+    );
+    if (radar === null) {
+      throw new Error('no radar');
+    }
+    const box = radar.getBoundingClientRect();
+    const scale = radarScale(m);
+    const at = new Map<string, [number, number]>();
+    const { nodes } = m.app.workspace.getState();
+    for (const node of nodes.values()) {
+      // Each window has its dot, but one composed into another window.
+      const parent = node.parentId === null ? undefined : nodes.get(node.parentId);
+      const world = worldMatrix(nodes, node.id);
+      if (node.kind === 'window' && parent?.kind !== 'window' && world !== undefined) {
+        const [px, pz] = [world[12], world[14]];
+        at.set(node.id, [
+          box.left + box.width / 2 + px * scale,
+          box.top + box.height / 2 + pz * scale,
+        ]);
+      }
+    }
+    return at;
+  }
+
+  /** A press of the mouse, or a tap of a finger, at a point of the page. */
+  async function pressAt(m: Mounted, x: number, y: number, finger: boolean): Promise<void> {
+    const [px, py] = [Math.round(x), Math.round(y)];
+    if (finger) {
+      await commands.touch('start', [{ id: 1, x: px, y: py }]);
+      await commands.touch('end', []);
+    } else {
+      await commands.mouse('move', px, py);
+      await commands.mouse('down', px, py);
+      await commands.mouse('up', px, py);
+    }
+    await m.settle();
+  }
+
+  it('takes a window’s dot by a finger’s tap 18 px beside it, where a mouse’s press takes nothing', async () => {
+    const m = await visit();
+    const at = dots(m);
+    const [x, y] = at.get('builds') ?? [0, 0];
+    // The side of Build Status's dot farthest from every other dot.
+    const side = [1, -1]
+      .map((sign) => ({
+        sign,
+        clear: Math.min(
+          ...[...at]
+            .filter(([id]) => id !== 'builds')
+            .map(([, [ox, oy]]) => Math.hypot(ox - (x + 18 * sign), oy - y)),
+        ),
+      }))
+      .sort((a, b) => b.clear - a.clear)[0];
+    expect(side?.clear ?? 0).toBeGreaterThan(30);
+    const px = x + 18 * (side?.sign ?? 1);
+    await pressAt(m, px, y, false);
+    expect(m.app.workspace.getState().selection).toEqual([]);
+    await pressAt(m, px, y, true);
+    expect(m.app.workspace.getState().selection).toEqual(['builds']);
+  });
+
+  it('gives a press between two dots 16 px apart to the nearer, each its own side', async () => {
+    const m = await visit();
+    const scale = radarScale(m);
+    // Reading stood 16 px to the right of Build Status on the radar.
+    const builds = m.app.workspace.getState().nodes.get('builds');
+    const reading = m.app.workspace.getState().nodes.get('reading');
+    if (builds === undefined || reading === undefined) {
+      throw new Error('no Build Status or Reading');
+    }
+    const [bx, by, bz] = builds.transform.position;
+    expect(
+      m.app.workspace.dispatch({
+        type: 'node.patch',
+        id: 'reading',
+        transform: { ...reading.transform, position: [bx + 16 / scale, by, bz] },
+      }).status,
+    ).toBe('committed');
+    await m.settle();
+    const at = dots(m);
+    const [x, y] = at.get('builds') ?? [0, 0];
+    expect((at.get('reading') ?? [0, 0])[0] - x).toBeCloseTo(16, 3);
+    await pressAt(m, x + 6, y, false);
+    expect(m.app.workspace.getState().selection).toEqual(['builds']);
+    await pressAt(m, x + 10, y, false);
+    expect(m.app.workspace.getState().selection).toEqual(['reading']);
   });
 });
