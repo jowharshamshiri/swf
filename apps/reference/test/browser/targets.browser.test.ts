@@ -206,3 +206,129 @@ describe('title bars', () => {
     expect(headingOf(m.app, 'messages')).not.toBeCloseTo(before, 1);
   });
 });
+
+/** Presses at a point of the view, drags by (dx, dy) in steps, and lets go. */
+async function dragBy(
+  m: Mounted & { app: ReferenceApp },
+  x: number,
+  y: number,
+  dx: number,
+  dy: number,
+): Promise<void> {
+  const [px, py] = onPage(m.app, x, y);
+  await commands.mouse('move', px, py);
+  await commands.mouse('down', px, py);
+  for (let step = 1; step <= 6; step += 1) {
+    await commands.mouse(
+      'move',
+      Math.round(px + (dx * step) / 6),
+      Math.round(py + (dy * step) / 6),
+    );
+  }
+  await commands.mouse('up', px + dx, py + dy);
+  await m.settle();
+}
+
+describe('resize bands round the outline', () => {
+  it('resizes a live window from each edge and corner pressed just outside its outline', async () => {
+    const m = await visit();
+    // Build Status: a live note with nothing else round it.
+    const id = 'builds';
+    const [x, y, w, h] = cardsOf(m.app, id).cards[0] ?? [0, 0, 0, 0];
+    const top = y - BAR;
+    // 4 px outside the outline (the card with its title bar), dragged 30 px outward.
+    for (const [edge, px, py, dx, dy, grows] of [
+      ['e', x + w + 4, y + h / 2, 30, 0, 'width'],
+      ['w', x - 4, y + h / 2, -30, 0, 'width'],
+      ['s', x + w / 2, y + h + 4, 0, 30, 'height'],
+      ['n', x + w / 2, top - 4, 0, -30, 'height'],
+      ['se', x + w + 4, y + h + 4, 30, 30, 'both'],
+      ['nw', x - 4, top - 4, -30, -30, 'both'],
+    ] as const) {
+      const before = m.app.workspace.getState().nodes.get(id)?.bounds ?? [0, 0, 0];
+      await dragBy(m, px, py, dx, dy);
+      const after = m.app.workspace.getState().nodes.get(id)?.bounds ?? [0, 0, 0];
+      if (grows !== 'height') {
+        expect(after[0], `${edge} width`).toBeGreaterThan(before[0] + 0.1);
+      }
+      if (grows !== 'width') {
+        expect(after[1], `${edge} height`).toBeGreaterThan(before[1] + 0.1);
+      }
+      expect(m.app.workspace.undo().status).toBe('committed');
+      await m.settle();
+    }
+  });
+
+  it('leaves a press 6 px inside a live window’s edge to its content', async () => {
+    const m = await visit();
+    // The Project Board: three live notes, the first reaching the card's left edge.
+    const id = 'board';
+    const [x, y, , h] = cardsOf(m.app, id).cards[0] ?? [0, 0, 0, 0];
+    let started = 0;
+    m.app.router.subscribe((event) => {
+      if (event.type === 'gesture.started') started += 1;
+    });
+    const before = m.app.workspace.getState().nodes.get(id)?.bounds;
+    // The note's own element hears the press, as the browser delivers it to the content.
+    const slot = m.app.root.querySelector('[data-swf-slot="plan-surface"]');
+    let heard = 0;
+    slot?.addEventListener('pointerdown', () => {
+      heard += 1;
+    });
+    // 6 px inside its left edge, clear of the corners' zones: past the 4 px of its band.
+    await dragBy(m, x + 6, y + h * 0.6, 20, 0);
+    expect(started).toBe(0);
+    expect(m.app.workspace.getState().nodes.get(id)?.bounds).toEqual(before);
+    expect(heard).toBe(1);
+  });
+});
+
+describe('a press in live content', () => {
+  /** The middle of a window's live content, where a press is its content's. */
+  function contentOf(m: Mounted & { app: ReferenceApp }, surfaceId: string): [number, number] {
+    const slot = m.app.root.querySelector(`[data-swf-slot="${surfaceId}"]`);
+    const box = slot?.getBoundingClientRect();
+    const root = m.app.root.getBoundingClientRect();
+    if (box === undefined) {
+      throw new Error(`no live slot for ${surfaceId}`);
+    }
+    return [box.left - root.left + box.width / 2, box.top - root.top + box.height * 0.75];
+  }
+
+  it('selects its window and leaves the whole press to the content', async () => {
+    const m = await visit();
+    expect(m.app.workspace.getState().selection).toEqual([]);
+    const slot = m.app.root.querySelector('[data-swf-slot="desk-surface"]');
+    let heard = 0;
+    slot?.addEventListener('pointerdown', () => {
+      heard += 1;
+    });
+    const [x, y] = contentOf(m, 'desk-surface');
+    const [px, py] = onPage(m.app, x, y);
+    await commands.mouse('move', px, py);
+    await commands.mouse('down', px, py);
+    await commands.mouse('up', px, py);
+    await m.settle();
+    expect(heard).toBe(1);
+    expect(m.app.workspace.getState().selection).toEqual(['desk']);
+    // The inspector follows it.
+    expect(m.driver.has('page.inspector.window.focus#desk')).toBe(true);
+  });
+
+  it('keeps a selection that holds the window pressed, and moves one that does not to it', async () => {
+    const m = await visit();
+    m.app.workspace.transaction([{ type: 'selection.set', ids: ['desk', 'builds'] }]);
+    await m.settle();
+    const press = async (surfaceId: string) => {
+      const [px, py] = onPage(m.app, ...contentOf(m, surfaceId));
+      await commands.mouse('move', px, py);
+      await commands.mouse('down', px, py);
+      await commands.mouse('up', px, py);
+      await m.settle();
+    };
+    await press('desk-surface');
+    expect(m.app.workspace.getState().selection).toEqual(['desk', 'builds']);
+    await press('calendar-surface');
+    expect(m.app.workspace.getState().selection).toEqual(['calendar']);
+  });
+});

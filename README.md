@@ -606,7 +606,10 @@ own design system checks against its grounds. Only the title bars and the resize
 input, so a press there reaches the framework even over a cross-origin frame. `createDomInput` offers every pointer,
 wheel and key event over the view to the interaction router. What the router consumes stops there
 (and a pressed pointer is captured until its gesture ends); what it does not consume reaches the
-content as the browser's own event. Nothing is synthesized, and content in a cross-origin frame
+content as the browser's own event. A press the router leaves to a window's live content is
+announced (`content.pressed`, naming the window and the surface) and nothing of it is taken; the
+navigation makes that window the selection unless it is already among the selected
+(`selectionOnPress`), as an operating system activates the window pressed. Nothing is synthesized, and content in a cross-origin frame
 gets its input from the browser alone. Labels and host metadata are always inserted as text.
 
 `createVirtualCursor({ container })` draws a cursor in a view's container for an input policy
@@ -1586,10 +1589,10 @@ release` builds a versioned release from a commit ([Release the packages](docs/h
 A budget is raised only deliberately, by hand, to the package's measured gzip size rounded up to the
 next 256 bytes, so it leaves no room for growth nobody looked at; the measured sizes are recorded
 with `npm run size -- --record` in the same commit, whose message gives the old and the new budget.
-`@swf/models` is at 64256 bytes: it is the compiled program of every proved decision model the
-framework and the reference application run, so it grows with each model (64203 bytes
-measured, the room (`Swf.Room`), the spacing after a snap (`Swf.AppSpacing`) and the title bars'
-place in picking (`Swf.Arbitration`) included).
+`@swf/models` is at 64768 bytes: it is the compiled program of every proved decision model the
+framework and the reference application run, so it grows with each model (64513 bytes
+measured, the room (`Swf.Room`), the spacing after a snap (`Swf.AppSpacing`), the title bars'
+place in picking (`Swf.Arbitration`) and the selection after a press (`Swf.Gesture`) included).
 `@swf/persistence` is at 13568 bytes (13513 measured): snapshots, stores and the saver, with named
 spaces (`createSpaces`) and the step that brings `swf.workspace/1` layouts into the room.
 `@swf/backend-dom` is at 7680 bytes (7448 measured), the DOM input's pointer lock and the

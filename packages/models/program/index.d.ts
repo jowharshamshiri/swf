@@ -4098,6 +4098,16 @@ export class SwfModels {
    */
   pressRoute(f: PressFacts): PressRoute;
   /**
+   * What a press on a window does to the selection, whether a gesture takes the window or its live
+   * content keeps the press: the window becomes the selection, unless it is already among the selected,
+   * which then stay as they are (`none`: nothing to change). So working in a window's content makes it
+   * the window the keys, the inspector and the map act on, as an operating system activates the window
+   * pressed, and a press on one of several selected windows does not undo the selection.
+   *
+   * Lean's Swf.Gesture.selectionOnPress : List String → String → Option (List String)
+   */
+  selectionOnPress(selection: Array<string>, window: string): L.Option<Array<string>>;
+  /**
    * Where a wheel goes. While a press is held in the viewport, every wheel there is the press's
    * (`press`): a gesture is one change, so nothing else may change the scene in the middle of it, and
    * a gesture with no use for the wheel (a resize, a turn, a pinch, or a press not yet a drag) takes

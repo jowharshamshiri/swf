@@ -7,10 +7,10 @@
     }
   },
   "@swf/models": {
-    "budget": 64256,
+    "budget": 64768,
     "recorded": {
-      "minified": 389671,
-      "gzip": 64203
+      "minified": 391477,
+      "gzip": 64513
     }
   },
   "@swf/core": {
@@ -44,8 +44,8 @@
   "@swf/interaction": {
     "budget": 17408,
     "recorded": {
-      "minified": 45614,
-      "gzip": 14542
+      "minified": 45825,
+      "gzip": 14602
     }
   },
   "@swf/backend-dom": {
@@ -86,8 +86,8 @@
   "@swf/navigation": {
     "budget": 29440,
     "recorded": {
-      "minified": 80301,
-      "gzip": 26482
+      "minified": 80407,
+      "gzip": 26519
     }
   },
   "@swf/benchmark": {

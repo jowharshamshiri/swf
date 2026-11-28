@@ -60,3 +60,6 @@ counts the wheel's turn in pixels (`Burst.turned`).
 orders before every other hit of the same priority however near (`titleBar_before`), and a surface
 under its own window's title bar does not count (`titleBar_covers_own_surface`). `Swf.Gesture`'s
 `Region` has the title bar too.
+
+`Swf.Gesture.selectionOnPress` decides the selection after a press on a window: the window alone,
+unless it is already among the selected (claims `pressed_selected`, `changed_iff_not_selected`).

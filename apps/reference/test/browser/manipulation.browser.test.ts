@@ -501,11 +501,11 @@ describe('a window handled directly in the panorama', () => {
         const [x, y] = [box.left + box.width / 2, box.top + box.height / 2];
         const inView =
           box.width > 0 && x > view.left && x < view.right && y > view.top && y < view.bottom;
-        return (
-          inView &&
-          element.contains(document.elementFromPoint(x, y)) &&
-          app.router.pick(app.viewport.viewportId, x - view.left, y - view.top).region === 'content'
-        );
+        if (!inView || !element.contains(document.elementFromPoint(x, y))) {
+          return false;
+        }
+        const hit = app.router.pick(app.viewport.viewportId, x - view.left, y - view.top);
+        return hit.kind === 'hit' && hit.region === 'content';
       });
       if (text === undefined) {
         throw new Error('no note in sight');

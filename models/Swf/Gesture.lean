@@ -115,6 +115,31 @@ def pressRoute (f : PressFacts) : PressRoute :=
   | _, .content => if !f.takeover && !f.proxy then .native else if f.busy then .busy else .claim
   | _, _ => if f.busy then .busy else .claim
 
+/-- What a press on a window does to the selection, whether a gesture takes the window or its live
+content keeps the press: the window becomes the selection, unless it is already among the selected,
+which then stay as they are (`none`: nothing to change). So working in a window's content makes it
+the window the keys, the inspector and the map act on, as an operating system activates the window
+pressed, and a press on one of several selected windows does not undo the selection. -/
+def selectionOnPress (selection : List String) (window : String) : Option (List String) :=
+  if window ∈ selection then none else some [window]
+
+/-- After a press on a window it is among the selected: the selection is left as it was only when
+it already held the window. -/
+@[lungo_claim "lungo.law" subject selectionOnPress]
+theorem pressed_selected (selection : List String) (window : String) :
+    window ∈ (selectionOnPress selection window).getD selection := by
+  unfold selectionOnPress
+  split <;> simp_all
+
+/-- The selection is changed exactly when it does not hold the window pressed, and then to that
+window alone. -/
+@[lungo_claim "lungo.law" subject selectionOnPress]
+theorem changed_iff_not_selected (selection : List String) (window : String) :
+    (selectionOnPress selection window = some [window] ↔ window ∉ selection) ∧
+      (selectionOnPress selection window = none ↔ window ∈ selection) := by
+  unfold selectionOnPress
+  constructor <;> split <;> simp_all
+
 /-- A pressed pointer moved this far from where it went down: whether that is beyond the slop, past
 which a press becomes a drag. -/
 def beyondSlop (distance slop : Float) : Bool := distance > slop

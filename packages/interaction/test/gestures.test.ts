@@ -19,6 +19,7 @@ function story(events: readonly InteractionEvent[]): string[] {
         return [
           `end ${e.finish.outcome}${e.finish.outcome === 'cancelled' ? ` ${e.finish.reason}` : ''}`,
         ];
+      case 'content.pressed':
       case 'capture.released':
       case 'settings.changed':
         return [];
@@ -404,6 +405,25 @@ describe('native content and takeover (FR-103, FR-108, FR-110)', () => {
     w.input.pointer('up', 'v', cx, cy);
     w.router.setTakeover(false);
     expect(w.input.pointer('down', 'v', cx, cy).route).toBe('native');
+  });
+
+  it('says a press was left to a window’s content, once, taking nothing of it', () => {
+    const w = world([ahead]);
+    const [x, y] = contentOf(w.ws, 'a');
+    const before = w.ws.getState();
+    expect(w.input.pointer('down', 'v', x, y)).toMatchObject({ consumed: false, route: 'native' });
+    expect(w.events).toEqual([
+      { type: 'content.pressed', viewportId: 'v', nodeId: 'a', surfaceId: 'a-view' },
+    ]);
+    // The router changes nothing of the scene: what the press means is the host's.
+    expect(w.ws.getState()).toBe(before);
+    w.input.pointer('up', 'v', x, y);
+    expect(w.events).toHaveLength(1);
+    // A press the router takes is no press on content.
+    const [tx, ty] = titleBar(w.ws, 'a');
+    w.input.pointer('down', 'v', tx, ty);
+    w.input.pointer('up', 'v', tx, ty);
+    expect(w.events.filter((e) => e.type === 'content.pressed')).toHaveLength(1);
   });
 
   it('activates a proxy surface on a tap instead of passing input to content', () => {

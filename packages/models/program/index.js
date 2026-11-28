@@ -9757,12 +9757,43 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 365,
+          "line": 390,
           "column": 1
         },
         "end": {
-          "line": 369,
+          "line": 394,
           "column": 20
+        }
+      }
+    },
+    {
+      "name": "Swf.Gesture.changed_iff_not_selected",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Gesture.selectionOnPress"
+      ],
+      "specifications": [],
+      "statement": "∀ (selection : List String) (window : String),\n  (Swf.Gesture.selectionOnPress selection window = some [window] ↔ ¬window ∈ selection) ∧\n    (Swf.Gesture.selectionOnPress selection window = none ↔ window ∈ selection)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "d3bd826ff10fde26073634943c88e762c0985026b8b865864f290c994d01bd9f",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Gesture.lean",
+        "start": {
+          "line": 134,
+          "column": 1
+        },
+        "end": {
+          "line": 141,
+          "column": 37
         }
       }
     },
@@ -9788,11 +9819,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 340,
+          "line": 365,
           "column": 1
         },
         "end": {
-          "line": 345,
+          "line": 370,
           "column": 83
         }
       }
@@ -9819,11 +9850,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 347,
+          "line": 372,
           "column": 1
         },
         "end": {
-          "line": 351,
+          "line": 376,
           "column": 89
         }
       }
@@ -9850,11 +9881,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 408,
+          "line": 433,
           "column": 1
         },
         "end": {
-          "line": 415,
+          "line": 440,
           "column": 89
         }
       }
@@ -9881,11 +9912,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 356,
+          "line": 381,
           "column": 1
         },
         "end": {
-          "line": 363,
+          "line": 388,
           "column": 89
         }
       }
@@ -9912,11 +9943,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 353,
+          "line": 378,
           "column": 1
         },
         "end": {
-          "line": 354,
+          "line": 379,
           "column": 101
         }
       }
@@ -9943,11 +9974,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 417,
+          "line": 442,
           "column": 1
         },
         "end": {
-          "line": 425,
+          "line": 450,
           "column": 39
         }
       }
@@ -9976,11 +10007,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 427,
+          "line": 452,
           "column": 1
         },
         "end": {
-          "line": 440,
+          "line": 465,
           "column": 52
         }
       }
@@ -10007,11 +10038,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 317,
+          "line": 342,
           "column": 1
         },
         "end": {
-          "line": 322,
+          "line": 347,
           "column": 38
         }
       }
@@ -10039,11 +10070,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 387,
+          "line": 412,
           "column": 1
         },
         "end": {
-          "line": 392,
+          "line": 417,
           "column": 63
         }
       }
@@ -10070,11 +10101,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 442,
+          "line": 467,
           "column": 1
         },
         "end": {
-          "line": 448,
+          "line": 473,
           "column": 101
         }
       }
@@ -10101,11 +10132,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 330,
+          "line": 355,
           "column": 1
         },
         "end": {
-          "line": 338,
+          "line": 363,
           "column": 26
         }
       }
@@ -10132,12 +10163,43 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 401,
+          "line": 426,
           "column": 1
         },
         "end": {
-          "line": 406,
+          "line": 431,
           "column": 89
+        }
+      }
+    },
+    {
+      "name": "Swf.Gesture.pressed_selected",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Gesture.selectionOnPress"
+      ],
+      "specifications": [],
+      "statement": "∀ (selection : List String) (window : String), window ∈ (Swf.Gesture.selectionOnPress selection window).getD selection",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "07ebfcaf409cacd244ebceb1f841a26c4ff16821b518e4a4aa7f0b480009ad60",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Gesture.lean",
+        "start": {
+          "line": 126,
+          "column": 1
+        },
+        "end": {
+          "line": 132,
+          "column": 21
         }
       }
     },
@@ -10163,11 +10225,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 394,
+          "line": 419,
           "column": 1
         },
         "end": {
-          "line": 399,
+          "line": 424,
           "column": 23
         }
       }
@@ -10194,11 +10256,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 324,
+          "line": 349,
           "column": 1
         },
         "end": {
-          "line": 328,
+          "line": 353,
           "column": 38
         }
       }
@@ -10226,11 +10288,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 379,
+          "line": 404,
           "column": 1
         },
         "end": {
-          "line": 385,
+          "line": 410,
           "column": 27
         }
       }
@@ -10258,11 +10320,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 371,
+          "line": 396,
           "column": 1
         },
         "end": {
-          "line": 377,
+          "line": 402,
           "column": 50
         }
       }
@@ -14844,11 +14906,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 118,
+          "line": 143,
           "column": 1
         },
         "end": {
-          "line": 120,
+          "line": 145,
           "column": 65
         }
       }
@@ -14879,11 +14941,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 217,
+          "line": 242,
           "column": 1
         },
         "end": {
-          "line": 236,
+          "line": 261,
           "column": 17
         }
       }
@@ -14909,11 +14971,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 304,
+          "line": 329,
           "column": 1
         },
         "end": {
-          "line": 313,
+          "line": 338,
           "column": 13
         }
       }
@@ -14941,11 +15003,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 277,
+          "line": 302,
           "column": 1
         },
         "end": {
-          "line": 288,
+          "line": 313,
           "column": 59
         }
       }
@@ -15014,6 +15076,41 @@ export const ASSURANCE = L.parseAssurance({
       }
     },
     {
+      "name": "Swf.Gesture.selectionOnPress",
+      "module": "Swf.Gesture",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_string_dec_eq"
+        ]
+      },
+      "claims": [
+        "Swf.Gesture.changed_iff_not_selected",
+        "Swf.Gesture.pressed_selected"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Gesture.lean",
+        "start": {
+          "line": 118,
+          "column": 1
+        },
+        "end": {
+          "line": 124,
+          "column": 53
+        }
+      }
+    },
+    {
       "name": "Swf.Gesture.wheelRoute",
       "module": "Swf.Gesture",
       "async": false,
@@ -15039,11 +15136,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 159,
+          "line": 184,
           "column": 1
         },
         "end": {
-          "line": 175,
+          "line": 200,
           "column": 61
         }
       }
@@ -15080,11 +15177,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 122,
+          "line": 147,
           "column": 1
         },
         "end": {
-          "line": 129,
+          "line": 154,
           "column": 53
         }
       }
@@ -17295,6 +17392,9 @@ export class SwfModels {
   }
   pressRoute(f) {
     return this.#program.invoke("swf_models__call_l_Swf_dGesture_dpressRoute", [], [[pressFactsType(), f]], L.value(pressRouteType()));
+  }
+  selectionOnPress(selection, window) {
+    return this.#program.invoke("swf_models__call_l_Swf_dGesture_dselectionOnPress", [], [[L.list(L.STRING), selection], [L.STRING, window]], L.value(L.option(L.list(L.STRING))));
   }
   wheelRoute(f) {
     return this.#program.invoke("swf_models__call_l_Swf_dGesture_dwheelRoute", [], [[wheelFactsType(), f]], L.value(wheelRouteType()));

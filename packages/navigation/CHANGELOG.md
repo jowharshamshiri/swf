@@ -37,3 +37,6 @@ of its element when a restored scene or an undo gives it another size.
 
 A host says how each window's title bar is coloured (`WindowTraits.titleBar`, or null for the
 chrome's own colours); both backends draw the bars.
+
+A press in a window's live content makes it the selection unless it is already among the selected,
+as a drag that takes a window does, decided by `selectionOnPress`; the content keeps the press.

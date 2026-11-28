@@ -55,3 +55,6 @@ priority, and its resize band round the window's outline, both sized for the poi
 the router's `pick` take a `PointerPrecision` (a press by a finger or a pen is `coarse`).
 `PickOptions.handlePx` and the `handlePx` setting are gone. A copy of a live window's card across a
 seam picks as the window's card (`chrome`), not as content.
+
+A press the router leaves to a window's live content is announced as a `content.pressed` event
+(its viewport, window and surface); the router takes nothing of the press and changes nothing.

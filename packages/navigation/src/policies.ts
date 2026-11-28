@@ -10,6 +10,7 @@ import type {
 } from '@swf/core';
 import type { CommandOutcome, InputAdapter, InteractionRouter, KeyBinding } from '@swf/interaction';
 import { placementOf, turnedAbout } from '@swf/interaction';
+import { models } from '@swf/models';
 import type { PresentedViewport, Representation } from '@swf/presentation';
 import type { Modes, ViewMode } from './modes.js';
 import { viewGeometryOf } from '@swf/presentation';
@@ -334,17 +335,27 @@ export function createPolicies(options: PolicyOptions): Policies {
     },
   });
 
+  /**
+   * A press on a window makes it the window worked on (`selectionOnPress`): it becomes the
+   * selection unless it is already among the selected. Not an undo step.
+   */
+  const pressed = (nodeId: Id) => {
+    const next = models.selectionOnPress([...workspace.getState().selection], nodeId);
+    if (next !== null) {
+      workspace.transaction([{ type: 'selection.set', ids: next }], { source: 'user' });
+    }
+  };
   const stopRouter = router.subscribe((event) => {
-    if (event.type === 'gesture.started' && event.viewportId === viewportId) {
+    if (event.type === 'content.pressed' && event.viewportId === viewportId) {
+      // Working in a window's live content makes it the window the keys, the inspector and the
+      // map act on, as an operating system activates the window pressed.
+      pressed(event.nodeId);
+    } else if (event.type === 'gesture.started' && event.viewportId === viewportId) {
       // A window taken by a drag is selected, as a press selects it, so the inspector follows it
-      // as it goes; one already among the selected keeps the selection. Not an undo step.
+      // as it goes.
       const nodeId = event.nodeId;
-      if (
-        nodeId !== null &&
-        WINDOW_GESTURES.includes(event.operation) &&
-        !workspace.getState().selection.includes(nodeId)
-      ) {
-        workspace.transaction([{ type: 'selection.set', ids: [nodeId] }], { source: 'user' });
+      if (nodeId !== null && WINDOW_GESTURES.includes(event.operation)) {
+        pressed(nodeId);
       }
       gesture = Object.freeze({
         gestureId: event.gestureId,

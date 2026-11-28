@@ -136,6 +136,20 @@ export const KEYBOARD_HOLD_ID = 'swf.keyboard-hold/1';
  */
 export type InteractionEvent =
   | {
+      /**
+       * A pointer was pressed on a window's live content, which keeps the press: the router took
+       * nothing of it, and the content has it whole. A host makes the window the one it works on
+       * (`selectionOnPress` of `@swf/models`), as an operating system activates the window pressed.
+       */
+      readonly type: 'content.pressed';
+      /** The viewport it was pressed in. */
+      readonly viewportId: Id;
+      /** The window whose content was pressed. */
+      readonly nodeId: Id;
+      /** The surface whose content was pressed. */
+      readonly surfaceId: Id;
+    }
+  | {
       /** A gesture won its arena and began: its pointers stay captured until it ends. */
       readonly type: 'gesture.started';
       /** The gesture's ID, unique within the router (`gesture-<n>`). */
@@ -869,6 +883,15 @@ export class InteractionRouter {
       case 'blocked':
         return { ...NOT_HANDLED('a modal is active'), ...base, consumed: true, route: 'blocked' };
       case 'native':
+        if (target?.surfaceId == null) {
+          throw new Error('the gesture model left a press to content where no surface was hit');
+        }
+        this.#emit({
+          type: 'content.pressed',
+          viewportId: intent.viewportId,
+          nodeId: target.nodeId,
+          surfaceId: target.surfaceId,
+        });
         return { ...NOT_HANDLED('content input stays native'), ...base, route: 'native' };
       case 'busy':
         // One gesture per target: a further pointer neither joins it nor reaches anything else.
