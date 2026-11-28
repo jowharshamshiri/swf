@@ -71,3 +71,8 @@ view, the window selected.
 
 The router's takeover lookup answers from each surface's bound handle: its `takeover` capability,
 or on for a surface shown by the framework's placeholder.
+
+A window's pose (`poseOf`) is its place as the room reads it (`roomPlaceOf`): the inspector and the
+announcements read the same place every move starts from, inside the room. A window wheeled or
+dragged to the room's far wall reads exactly 13.5 units out; before, its distance was taken again
+from its world position and could read 13.500000000000002, which the inspector's slider refused.

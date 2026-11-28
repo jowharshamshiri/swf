@@ -541,6 +541,34 @@ describe('the wheel and the trackpad', () => {
     }
   });
 
+  it('reads a window wheeled to the room’s far wall back at exactly the wall, and the inspector shows it', async () => {
+    const m = await visit();
+    const { ROOM_LIMITS } = await import('@swf/interaction');
+    const wall = ROOM_LIMITS.farthest;
+    // Stood at the wall at any heading, a window's place reads back as the wall itself: its
+    // distance is the room's, not one taken again from its world position.
+    for (let heading = -180; heading < 180; heading += 1) {
+      m.app.poseWindow('builds', { heading, reach: wall }, { preview: false });
+      expect(m.app.poseOf('builds')?.reach, `at ${String(heading)}°`).toBe(wall);
+    }
+    // Build Status at 110°, 12 out, selected, then wheeled out to the wall over its title bar.
+    m.app.poseWindow('builds', { heading: 110, reach: 12 }, { preview: false });
+    expect(await m.model.select('builds')).toBe(true);
+    await m.settle();
+    for (let notch = 0; notch < 6 && (m.app.poseOf('builds')?.reach ?? 0) < wall; notch += 1) {
+      const { cards, representation } = cardsOf(m.app, 'builds');
+      const [x, y, w, h] = cards[0] ?? [0, 0, 0, 0];
+      const [px, py] =
+        representation === 'full' ? [x + w / 2, y - BAR / 2] : [x + w / 2, y + h / 2];
+      await wheelAt(m, px, py, 0, 120);
+    }
+    expect(m.app.poseOf('builds')?.reach).toBe(wall);
+    const field = m.app.root.ownerDocument.querySelector<HTMLInputElement>(
+      '[data-wsb="page.inspector.pose.number#reach"]',
+    );
+    expect(field?.value).toBe('13.5');
+  });
+
   it('leaves every wheel over live content to it, Shift and Ctrl included', async () => {
     const m = await visit();
     const slot = m.app.root.querySelector('[data-swf-slot="builds-surface"]');

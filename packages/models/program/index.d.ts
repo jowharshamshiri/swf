@@ -4548,7 +4548,9 @@ export class SwfModels {
   keepInRoom(l: RoomLimits, p: RoomPlace): RoomPlace;
   /**
    * The place of a point of the room, `x` to the right, `y` up and `z` toward the viewer as the
-   * room starts (straight ahead is `-z`), kept inside the room.
+   * room starts (straight ahead is `-z`), its distance along the floor and its height read to the
+   * room's precision, kept inside the room: a window put at a place, a wall included, reads back at
+   * that place, not at the rounding its coordinates carry.
    *
    * Lean's Swf.Room.placeOf : Swf.Room.RoomLimits → Float → Float → Float → Swf.Room.RoomPlace
    */

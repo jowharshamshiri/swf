@@ -1644,7 +1644,7 @@ A budget is raised only deliberately, by hand, to the package's measured gzip si
 next 256 bytes, so it leaves no room for growth nobody looked at; the measured sizes are recorded
 with `npm run size -- --record` in the same commit, whose message gives the old and the new budget.
 `@swf/models` is at 67328 bytes: it is the compiled program of every proved decision model the
-framework and the reference application run, so it grows with each model (67079 bytes
+framework and the reference application run, so it grows with each model (67258 bytes
 measured, the room (`Swf.Room`), the spacing after a snap (`Swf.AppSpacing`), the title bars'
 place in picking and a handle's reach (`Swf.Arbitration`), the selection after a press, what a
 hovering pointer shows, when two presses are a double press and when a takeover takes a press

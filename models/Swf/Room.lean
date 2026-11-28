@@ -71,10 +71,27 @@ def keepInRoom (l : RoomLimits) (p : RoomPlace) : RoomPlace :=
     floor := keepWithin p.floor l.nearest l.farthest,
     height := keepWithin p.height l.lowest l.highest }
 
+/-- How finely the room reads a distance or a height back from a point: a trillionth of a world
+unit, finer than any place a window is put at or any motion moves it by, and hundreds of times
+coarser than the rounding a point's coordinates carry once a place has been turned into them
+(a few units in the last place of a double near the room's 13.5, through a heading's sine and
+cosine and the windows' groups). -/
+def readSteps : Float := 1e12
+
+/-- A distance or height read to the room's precision: the nearest trillionth of a unit. A value
+already on that grid reads as itself (the integer and the power of ten are exact, so the quotient
+is the double nearest the value). -/
+def readToPrecision (v : Float) : Float := Float.round (v * readSteps) / readSteps
+
 /-- The place of a point of the room, `x` to the right, `y` up and `z` toward the viewer as the
-room starts (straight ahead is `-z`), kept inside the room. -/
+room starts (straight ahead is `-z`), its distance along the floor and its height read to the
+room's precision, kept inside the room: a window put at a place, a wall included, reads back at
+that place, not at the rounding its coordinates carry. -/
 def placeOf (l : RoomLimits) (x y z : Float) : RoomPlace :=
-  keepInRoom l { heading := Float.atan2 x (-z), floor := Float.sqrt (x * x + z * z), height := y }
+  keepInRoom l
+    { heading := Float.atan2 x (-z),
+      floor := readToPrecision (Float.sqrt (x * x + z * z)),
+      height := readToPrecision y }
 
 /-- A point of the room relative to its centre, in world units: `x` to the right, `y` up, `z`
 toward the viewer as the room starts (straight ahead is `-z`). -/
@@ -188,6 +205,15 @@ theorem wheel_stays_in_room (l : RoomLimits) (pace : RoomPace) (p : RoomPlace) (
 theorem drop_stays_in_room (l : RoomLimits) (p : RoomPlace) (x z : Float) (h : l.ordered) :
     l.holds (floorDrop l p x z) :=
   keepInRoom_holds l _ h
+
+/-- A point's place is read to the room's precision before it is kept inside the room: its
+distance along the floor and its height are the room's readings, not the coordinates' rounding. -/
+@[lungo_claim "lungo.law" subject placeOf]
+theorem place_read_to_precision (l : RoomLimits) (x y z : Float) :
+    placeOf l x y z = keepInRoom l
+      { heading := Float.atan2 x (-z),
+        floor := readToPrecision (Float.sqrt (x * x + z * z)),
+        height := readToPrecision y } := rfl
 
 /-- Every point of the room has its place inside it. -/
 @[lungo_claim "lungo.law" subject placeOf]

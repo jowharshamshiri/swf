@@ -34,7 +34,7 @@
     "Swf/Names.lean": "bd0519c15aab9b25beb80e2b3691fb0aff5d893445674d42c07ec1fc6ad65cc8",
     "Swf/Order.lean": "d65ee8fdfc534b32123a8c89e1ddf90e2bdc588e7a473762641a11d28c09311b",
     "Swf/Presenter.lean": "2cb636c9d1268450cd84cde787c2f827157dc79eaed929594ef42024cebdf790",
-    "Swf/Room.lean": "55e20e7ee29175e8455762acec84d9a0774cfa020d355ec7c436d94a6dedb19a",
+    "Swf/Room.lean": "8e3f435dc94f1f3ca5ad0616f36ec8acf151a4191967ea7e9816d9302229abf9",
     "Swf/Save.lean": "232b29c02db841a7675e740890576313a54c8d4c8e384d7065cd33795fc8af00",
     "Swf/Spaces.lean": "3fe23a7bd2ce9cf8cd3d97c3cb78809063f6a8b11a54e6aadc3f99ac8e4be59e",
     "Swf/Surface.lean": "d0989ad8f8807f4c035b196143887112cea53c25c324626e796d8aeb6683dee9",
@@ -46,9 +46,9 @@
   "project": ".",
   "link_directives": [],
   "output_digests": {
-    "assurance.json": "d141ddf0bbb58b35444915c6954026071cd774513186c098e53ca0624e4bfbf9",
-    "index.d.ts": "a97fe1c0c173280a621a16526ed3148950f8aa977fb97abd112b0dd225db062c",
-    "index.js": "d076c70094ac28de44315f2d66993d2d2ab420a40493f1daf410b71771d09159"
+    "assurance.json": "56e36c8df13abe0212a0b6c2ba99d840c25f169109084b656fc099e029bafb1a",
+    "index.d.ts": "1459a4ae643ce2084a0774973a6f032aa058036eddc76beaec900f25df263ee4",
+    "index.js": "2acc17420783327ceeb32169ab8defadb57ad9eaf8b4a60c8ebeff8651e75410"
   },
   "platform_products": [
     "program.wasm"
