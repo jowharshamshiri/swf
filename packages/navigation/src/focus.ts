@@ -2,16 +2,23 @@ import type { Id, SceneCommand, SceneState } from '@swf/core';
 import { effectiveState, worldTransform } from '@swf/core';
 import type { Vec3 } from '@swf/math';
 import { cameraRotation } from '@swf/projections';
-import { CARD_PIXELS_PER_UNIT } from '@swf/presentation';
+import { CARD_PIXELS_PER_UNIT, TITLE_BAR_HEIGHT } from '@swf/presentation';
 import type { ViewMode } from './modes.js';
-import { ModeRefusal, PANORAMA } from './modes.js';
+import {
+  fieldOfViewOf,
+  ModeRefusal,
+  PANORAMA,
+  PANORAMA_VERTICAL,
+  panoramaProjection,
+} from './modes.js';
 
 /**
- * Focus and context: one window shown large enough to read, centred, with the windows around it
- * still in view and reachable. It is a view of the panorama, not a placement: entering it turns
- * the viewport's camera to face the window, and its card is drawn large (the viewport's
- * representation policy scales it, `focusScale`), and no window moves. Leaving it puts the camera
- * back.
+ * Focus and context: one window shown large enough to read, centred, its title bar in view, with
+ * the windows around it still in view and reachable. It is a view of the panorama, not a placement:
+ * entering it turns the viewport's camera to face the window, sets the panorama's horizon so the
+ * window stands in the middle of the view (as far as the projection allows: the image never reaches
+ * past a pole), and draws its card large (the viewport's representation policy scales it,
+ * `focusScale`); no window moves. Leaving it puts the camera and the panorama back.
  */
 
 /** The focus mode's ID. */
@@ -32,6 +39,11 @@ export interface FocusOptions {
 export interface FocusFrame {
   /** The camera's heading to face the window, in radians; the camera stays level. */
   readonly heading: number;
+  /**
+   * Where the panorama's horizon lies, as a share of the view's height from its top: as near as
+   * the projection allows to where it stands the window's card, with its title bar, in the middle.
+   */
+  readonly horizon: number;
   /** The scale of the window's card. */
   readonly scale: number;
 }
@@ -64,7 +76,12 @@ function placed(state: SceneState, windowId: Id, eye: Vec3) {
 
 /**
  * The frame that shows a window readably in a viewport of a size, seen from an eye: the camera
- * facing it, and its card scaled to fill `fill` of the viewport, no more than `maxMagnification`.
+ * facing it; the panorama's horizon where it stands the window's outline (its card with its title
+ * bar above it) in the middle of the view, kept where the projection allows it (its image reaching
+ * no further than a pole from the horizon); and its card scaled to fill `fill` of the viewport's
+ * width, and its outline as much of its height, standing where the horizon puts it with as much
+ * room left above it as below, no more than `maxMagnification`. Throws a {@link ModeRefusal} for a
+ * view too small to show the window's title bar with any of its card below it.
  */
 export function focusFrame(
   state: SceneState,
@@ -75,11 +92,32 @@ export function focusFrame(
 ): FocusFrame {
   const { offset, width, height } = placed(state, windowId, eye);
   const unit = CARD_PIXELS_PER_UNIT;
+  const bar = TITLE_BAR_HEIGHT;
+  // How high the window stands, as a share of the panorama's vertical span.
+  const elevation =
+    (Math.atan2(offset[1], Math.hypot(offset[0], offset[2])) * DEGREES) / PANORAMA_VERTICAL.span;
+  // The horizon that stands the outline's middle (the card's middle, half a bar higher) in the
+  // view's middle, kept where the image reaches no further than a pole either way.
+  const reach = 90 / PANORAMA_VERTICAL.span;
+  const wanted = 0.5 + bar / 2 / size.height + elevation;
+  const horizon = Math.min(reach, Math.max(1 - reach, wanted));
+  // Where the card's middle stands, and the room for its outline above and below it.
+  const middle = (horizon - elevation) * size.height;
+  const margin = ((1 - options.fill) * size.height) / 2;
+  const above = middle - bar - margin;
+  const below = size.height - margin - middle;
+  if (!(above > 0 && below > 0)) {
+    throw new ModeRefusal(
+      'id',
+      `the view is too small to show window "${windowId}" in focus with its title bar in view`,
+    );
+  }
   return {
     heading: Math.atan2(offset[0], -offset[2]),
+    horizon,
     scale: Math.min(
       (options.fill * size.width) / (width * unit),
-      (options.fill * size.height) / (height * unit),
+      (2 * Math.min(above, below)) / (height * unit),
       options.maxMagnification,
     ),
   };
@@ -169,7 +207,14 @@ export function focusCommands(
     throw new Error(`viewport "${viewportId}" does not exist`);
   }
   const frame = focusFrame(state, windowId, eye, viewport.size, options);
-  return [{ type: 'camera.patch', id: cameraId, rotation: cameraRotation(frame.heading, 0) }];
+  return [
+    { type: 'camera.patch', id: cameraId, rotation: cameraRotation(frame.heading, 0) },
+    {
+      type: 'viewport.patch',
+      id: viewportId,
+      projection: panoramaProjection(fieldOfViewOf(PANORAMA.projection), frame.horizon),
+    },
+  ];
 }
 
 /**

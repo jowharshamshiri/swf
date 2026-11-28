@@ -59,6 +59,9 @@
       onselect: (id) => {
         void model.select(id);
       },
+      onopen: (id) => {
+        void model.run('swf.focus.toggle', { id });
+      },
     });
     view = drawer.view;
     ready = true;

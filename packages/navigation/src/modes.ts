@@ -148,15 +148,18 @@ export const PANORAMA_VERTICAL: Readonly<{
   horizon: number;
 }> = Object.freeze({ span: 130, horizon: 0.49 });
 
-/** The projection the panorama is shown with at a horizontal field of view, in degrees. */
-export function panoramaProjection(horizontal: number): ProjectionSetting {
+/**
+ * The projection the panorama is shown with at a horizontal field of view, in degrees, its horizon
+ * `horizon` of its height from the top: the panorama's own (`PANORAMA_VERTICAL`), or where focus
+ * stands the window it shows.
+ */
+export function panoramaProjection(
+  horizontal: number,
+  horizon: number = PANORAMA_VERTICAL.horizon,
+): ProjectionSetting {
   return Object.freeze({
     id: 'equirectangular/1',
-    config: Object.freeze({
-      horizontal,
-      vertical: PANORAMA_VERTICAL.span,
-      horizon: PANORAMA_VERTICAL.horizon,
-    }),
+    config: Object.freeze({ horizontal, vertical: PANORAMA_VERTICAL.span, horizon }),
   });
 }
 

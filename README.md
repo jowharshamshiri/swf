@@ -1069,7 +1069,7 @@ pack is given, and each action is a command with a stable ID (`reference.preset.
 `swf.mode.back`, `swf.view.fov`, `swf.view.heading`,
 `swf.backend.switch`, `swf.window.reveal`, `swf.window.bringFront`,
 `swf.window.sendBehind`, `swf.window.arrange`, `swf.focus.enter`,
-`swf.focus.exit`, `swf.focus.step`, `swf.window.map`,
+`swf.focus.exit`, `swf.focus.toggle`, `swf.focus.step`, `swf.window.map`,
 `swf.window.inspect`, `swf.window.place`, `reference.window.nudge`,
 `reference.window.turn`, `reference.window.resize`, `reference.window.size`,
 `reference.window.face`, `swf.window.lock`, `swf.gesture.grab`,
@@ -1121,7 +1121,8 @@ gesture, saving and restoring.
   Windows list.
 - **The Windows view** stands in for the panorama for whoever cannot see it: every window, by
   name, with where it is (degrees right or left, up or down, and units away), selected, focused,
-  centred on, brought in front of the camera, sent behind it or inspected from its row.
+  centred on, brought in front of the camera, sent behind it or inspected from its row; opening a
+  row (a double press, or Enter) focuses its window, or closes its focus.
 - **The view's controls** above the panorama are the kit's sliders, each with a number to type:
   the arrows step them a degree, Page Up and Page Down a tenth of their range, Home and End to
   their ends.
@@ -1150,10 +1151,12 @@ content is attached or detached by a switch.
   the windows the panorama shades what lies behind the camera and names it, and while it shows the
   whole circle it marks both edges as the seam, where they meet: a window carried past one edge
   comes in at the other, its heading moving on without a jump.
-- **Focus**: the selected (or focused) window shown readably, centred and filling three-quarters
-  of the view at most two and a half times its content's own size, by turning the camera to face
-  it and narrowing the projection to frame it (the same angle per pixel across and down, so
-  nothing is stretched). Its content stays live: a note is the same element, edited in place. A
+- **Focus**: the selected (or focused) window shown readably, its card and title bar filling
+  three-quarters of the view at most two and a half times its content's own size, by turning the
+  level camera to face it, setting the panorama's horizon so the window stands in the middle of the
+  view (as near as the projection allows: the image reaches no further than a pole), and scaling
+  its card within the room left above and below it, so its title bar is always in view; a view too
+  small to show it so refuses the focus, saying why. Its content stays live: a note is the same element, edited in place. A
   bar above names it, steps to the next window to the right (round the circle, past the last) and
   closes the focus. Under it, with a movable edge between them, the focus strip holds a card for
   every window: the focused one in the middle, the others left and right of it in the order they
@@ -1166,13 +1169,16 @@ content is attached or detached by a switch.
   above the strip. Pressing a card focuses its window; from the strip's keyboard stop, the arrows
   step to the next window either way; above it the nearest two each way are named with how far
   round each lies, each a press away.
-  A double press on a window's frame or stand-in in the panorama focuses it (a double press on live
-  content stays the content's). Focus follows the workspace's focus, so focusing a window from any
+  A double press on a window's title bar, frame or stand-in in the panorama, on its dot on the radar
+  or the map, on its card in the overview or on its row in the Windows view focuses it, and on the
+  window in focus closes the focus (`swf.focus.toggle`, decided by `Swf.AppFocus.doublePress`); a
+  double press on live content stays the content's. Focus follows the workspace's focus, so focusing a window from any
   list, tile or the map frames that one; a resize fits the frame again. Escape or the bar's close
   button leaves focus for the mode, projection and camera it was entered from, exactly, and
   leaving it for any other mode puts the camera back too. Entering a focus, moving it to another
   window and leaving it are committed at once and shown moving there over about a quarter of a
-  second, from the first frame that shows the new view, as a preview of the view's own records;
+  second, from the first frame that shows the new view, as a preview of the view's own records,
+  the camera turning, the field of view zooming and the horizon moving evenly;
   the operator turning the camera or taking a window in hand ends the move at once, and with
   reduced motion asked for the view goes there at once. On the DOM backend, which cannot draw, a
   focused tile is shown by its stand-in.
@@ -1589,10 +1595,11 @@ release` builds a versioned release from a commit ([Release the packages](docs/h
 A budget is raised only deliberately, by hand, to the package's measured gzip size rounded up to the
 next 256 bytes, so it leaves no room for growth nobody looked at; the measured sizes are recorded
 with `npm run size -- --record` in the same commit, whose message gives the old and the new budget.
-`@swf/models` is at 64768 bytes: it is the compiled program of every proved decision model the
-framework and the reference application run, so it grows with each model (64513 bytes
+`@swf/models` is at 65024 bytes: it is the compiled program of every proved decision model the
+framework and the reference application run, so it grows with each model (64937 bytes
 measured, the room (`Swf.Room`), the spacing after a snap (`Swf.AppSpacing`), the title bars'
-place in picking (`Swf.Arbitration`) and the selection after a press (`Swf.Gesture`) included).
+place in picking (`Swf.Arbitration`), the selection after a press (`Swf.Gesture`) and a double
+press on a window (`Swf.AppFocus`) included).
 `@swf/persistence` is at 13568 bytes (13513 measured): snapshots, stores and the saver, with named
 spaces (`createSpaces`) and the step that brings `swf.workspace/1` layouts into the room.
 `@swf/backend-dom` is at 7680 bytes (7448 measured), the DOM input's pointer lock and the

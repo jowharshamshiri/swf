@@ -24,6 +24,7 @@ export const NAVIGATION_ENGLISH = Object.freeze({
   'command.focus.enter': 'Focus a window',
   'command.focus.enter.named': 'Focus {label}',
   'command.focus.exit': 'Close focus',
+  'command.focus.toggle': 'Focus a window, or close its focus',
   'command.focus.step': 'Focus the next window',
   'command.focus.step.left': 'Focus the next window to the left',
   'command.focus.step.right': 'Focus the next window to the right',
@@ -83,7 +84,7 @@ export const NAVIGATION_ENGLISH = Object.freeze({
   'radar.title': 'Radar',
   'radar.label': 'The workspace around the camera, from above',
   'radar.help':
-    'Up is straight ahead as the scene was made. Drag a window to move it round the camera, behind it too; press one to select it.',
+    'Up is straight ahead as the scene was made. Drag a window to move it round the camera, behind it too; press one to select it, double-press it to focus it.',
   'radar.show': 'Show the radar',
   'radar.hide': 'Hide the radar',
   'radar.legend':
@@ -107,7 +108,7 @@ export const NAVIGATION_ENGLISH = Object.freeze({
   'guides.facing': 'Facing {value}°',
   'map.label': 'The workspace from above',
   'map.help':
-    'Drag a window to move it, drag the ground to pan, and scroll to zoom. The fields beside the map place the selected window exactly, its height too.',
+    'Drag a window to move it, double-press it to focus it, drag the ground to pan, and scroll to zoom. The fields beside the map place the selected window exactly, its height too.',
   'map.zoom.in': 'Zoom in',
   'map.zoom.out': 'Zoom out',
   'map.recentre': 'Centre the map on the camera',
@@ -538,6 +539,7 @@ export const NAVIGATION_COMMAND_NAMES: Readonly<Record<NavigationCommandId, Navi
     'swf.window.reveal': 'command.window.reveal',
     'swf.focus.enter': 'command.focus.enter',
     'swf.focus.exit': 'command.focus.exit',
+    'swf.focus.toggle': 'command.focus.toggle',
     'swf.focus.step': 'command.focus.step',
     'swf.window.map': 'command.window.map',
     'swf.window.inspect': 'command.window.inspect',

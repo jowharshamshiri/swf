@@ -1,3 +1,4 @@
+import type { Framing } from '@swf/models';
 import type { ChromeInks } from '@swf/backend-dom';
 import {
   animationFrames,
@@ -87,6 +88,15 @@ import { createViewTransitions } from './transition.js';
 
 /** The viewport navigation presents the workspace in. */
 export const VIEWPORT_ID = 'main';
+
+/**
+ * What the viewport frames in a state, as the focus model (`Swf.AppFocus`) takes it: its mode, and
+ * the window in focus while it shows the focus.
+ */
+export function framingOf(state: SceneState): Framing {
+  const mode = state.viewports.get(VIEWPORT_ID)?.mode ?? PANORAMA.id;
+  return { mode, framed: mode === FOCUS_ID ? state.focusedId : null };
+}
 
 /** The camera the viewport looks through. */
 export const CAMERA_ID = 'camera';
@@ -733,10 +743,7 @@ export async function createNavigation(options: NavigationOptions): Promise<Navi
   const transitions = createViewTransitions({
     workspace,
     viewportIds: [VIEWPORT_ID],
-    framing: (state) => {
-      const mode = state.viewports.get(VIEWPORT_ID)?.mode ?? PANORAMA.id;
-      return { mode, framed: mode === FOCUS_ID ? state.focusedId : null };
-    },
+    framing: framingOf,
     frames,
     now: timer,
     motion: () => !reducedMotion.matches,

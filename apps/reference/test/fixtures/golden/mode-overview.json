@@ -77,7 +77,8 @@
           "viewport.patch",
           "selection.set",
           "focus.set",
-          "camera.patch"
+          "camera.patch",
+          "viewport.patch"
         ],
         "commands": [
           {
@@ -112,6 +113,18 @@
               0.566406237
             ],
             "type": "camera.patch"
+          },
+          {
+            "id": "main",
+            "projection": {
+              "config": {
+                "horizon": 0.484993259,
+                "horizontal": 360,
+                "vertical": 130
+              },
+              "id": "equirectangular/1"
+            },
+            "type": "viewport.patch"
           }
         ],
         "error": null,

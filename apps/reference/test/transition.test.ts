@@ -134,6 +134,36 @@ describe('the view moving into a focus, between focused windows and out of it', 
     expect(frames.pending).toBe(0);
   });
 
+  it('moves the panorama’s horizon evenly to where focus stands its window, never dropping it', () => {
+    const { ws, modes, frames, clock } = scene();
+    // Raised, the window is stood in the middle of the view by a lower horizon.
+    const node = ws.getState().nodes.get('window-03');
+    const [x, , z] = node?.transform.position ?? [0, 0, 0];
+    expect(
+      ws.dispatch({
+        type: 'node.patch',
+        id: 'window-03',
+        transform: { ...(node?.transform ?? {}), position: [x, 1, z] },
+      } as never).status,
+    ).toBe('committed');
+    const horizonOf = (state: ReturnType<Workspace['getState']>) =>
+      (state.viewports.get('v')?.projection.config as { horizon?: number }).horizon;
+    const panorama = horizonOf(ws.getState());
+    modes.switchTo(FOCUS_ID, { target: 'window-03' });
+    const focused = horizonOf(ws.getState());
+    expect(focused).toBeGreaterThan(panorama ?? 1);
+    frames.run();
+    expect(horizonOf(ws.getPresented())).toBeCloseTo(panorama ?? 0, 9);
+    clock.now += TRANSITION_MS / 2;
+    frames.run();
+    const midway = horizonOf(ws.getPresented());
+    expect(midway).toBeGreaterThan(panorama ?? 1);
+    expect(midway).toBeLessThan(focused ?? 0);
+    clock.now += TRANSITION_MS;
+    frames.run();
+    expect(horizonOf(ws.getPresented())).toBe(focused);
+  });
+
   it('moves out of a focus the same way, back to the view it came from', () => {
     const { ws, modes, frames, clock, transitions } = scene();
     const start = committedHeading(ws);

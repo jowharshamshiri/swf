@@ -17,7 +17,8 @@
           "viewport.patch",
           "selection.set",
           "focus.set",
-          "camera.patch"
+          "camera.patch",
+          "viewport.patch"
         ],
         "commands": [
           {
@@ -52,6 +53,18 @@
               0.521754297
             ],
             "type": "camera.patch"
+          },
+          {
+            "id": "main",
+            "projection": {
+              "config": {
+                "horizon": 0.472095268,
+                "horizontal": 360,
+                "vertical": 130
+              },
+              "id": "equirectangular/1"
+            },
+            "type": "viewport.patch"
           }
         ],
         "error": null,
@@ -71,7 +84,8 @@
           "viewport.patch",
           "selection.set",
           "focus.set",
-          "camera.patch"
+          "camera.patch",
+          "viewport.patch"
         ],
         "commands": [
           {
@@ -106,6 +120,18 @@
               0.069756474
             ],
             "type": "camera.patch"
+          },
+          {
+            "id": "main",
+            "projection": {
+              "config": {
+                "horizon": 0.480374823,
+                "horizontal": 360,
+                "vertical": 130
+              },
+              "id": "equirectangular/1"
+            },
+            "type": "viewport.patch"
           }
         ],
         "error": null,
@@ -122,7 +148,8 @@
         "changedNodeIds": [],
         "changedSurfaceIds": [],
         "commandTypes": [
-          "camera.patch"
+          "camera.patch",
+          "viewport.patch"
         ],
         "commands": [
           {
@@ -134,6 +161,18 @@
               0.069756474
             ],
             "type": "camera.patch"
+          },
+          {
+            "id": "main",
+            "projection": {
+              "config": {
+                "horizon": 0.480374823,
+                "horizontal": 360,
+                "vertical": 130
+              },
+              "id": "equirectangular/1"
+            },
+            "type": "viewport.patch"
           }
         ],
         "error": null,

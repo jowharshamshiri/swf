@@ -63,3 +63,6 @@ under its own window's title bar does not count (`titleBar_covers_own_surface`).
 
 `Swf.Gesture.selectionOnPress` decides the selection after a press on a window: the window alone,
 unless it is already among the selected (claims `pressed_selected`, `changed_iff_not_selected`).
+
+`Swf.AppFocus.doublePress` decides a double press on a window: it closes the focus on the window in
+focus and focuses any other (claims `leaves_iff_focused`, `focuses_the_pressed`).

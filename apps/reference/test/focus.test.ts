@@ -3,6 +3,7 @@ import { createWorkspace } from '@swf/core';
 import {
   CARD_PIXELS_PER_UNIT,
   createPresentationRegistry,
+  TITLE_BAR_HEIGHT,
   viewGeometryOf,
 } from '@swf/presentation';
 import {
@@ -100,12 +101,20 @@ function fit(ws: Workspace, id: string, scale: number, size: { width: number; he
   };
 }
 
-/** Focus's frame fills the view by its binding side, unless the magnification limit stops it. */
-function expectFramed(fits: { across: number; down: number }, scale: number) {
+/**
+ * Focus's frame fills the view by its binding side, its card across and its outline (the card with
+ * its title bar) down, unless the magnification limit stops it.
+ */
+function expectFramed(
+  fits: { across: number; down: number },
+  scale: number,
+  size: { width: number; height: number },
+) {
+  const outline = fits.down + TITLE_BAR_HEIGHT / size.height;
   expect(fits.across).toBeLessThanOrEqual(0.75 + 1e-9);
-  expect(fits.down).toBeLessThanOrEqual(0.75 + 1e-9);
+  expect(outline).toBeLessThanOrEqual(0.75 + 1e-9);
   expect(scale).toBeLessThanOrEqual(2.5);
-  expect(Math.max(fits.across, fits.down) > 0.75 - 1e-9 || scale === 2.5).toBe(true);
+  expect(Math.max(fits.across, outline) > 0.75 - 1e-9 || scale === 2.5).toBe(true);
 }
 
 /** The card the panorama draws a window on, with semantic depth and focus as the app has them. */
@@ -130,11 +139,48 @@ describe('focus and context (FR-120, UX-003, WF-04)', () => {
     const frame = focusFrame(ws.getState(), 'window-03', [0, 0, 0], size, OPTIONS);
     expect(frame.heading).toBeCloseTo(headingOf(ws, 'window-03'), 12);
     // One scale across and down: the card keeps its proportion.
-    expectFramed(fit(ws, 'window-03', frame.scale, size), frame.scale);
+    expectFramed(fit(ws, 'window-03', frame.scale, size), frame.scale, size);
     // A narrow view binds by its width.
     const narrow = { width: 200, height: 900 };
     const tall = focusFrame(ws.getState(), 'window-03', [0, 0, 0], narrow, OPTIONS);
     expect(fit(ws, 'window-03', tall.scale, narrow).across).toBeCloseTo(0.75, 9);
+  });
+
+  it('stands a focused window’s whole outline in view, its title bar too, centred as far as the projection allows', () => {
+    const { ws, modes } = scene();
+    const size = viewport(ws).size;
+    const lift = (id: string, height: number) => {
+      const node = ws.getState().nodes.get(id);
+      const [x, , z] = node?.transform.position ?? [0, 0, 0];
+      expect(
+        ws.dispatch({
+          type: 'node.patch',
+          id,
+          transform: { ...(node?.transform ?? {}), position: [x, height, z] },
+        } as never).status,
+      ).toBe('committed');
+    };
+    // Raised a little, the outline is centred; raised as high as the room allows, it stands as near
+    // the middle as the projection lets the horizon go, its title bar still inside the view.
+    for (const [height, centred] of [
+      [0.6, true],
+      [4, false],
+    ] as const) {
+      lift('window-03', height);
+      expect(modes.switchTo(FOCUS_ID, { target: 'window-03' }).status).toBe('committed');
+      const [, y, , h] = drawnCard(ws, 'window-03');
+      expect(y - TITLE_BAR_HEIGHT, `${String(height)} up`).toBeGreaterThanOrEqual(0);
+      expect(y + h, `${String(height)} up`).toBeLessThanOrEqual(size.height);
+      const middle = (y - TITLE_BAR_HEIGHT + y + h) / 2;
+      if (centred) {
+        expect(middle).toBeCloseTo(size.height / 2, 6);
+      } else {
+        expect(middle).toBeLessThan(size.height / 2);
+      }
+      expect(modes.back().status).toBe('committed');
+      // Back in the panorama, its own horizon.
+      expect(viewport(ws).projection).toEqual(PANORAMA.projection);
+    }
   });
 
   it('never magnifies content past its limit, however large the view', () => {
@@ -161,7 +207,7 @@ describe('focus and context (FR-120, UX-003, WF-04)', () => {
     const frame = focusFrame(state, 'window-04', [0, 0, 0], size, OPTIONS);
     const [x, , w] = drawnCard(ws, 'window-04');
     expect(w / size.width).toBeCloseTo(fit(ws, 'window-04', frame.scale, size).across, 9);
-    expectFramed(fit(ws, 'window-04', frame.scale, size), frame.scale);
+    expectFramed(fit(ws, 'window-04', frame.scale, size), frame.scale, size);
     // Centred in the view.
     expect(x + w / 2).toBeCloseTo(size.width / 2, 6);
   });
@@ -212,6 +258,7 @@ describe('focus and context (FR-120, UX-003, WF-04)', () => {
     expectFramed(
       { across: w / size.width, down: h / size.height },
       focusFrame(ws.getState(), 'window-05', [0, 0, 0], size, OPTIONS).scale,
+      size,
     );
     // The focused window is removed: focus is left for the view it came from.
     ws.dispatch({ type: 'node.delete', id: 'window-05', mode: 'subtree' });

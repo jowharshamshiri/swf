@@ -58,8 +58,9 @@
     };
     element.addEventListener('focusin', follow);
     element.addEventListener('focusout', follow);
-    // A double press on a window's frame or stand-in shows it in focus (its live content keeps
-    // its own presses: a double press there selects a word, as anywhere else).
+    // A double press on a window's title bar, frame or stand-in shows it in focus, and on the
+    // window in focus closes the focus (its live content keeps its own presses: a double press
+    // there selects a word, as anywhere else).
     const focusAt = (event: MouseEvent) => {
       const app = model.navigation;
       if (app === null || model.policies?.features.enabled.focus !== true) {
@@ -68,7 +69,7 @@
       const box = element.getBoundingClientRect();
       const id = app.windowAt(event.clientX - box.left, event.clientY - box.top);
       if (id !== null) {
-        void model.run('swf.focus.enter', { id });
+        void model.run('swf.focus.toggle', { id });
       }
     };
     element.addEventListener('dblclick', focusAt);

@@ -63,7 +63,7 @@
         void model.select(id);
       },
       onopen: (id) => {
-        void model.run('swf.focus.enter', { id });
+        void model.run('swf.focus.toggle', { id });
       },
     });
   });

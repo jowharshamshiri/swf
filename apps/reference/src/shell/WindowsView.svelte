@@ -4,7 +4,8 @@
   // order the list; the list draws only the rows in view, reading the results a page at a time,
   // so a scene of hundreds is all there and none of it is cut off. Pressing a row selects the
   // window; its actions focus it, reveal it in the panorama, show it in the map or inspect it,
-  // and none of them moves it. Opening a row (a double press, or Enter) reveals it.
+  // and none of them moves it. Opening a row (a double press, or Enter) focuses it, or closes its
+  // focus when it is the window in focus, as a double press on its title bar does.
   import {
     Button,
     EmptyState,
@@ -105,7 +106,7 @@
       void model.select(result.id);
     }}
     onopen={() => {
-      void model.run('swf.window.reveal', { id: result.id });
+      void model.run('swf.focus.toggle', { id: result.id });
     }}
   />
 {/snippet}

@@ -96,15 +96,21 @@ function samePoses(a: Poses, b: Poses): boolean {
   return true;
 }
 
-/** An equirectangular projection's coverage, or null for any other. */
+/**
+ * An equirectangular projection's coverage and where its horizon lies, or null for any other. A
+ * projection that gives no horizon has it in the middle, as the projection itself takes it.
+ */
 function coverageOf(
   projection: ProjectionSetting,
-): { horizontal: number; vertical: number } | null {
+): { horizontal: number; vertical: number; horizon: number } | null {
   const config = projection.config as Readonly<Record<string, unknown>> | null;
   const horizontal = config?.['horizontal'];
   const vertical = config?.['vertical'];
-  return typeof horizontal === 'number' && typeof vertical === 'number'
-    ? { horizontal, vertical }
+  const horizon = config?.['horizon'] ?? 0.5;
+  return typeof horizontal === 'number' &&
+    typeof vertical === 'number' &&
+    typeof horizon === 'number'
+    ? { horizontal, vertical, horizon }
     : null;
 }
 
@@ -115,8 +121,8 @@ function ease(t: number): number {
 
 /**
  * The pose `t` of the way from one to another: the camera turned the short way round and pitched
- * evenly, level throughout; the coverage zoomed evenly (geometrically). A projection of another
- * kind, or of the same with other settings, is shown as the target's.
+ * evenly, level throughout; the coverage zoomed evenly (geometrically) and the horizon moved evenly.
+ * A projection of another kind is shown as the target's.
  */
 function between(from: ViewPose, to: ViewPose, t: number): ViewPose {
   const a = headingPitchOf(from.rotation);
@@ -134,6 +140,7 @@ function between(from: ViewPose, to: ViewPose, t: number): ViewPose {
           config: {
             horizontal: ca.horizontal * (cb.horizontal / ca.horizontal) ** t,
             vertical: ca.vertical * (cb.vertical / ca.vertical) ** t,
+            horizon: ca.horizon + (cb.horizon - ca.horizon) * t,
           },
         };
   return { cameraId: to.cameraId, rotation, projection };

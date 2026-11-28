@@ -1955,6 +1955,37 @@
       }
     },
     {
+      "name": "Swf.AppFocus.focuses_the_pressed",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppFocus.doublePress"
+      ],
+      "specifications": [],
+      "statement": "∀ (framing : Swf.AppFocus.Framing) (focusMode window other : String),\n  Swf.AppFocus.doublePress framing focusMode window = Swf.AppFocus.DoublePress.focus other → other = window",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "e9f93e579b7603e8853adba6f68d73baf83876de918a261101e5a7cc26256092",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppFocus.lean",
+        "start": {
+          "line": 246,
+          "column": 1
+        },
+        "end": {
+          "line": 251,
+          "column": 21
+        }
+      }
+    },
+    {
       "name": "Swf.AppFocus.interrupt_ends",
       "relation": "lungo.law",
       "subjects": [
@@ -1982,6 +2013,37 @@
         "end": {
           "line": 214,
           "column": 53
+        }
+      }
+    },
+    {
+      "name": "Swf.AppFocus.leaves_iff_focused",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.AppFocus.doublePress"
+      ],
+      "specifications": [],
+      "statement": "∀ (framing : Swf.AppFocus.Framing) (focusMode window : String),\n  Swf.AppFocus.doublePress framing focusMode window = Swf.AppFocus.DoublePress.leave ↔\n    framing.mode = focusMode ∧ framing.framed = some window",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "64d94576f8540332e4759d350b2c25b3d9935b95cc75de4bf345c790dc4d1aee",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppFocus.lean",
+        "start": {
+          "line": 238,
+          "column": 1
+        },
+        "end": {
+          "line": 244,
+          "column": 21
         }
       }
     },
@@ -8795,6 +8857,39 @@
         "end": {
           "line": 228,
           "column": 45
+        }
+      }
+    },
+    {
+      "name": "Swf.AppFocus.doublePress",
+      "module": "Swf.AppFocus",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_string_dec_eq"
+        ]
+      },
+      "claims": [
+        "Swf.AppFocus.focuses_the_pressed",
+        "Swf.AppFocus.leaves_iff_focused"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/AppFocus.lean",
+        "start": {
+          "line": 232,
+          "column": 1
+        },
+        "end": {
+          "line": 236,
+          "column": 92
         }
       }
     },

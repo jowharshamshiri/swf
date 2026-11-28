@@ -40,3 +40,12 @@ chrome's own colours); both backends draw the bars.
 
 A press in a window's live content makes it the selection unless it is already among the selected,
 as a drag that takes a window does, decided by `selectionOnPress`; the content keeps the press.
+
+A double press on a window focuses it, and on the window in focus closes the focus: the command
+`swf.focus.toggle`, decided by `Swf.AppFocus.doublePress`, from the panorama, the radar and map's
+dots, the overview's cards and a host's lists alike. Focus stands its window in the middle of the
+view by the panorama's horizon (`FocusFrame.horizon`; `panoramaProjection` takes the horizon, the
+panorama's own by default), within what the projection allows, and scales its card within the
+room left above and below it, so its title bar is always in view; `focusFrame` refuses a view too
+small for that (`ModeRefusal`). The move into and out of focus moves the horizon evenly too, where
+it dropped it before. `framingOf` gives what the viewport frames, as the focus model takes it.

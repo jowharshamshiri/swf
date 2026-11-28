@@ -17,3 +17,7 @@ English messages, every navigation command's name, and the kit's chrome tokens c
 The inspector places a window by its angle, its distance along the floor and its height, with no
 turn; a window's place is said by its heading, its distance along the floor and its height. The
 panorama's key help and the held window's hint offer no turning of a window.
+
+A double press on a window's dot on the radar or the map focuses it, or closes its focus when it is
+the window in focus (`MapDrawerOptions.onopen`), as a double press on its title bar in the panorama
+and on its card in the overview do.

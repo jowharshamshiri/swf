@@ -1,5 +1,6 @@
 import type { JsonValue, PreviewResult, SceneState, TxResult } from '@swf/core';
 import { ROOM_LIMITS } from '@swf/interaction';
+import { models } from '@swf/models';
 import { CompositionRefusal } from './composition.js';
 import type { ExperimentId } from './experiments.js';
 import { EXPERIMENT_IDS } from './experiments.js';
@@ -8,7 +9,7 @@ import { DEFAULT_FEATURES, FEATURE_IDS, FeatureError } from './features.js';
 import { FOCUS_ID } from './focus.js';
 import { ModeRefusal, PANORAMA } from './modes.js';
 import type { BackendId, Navigation } from './navigation.js';
-import { BACKEND_IDS } from './navigation.js';
+import { BACKEND_IDS, framingOf } from './navigation.js';
 import { PolicyRefusal } from './policies.js';
 
 /**
@@ -42,6 +43,14 @@ export interface NavigationCommandSpecs {
   };
   /** Leaves focus for the view it was entered from, putting the view back. */
   'swf.focus.exit': Readonly<Record<string, never>>;
+  /**
+   * What a double press on a window does: focuses it, or leaves the focus when it is the window in
+   * focus (`doublePress` of the Lean model `Swf.AppFocus`).
+   */
+  'swf.focus.toggle': {
+    /** The window's ID. */
+    readonly id: string;
+  };
   /** Focuses the next window round the reader that way, round the circle past the last. */
   'swf.focus.step': {
     /** Which way: `left` or `right`. */
@@ -386,6 +395,7 @@ export const NAVIGATION_COMMAND_IDS: readonly NavigationCommandId[] = Object.fre
   'swf.window.reveal',
   'swf.focus.enter',
   'swf.focus.exit',
+  'swf.focus.toggle',
   'swf.focus.step',
   'swf.window.map',
   'swf.window.inspect',
@@ -560,6 +570,23 @@ export function createNavigationCommands(navigation: () => Navigation): Navigati
         return rejected('mode', 'no window is in focus');
       }
       return viewChange(() => navigation().modes.back());
+    },
+    'swf.focus.toggle': async ({ id }) => {
+      const focusOff = off('focus', 'focus');
+      if (focusOff !== null) {
+        return focusOff;
+      }
+      if (!isWindow(id)) {
+        return rejected('id', `no window "${id}"`);
+      }
+      const decided = models.doublePress(
+        framingOf(navigation().workspace.getState()),
+        FOCUS_ID,
+        id,
+      );
+      return decided.kind === 'leave'
+        ? viewChange(() => navigation().modes.back())
+        : viewChange(() => navigation().modes.switchTo(FOCUS_ID, { target: decided.window }));
     },
     'swf.focus.step': async ({ direction }) => {
       if (!(['left', 'right'] as readonly string[]).includes(direction)) {

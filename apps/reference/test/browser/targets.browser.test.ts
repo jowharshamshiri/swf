@@ -2,7 +2,7 @@ import { createMemoryStore } from '@swf/persistence';
 import { viewGeometryOf } from '@swf/presentation';
 import { equirectangular, projectorOf } from '@swf/projections';
 import { describe, expect, it } from 'vitest';
-import { commands } from 'vitest/browser';
+import { commands, page } from 'vitest/browser';
 import type { ReferenceApp } from '../../src/app.js';
 import type { Mounted } from './shell-harness.js';
 import { start } from './shell-harness.js';
@@ -31,6 +31,8 @@ const BAR = 24;
 type Rect = readonly [number, number, number, number];
 
 async function visit(backend: 'geometry' | 'dom' = 'geometry') {
+  // The test's frame is the page: every target on it, the radar at its right included, is in it.
+  await page.viewport(1512, 949);
   const m = await start(
     `?preset=studio&backend=${backend}`,
     { store: createMemoryStore() },
@@ -330,5 +332,89 @@ describe('a press in live content', () => {
     expect(m.app.workspace.getState().selection).toEqual(['desk', 'builds']);
     await press('calendar-surface');
     expect(m.app.workspace.getState().selection).toEqual(['calendar']);
+  });
+});
+
+describe('a double press focuses', () => {
+  /** Double presses at a point of the view and lets any move into or out of focus finish. */
+  async function doubleAt(m: Mounted & { app: ReferenceApp }, x: number, y: number): Promise<void> {
+    const [px, py] = onPage(m.app, x, y);
+    await commands.mouse('move', px, py);
+    await commands.mouse('double', px, py);
+    await m.settle();
+    await new Promise((resolve) => setTimeout(resolve, 900));
+    await m.settle();
+  }
+
+  for (const [kind, id] of KINDS) {
+    it(`focuses ${kind} double-pressed on its title bar, and closes the focus double-pressed there again`, async () => {
+      const m = await visit();
+      const [bx, by, bw, bh] = barOf(m.app, id);
+      await doubleAt(m, bx + bw / 2, by + bh / 2);
+      expect(m.app.modes.current()).toBe('focus');
+      expect(m.app.workspace.getState().focusedId).toBe(id);
+      // In focus the window is shown large: its bar is where the focus draws it.
+      const [fx, fy, fw, fh] = barOf(m.app, id);
+      await doubleAt(m, fx + fw / 2, fy + fh / 2);
+      expect(m.app.modes.current()).toBe('panorama');
+    });
+  }
+
+  it('focuses a window double-pressed on its radar dot', async () => {
+    const m = await visit();
+    const radar = m.app.root.ownerDocument.querySelector<HTMLElement>(
+      '[data-wsb="page.radar"] canvas',
+    );
+    if (radar === null) {
+      throw new Error('no radar');
+    }
+    const box = radar.getBoundingClientRect();
+    // The radar centres the camera and brings 14 units out to its rim, 24 px inside its smaller
+    // side; ahead is up.
+    const scale = (Math.min(box.width, box.height) / 2 - 24) / 14;
+    const p = m.app.workspace.getState().nodes.get('builds')?.transform.position ?? [0, 0, 0];
+    const x = Math.round(box.left + box.width / 2 + p[0] * scale);
+    const y = Math.round(box.top + box.height / 2 + p[2] * scale);
+    await commands.mouse('move', x, y);
+    await commands.mouse('double', x, y);
+    await m.settle();
+    expect(m.app.modes.current()).toBe('focus');
+    expect(m.app.workspace.getState().focusedId).toBe('builds');
+  });
+});
+
+describe('a double press on a window’s row', () => {
+  it('focuses the window of a row in the Windows view double-pressed, and closes its focus again', async () => {
+    const m = await visit();
+    if (!m.driver.has('page.windows')) {
+      m.driver.act('workshop.view#windows', 'press');
+      await m.settle();
+    }
+    const row = m.app.root.ownerDocument.querySelector<HTMLElement>(
+      '[data-wsb="page.windows.window#builds"]',
+    );
+    if (row === null) {
+      throw new Error('no row for Build Status');
+    }
+    // On its title, at its left: the row's actions show at its right while it is hovered.
+    const open = async () => {
+      const box = row.getBoundingClientRect();
+      const [x, y] = [Math.round(box.left + 50), Math.round(box.top + box.height / 2)];
+      await commands.mouse('move', x, y);
+      await m.settle();
+      expect(
+        m.app.root.ownerDocument
+          .elementFromPoint(x, y)
+          ?.closest('[data-wsb]')
+          ?.getAttribute('data-wsb'),
+      ).toBe('page.windows.window#builds');
+      await commands.mouse('double', x, y);
+      await m.settle();
+    };
+    await open();
+    expect(m.app.modes.current()).toBe('focus');
+    expect(m.app.workspace.getState().focusedId).toBe('builds');
+    await open();
+    expect(m.app.modes.current()).toBe('panorama');
   });
 });

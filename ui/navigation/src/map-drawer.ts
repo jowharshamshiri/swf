@@ -34,7 +34,8 @@ import { models } from '@swf/models';
  * A press on a window selects it, and dragging it (past the router's slop) moves the window on
  * the ground as far as the pointer moves, the point it was grabbed by staying under the pointer:
  * previewed on every move, so every view shows it where it is being put, and committed once when
- * it is let go (Escape puts it back). A press that does not drag moves nothing.
+ * it is let go (Escape puts it back). A press that does not drag moves nothing. A double press on a
+ * window focuses it, or closes its focus when it is the window in focus.
  *
  * Drawn as the map, a press on the ground pans it and the wheel zooms it about the pointer: its
  * centre and scale are its own view state, never the scene's. Drawn as the radar, it is always
@@ -152,6 +153,8 @@ export interface MapDrawerOptions {
   readonly onview: (view: MapView) => void;
   /** A press on a window: select it. */
   readonly onselect: (id: string) => void;
+  /** A double press on a window: focus it, or close its focus when it is the window in focus. */
+  readonly onopen: (id: string) => void;
 }
 
 export class MapDrawer {
@@ -261,6 +264,15 @@ export class MapDrawer {
     });
     listen(viewport, 'pointercancel', (event) => {
       this.#release(event, true);
+    });
+    listen(viewport, 'dblclick', (event) => {
+      const [x, y] = this.#local(event);
+      const scene = this.#scene();
+      const marker = markerAt(this.#laidOut(scene), scene, x, y, REACH);
+      if (marker !== null) {
+        event.preventDefault();
+        this.#options.onopen(marker.id);
+      }
     });
     listen(viewport, 'lostpointercapture', (event) => {
       this.#release(event, true);

@@ -96,6 +96,7 @@ exports = [
   "Swf.AppChallenge.challengeStep",
   "Swf.AppOverview.overviewLayout",
   "Swf.AppFocus.transitionStep",
+  "Swf.AppFocus.doublePress",
   "Swf.AppExperiments.experimentOf",
   "Swf.AppExperiments.experimentPlan",
   "Swf.Names.labelsShown",

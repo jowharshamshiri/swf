@@ -219,4 +219,35 @@ theorem duration_kept (t : Transition) (e : TransitionEvent) :
     (transitionStep t e).transition.duration = t.duration := by
   cases e <;> simp only [transitionStep] <;> repeat (first | split | rfl)
 
+/-! ## A double press on a window -/
+
+/-- What a double press on a window does. -/
+inductive DoublePress where
+  /-- Focus the window: enter the focus on it, or move the focus to it. -/
+  | focus (window : String)
+  /-- Leave the focus, back to the view it was entered from. -/
+  | leave
+deriving DecidableEq, Repr
+
+/-- What a double press on `window` does while the view frames `framing`, `focusMode` being the
+focus's mode: on the window in focus it leaves the focus, as a second double press on a title bar
+undoes the first on every desktop; on any other window it focuses it. -/
+def doublePress (framing : Framing) (focusMode : String) (window : String) : DoublePress :=
+  if framing.mode = focusMode ∧ framing.framed = some window then .leave else .focus window
+
+/-- A double press leaves the focus exactly when the view is in focus on the window pressed. -/
+@[lungo_claim "lungo.law" subject doublePress]
+theorem leaves_iff_focused (framing : Framing) (focusMode window : String) :
+    doublePress framing focusMode window = .leave ↔
+      framing.mode = focusMode ∧ framing.framed = some window := by
+  unfold doublePress
+  split <;> simp_all
+
+/-- Otherwise it focuses the window pressed, and no other. -/
+@[lungo_claim "lungo.law" subject doublePress]
+theorem focuses_the_pressed (framing : Framing) (focusMode window other : String) :
+    doublePress framing focusMode window = .focus other → other = window := by
+  unfold doublePress
+  split <;> simp_all
+
 end Swf.AppFocus

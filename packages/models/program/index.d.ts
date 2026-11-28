@@ -636,6 +636,32 @@ export type FeaturesUpdate =
 /** The descriptor of Swf.AppFeatures.FeaturesUpdate: how its values cross the boundary. */
 export function featuresUpdateType(): L.Type<FeaturesUpdate>;
 
+/** What a view frames: its mode, and the window it frames when it frames one (a focus). */
+export interface Framing {
+  /** Lean's Swf.AppFocus.Framing.mode. */
+  readonly mode: string;
+  /** Lean's Swf.AppFocus.Framing.framed. */
+  readonly framed: L.Option<string>;
+}
+/** The descriptor of Swf.AppFocus.Framing: how its values cross the boundary. */
+export function framingType(): L.Type<Framing>;
+
+/** What a double press on a window does. */
+export type DoublePress =
+  | {
+      /** Focus the window: enter the focus on it, or move the focus to it. */
+      readonly kind: "focus";
+      /** The field `window` of Lean's Swf.AppFocus.DoublePress.focus. */
+      readonly window: string;
+    }
+  | {
+      /** Leave the focus, back to the view it was entered from. */
+      readonly kind: "leave";
+    }
+;
+/** The descriptor of Swf.AppFocus.DoublePress: how its values cross the boundary. */
+export function doublePressType(): L.Type<DoublePress>;
+
 /**
  * The transition: what the committed view was last framed for, where the transition stands, and
  * how long one lasts.
@@ -2954,16 +2980,6 @@ export type FeatureFault =
 /** The descriptor of Swf.AppFeatures.FeatureFault: how its values cross the boundary. */
 export function featureFaultType(): L.Type<FeatureFault>;
 
-/** What a view frames: its mode, and the window it frames when it frames one (a focus). */
-export interface Framing {
-  /** Lean's Swf.AppFocus.Framing.mode. */
-  readonly mode: string;
-  /** Lean's Swf.AppFocus.Framing.framed. */
-  readonly framed: L.Option<string>;
-}
-/** The descriptor of Swf.AppFocus.Framing: how its values cross the boundary. */
-export function framingType(): L.Type<Framing>;
-
 /**
  * Where a transition stands: none under way, one due to be shown from the next frame, or one
  * shown since a time.
@@ -3903,6 +3919,14 @@ export class SwfModels {
    * Lean's Swf.AppFeatures.featuresUpdate : Swf.AppFeatures.FeatureSettings → Swf.Json → Swf.AppFeatures.FeaturesUpdate
    */
   featuresUpdate(current: FeatureSettings, patch: Json): FeaturesUpdate;
+  /**
+   * What a double press on `window` does while the view frames `framing`, `focusMode` being the
+   * focus's mode: on the window in focus it leaves the focus, as a second double press on a title bar
+   * undoes the first on every desktop; on any other window it focuses it.
+   *
+   * Lean's Swf.AppFocus.doublePress : Swf.AppFocus.Framing → String → String → Swf.AppFocus.DoublePress
+   */
+  doublePress(framing: Framing, focusMode: string, window: string): DoublePress;
   /**
    * The transition after an event. A commit that changes the view moves it to what the view frames
    * then: by a transition when that differs from what it framed and motion is allowed; on with the one
