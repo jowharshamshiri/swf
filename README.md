@@ -606,7 +606,16 @@ own design system checks against its grounds. Only the title bars and the resize
 input, so a press there reaches the framework even over a cross-origin frame. `createDomInput` offers every pointer,
 wheel and key event over the view to the interaction router. What the router consumes stops there
 (and a pressed pointer is captured until its gesture ends); what it does not consume reaches the
-content as the browser's own event. A press the router leaves to a window's live content is
+content as the browser's own event. A pointer no gesture holds hovers: the router says what a press
+where it is would do (`pointer.hovered`, decided by `hoverShows` from the same rule that routes a
+press, so the cursor never says anything a press would not do), and the DOM input shows it as the
+view's cursor: a grab on a title bar, a card or the background, the edge's resize cursor on a
+resize band, a move on live content while the takeover modifier is held, the content's own
+cursor elsewhere on content, and a grabbing hand while a window is moved or the view turned. A
+modifier going down or up anywhere on the page is offered as a sample of the pointer where it is,
+so the cursor, and a drag, follow it without the pointer moving. Both renderers edge the window a
+press would take in the `selected` ink, or draw the edge of its band hovered (`chrome.hover` and
+`hover`, a `HoverLookup`). A press the router leaves to a window's live content is
 announced (`content.pressed`, naming the window and the surface) and nothing of it is taken; the
 navigation makes that window the selection unless it is already among the selected
 (`selectionOnPress`), as an operating system activates the window pressed. Nothing is synthesized, and content in a cross-origin frame
@@ -1595,15 +1604,15 @@ release` builds a versioned release from a commit ([Release the packages](docs/h
 A budget is raised only deliberately, by hand, to the package's measured gzip size rounded up to the
 next 256 bytes, so it leaves no room for growth nobody looked at; the measured sizes are recorded
 with `npm run size -- --record` in the same commit, whose message gives the old and the new budget.
-`@swf/models` is at 65024 bytes: it is the compiled program of every proved decision model the
-framework and the reference application run, so it grows with each model (64937 bytes
+`@swf/models` is at 65536 bytes: it is the compiled program of every proved decision model the
+framework and the reference application run, so it grows with each model (65475 bytes
 measured, the room (`Swf.Room`), the spacing after a snap (`Swf.AppSpacing`), the title bars'
-place in picking (`Swf.Arbitration`), the selection after a press (`Swf.Gesture`) and a double
-press on a window (`Swf.AppFocus`) included).
+place in picking (`Swf.Arbitration`), the selection after a press and what a hovering pointer
+shows (`Swf.Gesture`) and a double press on a window (`Swf.AppFocus`) included).
 `@swf/persistence` is at 13568 bytes (13513 measured): snapshots, stores and the saver, with named
 spaces (`createSpaces`) and the step that brings `swf.workspace/1` layouts into the room.
-`@swf/backend-dom` is at 7680 bytes (7448 measured), the DOM input's pointer lock and the
-windows' title bars included.
+`@swf/backend-dom` is at 8192 bytes (7994 measured), the DOM input's pointer lock, the windows'
+title bars, the cursor that says what a press would do and the hovered window included.
 `@swf/navigation-ui` starts at 40704 bytes, 10% over its measured size (36801) rounded up to
 the next 256: the navigation controls compiled as a host's build compiles them, with Svelte, the kit
 and the framework's packages left out; it is measured only where the kit is.

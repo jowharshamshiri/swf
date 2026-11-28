@@ -2,7 +2,7 @@ import { createMemoryStore } from '@swf/persistence';
 import { viewGeometryOf } from '@swf/presentation';
 import { equirectangular, projectorOf } from '@swf/projections';
 import { describe, expect, it } from 'vitest';
-import { commands, page } from 'vitest/browser';
+import { commands, page, userEvent } from 'vitest/browser';
 import type { ReferenceApp } from '../../src/app.js';
 import type { Mounted } from './shell-harness.js';
 import { start } from './shell-harness.js';
@@ -416,5 +416,79 @@ describe('a double press on a window’s row', () => {
     expect(m.app.workspace.getState().focusedId).toBe('builds');
     await open();
     expect(m.app.modes.current()).toBe('panorama');
+  });
+});
+
+describe('cursors and hover', () => {
+  /** The cursor the page shows at a point of the view, as the element under it computes it. */
+  function cursorAt(m: Mounted & { app: ReferenceApp }, x: number, y: number): string {
+    const [px, py] = onPage(m.app, x, y);
+    const under = m.app.root.ownerDocument.elementFromPoint(px, py);
+    if (under === null) {
+      throw new Error(`nothing at ${String(px)}, ${String(py)}`);
+    }
+    return getComputedStyle(under).cursor;
+  }
+  async function hoverAt(m: Mounted & { app: ReferenceApp }, x: number, y: number) {
+    const [px, py] = onPage(m.app, x, y);
+    await commands.mouse('move', px, py);
+    await m.settle();
+  }
+
+  for (const backend of ['geometry', 'dom'] as const) {
+    it(`says what a press would do by the cursor, on the ${backend} backend`, async () => {
+      const m = await visit(backend);
+      // Build Status: a live note with nothing else round it.
+      const [x, y, w, h] = cardsOf(m.app, 'builds').cards[0] ?? [0, 0, 0, 0];
+      for (const [where, px, py, cursor] of [
+        ['its title bar', x + w / 2, y - BAR / 2, 'grab'],
+        ['its band’s east edge', x + w + 4, y + h / 2, 'ew-resize'],
+        ['its band’s north-west corner', x - 4, y - BAR - 4, 'nwse-resize'],
+        ['the background', x + w / 2, y + h + 60, 'grab'],
+      ] as const) {
+        await hoverAt(m, px, py);
+        expect(cursorAt(m, px, py), where).toBe(cursor);
+      }
+      // Over its content, the content's own cursor; with Alt held, the window would be moved.
+      const slot = m.app.root.querySelector('[data-swf-slot="builds-surface"]');
+      const box = slot?.getBoundingClientRect();
+      const root = m.app.root.getBoundingClientRect();
+      const [kx, ky] = [
+        (box?.left ?? 0) - root.left + (box?.width ?? 0) / 2,
+        (box?.top ?? 0) - root.top + (box?.height ?? 0) * 0.8,
+      ];
+      await hoverAt(m, kx, ky);
+      expect(['auto', 'text']).toContain(cursorAt(m, kx, ky));
+      await userEvent.keyboard('{Alt>}');
+      await m.settle();
+      expect(cursorAt(m, kx, ky)).toBe('move');
+      await userEvent.keyboard('{/Alt}');
+      await m.settle();
+      expect(['auto', 'text']).toContain(cursorAt(m, kx, ky));
+      // Dragging a window by its title bar, it is grabbed.
+      const [bx, by] = onPage(m.app, x + w / 2, y - BAR / 2);
+      await commands.mouse('move', bx, by);
+      await commands.mouse('down', bx, by);
+      await commands.mouse('move', bx - 20, by);
+      await m.settle();
+      expect(
+        getComputedStyle(m.app.root.ownerDocument.elementFromPoint(bx - 20, by) ?? m.app.root)
+          .cursor,
+      ).toBe('grabbing');
+      await commands.mouse('up', bx - 20, by);
+      await m.settle();
+      expect(cursorAt(m, x + w / 2 - 20, y - BAR / 2)).toBe('grab');
+    });
+  }
+
+  it('edges the title bar of the window a press would take in the selection’s colour', async () => {
+    const m = await visit('dom');
+    const bar = m.app.root.querySelector<HTMLElement>('[data-swf-title-bar="builds"]');
+    const [x, y, w] = cardsOf(m.app, 'builds').cards[0] ?? [0, 0, 0];
+    expect(bar?.style.boxShadow).toBe('none');
+    await hoverAt(m, x + w / 2, y - BAR / 2);
+    await expect.poll(() => bar?.style.boxShadow).toMatch(/^inset 0 0 0 2px /);
+    await hoverAt(m, x + w / 2, y + 400);
+    await expect.poll(() => bar?.style.boxShadow).toBe('none');
   });
 });

@@ -297,8 +297,14 @@ describe('picking order and reporting (FR-102)', () => {
     input.pointer('up', 'v', x, y);
     const [cx, cy] = contentOf(ws, 'c');
     expect(input.pointer('down', 'v', cx, cy).pick).toEqual({ ambiguous: false, ms: 3 });
-    // A move of a captured pointer and a command make no hit query.
-    expect(input.pointer('move', 'v', cx + 1, cy).pick).toBeNull();
+    // Its press left to c's content, the pointer hovers: its move makes a hit query, to say what a
+    // press there would do.
+    expect(input.pointer('move', 'v', cx + 1, cy).pick).toEqual({ ambiguous: false, ms: 3 });
+    input.pointer('up', 'v', cx + 1, cy);
+    // A move of a captured pointer and a command make none.
+    const [tx, ty] = titleBar(ws, 'c');
+    input.pointer('down', 'v', tx, ty);
+    expect(input.pointer('move', 'v', tx + 1, ty).pick).toBeNull();
     expect(input.command('selection.next', {}).pick).toBeNull();
   });
 

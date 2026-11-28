@@ -26,3 +26,11 @@ Each window drawn with a card has a title bar element (`data-swf-title-bar`, wit
 the host's colours (`chrome.titleBars`) or the inks, taking input; its resize handles lie round its
 outline as `bandZones` lays them out. Floating names are written only for windows shown by their
 label alone. `chrome.handlePx` is gone.
+
+The view's cursor says what a press would do (`pointer.hovered`): a grab on a title bar, a card or
+the background, the edge's resize cursor on a band, a move on taken-over content, the content's
+own cursor on content, and a grabbing hand while a window or the view is carried; resize handles
+carry no cursor of their own. `createDomInput` offers `leave` when the pointer leaves the view, and
+a sample of the pointer where it is when a modifier goes down or up anywhere on the page.
+`chrome.hover` edges the window a press would take in the `selected` ink, or draws the edge of its
+band hovered.

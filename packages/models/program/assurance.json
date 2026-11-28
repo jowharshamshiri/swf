@@ -4672,11 +4672,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 390,
+          "line": 452,
           "column": 1
         },
         "end": {
-          "line": 394,
+          "line": 456,
           "column": 20
         }
       }
@@ -4703,11 +4703,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 134,
+          "line": 144,
           "column": 1
         },
         "end": {
-          "line": 141,
+          "line": 151,
           "column": 37
         }
       }
@@ -4734,11 +4734,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 365,
+          "line": 427,
           "column": 1
         },
         "end": {
-          "line": 370,
+          "line": 432,
           "column": 83
         }
       }
@@ -4765,11 +4765,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 372,
+          "line": 434,
           "column": 1
         },
         "end": {
-          "line": 376,
+          "line": 438,
           "column": 89
         }
       }
@@ -4796,11 +4796,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 433,
+          "line": 495,
           "column": 1
         },
         "end": {
-          "line": 440,
+          "line": 502,
           "column": 89
         }
       }
@@ -4827,11 +4827,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 381,
+          "line": 443,
           "column": 1
         },
         "end": {
-          "line": 388,
+          "line": 450,
           "column": 89
         }
       }
@@ -4858,11 +4858,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 378,
+          "line": 440,
           "column": 1
         },
         "end": {
-          "line": 379,
+          "line": 441,
           "column": 101
         }
       }
@@ -4889,12 +4889,43 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 442,
+          "line": 504,
           "column": 1
         },
         "end": {
-          "line": 450,
+          "line": 512,
           "column": 39
+        }
+      }
+    },
+    {
+      "name": "Swf.Gesture.hovers_only_free",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Gesture.pointerRoute"
+      ],
+      "specifications": [],
+      "statement": "∀ (phase : Swf.Gesture.PointerPhase) (captured : Bool),\n  (Swf.Gesture.pointerRoute phase captured = Swf.Gesture.PointerRoute.hover ↔\n      phase = Swf.Gesture.PointerPhase.move ∧ captured = false) ∧\n    (Swf.Gesture.pointerRoute phase captured = Swf.Gesture.PointerRoute.unhover ↔\n      phase = Swf.Gesture.PointerPhase.leave ∧ captured = false)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "c81105a3dc7e664d4ce533087d20a370cb5952ba67fcc44232bf81fa200d0f65",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Gesture.lean",
+        "start": {
+          "line": 403,
+          "column": 1
+        },
+        "end": {
+          "line": 409,
+          "column": 57
         }
       }
     },
@@ -4922,11 +4953,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 452,
+          "line": 514,
           "column": 1
         },
         "end": {
-          "line": 465,
+          "line": 527,
           "column": 52
         }
       }
@@ -4938,7 +4969,7 @@
         "Swf.Gesture.pointerRoute"
       ],
       "specifications": [],
-      "statement": "∀ (phase : Swf.Gesture.PointerPhase),\n  Swf.Gesture.pointerRoute phase false = Swf.Gesture.PointerRoute.ignore ↔ phase ≠ Swf.Gesture.PointerPhase.down",
+      "statement": "∀ (phase : Swf.Gesture.PointerPhase),\n  Swf.Gesture.pointerRoute phase false = Swf.Gesture.PointerRoute.ignore ↔\n    phase = Swf.Gesture.PointerPhase.up ∨ phase = Swf.Gesture.PointerPhase.cancel",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -4948,16 +4979,16 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "dc550485dab2fc74d957ded82a014fbc68d859e25d1eaa5ff48937b9d3b9c667",
+      "fingerprint": "c5df778538a298f3839538149916368f19eee63849794f2b9436c2df3e917687",
       "source": {
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 342,
+          "line": 396,
           "column": 1
         },
         "end": {
-          "line": 347,
+          "line": 401,
           "column": 38
         }
       }
@@ -4985,11 +5016,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 412,
+          "line": 474,
           "column": 1
         },
         "end": {
-          "line": 417,
+          "line": 479,
           "column": 63
         }
       }
@@ -5016,11 +5047,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 467,
+          "line": 529,
           "column": 1
         },
         "end": {
-          "line": 473,
+          "line": 535,
           "column": 101
         }
       }
@@ -5047,11 +5078,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 355,
+          "line": 417,
           "column": 1
         },
         "end": {
-          "line": 363,
+          "line": 425,
           "column": 26
         }
       }
@@ -5078,11 +5109,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 426,
+          "line": 488,
           "column": 1
         },
         "end": {
-          "line": 431,
+          "line": 493,
           "column": 89
         }
       }
@@ -5109,11 +5140,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 126,
+          "line": 136,
           "column": 1
         },
         "end": {
-          "line": 132,
+          "line": 142,
           "column": 21
         }
       }
@@ -5140,11 +5171,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 419,
+          "line": 481,
           "column": 1
         },
         "end": {
-          "line": 424,
+          "line": 486,
           "column": 23
         }
       }
@@ -5166,17 +5197,48 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "126a9ac3f19d47fd384f02b35f5627ba9ea460a3ba62cc18e9cfc3ef918c75f4",
+      "fingerprint": "45d4b6cbeb276d8d712ccf77d4d205e101682b16969ea96de600655c17df9aa4",
       "source": {
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 349,
+          "line": 411,
           "column": 1
         },
         "end": {
-          "line": 353,
+          "line": 415,
           "column": 38
+        }
+      }
+    },
+    {
+      "name": "Swf.Gesture.shows_what_a_press_does",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Gesture.hoverShows"
+      ],
+      "specifications": [],
+      "statement": "∀ (f : Swf.Gesture.PressFacts),\n  (Swf.Gesture.hoverShows f = Swf.Gesture.HoverShows.content ↔\n      Swf.Gesture.pressRoute f = Swf.Gesture.PressRoute.native) ∧\n    (Swf.Gesture.hoverShows f = Swf.Gesture.HoverShows.grab ∨\n        Swf.Gesture.hoverShows f = Swf.Gesture.HoverShows.resize ∨\n          Swf.Gesture.hoverShows f = Swf.Gesture.HoverShows.takeover ↔\n      Swf.Gesture.pressRoute f = Swf.Gesture.PressRoute.claim)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "5651478fc62ab1e34c50e85b38df18d35d504e33f8a099bfc7a837567e3b4049",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Gesture.lean",
+        "start": {
+          "line": 185,
+          "column": 1
+        },
+        "end": {
+          "line": 195,
+          "column": 34
         }
       }
     },
@@ -5203,11 +5265,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 404,
+          "line": 466,
           "column": 1
         },
         "end": {
-          "line": 410,
+          "line": 472,
           "column": 27
         }
       }
@@ -5235,11 +5297,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 396,
+          "line": 458,
           "column": 1
         },
         "end": {
-          "line": 402,
+          "line": 464,
           "column": 50
         }
       }
@@ -9854,11 +9916,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 143,
+          "line": 197,
           "column": 1
         },
         "end": {
-          "line": 145,
+          "line": 199,
           "column": 65
         }
       }
@@ -9889,11 +9951,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 242,
+          "line": 296,
           "column": 1
         },
         "end": {
-          "line": 261,
+          "line": 315,
           "column": 17
         }
       }
@@ -9919,12 +9981,44 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 329,
+          "line": 383,
           "column": 1
         },
         "end": {
-          "line": 338,
+          "line": 392,
           "column": 13
+        }
+      }
+    },
+    {
+      "name": "Swf.Gesture.hoverShows",
+      "module": "Swf.Gesture",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": []
+      },
+      "claims": [
+        "Swf.Gesture.shows_what_a_press_does"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Gesture.lean",
+        "start": {
+          "line": 171,
+          "column": 1
+        },
+        "end": {
+          "line": 183,
+          "column": 17
         }
       }
     },
@@ -9951,11 +10045,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 302,
+          "line": 356,
           "column": 1
         },
         "end": {
-          "line": 313,
+          "line": 367,
           "column": 59
         }
       }
@@ -9965,13 +10059,16 @@
       "module": "Swf.Gesture",
       "async": false,
       "trust": {
-        "axioms": [],
+        "axioms": [
+          "propext"
+        ],
         "depends_on_sorry": false,
         "unsafe_dependencies": [],
         "partial_dependencies": [],
         "extern_dependencies": []
       },
       "claims": [
+        "Swf.Gesture.hovers_only_free",
         "Swf.Gesture.late_pointer_ignored",
         "Swf.Gesture.repress_cancels_lost"
       ],
@@ -9982,12 +10079,12 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 42,
+          "line": 49,
           "column": 1
         },
         "end": {
-          "line": 53,
-          "column": 24
+          "line": 63,
+          "column": 20
         }
       }
     },
@@ -10014,11 +10111,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 106,
+          "line": 116,
           "column": 1
         },
         "end": {
-          "line": 116,
+          "line": 126,
           "column": 45
         }
       }
@@ -10049,11 +10146,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 118,
+          "line": 128,
           "column": 1
         },
         "end": {
-          "line": 124,
+          "line": 134,
           "column": 53
         }
       }
@@ -10084,11 +10181,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 184,
+          "line": 238,
           "column": 1
         },
         "end": {
-          "line": 200,
+          "line": 254,
           "column": 61
         }
       }
@@ -10125,11 +10222,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 147,
+          "line": 201,
           "column": 1
         },
         "end": {
-          "line": 154,
+          "line": 208,
           "column": 53
         }
       }

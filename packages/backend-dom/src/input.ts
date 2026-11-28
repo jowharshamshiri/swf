@@ -6,8 +6,10 @@ import type {
   InputIntent,
   InteractionEvent,
   Modifiers,
+  PointerIntent,
   PointerPhase,
   PointerType,
+  ResizeEdge,
 } from '@swf/interaction';
 import { INTERACTION_API_VERSION } from '@swf/interaction';
 import { DOM_ATTRIBUTES } from './renderer.js';
@@ -24,9 +26,9 @@ export interface DomInputOptions {
   /** The viewport every intent names. */
   readonly viewportId: Id;
   /**
-   * Router notifications, so captured pointers are released when their gesture ends: a function
-   * that subscribes a listener and returns what unsubscribes it, such as the router's
-   * `subscribe`.
+   * Router notifications, so captured pointers are released when their gesture ends and the
+   * root's cursor says what a press would do: a function that subscribes a listener and returns
+   * what unsubscribes it, such as the router's `subscribe`.
    */
   readonly events: (listener: (event: InteractionEvent) => void) => () => void;
 }
@@ -73,6 +75,53 @@ export interface DomInput extends InputAdapter {
   /** The platform's pointer lock on the view's root. */
   readonly pointerLock: DomPointerLock;
 }
+
+/** The keys that are modifiers, as the platform names them. */
+const MODIFIER_KEYS: ReadonlySet<string> = new Set(['Shift', 'Control', 'Alt', 'Meta']);
+
+/** The gestures that carry what they act on (a window, the view), shown as grabbed while they run. */
+const CARRIED: ReadonlySet<string> = new Set(['node.move', 'camera.turn', 'orbit.turn']);
+
+/**
+ * The cursor that says what a press would do where a pointer hovers (`pointer.hovered`): a grab
+ * where a press would take a window or turn the view, the edge's resize cursor on a resize band, a
+ * move where the takeover would take content's window, and nothing of its own (the content's or
+ * the page's) where the content would keep the press, or nothing would act.
+ */
+function cursorOf(
+  shows: Extract<InteractionEvent, { type: 'pointer.hovered' }>['shows'],
+  edge: ResizeEdge | null,
+): string {
+  switch (shows) {
+    case 'grab':
+      return 'grab';
+    case 'takeover':
+      return 'move';
+    case 'resize':
+      if (edge === null) {
+        throw new Error('a resize band was hovered with no edge');
+      }
+      return RESIZE_CURSORS[edge];
+    case 'content':
+    case 'nothing':
+    case 'blocked':
+    case 'busy':
+    case null:
+      return '';
+  }
+}
+
+/** Each edge's resize cursor: both ways along the axis it resizes. */
+const RESIZE_CURSORS: Readonly<Record<ResizeEdge, string>> = Object.freeze({
+  n: 'ns-resize',
+  s: 'ns-resize',
+  e: 'ew-resize',
+  w: 'ew-resize',
+  ne: 'nesw-resize',
+  sw: 'nesw-resize',
+  nw: 'nwse-resize',
+  se: 'nwse-resize',
+});
 
 /** CSS pixels one wheel "line" scrolls when the platform reports lines. */
 const LINE_PX = 16;
@@ -203,10 +252,17 @@ export function createDomInput(options: DomInputOptions): DomInput {
           event.stopPropagation();
         }
       };
+      /**
+       * The last sample of the pointer over the view, while it is over it: a modifier going down
+       * or up anywhere on the page is offered as a sample of it where it is, with the modifiers
+       * then held, so what a press there would do, or what a drag does, follows the modifier
+       * without the pointer moving.
+       */
+      let over: PointerIntent | null = null;
       const pointer = (phase: PointerPhase) => (event: Event) => {
         const e = event as PointerEvent;
         const { x, y } = position(e);
-        const result = dispatch({
+        const intent: PointerIntent = {
           kind: 'pointer',
           viewportId,
           deviceId: deviceOf(e),
@@ -220,7 +276,9 @@ export function createDomInput(options: DomInputOptions): DomInput {
           timestamp: e.timeStamp,
           ...penDetails(e),
           ...(locked() ? { movement: { x: e.movementX, y: e.movementY } } : {}),
-        });
+        };
+        over = phase === 'leave' || phase === 'cancel' ? null : intent;
+        const result = dispatch(intent);
         // A press the framework takes is captured on the root: the release then targets the root,
         // so the click that follows lands there too and never reaches the content.
         if (phase === 'down' && result.consumed && !root.hasPointerCapture(e.pointerId)) {
@@ -288,6 +346,20 @@ export function createDomInput(options: DomInputOptions): DomInput {
           }),
         );
       };
+      const modifier = (event: Event) => {
+        const e = event as KeyboardEvent;
+        if (over === null || !MODIFIER_KEYS.has(e.key) || e.repeat) {
+          return;
+        }
+        const sample: PointerIntent = {
+          ...over,
+          phase: 'move',
+          modifiers: modifiersOf(e),
+          timestamp: e.timeStamp,
+        };
+        over = sample;
+        dispatch(sample);
+      };
       const key = (phase: 'down' | 'up') => (event: Event) => {
         const e = event as KeyboardEvent;
         const target = e.target;
@@ -314,6 +386,7 @@ export function createDomInput(options: DomInputOptions): DomInput {
         ['pointerup', pointer('up')],
         ['pointercancel', pointer('cancel')],
         ['lostpointercapture', lost],
+        ['pointerleave', pointer('leave')],
         ['wheel', wheel],
         ['keydown', key('down')],
         ['keyup', key('up')],
@@ -323,21 +396,50 @@ export function createDomInput(options: DomInputOptions): DomInput {
       }
       document.addEventListener('pointerlockchange', lockChanged);
       document.addEventListener('pointerlockerror', lockFailed);
+      document.addEventListener('keydown', modifier, { capture: true });
+      document.addEventListener('keyup', modifier, { capture: true });
+      // The root's cursor: what a press where the pointer hovers would do, and while a gesture
+      // that carries something runs, that it is carried.
+      let hovered = '';
+      let carrying = false;
+      const cursor = () => {
+        root.style.setProperty('cursor', carrying ? 'grabbing' : hovered);
+      };
       const unsubscribe = options.events((event) => {
-        if (
-          event.type === 'capture.released' &&
-          event.viewportId === viewportId &&
-          root.hasPointerCapture(event.pointerId)
-        ) {
-          root.releasePointerCapture(event.pointerId);
+        if (event.type === 'settings.changed' || event.viewportId !== viewportId) {
+          return;
+        }
+        switch (event.type) {
+          case 'capture.released':
+            if (root.hasPointerCapture(event.pointerId)) {
+              root.releasePointerCapture(event.pointerId);
+            }
+            return;
+          case 'pointer.hovered':
+            hovered = cursorOf(event.shows, event.edge);
+            cursor();
+            return;
+          case 'gesture.started':
+            carrying = CARRIED.has(event.operation);
+            cursor();
+            return;
+          case 'gesture.ended':
+            carrying = false;
+            cursor();
+            return;
+          case 'content.pressed':
+            return;
         }
       });
       return () => {
         for (const [type, listener] of listeners) {
           root.removeEventListener(type, listener, { capture: true });
         }
+        root.style.removeProperty('cursor');
         document.removeEventListener('pointerlockchange', lockChanged);
         document.removeEventListener('pointerlockerror', lockFailed);
+        document.removeEventListener('keydown', modifier, { capture: true });
+        document.removeEventListener('keyup', modifier, { capture: true });
         unsubscribe();
         connected = false;
         lostWhileAsking = null;

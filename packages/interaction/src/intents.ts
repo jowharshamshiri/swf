@@ -30,9 +30,10 @@ export type PointerType = 'mouse' | 'touch' | 'pen' | 'virtual';
 
 /**
  * Where a pointer is in its stroke. `cancel` means the platform took the pointer away (its capture
- * was lost); it ends any gesture the pointer drives without committing it.
+ * was lost); it ends any gesture the pointer drives without committing it. `leave` means it left
+ * the viewport: a pointer no gesture holds stops hovering there.
  */
-export type PointerPhase = 'down' | 'move' | 'up' | 'cancel';
+export type PointerPhase = 'down' | 'move' | 'up' | 'cancel' | 'leave';
 
 /**
  * A pointer sample in a viewport. Positions are in the viewport's CSS pixels; they may lie outside
@@ -189,7 +190,7 @@ export interface CommandIntent {
 export type InputIntent = PointerIntent | WheelIntent | KeyIntent | CommandIntent;
 
 const POINTER_TYPES: readonly string[] = ['mouse', 'touch', 'pen', 'virtual'];
-const POINTER_PHASES: readonly string[] = ['down', 'move', 'up', 'cancel'];
+const POINTER_PHASES: readonly string[] = ['down', 'move', 'up', 'cancel', 'leave'];
 
 const FIELDS: Record<InputIntent['kind'], { required: string[]; optional: string[] }> = {
   pointer: {

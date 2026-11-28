@@ -44,6 +44,7 @@ import type {
   StandInReason,
   SwitchOutcome,
   TitleBarColours,
+  WindowHover,
 } from '@swf/presentation';
 import { createPresentationRegistry, createPresenter } from '@swf/presentation';
 import type { ProjectionRegistry } from '@swf/projections';
@@ -641,6 +642,13 @@ export async function createNavigation(options: NavigationOptions): Promise<Navi
   const domChrome = domInks(options.chrome);
   const geometryInks = resolvedInks(document, options.chrome);
   const standIn = (reason: StandInReason) => words.standIn(reason);
+  /**
+   * The window the pointer hovers over where a press would take it, as the router last said it:
+   * both backends show it before anything is pressed.
+   */
+  let hovered: WindowHover | null = null;
+  const hover = (viewportId: Id): WindowHover | null =>
+    viewportId === VIEWPORT_ID ? hovered : null;
   const titleBars = (nodeId: Id): TitleBarColours | null => {
     const state = workspace.getState();
     const node = state.nodes.get(nodeId);
@@ -651,7 +659,7 @@ export async function createNavigation(options: NavigationOptions): Promise<Navi
       presentation.registerRenderer(
         new DomRenderer({
           document,
-          chrome: { inks: domChrome, titleBars },
+          chrome: { inks: domChrome, titleBars, hover },
           standIn,
         }),
       ),
@@ -666,6 +674,7 @@ export async function createNavigation(options: NavigationOptions): Promise<Navi
             standIn,
             inks: geometryInks,
             titleBars,
+            hover,
             // Names in the page's typeface, as the page writes its own text.
             typeface: () => view.getComputedStyle(document.body).fontFamily,
           }),
@@ -695,6 +704,24 @@ export async function createNavigation(options: NavigationOptions): Promise<Navi
     // Picking finds the cards the panorama draws, sized as semantic depth shows them.
     representation: () => mount.viewport.representation(),
     timer,
+  });
+  // What a press would take where the pointer hovers, shown before anything is pressed: a window
+  // by its title bar, its card or its content with the takeover held, or the edge of its band.
+  const stopHover = router.subscribe((event) => {
+    if (event.type !== 'pointer.hovered' || event.viewportId !== VIEWPORT_ID) {
+      return;
+    }
+    const { nodeId, shows } = event;
+    const next =
+      nodeId !== null && (shows === 'grab' || shows === 'resize' || shows === 'takeover')
+        ? { nodeId, edge: shows === 'resize' ? event.edge : null }
+        : null;
+    if (JSON.stringify(next) !== JSON.stringify(hovered)) {
+      hovered = next;
+      if (mount.viewport.state === 'active') {
+        mount.viewport.invalidate();
+      }
+    }
   });
   // Ctrl (⌘) and click to select more: the panorama's direct manipulation beyond the framework's
   // own move (Shift along the floor) and resize.
@@ -1232,6 +1259,7 @@ export async function createNavigation(options: NavigationOptions): Promise<Navi
     listeners.clear();
     modes.dispose();
     policies.dispose();
+    stopHover();
     router.dispose();
     await presenter.dispose();
     await runtime.dispose();

@@ -46,3 +46,6 @@ picking and renderers alike. `ResizeEdge` is defined here. `TitleBarColours` and
 `TitleBarColouring` are how a host colours each window's bar. `windowNames` names only the windows
 shown by their label alone, keeping their names clear of every other window's outline; a window
 drawn with a card is named on its bar (`windowTitle` gives the name).
+
+`WindowHover` and `HoverLookup` say which window a press would take where the pointer hovers, for
+renderers to show it.

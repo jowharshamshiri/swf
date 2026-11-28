@@ -2,6 +2,7 @@ import type { Id, SceneState } from '@swf/core';
 import { makeError, SwfFailure } from '@swf/core';
 import type {
   CompositionLayer,
+  HoverLookup,
   PlannedFragment,
   ProjectedFragment,
   RenderedFrame,
@@ -13,6 +14,7 @@ import type {
   StandInReason,
   TitleBarColouring,
   ViewGeometry,
+  WindowHover,
 } from '@swf/presentation';
 import {
   bandZones,
@@ -104,6 +106,12 @@ export interface ChromeOptions {
    * `ground` ink with its name in the `text` ink. Default: none for every window.
    */
   readonly titleBars?: TitleBarColouring;
+  /**
+   * The window the pointer hovers over where a press would take it, read at every frame: its
+   * outline and title bar are edged in the `selected` ink, or the edge of its resize band hovered
+   * drawn in it. Default: none.
+   */
+  readonly hover?: HoverLookup;
 }
 
 /** What a DOM renderer realizes views in, and how. Checked when the renderer is made. */
@@ -209,6 +217,7 @@ export class DomRenderer implements RendererBackend {
           ? null
           : {
               titleBars: options.chrome.titleBars ?? (() => null),
+              hover: options.chrome.hover ?? (() => null),
               inks: Object.freeze({
                 frame: inks.frame,
                 selected: inks.selected,
@@ -695,6 +704,7 @@ export class DomRendererSession implements RendererSession {
     });
     const font = `${String(BAR.size)}px ${this.#fontFamily()}`;
     const { scene } = frame;
+    const hover = chrome.hover(this.viewportId);
     // Farther first, so the nearer lie over them.
     const order = [...frames.keys()].sort(
       (a, b) => (nearness.get(a) ?? 0) - (nearness.get(b) ?? 0),
@@ -704,6 +714,7 @@ export class DomRendererSession implements RendererSession {
       const colours = chrome.titleBars(nodeId);
       const selected = scene.selection.includes(nodeId);
       const focused = scene.focusedId === nodeId;
+      const hovered = hover?.nodeId === nodeId && hover.edge === null;
       const title = windowTitle(scene, nodeId) ?? '';
       (frames.get(nodeId) ?? []).forEach((card, copy) => {
         const key = copy === 0 ? `bar:${nodeId}` : `bar:${nodeId}/${String(copy)}`;
@@ -728,7 +739,11 @@ export class DomRendererSession implements RendererSession {
         }
         index += 1;
         const [x, y, w] = card;
-        const ink = focused ? chrome.inks.focused : selected ? chrome.inks.selected : null;
+        const ink = focused
+          ? chrome.inks.focused
+          : selected || hovered
+            ? chrome.inks.selected
+            : null;
         // Names are text, never markup.
         this.#write.text(bar, title);
         this.#write.style(bar, {
@@ -845,7 +860,8 @@ export class DomRendererSession implements RendererSession {
     for (const edge of Object.keys(RESIZE_EDGES)) {
       const handle = this.#document.createElement('div');
       handle.setAttribute(DOM_ATTRIBUTES.handle, edge);
-      style(handle, { position: 'absolute', 'pointer-events': 'auto', cursor: `${edge}-resize` });
+      // The view's cursor says what a press there does (the DOM input sets it on the root).
+      style(handle, { position: 'absolute', 'pointer-events': 'auto' });
       e.append(handle);
     }
     return e;
@@ -905,14 +921,16 @@ export class DomRendererSession implements RendererSession {
     this.#write.style(element, boxOf(card));
     const selected = scene.selection.includes(nodeId);
     const focused = scene.focusedId === nodeId;
+    const hover = chrome.hover(this.viewportId);
     this.#write.style(outline, {
       top: `${String(-TITLE_BAR_HEIGHT)}px`,
       width: `${String(w)}px`,
       height: `${String(h + TITLE_BAR_HEIGHT)}px`,
-      // The window keys act on is marked, and the one in focus above it.
-      border: `${focused || selected ? '3px' : '1px'} solid ${
-        focused ? chrome.inks.focused : selected ? chrome.inks.selected : chrome.inks.frame
-      }`,
+      ...outlineBorders(
+        focused ? 'focused' : selected ? 'selected' : 'plain',
+        hover?.nodeId === nodeId ? hover : null,
+        chrome.inks,
+      ),
     });
     this.#write.toggle(element, DOM_ATTRIBUTES.selected, selected);
     this.#write.toggle(element, DOM_ATTRIBUTES.focused, focused);
@@ -950,6 +968,34 @@ export class DomRendererSession implements RendererSession {
       content: element,
     });
   }
+}
+
+/**
+ * A window's outline borders: the window keys act on marked, the one in focus above it; a window
+ * hovered where a press would take it edged in the selection's ink, or the edge of its resize band
+ * hovered drawn in it.
+ */
+function outlineBorders(
+  state: 'focused' | 'selected' | 'plain',
+  hover: WindowHover | null,
+  inks: ChromeInks,
+): Record<string, string> {
+  const base =
+    state === 'focused'
+      ? `3px solid ${inks.focused}`
+      : state === 'selected'
+        ? `3px solid ${inks.selected}`
+        : hover !== null && hover.edge === null
+          ? `2px solid ${inks.selected}`
+          : `1px solid ${inks.frame}`;
+  const edge = hover?.edge ?? '';
+  const side = (letter: string) => (edge.includes(letter) ? `3px solid ${inks.selected}` : base);
+  return {
+    'border-top': side('n'),
+    'border-bottom': side('s'),
+    'border-left': side('w'),
+    'border-right': side('e'),
+  };
 }
 
 function boxOf([x, y, w, h]: ScreenRect): Record<string, string> {

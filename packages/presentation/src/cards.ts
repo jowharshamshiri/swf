@@ -298,3 +298,18 @@ export interface TitleBarColours {
  * its own inks.
  */
 export type TitleBarColouring = (nodeId: Id) => TitleBarColours | null;
+
+/**
+ * A window the pointer hovers over where a press would take it, as a renderer shows it before
+ * anything is pressed: its title bar, its card or its content with the takeover held (`edge`
+ * null), or the edge or corner of its resize band.
+ */
+export interface WindowHover {
+  /** The window. */
+  readonly nodeId: Id;
+  /** The edge or corner of its resize band hovered, or null for the window itself. */
+  readonly edge: ResizeEdge | null;
+}
+
+/** The window hovered in a viewport, as a host keeps it from its input, or null for none. */
+export type HoverLookup = (viewportId: Id) => WindowHover | null;

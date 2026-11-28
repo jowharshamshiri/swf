@@ -22,6 +22,8 @@ inductive PointerPhase where
   | up
   /-- The platform cancelled the pointer. -/
   | cancel
+  /-- The pointer left the view. -/
+  | leave
 
 /-- Where a pointer sample goes, from whether a gesture holds (has captured) the pointer. -/
 inductive PointerRoute where
@@ -35,14 +37,20 @@ inductive PointerRoute where
   | release
   /-- The platform took the pointer away: its gesture is cancelled. -/
   | lost
-  /-- A sample of a pointer no gesture holds (one ended or cancelled): ignored. -/
+  /-- A move of a pointer no gesture holds: it hovers, and what a press there would do is said. -/
+  | hover
+  /-- A pointer no gesture holds left the view: nothing is under it any more. -/
+  | unhover
+  /-- A sample of a pointer no gesture holds (one ended or cancelled), or a held pointer leaving
+  the view, which its gesture keeps: ignored. -/
   | ignore
 deriving DecidableEq
 
 /-- Where a pointer sample goes. A press is `press`, or `pressAfterLost` when a gesture still holds
-the pointer. A move, release or cancel of a held pointer is `move`, `release` or `lost`; of a
-pointer no gesture holds it is `ignore`, so a late release from an old pointer never reaches a
-gesture. -/
+the pointer. A move, release or cancel of a held pointer is `move`, `release` or `lost`, and its
+leaving the view is `ignore` (its gesture keeps it). Of a pointer no gesture holds, a move is
+`hover` and leaving the view `unhover`; a release or cancel is `ignore`, so a late release from an
+old pointer never reaches a gesture. -/
 def pointerRoute (phase : PointerPhase) (captured : Bool) : PointerRoute :=
   match phase, captured with
   | .down, false => .press
@@ -50,7 +58,9 @@ def pointerRoute (phase : PointerPhase) (captured : Bool) : PointerRoute :=
   | .move, true => .move
   | .up, true => .release
   | .cancel, true => .lost
-  | _, false => .ignore
+  | .move, false => .hover
+  | .leave, false => .unhover
+  | _, _ => .ignore
 
 /-- What a press landed on. -/
 inductive PressPick where
@@ -139,6 +149,50 @@ theorem changed_iff_not_selected (selection : List String) (window : String) :
       (selectionOnPress selection window = none ↔ window ∈ selection) := by
   unfold selectionOnPress
   constructor <;> split <;> simp_all
+
+/-- What a pointer hovering shows, as its cursor and outline: what a press there would do. -/
+inductive HoverShows where
+  /-- Nothing a press could act on: outside the view or on nothing pickable. -/
+  | nothing
+  /-- A modal blocks it. -/
+  | blocked
+  /-- Live content, which would keep the press: the content's own cursor. -/
+  | content
+  /-- A window or the background a press would take, to move it or turn the view. -/
+  | grab
+  /-- A window's resize band, which a press would resize by. -/
+  | resize
+  /-- Live content the takeover would take: a press would move its window. -/
+  | takeover
+  /-- A target already in a gesture, which a press would not join. -/
+  | busy
+deriving DecidableEq
+
+/-- What a pointer hovering shows: what `pressRoute` would do with a press there, the region telling
+a resize band and taken-over content from the rest. -/
+def hoverShows (f : PressFacts) : HoverShows :=
+  match pressRoute f with
+  | .ignore => .nothing
+  | .blocked => .blocked
+  | .native => .content
+  | .busy => .busy
+  | .claim =>
+    match f.region with
+    | .resizeHandle => .resize
+    | .content => if f.proxy then .grab else .takeover
+    | _ => .grab
+
+/-- The cursor tells the truth: a pointer hovering shows content's own cursor exactly where the
+content would keep a press, and a grab, a resize or a takeover exactly where the policies would be
+offered it. -/
+@[lungo_claim "lungo.law" subject hoverShows]
+theorem shows_what_a_press_does (f : PressFacts) :
+    (hoverShows f = .content ↔ pressRoute f = .native) ∧
+      ((hoverShows f = .grab ∨ hoverShows f = .resize ∨ hoverShows f = .takeover) ↔
+        pressRoute f = .claim) := by
+  obtain ⟨pick, region, takeover, proxy, busy⟩ := f
+  cases pick <;> cases region <;> cases takeover <;> cases proxy <;> cases busy <;>
+    simp [hoverShows, pressRoute]
 
 /-- A pressed pointer moved this far from where it went down: whether that is beyond the slop, past
 which a press becomes a drag. -/
@@ -343,8 +397,16 @@ def holdGate (holding viewportKnown nodeActive inGesture : Bool) : HoldGate :=
 from an old pointer never reaches a gesture. -/
 @[lungo_claim "lungo.law" subject pointerRoute]
 theorem late_pointer_ignored (phase : PointerPhase) :
-    pointerRoute phase false = .ignore ↔ phase ≠ .down := by
+    pointerRoute phase false = .ignore ↔ phase = .up ∨ phase = .cancel := by
   cases phase <;> simp [pointerRoute]
+
+/-- A pointer no gesture holds hovers when it moves and stops hovering when it leaves the view; a
+held one never hovers, its gesture keeping it. -/
+@[lungo_claim "lungo.law" subject pointerRoute]
+theorem hovers_only_free (phase : PointerPhase) (captured : Bool) :
+    (pointerRoute phase captured = .hover ↔ phase = .move ∧ captured = false) ∧
+      (pointerRoute phase captured = .unhover ↔ phase = .leave ∧ captured = false) := by
+  cases phase <;> cases captured <;> simp [pointerRoute]
 
 /-- A held pointer pressed again lost its release: its gesture is cancelled before the new press. -/
 @[lungo_claim "lungo.law" subject pointerRoute]

@@ -1,5 +1,10 @@
 import { SwfFailure } from '@swf/core';
-import type { CompositionLayer, RenderedFrame, RepresentationPolicy } from '@swf/presentation';
+import type {
+  CompositionLayer,
+  RenderedFrame,
+  RepresentationPolicy,
+  WindowHover,
+} from '@swf/presentation';
 import { describe, expect, it } from 'vitest';
 import type { GeometryInks } from '../src/index.js';
 import {
@@ -165,6 +170,35 @@ describe('geometry renderer', () => {
     expect(bars).toContain('fill rgb(10, 20, 30)');
     // A window the host gives no colours is drawn in the inks.
     expect(bars).toContain(`fillText:Plain ${DEFAULT_GEOMETRY_INKS.text}`);
+  });
+
+  it('edges the window hovered where a press would take it in the selection’s ink, or the edge of its band hovered', async () => {
+    const inks: GeometryInks = {
+      frame: 'rgb(1, 1, 1)',
+      selected: 'rgb(2, 2, 2)',
+      focused: 'rgb(3, 3, 3)',
+      text: 'rgb(4, 4, 4)',
+      ground: 'rgb(5, 5, 5)',
+    };
+    const placed = [
+      { id: 'a', kind: 'drawn', heading: -0.4, distance: 3, label: 'A' },
+      { id: 'b', kind: 'drawn', heading: 0.4, distance: 3, label: 'B' },
+    ] as const;
+    const hovered = async (hover: WindowHover | null) => {
+      const { rendered } = await render(placed, { inks: () => inks, hover: () => hover });
+      return (id: string) => inked(rendered.layers.find((l) => l.id === id));
+    };
+    let layer = await hovered({ nodeId: 'b', edge: null });
+    expect(layer('chrome:b')).toEqual(['stroke rgb(2, 2, 2)']);
+    expect(layer('chrome:a')).toEqual(['stroke rgb(1, 1, 1)']);
+    // B's bar edged in the selection's ink, A's not.
+    const bars = layer('overlay:bars');
+    expect(bars.slice(bars.indexOf('fillText:B rgb(4, 4, 4)') - 1)[0]).toBe('stroke rgb(2, 2, 2)');
+    expect(bars[bars.indexOf('fillText:A rgb(4, 4, 4)') - 1]).toBe('fill rgb(5, 5, 5)');
+    // The east edge of A's band hovered: its frame as it is, the edge drawn over it.
+    layer = await hovered({ nodeId: 'a', edge: 'e' });
+    expect(layer('chrome:a')).toEqual(['stroke rgb(1, 1, 1)', 'stroke rgb(2, 2, 2)']);
+    expect(layer('chrome:b')).toEqual(['stroke rgb(1, 1, 1)']);
   });
 
   it('draws a compact window as its proxy, and a label-only one as a mark named beside it, without chrome (FR-122)', async () => {

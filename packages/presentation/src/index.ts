@@ -114,11 +114,13 @@ export type { FrameInput, ViewProjector } from './stages.js';
 export type {
   CardInput,
   HandleSizes,
+  HoverLookup,
   PointerPrecision,
   ResizeEdge,
   TitleBarColouring,
   TitleBarColours,
   WindowCard,
+  WindowHover,
 } from './cards.js';
 export {
   bandEdgeAt,

@@ -1450,6 +1450,56 @@ export type HoldGate =
 /** The descriptor of Swf.Gesture.HoldGate: how its values cross the boundary. */
 export function holdGateType(): L.Type<HoldGate>;
 
+/** What a press is decided from. */
+export interface PressFacts {
+  /** What the press landed on. */
+  readonly pick: PressPick;
+  /** The region of what it landed on. */
+  readonly region: Region;
+  /** A takeover is active, or its modifier is held: content presses may be claimed. */
+  readonly takeover: boolean;
+  /** The target is shown by a proxy, whose input is the framework's. */
+  readonly proxy: boolean;
+  /** The target is already in a gesture (a pointer's or a keyboard hold). */
+  readonly busy: boolean;
+}
+/** The descriptor of Swf.Gesture.PressFacts: how its values cross the boundary. */
+export function pressFactsType(): L.Type<PressFacts>;
+
+/** What a pointer hovering shows, as its cursor and outline: what a press there would do. */
+export type HoverShows =
+  | {
+      /** Nothing a press could act on: outside the view or on nothing pickable. */
+      readonly kind: "nothing";
+    }
+  | {
+      /** A modal blocks it. */
+      readonly kind: "blocked";
+    }
+  | {
+      /** Live content, which would keep the press: the content's own cursor. */
+      readonly kind: "content";
+    }
+  | {
+      /** A window or the background a press would take, to move it or turn the view. */
+      readonly kind: "grab";
+    }
+  | {
+      /** A window's resize band, which a press would resize by. */
+      readonly kind: "resize";
+    }
+  | {
+      /** Live content the takeover would take: a press would move its window. */
+      readonly kind: "takeover";
+    }
+  | {
+      /** A target already in a gesture, which a press would not join. */
+      readonly kind: "busy";
+    }
+;
+/** The descriptor of Swf.Gesture.HoverShows: how its values cross the boundary. */
+export function hoverShowsType(): L.Type<HoverShows>;
+
 /** What a key decides from. */
 export interface KeyFacts {
   /** Whether the key was pressed or released. */
@@ -1512,6 +1562,10 @@ export type PointerPhase =
       /** The platform cancelled the pointer. */
       readonly kind: "cancel";
     }
+  | {
+      /** The pointer left the view. */
+      readonly kind: "leave";
+    }
 ;
 /** The descriptor of Swf.Gesture.PointerPhase: how its values cross the boundary. */
 export function pointerPhaseType(): L.Type<PointerPhase>;
@@ -1539,28 +1593,23 @@ export type PointerRoute =
       readonly kind: "lost";
     }
   | {
-      /** A sample of a pointer no gesture holds (one ended or cancelled): ignored. */
+      /** A move of a pointer no gesture holds: it hovers, and what a press there would do is said. */
+      readonly kind: "hover";
+    }
+  | {
+      /** A pointer no gesture holds left the view: nothing is under it any more. */
+      readonly kind: "unhover";
+    }
+  | {
+      /**
+       * A sample of a pointer no gesture holds (one ended or cancelled), or a held pointer leaving
+       * the view, which its gesture keeps: ignored.
+       */
       readonly kind: "ignore";
     }
 ;
 /** The descriptor of Swf.Gesture.PointerRoute: how its values cross the boundary. */
 export function pointerRouteType(): L.Type<PointerRoute>;
-
-/** What a press is decided from. */
-export interface PressFacts {
-  /** What the press landed on. */
-  readonly pick: PressPick;
-  /** The region of what it landed on. */
-  readonly region: Region;
-  /** A takeover is active, or its modifier is held: content presses may be claimed. */
-  readonly takeover: boolean;
-  /** The target is shown by a proxy, whose input is the framework's. */
-  readonly proxy: boolean;
-  /** The target is already in a gesture (a pointer's or a keyboard hold). */
-  readonly busy: boolean;
-}
-/** The descriptor of Swf.Gesture.PressFacts: how its values cross the boundary. */
-export function pressFactsType(): L.Type<PressFacts>;
 
 /** Where a press goes. */
 export type PressRoute =
@@ -3326,20 +3375,6 @@ export type Finish =
 /** The descriptor of Swf.Gesture.Finish: how its values cross the boundary. */
 export function finishType(): L.Type<Finish>;
 
-/** What a key event reports. */
-export type KeyPhase =
-  | {
-      /** The key was pressed. */
-      readonly kind: "down";
-    }
-  | {
-      /** The key was released. */
-      readonly kind: "up";
-    }
-;
-/** The descriptor of Swf.Gesture.KeyPhase: how its values cross the boundary. */
-export function keyPhaseType(): L.Type<KeyPhase>;
-
 /** What a press landed on. */
 export type PressPick =
   | {
@@ -3387,6 +3422,20 @@ export type Region =
 ;
 /** The descriptor of Swf.Gesture.Region: how its values cross the boundary. */
 export function regionType(): L.Type<Region>;
+
+/** What a key event reports. */
+export type KeyPhase =
+  | {
+      /** The key was pressed. */
+      readonly kind: "down";
+    }
+  | {
+      /** The key was released. */
+      readonly kind: "up";
+    }
+;
+/** The descriptor of Swf.Gesture.KeyPhase: how its values cross the boundary. */
+export function keyPhaseType(): L.Type<KeyPhase>;
 
 /** What a failed handoff's rollback does for a surface whose swap step was carried out. */
 export type SwapUndo =
@@ -4094,6 +4143,13 @@ export class SwfModels {
    */
   holdGate(holding: boolean, viewportKnown: boolean, nodeActive: boolean, inGesture: boolean): HoldGate;
   /**
+   * What a pointer hovering shows: what `pressRoute` would do with a press there, the region telling
+   * a resize band and taken-over content from the rest.
+   *
+   * Lean's Swf.Gesture.hoverShows : Swf.Gesture.PressFacts → Swf.Gesture.HoverShows
+   */
+  hoverShows(f: PressFacts): HoverShows;
+  /**
    * Where a key goes. A press of Escape while any gesture runs or is pending cancels every gesture,
    * whatever has focus. Otherwise live content with focus keeps its keys (`native`); a held node is put
    * down by Enter or Space with no modifier (`putDown`); any other press goes to the key map, and any
@@ -4104,9 +4160,10 @@ export class SwfModels {
   keyRoute(k: KeyFacts): KeyRoute;
   /**
    * Where a pointer sample goes. A press is `press`, or `pressAfterLost` when a gesture still holds
-   * the pointer. A move, release or cancel of a held pointer is `move`, `release` or `lost`; of a
-   * pointer no gesture holds it is `ignore`, so a late release from an old pointer never reaches a
-   * gesture.
+   * the pointer. A move, release or cancel of a held pointer is `move`, `release` or `lost`, and its
+   * leaving the view is `ignore` (its gesture keeps it). Of a pointer no gesture holds, a move is
+   * `hover` and leaving the view `unhover`; a release or cancel is `ignore`, so a late release from an
+   * old pointer never reaches a gesture.
    *
    * Lean's Swf.Gesture.pointerRoute : Swf.Gesture.PointerPhase → Bool → Swf.Gesture.PointerRoute
    */

@@ -20,6 +20,7 @@ function story(events: readonly InteractionEvent[]): string[] {
           `end ${e.finish.outcome}${e.finish.outcome === 'cancelled' ? ` ${e.finish.reason}` : ''}`,
         ];
       case 'content.pressed':
+      case 'pointer.hovered':
       case 'capture.released':
       case 'settings.changed':
         return [];
@@ -677,5 +678,57 @@ describe('background navigation (FR-106)', () => {
   it('refuses input for an unknown viewport', () => {
     const w = world([]);
     expect(() => w.input.pointer('down', 'nope', 1, 1)).toThrow(SwfFailure);
+  });
+});
+
+describe('hovering', () => {
+  /** What the router said a hovering pointer is over, in order. */
+  const said = (w: World) =>
+    w.events.flatMap((e) =>
+      e.type === 'pointer.hovered' ? [[e.shows, e.nodeId, e.region, e.edge] as const] : [],
+    );
+
+  it('says what a press would do where a pointer no gesture holds hovers, once for each change', () => {
+    const w = world([ahead]);
+    const [cx, cy, cw, ch] = cardOf(w.ws, 'a');
+    const [tx, ty] = titleBar(w.ws, 'a');
+    const [kx, ky] = contentOf(w.ws, 'a');
+    w.input.pointer('move', 'v', tx, ty);
+    w.input.pointer('move', 'v', tx + 2, ty);
+    w.input.pointer('move', 'v', kx, ky);
+    w.input.pointer('move', 'v', cx + cw + 4, cy + ch / 2);
+    w.input.pointer('move', 'v', 2, H / 2);
+    w.input.pointer('leave', 'v', 2, H / 2);
+    expect(said(w)).toEqual([
+      ['grab', 'a', 'title-bar', null],
+      ['content', 'a', 'content', null],
+      ['resize', 'a', 'resize-handle', 'e'],
+      // Behind the camera, the background: a press there turns the view.
+      ['grab', null, 'background', null],
+      [null, null, null, null],
+    ]);
+  });
+
+  it('says content would be taken while the takeover modifier is held, sampled where it is', () => {
+    const w = world([ahead]);
+    const [kx, ky] = contentOf(w.ws, 'a');
+    w.input.pointer('move', 'v', kx, ky);
+    // An input adapter offers the pointer where it is as the modifier goes down, then up.
+    w.input.pointer('move', 'v', kx, ky, { modifiers: { alt: true } });
+    w.input.pointer('move', 'v', kx, ky);
+    expect(said(w).map(([shows]) => shows)).toEqual(['content', 'takeover', 'content']);
+    // So does the named takeover control, for the pointer where it hovers.
+    w.router.setTakeover(true);
+    expect(said(w).at(-1)?.[0]).toBe('takeover');
+  });
+
+  it('says again what lies under a pointer let go where its gesture moved things', () => {
+    const w = world([ahead]);
+    const [tx, ty] = titleBar(w.ws, 'a');
+    w.input.pointer('down', 'v', tx, ty);
+    w.input.pointer('move', 'v', tx + 40, ty);
+    w.input.pointer('up', 'v', tx + 40, ty);
+    // The window moved with the pointer: its title bar is under it still.
+    expect(said(w).at(-1)).toEqual(['grab', 'a', 'title-bar', null]);
   });
 });

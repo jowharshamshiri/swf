@@ -22,7 +22,7 @@ import type {
 import { viewGeometryOf } from '@swf/presentation';
 import type { Continuity, Projection, ProjectionModule, RayResult } from '@swf/projections';
 import { projectionFor, projectorOf } from '@swf/projections';
-import type { GestureEvent, GesturePhase, Region } from '@swf/models';
+import type { GestureEvent, GesturePhase, HoverShows, Region } from '@swf/models';
 import { models } from '@swf/models';
 import type { CommandContext, CommandOutcome, InteractionCommand, NodeChange } from './commands.js';
 import { BUILT_IN_COMMANDS, commandIssue, eyeOf, heldChange } from './commands.js';
@@ -41,6 +41,7 @@ import type {
   PickCandidate,
   PickResult,
   PresentationLookup,
+  ResizeEdge,
 } from './pick.js';
 import { pick } from './pick.js';
 import type {
@@ -135,6 +136,25 @@ export const KEYBOARD_HOLD_ID = 'swf.keyboard-hold/1';
  * {@link InteractionRouter.takeListenerErrors}.
  */
 export type InteractionEvent =
+  | {
+      /**
+       * What lies under a pointer no gesture holds changed, or it left the viewport: what a press
+       * there would do (`hoverShows` of `@swf/models`), so a host can show it before anything is
+       * pressed. A pointer sample with other modifiers held (an input adapter offers one when a
+       * modifier goes down or up) and the end of a gesture say it again where it changed.
+       */
+      readonly type: 'pointer.hovered';
+      /** The viewport the pointer is over, or left. */
+      readonly viewportId: Id;
+      /** What a press there would do, or null once the pointer left the viewport. */
+      readonly shows: HoverShows['kind'] | null;
+      /** The window under it, or null for none. */
+      readonly nodeId: Id | null;
+      /** The region under it, or null once it left. */
+      readonly region: InputRegion | null;
+      /** The edge or corner of the resize band under it, or null for none. */
+      readonly edge: ResizeEdge | null;
+    }
   | {
       /**
        * A pointer was pressed on a window's live content, which keeps the press: the router took
@@ -408,6 +428,8 @@ export class InteractionRouter {
   readonly #unsubscribe: () => void;
   #modal: readonly Id[] | null = null;
   #takeover = false;
+  /** Each viewport's hovering pointer, last seen, and what was last said of it. */
+  readonly #hovering = new Map<Id, { pointer: PointerIntent; said: string }>();
   #nextGesture = 1;
   #hold: Hold | null = null;
   #disposed = false;
@@ -485,6 +507,9 @@ export class InteractionRouter {
   setTakeover(active: boolean): void {
     this.#live();
     this.#takeover = active;
+    for (const { pointer } of [...this.#hovering.values()]) {
+      this.#hover(pointer);
+    }
   }
 
   /**
@@ -820,6 +845,14 @@ export class InteractionRouter {
     if (route.kind === 'press') {
       return this.#press(intent, key);
     }
+    if (route.kind === 'hover') {
+      this.#hover(intent);
+      return NOT_HANDLED('the pointer hovers');
+    }
+    if (route.kind === 'unhover') {
+      this.#unhover(intent.viewportId);
+      return NOT_HANDLED('the pointer left the view');
+    }
     if (route.kind === 'ignore') {
       // A sample of a pointer no gesture holds (one already ended or cancelled) is ignored.
       return NOT_HANDLED('the pointer is not captured');
@@ -836,8 +869,12 @@ export class InteractionRouter {
         return this.#press(intent, key);
       case 'move':
         return this.#move(arena, key, intent);
-      case 'release':
-        return this.#release(arena, key, intent);
+      case 'release': {
+        const released = this.#release(arena, key, intent);
+        // Released, it hovers again where it is: what lies under it now is said.
+        this.#hover(intent);
+        return released;
+      }
       case 'lost':
         this.#cancelArena(arena, 'capture-lost');
         return { ...this.#handled(arena), reason: 'capture lost' };
@@ -1301,6 +1338,63 @@ export class InteractionRouter {
       operation: { name: 'node.move', outcome },
       reason: null,
     };
+  }
+
+  /**
+   * Says what a press would do where a pointer no gesture holds now is (`hoverShows`), when that
+   * changed since it was last said in its viewport.
+   */
+  #hover(intent: PointerIntent): void {
+    const scene = this.#workspace.getState();
+    const view = viewGeometryOf(scene, intent.viewportId);
+    const result = this.#pickIn(
+      scene,
+      view,
+      intent.x,
+      intent.y,
+      undefined,
+      precisionOf(intent.pointerType),
+    );
+    const picked = result.kind === 'hit' || result.kind === 'background' ? result : null;
+    const target = picked?.kind === 'hit' ? picked.target : null;
+    const busy =
+      target !== null &&
+      this.#arenas.get(nodeArenaKey(intent.viewportId, target.nodeId))?.running != null;
+    const shows = models.hoverShows({
+      pick: { kind: picked === null ? 'none' : picked.kind },
+      region: { kind: REGIONS[picked?.region ?? 'background'] },
+      takeover: this.#takeover || intent.modifiers[this.#settings.takeoverModifier],
+      proxy: target?.proxy === true,
+      busy,
+    }).kind;
+    const event = {
+      type: 'pointer.hovered' as const,
+      viewportId: intent.viewportId,
+      shows,
+      nodeId: target?.nodeId ?? null,
+      region: picked?.region ?? null,
+      edge: target?.edge ?? null,
+    };
+    const said = JSON.stringify([shows, event.nodeId, event.region, event.edge]);
+    const before = this.#hovering.get(intent.viewportId);
+    this.#hovering.set(intent.viewportId, { pointer: intent, said });
+    if (before?.said !== said) {
+      this.#emit(event);
+    }
+  }
+
+  /** Says a viewport's hovering pointer left it, if one hovered there. */
+  #unhover(viewportId: Id): void {
+    if (this.#hovering.delete(viewportId)) {
+      this.#emit({
+        type: 'pointer.hovered',
+        viewportId,
+        shows: null,
+        nodeId: null,
+        region: null,
+        edge: null,
+      });
+    }
   }
 
   #key(intent: KeyIntent): Routed {

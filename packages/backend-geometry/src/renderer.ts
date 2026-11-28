@@ -4,6 +4,7 @@ import type { Vec2, Vec3 } from '@swf/math';
 import { mat4TransformDirection, rectQuad } from '@swf/math';
 import type {
   CompositionLayer,
+  HoverLookup,
   NameObstacle,
   NameRequest,
   PlannedFragment,
@@ -117,6 +118,12 @@ export interface GeometryRendererOptions {
    * `ground` ink with its name in the `text` ink. Default: none for every window.
    */
   readonly titleBars?: TitleBarColouring;
+  /**
+   * The window the pointer hovers over where a press would take it, read at every frame: its frame
+   * and title bar are edged in the `selected` ink, or the edge of its resize band hovered drawn in
+   * it. Default: none.
+   */
+  readonly hover?: HoverLookup;
   /**
    * The inks, read at every frame so a change of the host's appearance is drawn at the next one.
    * Default {@link DEFAULT_GEOMETRY_INKS}. An ink that is not a non-blank string makes that frame
@@ -485,7 +492,9 @@ export class GeometryRendererSession implements RendererSession {
   #chrome(nodeId: Id, drawn: WindowFrame, after: string): CompositionLayer {
     const { cards, selected, focused, handles } = drawn;
     const inks = this.#inks;
-    const signature = JSON.stringify([cards, selected, focused, handles, after, inks]);
+    const hover = this.#options.hover?.(this.viewportId) ?? null;
+    const hovered = hover?.nodeId === nodeId ? hover : null;
+    const signature = JSON.stringify([cards, selected, focused, handles, after, inks, hovered]);
     return Object.freeze({
       id: `chrome:${nodeId}`,
       category: 'chrome',
@@ -494,11 +503,47 @@ export class GeometryRendererSession implements RendererSession {
       content: this.#keep(`chrome:${nodeId}`, signature, () =>
         layer(after, (ctx) => {
           for (const card of cards) {
-            const corners = rectQuad(outlineOf(card, 'full'));
+            const box = outlineOf(card, 'full');
+            const corners = rectQuad(box);
             outline(ctx, corners);
-            ctx.strokeStyle = focused ? inks.focused : selected ? inks.selected : inks.frame;
-            ctx.lineWidth = selected || focused ? FRAME_STROKE.emphasised : FRAME_STROKE.plain;
+            const over = hovered !== null && hovered.edge === null;
+            ctx.strokeStyle = focused
+              ? inks.focused
+              : selected || over
+                ? inks.selected
+                : inks.frame;
+            ctx.lineWidth =
+              selected || focused
+                ? FRAME_STROKE.emphasised
+                : over
+                  ? FRAME_STROKE.hovered
+                  : FRAME_STROKE.plain;
             ctx.stroke();
+            if (hovered?.edge != null) {
+              // The edge of the resize band hovered, drawn along the outline.
+              const [x, y, w, h] = box;
+              const edge = hovered.edge;
+              ctx.beginPath();
+              if (edge.includes('n')) {
+                ctx.moveTo(x, y);
+                ctx.lineTo(x + w, y);
+              }
+              if (edge.includes('s')) {
+                ctx.moveTo(x, y + h);
+                ctx.lineTo(x + w, y + h);
+              }
+              if (edge.includes('w')) {
+                ctx.moveTo(x, y);
+                ctx.lineTo(x, y + h);
+              }
+              if (edge.includes('e')) {
+                ctx.moveTo(x + w, y);
+                ctx.lineTo(x + w, y + h);
+              }
+              ctx.strokeStyle = inks.selected;
+              ctx.lineWidth = FRAME_STROKE.emphasised;
+              ctx.stroke();
+            }
             if (handles) {
               const side = FRAME_STROKE.handle;
               ctx.fillStyle = inks.selected;
@@ -531,6 +576,7 @@ export class GeometryRendererSession implements RendererSession {
     const font = `${String(BAR.size)}px ${family}`;
     const order = frame.planned.map((p) => p.fragment.id);
     const rank = (nodeId: Id) => order.indexOf(nearness.get(nodeId) ?? '');
+    const hover = this.#options.hover?.(this.viewportId) ?? null;
     const bars = [...frames]
       .sort(([a], [b]) => rank(a) - rank(b))
       .flatMap(([nodeId, drawn]) => {
@@ -541,7 +587,11 @@ export class GeometryRendererSession implements RendererSession {
           fill: colours?.fill ?? inks.ground,
           text: fitted(title, card[2] - 2 * BAR.margin, (t) => measure(t, font)),
           ink: colours?.text ?? inks.text,
-          edge: drawn.focused ? inks.focused : drawn.selected ? inks.selected : null,
+          edge: drawn.focused
+            ? inks.focused
+            : drawn.selected || (hover?.nodeId === nodeId && hover.edge === null)
+              ? inks.selected
+              : null,
         }));
       });
     const signature = JSON.stringify([bars, font]);

@@ -49,3 +49,6 @@ panorama's own by default), within what the projection allows, and scales its ca
 room left above and below it, so its title bar is always in view; `focusFrame` refuses a view too
 small for that (`ModeRefusal`). The move into and out of focus moves the horizon evenly too, where
 it dropped it before. `framingOf` gives what the viewport frames, as the focus model takes it.
+
+Both backends show the window a press would take where the pointer hovers, from the router's
+`pointer.hovered`.

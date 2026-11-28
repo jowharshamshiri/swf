@@ -160,6 +160,11 @@ export function wrappedInput(options: WrappedInputOptions): InputAdapter {
       };
 
       const sample = (intent: PointerIntent): DispatchResult => {
+        // A pointer leaving the view is one no gesture holds (a held pointer is captured, or
+        // locked, and never leaves): nothing it wraps, it goes on as it is.
+        if (intent.phase === 'leave') {
+          return run(intent);
+        }
         const frame = options.frame();
         const key = keyOf(intent);
         const step = models.sampleStep(

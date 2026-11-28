@@ -19,3 +19,6 @@ an ellipsis where the bar is narrow, in the host's colours (`titleBars`) or the 
 drawn round each card and its bar (`WindowFrame.cards`, every place the card is drawn), and
 floating names are written only for windows shown by their label alone, measured with the font set
 once a frame.
+
+`hover` edges the frame and title bar of the window a press would take in the `selected` ink, or
+draws the edge of its band hovered.

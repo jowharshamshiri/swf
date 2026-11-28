@@ -58,3 +58,9 @@ seam picks as the window's card (`chrome`), not as content.
 
 A press the router leaves to a window's live content is announced as a `content.pressed` event
 (its viewport, window and surface); the router takes nothing of the press and changes nothing.
+
+A pointer no gesture holds hovers: the router says what a press where it is would do as a
+`pointer.hovered` event (`shows`, the window, the region and the edge of a band), whenever that
+changes, after a gesture ends, and when the takeover control changes; a `leave` sample says the
+pointer left the view. An input adapter offers a sample of the pointer where it is whenever a
+modifier goes down or up, so a hover and a drag follow it.

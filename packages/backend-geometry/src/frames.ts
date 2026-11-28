@@ -3,10 +3,11 @@ import type { RenderFrame, ScreenRect } from '@swf/presentation';
 import { outlineOf } from '@swf/presentation';
 
 /**
- * How a window's frame is drawn, in CSS pixels: its stroke, wider for the selected or focused
- * window, and the side of the square resize handle centred on each corner of a selected window.
+ * How a window's frame is drawn, in CSS pixels: its stroke, wider for the window hovered where a
+ * press would take it and wider still for the selected or focused window, and the side of the
+ * square resize handle centred on each corner of a selected window.
  */
-export const FRAME_STROKE = Object.freeze({ plain: 1.5, emphasised: 3, handle: 8 });
+export const FRAME_STROKE = Object.freeze({ plain: 1.5, hovered: 2, emphasised: 3, handle: 8 });
 
 /** A window's frame as the geometry renderer draws it: round its card and its title bar. */
 export interface WindowFrame {
