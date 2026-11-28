@@ -154,6 +154,7 @@ const SIMULATED_CAPABILITIES: SurfaceCapabilities = Object.freeze({
   rebinding: true,
   placeholder: false,
   snapshotHooks: false,
+  takeover: true,
 });
 
 /** Where each simulated window stands: low ahead and to either side. */

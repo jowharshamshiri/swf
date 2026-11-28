@@ -65,6 +65,7 @@ exports = [
   "Swf.Gesture.selectionOnPress",
   "Swf.Gesture.hoverShows",
   "Swf.Gesture.pressedTwice",
+  "Swf.Gesture.takesOver",
   "Swf.Arbitration.bestBid",
   "Swf.Arbitration.pickOrder",
   "Swf.ViewMode.transition",

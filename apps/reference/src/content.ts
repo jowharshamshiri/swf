@@ -28,6 +28,7 @@ const NOTE_CAPABILITIES: SurfaceCapabilities = Object.freeze({
   rebinding: true,
   placeholder: false,
   snapshotHooks: false,
+  takeover: true,
 });
 
 const TILE_CAPABILITIES: SurfaceCapabilities = Object.freeze({
@@ -44,6 +45,7 @@ const TILE_CAPABILITIES: SurfaceCapabilities = Object.freeze({
   rebinding: true,
   placeholder: false,
   snapshotHooks: false,
+  takeover: true,
 });
 
 /** A note's endpoint: its element, made once and moved only by the framework's attachment. */

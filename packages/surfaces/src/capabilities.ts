@@ -72,6 +72,13 @@ export interface SurfaceCapabilities {
   readonly placeholder: boolean;
   /** The adapter takes part in workspace snapshots through extension hooks. */
   readonly snapshotHooks: boolean;
+  /**
+   * With the takeover modifier held (Alt by default), a press on the endpoint's content may be
+   * taken over to move its window: the content has no use of its own for that modifier and a
+   * press. False for content that has (a terminal, an editor), which then keeps every press;
+   * that needs native interaction.
+   */
+  readonly takeover: boolean;
 }
 
 /** Fidelity levels, worst first; frozen. */
@@ -107,6 +114,7 @@ const BOOLEAN_FIELDS = [
   'rebinding',
   'placeholder',
   'snapshotHooks',
+  'takeover',
 ] as const;
 
 const FIELDS = [
@@ -129,7 +137,8 @@ function oneOf(value: unknown, allowed: readonly string[], name: string): string
  * Every field is required; unknown fields are rejected. The reason names the field, as
  * `capabilities.<field> ...`, or states the contradiction: native interaction or native fidelity
  * without `native-dom`; a `proxy-only` endpoint claiming better than proxy fidelity or UV
- * addressing; cursor mapping without UV addressing; rebinding without safe detachment.
+ * addressing; cursor mapping without UV addressing; rebinding without safe detachment; content
+ * that keeps the takeover modifier without native interaction.
  */
 export function capabilitiesIssue(value: unknown): string | null {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
@@ -178,6 +187,9 @@ function contradiction(c: SurfaceCapabilities): string | null {
   }
   if (c.rebinding && !c.safeDetach) {
     return 'rebinding requires safe detachment';
+  }
+  if (!c.takeover && c.nativeInteraction === 'none') {
+    return 'content that keeps the takeover modifier requires native interaction';
   }
   return null;
 }
@@ -241,5 +253,6 @@ export function freezeCapabilities(c: SurfaceCapabilities): SurfaceCapabilities 
     rebinding: c.rebinding,
     placeholder: c.placeholder,
     snapshotHooks: c.snapshotHooks,
+    takeover: c.takeover,
   });
 }

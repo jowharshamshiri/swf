@@ -68,3 +68,6 @@ view, the window selected.
 
 `Navigation.windowAt` is gone: the router says which window a double press took
 (`pointer.doublePressed`).
+
+The router's takeover lookup answers from each surface's bound handle: its `takeover` capability,
+or on for a surface shown by the framework's placeholder.

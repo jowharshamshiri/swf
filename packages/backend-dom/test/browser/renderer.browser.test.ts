@@ -97,6 +97,7 @@ function frame(placed: 'exact' | 'approximate' = 'exact', bound = true, scale = 
               rebinding: true,
               placeholder: false,
               snapshotHooks: false,
+              takeover: true,
             }
           : null,
       ),

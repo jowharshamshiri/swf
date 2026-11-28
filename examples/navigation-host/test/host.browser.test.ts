@@ -5,7 +5,7 @@ import { ROOT_CLASS, setAppearance, setDensity } from '@wsb/uikit/primitives';
 import { mount, unmount } from 'svelte';
 import { FIELD_OF_VIEW, FOCUS_ID, MAP, OVERVIEW, PANORAMA, VIEWPORT_ID } from '@swf/navigation';
 import { afterEach, describe, expect, it } from 'vitest';
-import { userEvent } from 'vitest/browser';
+import { commands, userEvent } from 'vitest/browser';
 import Host from '../src/Host.svelte';
 import { Host as HostState, OPENING_FIELD_OF_VIEW } from '../src/host.svelte.js';
 
@@ -15,6 +15,17 @@ import { Host as HostState, OPENING_FIELD_OF_VIEW } from '../src/host.svelte.js'
  * its own: the same elements, interactive, with what was typed, ticked and scrolled in them, across
  * every way the view moves, and each control can be turned off or replaced on its own.
  */
+
+declare module 'vitest/browser' {
+  interface BrowserCommands {
+    mouse: (
+      action: 'move' | 'down' | 'up' | 'double' | 'release',
+      x: number,
+      y: number,
+      modifiers?: readonly string[],
+    ) => Promise<void>;
+  }
+}
 
 interface Visit {
   readonly host: HostState;
@@ -303,5 +314,37 @@ describe('the host page', () => {
     await userEvent.keyboard('{PageUp}');
     await settle();
     expect(facing()).not.toEqual(before);
+  });
+
+  it('leaves Alt and a press to its terminal-like log, whose content keeps them, and moves no window', async () => {
+    const { host, settle } = await visit();
+    await run(host, 'swf.focus.enter', { id: 'log' });
+    await settle();
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    const navigation = need(host.navigation, 'navigation');
+    const log = need(document.querySelector('ol[aria-label="Session log"]'), 'session log');
+    const line = need(log.querySelector('li'), 'line in the log');
+    const box = line.getBoundingClientRect();
+    const [x, y] = [Math.round(box.left + box.width / 3), Math.round(box.top + box.height / 2)];
+    const before = navigation.poseOf('log');
+    let started = 0;
+    navigation.router.subscribe((event) => {
+      if (event.type === 'gesture.started') started += 1;
+    });
+    // Alt and a press: the log's own, which marks the line pressed.
+    await commands.mouse('move', x, y);
+    await commands.mouse('down', x, y, ['Alt']);
+    await commands.mouse('up', x, y, ['Alt']);
+    await settle();
+    expect(line.hasAttribute('data-marked')).toBe(true);
+    // Alt and a drag takes nothing over: the window stands where it stood.
+    await commands.mouse('down', x, y, ['Alt']);
+    for (let step = 1; step <= 6; step += 1) {
+      await commands.mouse('move', x + step * 8, y, ['Alt']);
+    }
+    await commands.mouse('up', x + 48, y, ['Alt']);
+    await settle();
+    expect(started).toBe(0);
+    expect(navigation.poseOf('log')?.heading).toBe(before?.heading);
   });
 });

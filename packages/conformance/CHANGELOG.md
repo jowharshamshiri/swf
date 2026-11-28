@@ -9,3 +9,5 @@ version never does; from 1.0.0, only a major version does.
 The first release. Suites that check an adapter, a renderer or a compositor against the contracts, with reference mocks to run them against.
 
 The backend suite's projection profiles no longer declare a mapping.
+
+The mock adapter's capabilities leave the takeover on (`takeover: true`).

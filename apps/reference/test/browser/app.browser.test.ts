@@ -1,3 +1,4 @@
+import { createMemoryStore } from '@swf/persistence';
 import type { ViewportFrame } from '@swf/presentation';
 import { afterEach, describe, expect, it } from 'vitest';
 import { commands } from 'vitest/browser';
@@ -40,8 +41,11 @@ async function start(config: Partial<AppConfig> = {}): Promise<ReferenceApp> {
   root.style.setProperty('width', `${String(W)}px`);
   root.style.setProperty('height', `${String(H)}px`);
   document.body.append(root);
+  // A store of its own: the page's local storage is every suite's, and holds the space another
+  // left, whose view the preset would be loaded into.
   app = await createReferenceApp({
     root,
+    store: createMemoryStore(),
     config: { preset: 'sparse', seed: 1, backend: 'dom', restore: false, ...config },
   });
   return app;

@@ -217,6 +217,7 @@ surfaces.registerAdapter({
     rebinding: true,
     placeholder: false,
     snapshotHooks: false,
+    takeover: false, // an editor keeps Alt and a press: they place a second caret
   },
   resolve: (bindingKey, signal) => editors.find(bindingKey, signal), // null for an unknown key
   capabilities: (editor) => editor.capabilities,
@@ -369,8 +370,12 @@ local point, UV and region: `content`, `chrome`, `resize-handle`, `background` o
 Surface ID. A surface shown only as a proxy is marked so, with focus and activation offered in
 place of direct input.
 
-Presses on content stay with the content unless a takeover is active (the takeover modifier,
-Alt by default, or `setTakeover(true)`), and every wheel over content stays with it, whatever is
+Presses on content stay with the content unless a takeover takes them (`Swf.Gesture.takesOver`):
+the host's takeover control (`setTakeover(true)`), or the takeover modifier, Alt by default, held
+over content that does not keep it. Content that uses Alt and a press itself, a terminal or an
+editor, keeps them: its handle reports the `takeover` capability false, the navigation answers the
+router's `takeover` lookup from it, and a press there with Alt held is the content's, its window
+moved by its title bar alone. Every wheel over content stays with it, whatever is
 held. With no press held, the wheel goes as the gesture model's `wheelRoute` decides: over a
 window's title bar, its frame or a picture of its content it moves the window nearer or farther
 (Ctrl and the wheel there zoom the page, as the browser zooms it); over the background a scroll
@@ -1613,6 +1618,10 @@ npm run api-reference   # the API reference in api-reference/, failing on an und
                         # public declaration
 ```
 
+`npm test` runs the suites in parallel, then the two that hold work to a time (a transaction's p95
+and a hit query's) one file at a time, after the rest, so they measure the work and not the other
+suites' workers (the `timed` project of `vitest.config.mjs`).
+
 `npm run lint` runs ESLint over each workspace in a process of its own, and over the rest of the
 repository in one more, a few at a time (`scripts/lint.mjs`). Type-aware linting builds a
 TypeScript program for every tsconfig it meets and keeps each for the whole run: one process over
@@ -1631,11 +1640,12 @@ release` builds a versioned release from a commit ([Release the packages](docs/h
 A budget is raised only deliberately, by hand, to the package's measured gzip size rounded up to the
 next 256 bytes, so it leaves no room for growth nobody looked at; the measured sizes are recorded
 with `npm run size -- --record` in the same commit, whose message gives the old and the new budget.
-`@swf/models` is at 66816 bytes: it is the compiled program of every proved decision model the
-framework and the reference application run, so it grows with each model (66670 bytes
+`@swf/models` is at 67328 bytes: it is the compiled program of every proved decision model the
+framework and the reference application run, so it grows with each model (67079 bytes
 measured, the room (`Swf.Room`), the spacing after a snap (`Swf.AppSpacing`), the title bars'
 place in picking and a handle's reach (`Swf.Arbitration`), the selection after a press, what a
-hovering pointer shows and when two presses are a double press (`Swf.Gesture`), where the wheel
+hovering pointer shows, when two presses are a double press and when a takeover takes a press
+(`Swf.Gesture`), where the wheel
 goes (`Swf.Gesture.wheelRoute`, `Swf.AppWheel`) and a double press on a window (`Swf.AppFocus`)
 included).
 `@swf/persistence` is at 13568 bytes (13513 measured): snapshots, stores and the saver, with named

@@ -26,6 +26,7 @@ const CAPABILITIES: SurfaceCapabilities = {
   rebinding: true,
   placeholder: false,
   snapshotHooks: false,
+  takeover: true, // Alt and a press on it may move its window: it has no use of its own for them
 };
 ```
 
@@ -37,6 +38,11 @@ const CAPABILITIES: SurfaceCapabilities = {
   descriptor must not contradict itself: native interaction or `native` fidelity needs the
   `native-dom` strategy, and a `proxy-only` endpoint claims no better than proxy fidelity.
   Registration refuses a contradiction with `UNSUPPORTED_CAPABILITY`, naming it.
+- `takeover` is false for content that keeps the takeover modifier and a press as its own (Alt by
+  default): a terminal, an editor. A press on it with Alt held then stays the content's, and only
+  its title bar moves the window. It needs native interaction. A handle may report it for its own
+  content alone, below a declaration that leaves it true: the navigation host example's session
+  log does.
 - Declare `safeDetach` only when the endpoint survives being taken out of the page (a `<video>`
   keeps playing, an editor keeps its state). Without it, a hidden surface stays attached and
   hidden, and a handoff that would strand it is refused.

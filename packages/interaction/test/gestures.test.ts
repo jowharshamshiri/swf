@@ -414,6 +414,43 @@ describe('native content and takeover (FR-103, FR-108, FR-110)', () => {
     expect(w.input.pointer('down', 'v', cx, cy).route).toBe('native');
   });
 
+  it('leaves Alt and a press to content that keeps the takeover modifier, and says so as it hovers', () => {
+    // b's content keeps Alt and a press as its own, as a terminal does.
+    const w = world([ahead, { id: 'b', heading: 1.6, distance: 3 }], {
+      router: { takeover: (surfaceId) => surfaceId !== 'b-view' },
+    });
+    const alt = { modifiers: { alt: true } };
+    const hovered = () => {
+      const last = w.events.filter((e) => e.type === 'pointer.hovered').at(-1);
+      return last?.type === 'pointer.hovered' ? last.shows : null;
+    };
+    const [bx, by] = contentOf(w.ws, 'b');
+    w.input.pointer('move', 'v', bx, by, alt);
+    expect(hovered()).toBe('content');
+    expect(w.input.pointer('down', 'v', bx, by, alt)).toMatchObject({
+      consumed: false,
+      route: 'native',
+      region: 'content',
+    });
+    expect(w.events.at(-1)).toEqual({
+      type: 'content.pressed',
+      viewportId: 'v',
+      nodeId: 'b',
+      surfaceId: 'b-view',
+    });
+    w.input.pointer('up', 'v', bx, by, alt);
+    // a's content does not: Alt takes a press on it over.
+    const [ax, ay] = contentOf(w.ws, 'a');
+    w.input.pointer('move', 'v', ax, ay, alt);
+    expect(hovered()).toBe('takeover');
+    expect(w.input.pointer('down', 'v', ax, ay, alt).route).toBe('gesture');
+    w.input.pointer('up', 'v', ax, ay, alt);
+    // The host's takeover control takes every content's presses, b's too.
+    w.router.setTakeover(true);
+    expect(w.input.pointer('down', 'v', bx, by).route).toBe('gesture');
+    w.input.pointer('up', 'v', bx, by);
+  });
+
   it('says a press was left to a window’s content, once, taking nothing of it', () => {
     const w = world([ahead]);
     const [x, y] = contentOf(w.ws, 'a');

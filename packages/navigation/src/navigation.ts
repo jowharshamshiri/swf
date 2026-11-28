@@ -702,6 +702,16 @@ export async function createNavigation(options: NavigationOptions): Promise<Navi
     presentation: (surfaceId) => mount.viewport.presentation(surfaceId),
     // Picking finds the cards the panorama draws, sized as semantic depth shows them.
     representation: () => mount.viewport.representation(),
+    // Content that keeps Alt and a press as its own (a terminal, an editor) says so by its handle's
+    // `takeover` capability; a surface with no handle bound shows the framework's placeholder,
+    // which keeps nothing.
+    takeover: (surfaceId) => {
+      const presented = runtime.get(surfaceId);
+      if (presented === undefined) {
+        throw new Error(`surface "${surfaceId}" is not in the surface runtime`);
+      }
+      return presented.capabilities === null || presented.capabilities.takeover;
+    },
     timer,
   });
   // What a press would take where the pointer hovers, shown before anything is pressed: a window

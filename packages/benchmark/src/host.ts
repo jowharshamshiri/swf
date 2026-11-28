@@ -39,6 +39,7 @@ const LIVE_CAPABILITIES: SurfaceCapabilities = Object.freeze({
   rebinding: true,
   placeholder: false,
   snapshotHooks: false,
+  takeover: true,
 });
 
 const DRAWN_CAPABILITIES: SurfaceCapabilities = Object.freeze({

@@ -1474,8 +1474,15 @@ export interface PressFacts {
   readonly pick: PressPick;
   /** The region of what it landed on. */
   readonly region: Region;
-  /** A takeover is active, or its modifier is held: content presses may be claimed. */
-  readonly takeover: boolean;
+  /** The host's takeover is on: every press on content may be claimed. */
+  readonly control: boolean;
+  /** The takeover modifier is held. */
+  readonly modifier: boolean;
+  /**
+   * The content pressed keeps a press with the takeover modifier held as its own: its surface
+   * turns the takeover modifier off (content that uses it, such as a terminal or an editor).
+   */
+  readonly keepsModifier: boolean;
   /** The target is shown by a proxy, whose input is the framework's. */
   readonly proxy: boolean;
   /** The target is already in a gesture (a pointer's or a keyboard hold). */
@@ -3466,7 +3473,7 @@ export function pressPickType(): L.Type<PressPick>;
 /** What part of the workspace a point is over. */
 export type Region =
   | {
-      /** A surface's content, whose input stays native unless a takeover is active. */
+      /** A surface's content, whose input stays native unless a takeover takes it. */
       readonly kind: "content";
     }
   | {
@@ -4240,10 +4247,10 @@ export class SwfModels {
   pointerRoute(phase: PointerPhase, captured: boolean): PointerRoute;
   /**
    * Where a press goes: `ignore` on nothing pickable; `blocked` outside an active modal; `native`
-   * on live content when no takeover is active and the target is not a proxy; otherwise `busy` when
-   * the target is already in a gesture, and `claim` when it is free. Only a press on something
-   * pickable, outside a modal, not on live content keeping its input, and on a free target reaches the
-   * policies.
+   * on live content when no takeover takes it (`takesOver`) and the target is not a proxy; otherwise
+   * `busy` when the target is already in a gesture, and `claim` when it is free. Only a press on
+   * something pickable, outside a modal, not on live content keeping its input, and on a free target
+   * reaches the policies.
    *
    * Lean's Swf.Gesture.pressRoute : Swf.Gesture.PressFacts → Swf.Gesture.PressRoute
    */
@@ -4267,6 +4274,13 @@ export class SwfModels {
    * Lean's Swf.Gesture.selectionOnPress : List String → String → Option (List String)
    */
   selectionOnPress(selection: Array<string>, window: string): L.Option<Array<string>>;
+  /**
+   * Whether a takeover takes a press on content: the host's takeover is on, or the takeover
+   * modifier is held over content that does not keep it.
+   *
+   * Lean's Swf.Gesture.takesOver : Swf.Gesture.PressFacts → Bool
+   */
+  takesOver(f: PressFacts): boolean;
   /**
    * Where a wheel goes. While a press is held in the viewport, every wheel there is the press's
    * (`press`): a gesture is one change, so nothing else may change the scene in the middle of it, and

@@ -32,6 +32,7 @@ const CAPABILITIES: SurfaceCapabilities = Object.freeze({
   rebinding: true,
   placeholder: false,
   snapshotHooks: false,
+  takeover: true,
 });
 
 /** The error a resolution gives up with when the framework cancels it. */

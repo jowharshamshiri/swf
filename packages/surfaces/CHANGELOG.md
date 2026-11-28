@@ -19,3 +19,7 @@ A replacement's binding context carries the generation the handoff commits as, a
 `presentation.stateChanged` is emitted exactly when a surface's state changes, or when its handle
 fails again while in `error`: starting to bind while already binding, and a release that ends in
 the state the surface was already in, are no longer announced.
+
+A capability descriptor says whether the takeover modifier may take a press on the endpoint's
+content over (`takeover`, required): false for content that keeps Alt and a press as its own, such
+as a terminal or an editor, which needs native interaction.

@@ -44,6 +44,7 @@ const CAPABILITIES = Object.freeze({
   rebinding: true,
   placeholder: false,
   snapshotHooks: false,
+  takeover: true,
 });
 
 /**

@@ -66,6 +66,13 @@ describe('adapter registration', () => {
         uvAddressing: false,
         cursorMapping: false,
       }),
+      // content that keeps the takeover modifier with no input of its own
+      mockCapabilities({
+        attachStrategy: 'drawable',
+        nativeInteraction: 'none',
+        transformFidelity: 'exact',
+        takeover: false,
+      }),
       { ...NATIVE_CAPABILITIES, teleport: true } as never,
       { ...NATIVE_CAPABILITIES, resize: 'sometimes' } as never,
     ]) {
@@ -103,6 +110,26 @@ describe('capability descriptors', () => {
         mockCapabilities({ nativeInteraction: 'partial', resize: 'spatial' }),
       ),
     ).toEqual([]);
+    // An adapter that declares its content keeps the takeover modifier has no handle that does not.
+    expect(
+      exceededCapabilities(mockCapabilities({ takeover: false }), mockCapabilities({})),
+    ).toEqual(['takeover']);
+    expect(
+      exceededCapabilities(NATIVE_CAPABILITIES, mockCapabilities({ takeover: false })),
+    ).toEqual([]);
+    expect(capabilitiesIssue({ ...NATIVE_CAPABILITIES, takeover: undefined })).toBe(
+      'capabilities.takeover must be a boolean',
+    );
+    expect(
+      capabilitiesIssue(
+        mockCapabilities({
+          attachStrategy: 'drawable',
+          nativeInteraction: 'none',
+          transformFidelity: 'exact',
+          takeover: false,
+        }),
+      ),
+    ).toBe('content that keeps the takeover modifier requires native interaction');
   });
 
   it('accepts a consistent proxy-only descriptor', () => {

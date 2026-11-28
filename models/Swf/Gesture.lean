@@ -73,7 +73,7 @@ inductive PressPick where
 
 /-- What part of the workspace a point is over. -/
 inductive Region where
-  /-- A surface's content, whose input stays native unless a takeover is active. -/
+  /-- A surface's content, whose input stays native unless a takeover takes it. -/
   | content
   /-- A window's frame, a surface that only shows something, or a picture of content. -/
   | chrome
@@ -92,8 +92,13 @@ structure PressFacts where
   pick : PressPick
   /-- The region of what it landed on. -/
   region : Region
-  /-- A takeover is active, or its modifier is held: content presses may be claimed. -/
-  takeover : Bool
+  /-- The host's takeover is on: every press on content may be claimed. -/
+  control : Bool
+  /-- The takeover modifier is held. -/
+  modifier : Bool
+  /-- The content pressed keeps a press with the takeover modifier held as its own: its surface
+  turns the takeover modifier off (content that uses it, such as a terminal or an editor). -/
+  keepsModifier : Bool
   /-- The target is shown by a proxy, whose input is the framework's. -/
   proxy : Bool
   /-- The target is already in a gesture (a pointer's or a keyboard hold). -/
@@ -113,16 +118,28 @@ inductive PressRoute where
   | claim
 deriving DecidableEq
 
+/-- Whether a takeover takes a press on content: the host's takeover is on, or the takeover
+modifier is held over content that does not keep it. -/
+def takesOver (f : PressFacts) : Bool :=
+  f.control || (f.modifier && !f.keepsModifier)
+
+/-- A takeover takes a press on content exactly when the host's takeover is on, or the takeover
+modifier is held over content that does not keep it. -/
+@[lungo_claim "lungo.decides" subject takesOver]
+theorem takes_over_iff (f : PressFacts) :
+    takesOver f = true ↔ f.control = true ∨ (f.modifier = true ∧ f.keepsModifier = false) := by
+  simp [takesOver]
+
 /-- Where a press goes: `ignore` on nothing pickable; `blocked` outside an active modal; `native`
-on live content when no takeover is active and the target is not a proxy; otherwise `busy` when
-the target is already in a gesture, and `claim` when it is free. Only a press on something
-pickable, outside a modal, not on live content keeping its input, and on a free target reaches the
-policies. -/
+on live content when no takeover takes it (`takesOver`) and the target is not a proxy; otherwise
+`busy` when the target is already in a gesture, and `claim` when it is free. Only a press on
+something pickable, outside a modal, not on live content keeping its input, and on a free target
+reaches the policies. -/
 def pressRoute (f : PressFacts) : PressRoute :=
   match f.pick, f.region with
   | .none, _ => .ignore
   | _, .modalOverlay => .blocked
-  | _, .content => if !f.takeover && !f.proxy then .native else if f.busy then .busy else .claim
+  | _, .content => if !takesOver f && !f.proxy then .native else if f.busy then .busy else .claim
   | _, _ => if f.busy then .busy else .claim
 
 /-- What a press on a window does to the selection, whether a gesture takes the window or its live
@@ -190,9 +207,9 @@ theorem shows_what_a_press_does (f : PressFacts) :
     (hoverShows f = .content ↔ pressRoute f = .native) ∧
       ((hoverShows f = .grab ∨ hoverShows f = .resize ∨ hoverShows f = .takeover) ↔
         pressRoute f = .claim) := by
-  obtain ⟨pick, region, takeover, proxy, busy⟩ := f
-  cases pick <;> cases region <;> cases takeover <;> cases proxy <;> cases busy <;>
-    simp [hoverShows, pressRoute]
+  obtain ⟨pick, region, control, modifier, keeps, proxy, busy⟩ := f
+  cases pick <;> cases region <;> cases control <;> cases modifier <;> cases keeps <;>
+    cases proxy <;> cases busy <;> simp [hoverShows, pressRoute, takesOver]
 
 /-- A pressed pointer moved this far from where it went down: whether that is beyond the slop, past
 which a press becomes a drag. -/
@@ -459,10 +476,32 @@ reaches the policies; one on a target already in a gesture is consumed and joins
 @[lungo_claim "lungo.law" subject pressRoute]
 theorem press_claims_only_free_targets (f : PressFacts) (h : pressRoute f = .claim) :
     f.busy = false ∧ (f.pick = .hit ∨ f.pick = .background) ∧
-      (f.region = .content → f.takeover = true ∨ f.proxy = true) := by
-  obtain ⟨pick, region, takeover, proxy, busy⟩ := f
-  cases pick <;> cases region <;> cases takeover <;> cases proxy <;> cases busy <;>
-    simp_all [pressRoute]
+      (f.region = .content → takesOver f = true ∨ f.proxy = true) := by
+  obtain ⟨pick, region, control, modifier, keeps, proxy, busy⟩ := f
+  cases pick <;> cases region <;> cases control <;> cases modifier <;> cases keeps <;>
+    cases proxy <;> cases busy <;> simp_all [pressRoute, takesOver]
+
+/-- Content that keeps the takeover modifier keeps a press with it held: unless the host's takeover
+is on or the content is a proxy, the press is the content's, whatever modifier is held. -/
+@[lungo_claim "lungo.law" subject pressRoute]
+theorem kept_modifier_stays_native (f : PressFacts) (hp : f.pick ≠ .none)
+    (hr : f.region = .content) (hk : f.keepsModifier = true) (hc : f.control = false)
+    (hx : f.proxy = false) : pressRoute f = .native := by
+  obtain ⟨pick, region, control, modifier, keeps, proxy, busy⟩ := f
+  simp only at hp hr hk hc hx
+  subst hr hk hc hx
+  cases pick <;> cases modifier <;> simp_all [pressRoute, takesOver]
+
+/-- Over content that does not keep it, the takeover modifier takes a press: it reaches the
+policies, or is consumed while the window is in a gesture. -/
+@[lungo_claim "lungo.law" subject pressRoute]
+theorem modifier_takes_free_content (f : PressFacts) (hp : f.pick ≠ .none)
+    (hr : f.region = .content) (hm : f.modifier = true) (hk : f.keepsModifier = false) :
+    pressRoute f = (if f.busy then .busy else .claim) := by
+  obtain ⟨pick, region, control, modifier, keeps, proxy, busy⟩ := f
+  simp only at hp hr hm hk ⊢
+  subst hr hm hk
+  cases pick <;> cases control <;> cases proxy <;> cases busy <;> simp_all [pressRoute, takesOver]
 
 /-- A gesture commits at most once: a committed gesture takes no other finish, nor a cancel, and
 only ends. -/

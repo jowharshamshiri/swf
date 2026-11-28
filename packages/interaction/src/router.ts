@@ -22,7 +22,7 @@ import type {
 import { viewGeometryOf } from '@swf/presentation';
 import type { Continuity, Projection, ProjectionModule, RayResult } from '@swf/projections';
 import { projectionFor, projectorOf } from '@swf/projections';
-import type { GestureEvent, GesturePhase, HoverShows, Region, Tap } from '@swf/models';
+import type { GestureEvent, GesturePhase, HoverShows, PressFacts, Region, Tap } from '@swf/models';
 import { models } from '@swf/models';
 import type { CommandContext, CommandOutcome, InteractionCommand, NodeChange } from './commands.js';
 import { BUILT_IN_COMMANDS, commandIssue, eyeOf, heldChange } from './commands.js';
@@ -128,6 +128,13 @@ type Routed = Omit<DispatchResult, 'pick'>;
  * moved, turned and resized in a preview, and put down once with `gesture.drop`, Enter or Space.
  */
 export const KEYBOARD_HOLD_ID = 'swf.keyboard-hold/1';
+
+/**
+ * Whether the takeover modifier takes a press on a surface's content over, by its ID: false for
+ * content that keeps Alt and a press as its own. Called while routing a press or a hover; it must
+ * not change the scene.
+ */
+export type TakeoverLookup = (surfaceId: Id) => boolean;
 
 /**
  * Notifications from the router. Hosts release platform pointer capture and styling on them.
@@ -284,6 +291,12 @@ export interface InteractionRouterOptions {
   /** Which hits hide what lies behind them. Default: all of them. */
   readonly occlusion?: OcclusionLookup;
   /**
+   * Whether the takeover modifier takes a press on a surface's content over: false for content
+   * that keeps Alt and a press as its own (a terminal, an editor), as its handle's `takeover`
+   * capability says. Default: on for every surface.
+   */
+  readonly takeover?: TakeoverLookup;
+  /**
    * Overrides of {@link DEFAULT_SETTINGS}, checked as {@link mergeSettings} checks them; every key
    * binding must name a command the router has once `commands` are registered, as
    * {@link InteractionRouter.configure} requires.
@@ -434,6 +447,7 @@ export class InteractionRouter {
   >();
   readonly #presentation: PresentationLookup;
   readonly #occlusion: OcclusionLookup;
+  readonly #takeoverOn: TakeoverLookup;
   readonly #timer: () => number;
   /** The hit query of the dispatch under way, once it has made one. */
   #lastPick: PickMeasure | null = null;
@@ -463,6 +477,7 @@ export class InteractionRouter {
     this.#representation = options.representation ?? (() => null);
     this.#presentation = options.presentation ?? (() => 'live');
     this.#occlusion = options.occlusion ?? (() => 'occluding');
+    this.#takeoverOn = options.takeover ?? (() => true);
     if (options.timer !== undefined && typeof options.timer !== 'function') {
       throw failure('INVALID_INPUT', 'timer must be a function');
     }
@@ -918,19 +933,14 @@ export class InteractionRouter {
     );
     const picked = result.kind === 'hit' || result.kind === 'background' ? result : null;
     const target = picked?.kind === 'hit' ? picked.target : null;
-    const takeover = this.#takeover || intent.modifiers[this.#settings.takeoverModifier];
     const arenaKey =
       target === null
         ? `${intent.viewportId}\u0000background`
         : nodeArenaKey(intent.viewportId, target.nodeId);
     const existing = this.#arenas.get(arenaKey);
-    const route = models.pressRoute({
-      pick: { kind: picked === null ? 'none' : picked.kind },
-      region: { kind: REGIONS[picked?.region ?? 'background'] },
-      takeover,
-      proxy: target?.proxy === true,
-      busy: existing?.running != null,
-    });
+    const facts = this.#pressFacts(intent, picked, existing?.running != null);
+    const route = models.pressRoute(facts);
+    const takeover = models.takesOver(facts);
     if (picked === null) {
       if (route.kind !== 'ignore' || result.kind === 'hit' || result.kind === 'background') {
         throw new Error(`the gesture model routed a press on nothing to ${route.kind}`);
@@ -1448,13 +1458,7 @@ export class InteractionRouter {
     const busy =
       target !== null &&
       this.#arenas.get(nodeArenaKey(intent.viewportId, target.nodeId))?.running != null;
-    const shows = models.hoverShows({
-      pick: { kind: picked === null ? 'none' : picked.kind },
-      region: { kind: REGIONS[picked?.region ?? 'background'] },
-      takeover: this.#takeover || intent.modifiers[this.#settings.takeoverModifier],
-      proxy: target?.proxy === true,
-      busy,
-    }).kind;
+    const shows = models.hoverShows(this.#pressFacts(intent, picked, busy)).kind;
     const event = {
       type: 'pointer.hovered' as const,
       viewportId: intent.viewportId,
@@ -1469,6 +1473,30 @@ export class InteractionRouter {
     if (before?.said !== said) {
       this.#emit(event);
     }
+  }
+
+  /**
+   * What a press of `intent` on `picked` is decided from (`pressRoute`, `hoverShows`): the takeover
+   * control, the takeover modifier held, and whether the content under it keeps that modifier (its
+   * surface's takeover is off).
+   */
+  #pressFacts(
+    intent: PointerIntent,
+    picked: Extract<PickResult, { readonly kind: 'hit' | 'background' }> | null,
+    busy: boolean,
+  ): PressFacts {
+    const target = picked?.kind === 'hit' ? picked.target : null;
+    const region = picked?.region ?? 'background';
+    return {
+      pick: { kind: picked === null ? 'none' : picked.kind },
+      region: { kind: REGIONS[region] },
+      control: this.#takeover,
+      modifier: intent.modifiers[this.#settings.takeoverModifier],
+      keepsModifier:
+        region === 'content' && target?.surfaceId != null && !this.#takeoverOn(target.surfaceId),
+      proxy: target?.proxy === true,
+      busy,
+    };
   }
 
   /** Says a viewport's hovering pointer left it, if one hovered there. */

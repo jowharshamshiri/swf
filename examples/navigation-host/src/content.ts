@@ -51,6 +51,16 @@ const ELEMENT_CAPABILITIES: SurfaceCapabilities = Object.freeze({
   rebinding: true,
   placeholder: false,
   snapshotHooks: false,
+  takeover: true,
+});
+
+/**
+ * The session log's: it is terminal-like, and keeps Alt and a press as its own (they mark the line
+ * pressed), so the takeover modifier never takes a press on it over.
+ */
+const TERMINAL_CAPABILITIES: SurfaceCapabilities = Object.freeze({
+  ...ELEMENT_CAPABILITIES,
+  takeover: false,
 });
 
 const CANVAS_CAPABILITIES: SurfaceCapabilities = Object.freeze({
@@ -67,6 +77,7 @@ const CANVAS_CAPABILITIES: SurfaceCapabilities = Object.freeze({
   rebinding: true,
   placeholder: false,
   snapshotHooks: false,
+  takeover: true,
 });
 
 /** A canvas the host draws, as the geometry backend takes it: its revision rises with its pixels. */
@@ -308,10 +319,20 @@ export function createHostViews(document: Document): HostViews {
     said.textContent = `Ran ${target.value} (${String(runs)})`;
   });
 
-  // Session log: lines it adds by itself, scrolled where the reader left it.
+  // Session log: lines it adds by itself, scrolled where the reader left it. It is terminal-like:
+  // Alt and a press marks the line pressed, as a terminal's own Alt and a press does.
   const log = make('ol');
   log.setAttribute('aria-label', 'Session log');
   log.style.cssText = `${SURFACE_STYLE}padding-left:2.4em;font-family:var(--vscode-editor-font-family, monospace);`;
+  log.addEventListener('pointerdown', (event) => {
+    const line = event.target instanceof Element ? event.target.closest('li') : null;
+    if (event.altKey && line !== null) {
+      line.toggleAttribute('data-marked');
+      line.style.background = line.hasAttribute('data-marked')
+        ? 'var(--vscode-editor-selectionBackground, #cde)'
+        : '';
+    }
+  });
   let lines = 0;
   const logLine = () => {
     lines += 1;
@@ -407,7 +428,8 @@ export function createHostViews(document: Document): HostViews {
     apiVersion: ADAPTER_API_VERSION,
     declaredCapabilities: ELEMENT_CAPABILITIES,
     resolve: (key: string) => Promise.resolve(elements.get(key) ?? null),
-    capabilities: () => ELEMENT_CAPABILITIES,
+    capabilities: (element: HTMLElement) =>
+      element === log ? TERMINAL_CAPABILITIES : ELEMENT_CAPABILITIES,
     attach(element: HTMLElement, at: { readonly container: unknown }) {
       if (!(at.container instanceof HTMLElement)) {
         throw new Error(`${ELEMENT_ADAPTER} attaches only into an element`);

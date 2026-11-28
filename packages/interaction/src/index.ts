@@ -57,6 +57,7 @@ export type {
   InteractionEvent,
   InteractionRouterOptions,
   Route,
+  TakeoverLookup,
 } from './router.js';
 export { createInteractionRouter, InteractionRouter, KEYBOARD_HOLD_ID } from './router.js';
 export type { RoomLimits, RoomPace, RoomPlace, RoomPointer } from './room.js';

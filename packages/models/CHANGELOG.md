@@ -84,3 +84,8 @@ title bars included, and never marks it occluded (`Hit.front`, `front_before`).
 before it, near enough and soon enough (`pressed_twice_iff`). `Swf.Arbitration` orders a handle's
 reach past what its window draws after every hit on something drawn, and never lets one occlude
 (`Hit.reach`, `reach_after`, `reach_hides_nothing`).
+
+`Swf.Gesture`'s press facts tell the host's takeover control (`control`), the takeover modifier
+held (`modifier`) and content that keeps it (`keepsModifier`) apart; `takesOver` decides whether a
+takeover takes a press (`takes_over_iff`), and content that keeps the modifier keeps the press
+(`kept_modifier_stays_native`, `modifier_takes_free_content`).

@@ -38,6 +38,7 @@ export function capabilitiesOf(kind: Kind): SurfaceCapabilities | null {
     rebinding: true,
     placeholder: false,
     snapshotHooks: false,
+    takeover: true,
   };
   switch (kind) {
     case 'live':

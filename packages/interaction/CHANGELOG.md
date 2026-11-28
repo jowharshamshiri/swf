@@ -84,3 +84,8 @@ A pick candidate says whether it lies in a handle's reach past what its window d
 band outside a window's outline, or a coarse pointer's bar above the bar as drawn. A reach is picked
 after every hit on something drawn and occludes nothing, so it never takes a press from another
 window's content or card.
+
+The takeover modifier takes a press on content over only where the content does not keep it: the
+router asks its `takeover` lookup (`TakeoverLookup`) for the surface pressed or hovered, and the
+host's takeover control still takes every content's presses. `ClaimContext.takeover` says whether
+a takeover took the press.

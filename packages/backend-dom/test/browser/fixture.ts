@@ -68,6 +68,7 @@ export function domAdapter(sharing: SurfaceCapabilities['viewportSharing'] = 'si
     rebinding: true,
     placeholder: false,
     snapshotHooks: false,
+    takeover: true,
   });
   const make = (key: string): Live => {
     const element = document.createElement('div');

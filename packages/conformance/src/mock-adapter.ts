@@ -24,6 +24,7 @@ export const NATIVE_CAPABILITIES: SurfaceCapabilities = Object.freeze({
   rebinding: true,
   placeholder: false,
   snapshotHooks: false,
+  takeover: true,
 });
 
 /** {@link NATIVE_CAPABILITIES} with some fields changed: a new frozen object, not validated. */

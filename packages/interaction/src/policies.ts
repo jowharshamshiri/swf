@@ -58,8 +58,9 @@ export interface ClaimContext {
   /** The `down` sample of every pointer pressed on the target, in the order they went down. */
   readonly pointers: readonly PointerIntent[];
   /**
-   * A takeover is active (the router's takeover control, or the takeover modifier held on the
-   * first press): content-area presses may be claimed.
+   * A takeover takes the press (`takesOver` of `@swf/models`): the router's takeover control is
+   * on, or the takeover modifier was held on the first press over content that does not keep it.
+   * Content-area presses may then be claimed.
    */
   readonly takeover: boolean;
   /** The router's settings at the press; frozen. */

@@ -256,6 +256,7 @@ const capabilities = {
   rebinding: true,
   placeholder: false,
   snapshotHooks: false,
+  takeover: true,
 };
 surfaces.registerAdapter({
   id: 'tutorial.element/1',
