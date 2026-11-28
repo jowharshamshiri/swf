@@ -339,10 +339,10 @@ const OWN = Object.freeze({
   'scenario.depth.select.hint': 'Press its label in the panorama, or its row in the Windows view.',
   'scenario.depth.near': 'Bring it nearer than {full} units.',
   'scenario.depth.near.hint':
-    'Hold Shift and drag it up or scroll up over it, lower its Distance in the inspector, or drag it towards the camera on the map. Nearer than {full} units it shows its content in full.',
+    'Hold Shift and drag it up or scroll up over its title bar, lower its Distance in the inspector, or drag it towards the camera on the map. Nearer than {full} units it shows its content in full.',
   'scenario.depth.far': 'Push it back beyond {compact} units.',
   'scenario.depth.far.hint':
-    'Hold Shift and drag it down or scroll down over it, or raise its Distance in the inspector. From {full} units it shows a compact preview; beyond {compact}, its label alone.',
+    'Hold Shift and drag it down or scroll down over its title bar, or raise its Distance in the inspector. From {full} units it shows a compact preview; beyond {compact}, its label alone.',
   'scenario.focus': 'Switch focus between windows',
   'scenario.focus.summary':
     'Read one window full size with the rest of the room a press away, move to its neighbour, then step back out.',

@@ -43,12 +43,21 @@ as a drag that takes a window does, decided by `selectionOnPress`; the content k
 
 A double press on a window focuses it, and on the window in focus closes the focus: the command
 `swf.focus.toggle`, decided by `Swf.AppFocus.doublePress`, from the panorama, the radar and map's
-dots, the overview's cards and a host's lists alike. Focus stands its window in the middle of the
-view by the panorama's horizon (`FocusFrame.horizon`; `panoramaProjection` takes the horizon, the
-panorama's own by default), within what the projection allows, and scales its card within the
-room left above and below it, so its title bar is always in view; `focusFrame` refuses a view too
-small for that (`ModeRefusal`). The move into and out of focus moves the horizon evenly too, where
+dots, the overview's cards and a host's lists alike. Focus stands its window's card and title bar
+in the middle of the view by the panorama's horizon, narrowing the panorama's span down only as
+far as a window standing high or low needs (`FocusFrame.vertical`; `panoramaProjection` takes the
+span and horizon, the panorama's own by default), and scales its card so its outline fills `fill`
+of the view, its title bar always in view; `focusFrame` refuses a view too short to hold the bar
+(`ModeRefusal`). The move into and out of focus moves the horizon evenly too, where
 it dropped it before. `framingOf` gives what the viewport frames, as the focus model takes it.
 
 Both backends show the window a press would take where the pointer hovers, from the router's
 `pointer.hovered`.
+
+The navigation's wheel follows `wheelRoute` too: the wheel over a window's title bar or its picture
+moves it nearer or farther in one burst; in workspace navigation a scroll sideways over the
+background turns the workspace round the camera, in one burst; and Ctrl and the wheel, or a
+trackpad's pinch, over the background widen or narrow the panorama's field of view
+(`WheelBurstOptions.zoom`, `ZOOM_PACE`). A burst reports what it carries (`node.move` or
+`orbit.turn`). The panorama's element carries no scroll past it (`overscroll-behavior: none`), so a
+trackpad's swipe sideways turns the view instead of going back a page.

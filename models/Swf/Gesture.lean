@@ -215,8 +215,13 @@ structure WheelFacts where
   pick : PressPick
   /-- The region of what is under it. -/
   region : Region
-  /-- The depth modifier is held. -/
-  modifier : Bool
+  /-- What is under it is content shown only as a picture here (a proxy): it cannot scroll. -/
+  proxy : Bool
+  /-- Ctrl is held: a mouse's zoom, or a trackpad's pinch, which browsers send as Ctrl and the
+  wheel. -/
+  zoom : Bool
+  /-- It scrolls more sideways than upright: a trackpad swiped across, or a wheel tilted. -/
+  sideways : Bool
 
 /-- Where a wheel goes. -/
 inductive WheelRoute where
@@ -227,31 +232,43 @@ inductive WheelRoute where
   | ignore
   /-- A modal blocks it: consumed, acted on by nothing. -/
   | blocked
-  /-- Content keeps it: it scrolls the content natively. -/
+  /-- Content keeps it: it scrolls the content natively, or, over a window with Ctrl held, the
+  page zooms as the browser zooms it. -/
   | native
-  /-- A window's frame or handle without the depth modifier: nothing takes it. -/
+  /-- A window's resize band: nothing takes it. -/
   | ignored
-  /-- The window under it is moved in depth, as a change of its own. -/
+  /-- The window under it is moved nearer or farther along the floor, as a change of its own. -/
   | depthMove
+  /-- The view is turned round: what a drag on the background turns. -/
+  | turnView
+  /-- The view's field of view is zoomed: taken by the host that sets the view's field of view,
+  else left to the browser. -/
+  | zoomView
 deriving DecidableEq
 
 /-- Where a wheel goes. While a press is held in the viewport, every wheel there is the press's
 (`press`): a gesture is one change, so nothing else may change the scene in the middle of it, and
 a gesture with no use for the wheel (a resize, a turn, a pinch, or a press not yet a drag) takes
-it as nothing, just as a move takes every wheel as its depth. With no press held,
-the wheel goes by what is under it: `ignore` over nothing spatial, `blocked` outside an active
-modal, `depthMove` over a window with the depth modifier held, and otherwise `native` over content
-and `ignored` over a frame. A keyboard hold holds no press: the wheel goes by what is under it,
-and the hold takes a depth move of its own node into itself. -/
+it as nothing, just as a move takes every wheel as its depth. With no press held, the wheel goes by
+what is under it. Live content keeps every wheel (`native`), whatever is held: it scrolls, or the
+page zooms. Over a window's title bar, its frame or a picture of its content, the wheel moves the
+window nearer or farther (`depthMove`), and with Ctrl the page zooms (`native`); over its resize
+band nothing takes it (`ignored`). Over the background, Ctrl zooms the view (`zoomView`), a scroll
+sideways turns it (`turnView`), and an upright scroll does nothing (`ignore`). Outside an active
+modal it is `blocked`, and over nothing spatial `ignore`. A keyboard hold holds no press: the wheel
+goes by what is under it, and the hold takes a depth move of its own node into itself. -/
 def wheelRoute (f : WheelFacts) : WheelRoute :=
   if f.pressed then .press
   else
     match f.pick, f.region with
     | .none, _ => .ignore
-    | .background, _ => .ignore
+    | .background, _ => if f.zoom then .zoomView else if f.sideways then .turnView else .ignore
     | .hit, .modalOverlay => .blocked
-    | .hit, .content => if f.modifier then .depthMove else .native
-    | .hit, _ => if f.modifier then .depthMove else .ignored
+    | .hit, .content => if f.proxy && !f.zoom then .depthMove else .native
+    | .hit, .resizeHandle => .ignored
+    -- A hit is never on the background; were one so, nothing would take its wheel.
+    | .hit, .background => .ignore
+    | .hit, _ => if f.zoom then .native else .depthMove
 
 /-- Where a pressed target's gesture is. -/
 inductive GesturePhase where
@@ -489,27 +506,47 @@ theorem pressed_wheel_is_the_press (f : WheelFacts) (h : f.pressed = true) :
 @[lungo_claim "lungo.law" subject wheelRoute]
 theorem press_route_only_pressed (f : WheelFacts) :
     wheelRoute f = .press ↔ f.pressed = true := by
-  obtain ⟨pressed, pick, region, modifier⟩ := f
-  cases pressed <;> cases pick <;> cases region <;> cases modifier <;> simp [wheelRoute]
+  obtain ⟨pressed, pick, region, proxy, zoom, sideways⟩ := f
+  cases pressed <;> cases pick <;> cases region <;> cases proxy <;> cases zoom <;>
+    cases sideways <;> simp [wheelRoute]
 
-/-- The wheel moves a window in depth exactly when no press is held in the viewport, a window
-outside any active modal is under it, and the depth modifier is held. -/
+/-- The wheel moves a window nearer or farther exactly when no press is held in the viewport, Ctrl
+is not, and the window's title bar, its frame or a picture of its content is under it. -/
 @[lungo_claim "lungo.law" subject wheelRoute]
 theorem depth_move_iff (f : WheelFacts) :
     wheelRoute f = .depthMove ↔
-      f.pressed = false ∧ f.pick = .hit ∧ f.region ≠ .modalOverlay ∧ f.modifier = true := by
-  obtain ⟨pressed, pick, region, modifier⟩ := f
-  cases pressed <;> cases pick <;> cases region <;> cases modifier <;> simp [wheelRoute]
+      f.pressed = false ∧ f.pick = .hit ∧ f.zoom = false ∧
+        (f.region = .titleBar ∨ f.region = .chrome ∨ (f.region = .content ∧ f.proxy = true)) := by
+  obtain ⟨pressed, pick, region, proxy, zoom, sideways⟩ := f
+  cases pressed <;> cases pick <;> cases region <;> cases proxy <;> cases zoom <;>
+    cases sideways <;> simp [wheelRoute]
 
-/-- With no press held, a wheel outside an active modal is blocked, and content keeps a wheel
-without the depth modifier. -/
+/-- Live content keeps every wheel with no press held, whatever modifiers are: SWF takes no scroll,
+zoom or sideways scroll from it. -/
 @[lungo_claim "lungo.law" subject wheelRoute]
-theorem free_wheel_routes (pick : PressPick) (region : Region) (modifier : Bool) :
-    wheelRoute ⟨false, .hit, .modalOverlay, modifier⟩ = .blocked ∧
-      wheelRoute ⟨false, .hit, .content, false⟩ = .native ∧
-      (pick ≠ .hit → wheelRoute ⟨false, pick, region, modifier⟩ = .ignore) := by
-  refine ⟨by simp [wheelRoute], by simp [wheelRoute], fun h => ?_⟩
-  cases pick <;> simp_all [wheelRoute]
+theorem content_keeps_the_wheel (zoom sideways : Bool) :
+    wheelRoute ⟨false, .hit, .content, false, zoom, sideways⟩ = .native := by
+  cases zoom <;> cases sideways <;> simp [wheelRoute]
+
+/-- Over the background, with no press held, Ctrl zooms the view and a sideways scroll turns it;
+the view is turned or zoomed nowhere else. -/
+@[lungo_claim "lungo.law" subject wheelRoute]
+theorem background_turns_and_zooms (f : WheelFacts) :
+    (wheelRoute f = .zoomView ↔ f.pressed = false ∧ f.pick = .background ∧ f.zoom = true) ∧
+      (wheelRoute f = .turnView ↔
+        f.pressed = false ∧ f.pick = .background ∧ f.zoom = false ∧ f.sideways = true) := by
+  obtain ⟨pressed, pick, region, proxy, zoom, sideways⟩ := f
+  cases pressed <;> cases pick <;> cases region <;> cases proxy <;> cases zoom <;>
+    cases sideways <;> simp [wheelRoute]
+
+/-- With no press held, a wheel outside an active modal is blocked, one over nothing spatial is
+ignored, and one over a resize band is taken by nothing. -/
+@[lungo_claim "lungo.law" subject wheelRoute]
+theorem free_wheel_routes (proxy zoom sideways : Bool) :
+    wheelRoute ⟨false, .hit, .modalOverlay, proxy, zoom, sideways⟩ = .blocked ∧
+      wheelRoute ⟨false, .none, .background, proxy, zoom, sideways⟩ = .ignore ∧
+      wheelRoute ⟨false, .hit, .resizeHandle, proxy, zoom, sideways⟩ = .ignored := by
+  simp [wheelRoute]
 
 /-- Escape cancels every gesture whatever has focus; otherwise live content keeps its keys; a held
 node is put down by Enter or Space with no modifier. -/

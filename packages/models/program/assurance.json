@@ -3408,16 +3408,16 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "30cc5fda3b046b24e820fdc69afcc530b0a571321c3d3d29d1d5128eba1107c8",
+      "fingerprint": "26e79238cfb8904cc9310f3fbc27f9a41835efe92ce3adae1493cce3eb730f14",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppWheel.lean",
         "start": {
-          "line": 94,
+          "line": 113,
           "column": 1
         },
         "end": {
-          "line": 133,
+          "line": 152,
           "column": 71
         }
       }
@@ -3441,16 +3441,16 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "c86f7ec492e8cd18e5f582dfa3d85aaefbb32c12c13d2d79986456a184d1c599",
+      "fingerprint": "fe70371345364dc5c8e6650a457ae7cff158ffc2861a8dc9d22864762b515f0a",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppWheel.lean",
         "start": {
-          "line": 87,
+          "line": 106,
           "column": 1
         },
         "end": {
-          "line": 92,
+          "line": 111,
           "column": 91
         }
       }
@@ -3474,16 +3474,16 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "1a562f996af6109548e2d5eaa83c787c63e67db606f28cda3faccee06a600172",
+      "fingerprint": "a831e37285a6ca1d67ecfde0c25f45f5c1ba05305ad2b902a206f02aaa9e2d76",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppWheel.lean",
         "start": {
-          "line": 145,
+          "line": 165,
           "column": 1
         },
         "end": {
-          "line": 171,
+          "line": 191,
           "column": 81
         }
       }
@@ -3495,7 +3495,7 @@
         "Swf.AppWheel.wheelStep"
       ],
       "specifications": [],
-      "statement": "∀ (current : Option Swf.AppWheel.Burst) (nodeId : String) (delta : Float),\n  Swf.AppWheel.wheelStep current (Swf.AppWheel.WheelEvent.tick nodeId delta) = Swf.AppWheel.WheelOutcome.invalidDelta ↔\n    delta.isFinite = false",
+      "statement": "∀ (current : Option Swf.AppWheel.Burst) (nodeId : String) (carries : Swf.AppWheel.Carries) (delta : Float),\n  Swf.AppWheel.wheelStep current (Swf.AppWheel.WheelEvent.tick nodeId carries delta) =\n      Swf.AppWheel.WheelOutcome.invalidDelta ↔\n    delta.isFinite = false",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -3507,17 +3507,17 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "564f3598acce7d8138ed3fcc2f49237179ecffbea1bceef8277bfe9aacf24503",
+      "fingerprint": "1c401b4307cdde55ce1101aba9b1694bae07a4aca073b08d3ada69206df99d9e",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppWheel.lean",
         "start": {
-          "line": 77,
+          "line": 95,
           "column": 1
         },
         "end": {
-          "line": 85,
-          "column": 76
+          "line": 104,
+          "column": 85
         }
       }
     },
@@ -3528,7 +3528,7 @@
         "Swf.AppWheel.wheelStep"
       ],
       "specifications": [],
-      "statement": "∀ (b : Swf.AppWheel.Burst) (delta : Float) (s : Swf.AppWheel.WheelStep),\n  delta.isFinite = true →\n    Swf.AppWheel.wheelStep (some b) (Swf.AppWheel.WheelEvent.tick b.nodeId delta) = Swf.AppWheel.WheelOutcome.step s →\n      s.burst = some { nodeId := b.nodeId, turned := b.turned + delta } ∧\n        s.actions = [Swf.AppWheel.WheelAction.show { nodeId := b.nodeId, turned := b.turned + delta }]",
+      "statement": "∀ (b : Swf.AppWheel.Burst) (delta : Float) (s : Swf.AppWheel.WheelStep),\n  delta.isFinite = true →\n    Swf.AppWheel.wheelStep (some b) (Swf.AppWheel.WheelEvent.tick b.nodeId b.carries delta) =\n        Swf.AppWheel.WheelOutcome.step s →\n      s.burst = some { nodeId := b.nodeId, carries := b.carries, turned := b.turned + delta } ∧\n        s.actions =\n          [Swf.AppWheel.WheelAction.show { nodeId := b.nodeId, carries := b.carries, turned := b.turned + delta }]",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -3540,16 +3540,16 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "b04b2742dbb1be082d7903edded1f4455791ca8b40fb36166e6d20afc429cf48",
+      "fingerprint": "5250a48bee4b6757aa492fcf4713fff9a58f7b95adac82d21c45de8560256444",
       "source": {
         "package": "swf_models",
         "file": "Swf/AppWheel.lean",
         "start": {
-          "line": 135,
+          "line": 154,
           "column": 1
         },
         "end": {
-          "line": 143,
+          "line": 163,
           "column": 19
         }
       }
@@ -4649,6 +4649,37 @@
       }
     },
     {
+      "name": "Swf.Gesture.background_turns_and_zooms",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Gesture.wheelRoute"
+      ],
+      "specifications": [],
+      "statement": "∀ (f : Swf.Gesture.WheelFacts),\n  (Swf.Gesture.wheelRoute f = Swf.Gesture.WheelRoute.zoomView ↔\n      f.pressed = false ∧ f.pick = Swf.Gesture.PressPick.background ∧ f.zoom = true) ∧\n    (Swf.Gesture.wheelRoute f = Swf.Gesture.WheelRoute.turnView ↔\n      f.pressed = false ∧ f.pick = Swf.Gesture.PressPick.background ∧ f.zoom = false ∧ f.sideways = true)",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "a6cbab89debd3a09469f3870bd872625fdeb55f98f4783504ddc8c8d13c5ab8f",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Gesture.lean",
+        "start": {
+          "line": 531,
+          "column": 1
+        },
+        "end": {
+          "line": 540,
+          "column": 41
+        }
+      }
+    },
+    {
       "name": "Swf.Gesture.beyond_slop_iff",
       "relation": "lungo.decides",
       "subjects": [
@@ -4672,11 +4703,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 452,
+          "line": 469,
           "column": 1
         },
         "end": {
-          "line": 456,
+          "line": 473,
           "column": 20
         }
       }
@@ -4734,11 +4765,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 427,
+          "line": 444,
           "column": 1
         },
         "end": {
-          "line": 432,
+          "line": 449,
           "column": 83
         }
       }
@@ -4765,12 +4796,43 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 434,
+          "line": 451,
           "column": 1
         },
         "end": {
-          "line": 438,
+          "line": 455,
           "column": 89
+        }
+      }
+    },
+    {
+      "name": "Swf.Gesture.content_keeps_the_wheel",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Gesture.wheelRoute"
+      ],
+      "specifications": [],
+      "statement": "∀ (zoom sideways : Bool),\n  Swf.Gesture.wheelRoute\n      { pressed := false, pick := Swf.Gesture.PressPick.hit, region := Swf.Gesture.Region.content, proxy := false,\n        zoom := zoom, sideways := sideways } =\n    Swf.Gesture.WheelRoute.native",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "4f7e56fbccc1dc7c1f3754c92b656758461afc3ed8b34e1fb186b8f6ac53d418",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Gesture.lean",
+        "start": {
+          "line": 524,
+          "column": 1
+        },
+        "end": {
+          "line": 529,
+          "column": 54
         }
       }
     },
@@ -4781,7 +4843,7 @@
         "Swf.Gesture.wheelRoute"
       ],
       "specifications": [],
-      "statement": "∀ (f : Swf.Gesture.WheelFacts),\n  Swf.Gesture.wheelRoute f = Swf.Gesture.WheelRoute.depthMove ↔\n    f.pressed = false ∧\n      f.pick = Swf.Gesture.PressPick.hit ∧ f.region ≠ Swf.Gesture.Region.modalOverlay ∧ f.modifier = true",
+      "statement": "∀ (f : Swf.Gesture.WheelFacts),\n  Swf.Gesture.wheelRoute f = Swf.Gesture.WheelRoute.depthMove ↔\n    f.pressed = false ∧\n      f.pick = Swf.Gesture.PressPick.hit ∧\n        f.zoom = false ∧\n          (f.region = Swf.Gesture.Region.titleBar ∨\n            f.region = Swf.Gesture.Region.chrome ∨ f.region = Swf.Gesture.Region.content ∧ f.proxy = true)",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -4791,17 +4853,17 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "4195e8f94164322ce80bd138d81252700053cfb89c24f985f77d2095069d9d3a",
+      "fingerprint": "6ff3e4c18b3287ba5cb7ea023723eae75ba616ab047a6f17203f92fd8cb997b7",
       "source": {
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 495,
+          "line": 513,
           "column": 1
         },
         "end": {
-          "line": 502,
-          "column": 89
+          "line": 522,
+          "column": 41
         }
       }
     },
@@ -4827,11 +4889,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 443,
+          "line": 460,
           "column": 1
         },
         "end": {
-          "line": 450,
+          "line": 467,
           "column": 89
         }
       }
@@ -4858,11 +4920,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 440,
+          "line": 457,
           "column": 1
         },
         "end": {
-          "line": 441,
+          "line": 458,
           "column": 101
         }
       }
@@ -4874,7 +4936,7 @@
         "Swf.Gesture.wheelRoute"
       ],
       "specifications": [],
-      "statement": "∀ (pick : Swf.Gesture.PressPick) (region : Swf.Gesture.Region) (modifier : Bool),\n  Swf.Gesture.wheelRoute\n        { pressed := false, pick := Swf.Gesture.PressPick.hit, region := Swf.Gesture.Region.modalOverlay,\n          modifier := modifier } =\n      Swf.Gesture.WheelRoute.blocked ∧\n    Swf.Gesture.wheelRoute\n          { pressed := false, pick := Swf.Gesture.PressPick.hit, region := Swf.Gesture.Region.content,\n            modifier := false } =\n        Swf.Gesture.WheelRoute.native ∧\n      (pick ≠ Swf.Gesture.PressPick.hit →\n        Swf.Gesture.wheelRoute { pressed := false, pick := pick, region := region, modifier := modifier } =\n          Swf.Gesture.WheelRoute.ignore)",
+      "statement": "∀ (proxy zoom sideways : Bool),\n  Swf.Gesture.wheelRoute\n        { pressed := false, pick := Swf.Gesture.PressPick.hit, region := Swf.Gesture.Region.modalOverlay,\n          proxy := proxy, zoom := zoom, sideways := sideways } =\n      Swf.Gesture.WheelRoute.blocked ∧\n    Swf.Gesture.wheelRoute\n          { pressed := false, pick := Swf.Gesture.PressPick.none, region := Swf.Gesture.Region.background,\n            proxy := proxy, zoom := zoom, sideways := sideways } =\n        Swf.Gesture.WheelRoute.ignore ∧\n      Swf.Gesture.wheelRoute\n          { pressed := false, pick := Swf.Gesture.PressPick.hit, region := Swf.Gesture.Region.resizeHandle,\n            proxy := proxy, zoom := zoom, sideways := sideways } =\n        Swf.Gesture.WheelRoute.ignored",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -4884,17 +4946,17 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "ae36660c709aafdaa3fd084b025f7873d8b4623d43a549b75c546dd6e9af8aef",
+      "fingerprint": "32206de91411d2d8b5d5a7c4bce1f6737b090f8f70d9eaeed7b4ee9268c9c681",
       "source": {
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 504,
+          "line": 542,
           "column": 1
         },
         "end": {
-          "line": 512,
-          "column": 39
+          "line": 549,
+          "column": 20
         }
       }
     },
@@ -4920,11 +4982,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 403,
+          "line": 420,
           "column": 1
         },
         "end": {
-          "line": 409,
+          "line": 426,
           "column": 57
         }
       }
@@ -4953,11 +5015,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 514,
+          "line": 551,
           "column": 1
         },
         "end": {
-          "line": 527,
+          "line": 564,
           "column": 52
         }
       }
@@ -4984,11 +5046,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 396,
+          "line": 413,
           "column": 1
         },
         "end": {
-          "line": 401,
+          "line": 418,
           "column": 38
         }
       }
@@ -5016,11 +5078,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 474,
+          "line": 491,
           "column": 1
         },
         "end": {
-          "line": 479,
+          "line": 496,
           "column": 63
         }
       }
@@ -5047,11 +5109,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 529,
+          "line": 566,
           "column": 1
         },
         "end": {
-          "line": 535,
+          "line": 572,
           "column": 101
         }
       }
@@ -5078,11 +5140,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 417,
+          "line": 434,
           "column": 1
         },
         "end": {
-          "line": 425,
+          "line": 442,
           "column": 26
         }
       }
@@ -5104,17 +5166,17 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "b32eebfb457f922706207dbce5ad1ad34ba628dfea4ca32c991261ffc6c33538",
+      "fingerprint": "cd788506c35ed114ad6234cdaf004a8c6c2e6370c990c96a73cad0933cde8d91",
       "source": {
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 488,
+          "line": 505,
           "column": 1
         },
         "end": {
-          "line": 493,
-          "column": 89
+          "line": 511,
+          "column": 41
         }
       }
     },
@@ -5166,16 +5228,16 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "2831b37c451905710d5d981e323077a4bed8523121dedf738d1c3343fa4ae350",
+      "fingerprint": "a0e5f4830db4d7907c5291ddd2e7fca356dab0b7dd7f788c7717e917ff7bdab4",
       "source": {
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 481,
+          "line": 498,
           "column": 1
         },
         "end": {
-          "line": 486,
+          "line": 503,
           "column": 23
         }
       }
@@ -5202,11 +5264,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 411,
+          "line": 428,
           "column": 1
         },
         "end": {
-          "line": 415,
+          "line": 432,
           "column": 38
         }
       }
@@ -5265,11 +5327,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 466,
+          "line": 483,
           "column": 1
         },
         "end": {
-          "line": 472,
+          "line": 489,
           "column": 27
         }
       }
@@ -5297,11 +5359,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 458,
+          "line": 475,
           "column": 1
         },
         "end": {
-          "line": 464,
+          "line": 481,
           "column": 50
         }
       }
@@ -9442,6 +9504,7 @@
         "extern_dependencies": [
           "lean_float_add",
           "lean_float_isfinite",
+          "lean_nat_dec_eq",
           "lean_string_dec_eq"
         ]
       },
@@ -9459,11 +9522,11 @@
         "package": "swf_models",
         "file": "Swf/AppWheel.lean",
         "start": {
-          "line": 55,
+          "line": 72,
           "column": 1
         },
         "end": {
-          "line": 73,
+          "line": 91,
           "column": 41
         }
       }
@@ -9951,11 +10014,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 296,
+          "line": 313,
           "column": 1
         },
         "end": {
-          "line": 315,
+          "line": 332,
           "column": 17
         }
       }
@@ -9981,11 +10044,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 383,
+          "line": 400,
           "column": 1
         },
         "end": {
-          "line": 392,
+          "line": 409,
           "column": 13
         }
       }
@@ -10045,11 +10108,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 356,
+          "line": 373,
           "column": 1
         },
         "end": {
-          "line": 367,
+          "line": 384,
           "column": 59
         }
       }
@@ -10169,6 +10232,8 @@
         "extern_dependencies": []
       },
       "claims": [
+        "Swf.Gesture.background_turns_and_zooms",
+        "Swf.Gesture.content_keeps_the_wheel",
         "Swf.Gesture.depth_move_iff",
         "Swf.Gesture.free_wheel_routes",
         "Swf.Gesture.press_route_only_pressed",
@@ -10181,12 +10246,12 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 238,
+          "line": 249,
           "column": 1
         },
         "end": {
-          "line": 254,
-          "column": 61
+          "line": 271,
+          "column": 56
         }
       }
     },

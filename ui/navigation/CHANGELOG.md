@@ -21,3 +21,6 @@ panorama's key help and the held window's hint offer no turning of a window.
 A double press on a window's dot on the radar or the map focuses it, or closes its focus when it is
 the window in focus (`MapDrawerOptions.onopen`), as a double press on its title bar in the panorama
 and on its card in the overview do.
+
+The key help says the wheel over a title bar brings a window nearer or farther, a scroll sideways
+over the background turns the view, and a pinch, or Ctrl and the wheel, widens or narrows it.

@@ -1,5 +1,6 @@
 import { createMemoryStore } from '@swf/persistence';
 import type { ViewportFrame } from '@swf/presentation';
+import { TITLE_BAR_HEIGHT } from '@swf/presentation';
 import { headingPitchOf } from '@swf/projections';
 import { describe, expect, it } from 'vitest';
 import { commands } from 'vitest/browser';
@@ -169,8 +170,9 @@ describe('focus with the strip of every window (section 3)', () => {
     if (piece === undefined || size === undefined) {
       throw new Error('the focused window is not shown');
     }
-    const [, , w, h] = piece.fragment.bounds;
-    expect(Math.max(w / size.width, h / size.height)).toBeGreaterThan(0.6);
+    // Its outline, the card with its title bar, three-quarters of the view by its binding side.
+    const [, , w, h] = piece.fragment.card;
+    expect(Math.max(w / size.width, (h + TITLE_BAR_HEIGHT) / size.height)).toBeCloseTo(0.75, 2);
     expect(a.viewport.presentation('desk-surface')).toBe('live');
     // The strip: a card for every window, in the order they lie round the camera.
     const state = a.workspace.getState();
@@ -272,8 +274,11 @@ describe('focus with the strip of every window (section 3)', () => {
     const pieces = main.frame.planned.filter((p) => p.fragment.surfaceId === 'signals-surface');
     expect(pieces.length).toBeGreaterThan(0);
     expect(pieces.every((p) => p.negotiation.layer === 'content-raster')).toBe(true);
-    const [, , w, h] = pieces[0]?.fragment.bounds ?? [0, 0, 0, 0];
-    expect(Math.max(w / (size?.width ?? 1), h / (size?.height ?? 1))).toBeGreaterThan(0.6);
+    // Its outline, the card with its title bar, three-quarters of the view by its binding side.
+    const [, , w, h] = pieces[0]?.fragment.card ?? [0, 0, 0, 0];
+    expect(
+      Math.max(w / (size?.width ?? 1), (h + TITLE_BAR_HEIGHT) / (size?.height ?? 1)),
+    ).toBeCloseTo(0.75, 2);
     // The inspector says so.
     await expect.poll(() => m.model.selected?.presentation, { timeout: 5000 }).toBe('drawn');
   });

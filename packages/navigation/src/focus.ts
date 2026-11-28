@@ -16,9 +16,10 @@ import {
  * Focus and context: one window shown large enough to read, centred, its title bar in view, with
  * the windows around it still in view and reachable. It is a view of the panorama, not a placement:
  * entering it turns the viewport's camera to face the window, sets the panorama's horizon so the
- * window stands in the middle of the view (as far as the projection allows: the image never reaches
- * past a pole), and draws its card large (the viewport's representation policy scales it,
- * `focusScale`); no window moves. Leaving it puts the camera and the panorama back.
+ * window stands in the middle of the view, narrowing its span down only as far as a window standing
+ * high or low needs (its image never reaching past a pole), and draws its card large (the
+ * viewport's representation policy scales it, `focusScale`); no window moves. Leaving it puts the
+ * camera and the panorama back.
  */
 
 /** The focus mode's ID. */
@@ -40,15 +41,20 @@ export interface FocusFrame {
   /** The camera's heading to face the window, in radians; the camera stays level. */
   readonly heading: number;
   /**
-   * Where the panorama's horizon lies, as a share of the view's height from its top: as near as
-   * the projection allows to where it stands the window's card, with its title bar, in the middle.
+   * The panorama's span down and where its horizon lies (a share of the view's height from its
+   * top), standing the window's card, with its title bar, in the middle of the view: the panorama's
+   * own span, narrowed as far as a window standing high or low needs for its image to reach no
+   * further than a pole.
    */
-  readonly horizon: number;
+  readonly vertical: { readonly span: number; readonly horizon: number };
   /** The scale of the window's card. */
   readonly scale: number;
 }
 
 const DEGREES = 180 / Math.PI;
+
+/** How far short of a pole, in degrees, focus keeps the panorama's image when it narrows it. */
+const POLE_MARGIN = 1e-6;
 
 /** The window's world centre, size and distance from an eye; throws for anything else. */
 function placed(state: SceneState, windowId: Id, eye: Vec3) {
@@ -76,12 +82,11 @@ function placed(state: SceneState, windowId: Id, eye: Vec3) {
 
 /**
  * The frame that shows a window readably in a viewport of a size, seen from an eye: the camera
- * facing it; the panorama's horizon where it stands the window's outline (its card with its title
- * bar above it) in the middle of the view, kept where the projection allows it (its image reaching
- * no further than a pole from the horizon); and its card scaled to fill `fill` of the viewport's
- * width, and its outline as much of its height, standing where the horizon puts it with as much
- * room left above it as below, no more than `maxMagnification`. Throws a {@link ModeRefusal} for a
- * view too small to show the window's title bar with any of its card below it.
+ * facing it; the panorama's span down and horizon standing the window's outline (its card with its
+ * title bar above it) in the middle of the view (`FocusFrame.vertical`); and its card scaled to fill
+ * `fill` of the viewport's width, and its outline as much of its height, no more than
+ * `maxMagnification`. Throws a {@link ModeRefusal} for a view too short to hold the window's title
+ * bar within `fill` of its height.
  */
 export function focusFrame(
   state: SceneState,
@@ -93,31 +98,30 @@ export function focusFrame(
   const { offset, width, height } = placed(state, windowId, eye);
   const unit = CARD_PIXELS_PER_UNIT;
   const bar = TITLE_BAR_HEIGHT;
-  // How high the window stands, as a share of the panorama's vertical span.
-  const elevation =
-    (Math.atan2(offset[1], Math.hypot(offset[0], offset[2])) * DEGREES) / PANORAMA_VERTICAL.span;
-  // The horizon that stands the outline's middle (the card's middle, half a bar higher) in the
-  // view's middle, kept where the image reaches no further than a pole either way.
-  const reach = 90 / PANORAMA_VERTICAL.span;
-  const wanted = 0.5 + bar / 2 / size.height + elevation;
-  const horizon = Math.min(reach, Math.max(1 - reach, wanted));
-  // Where the card's middle stands, and the room for its outline above and below it.
-  const middle = (horizon - elevation) * size.height;
-  const margin = ((1 - options.fill) * size.height) / 2;
-  const above = middle - bar - margin;
-  const below = size.height - margin - middle;
-  if (!(above > 0 && below > 0)) {
+  const room = options.fill * size.height - bar;
+  if (!(room > 0)) {
     throw new ModeRefusal(
       'id',
-      `the view is too small to show window "${windowId}" in focus with its title bar in view`,
+      `the view is too short to show window "${windowId}" in focus with its title bar in view`,
     );
   }
+  // How high the window stands, in degrees, and how far above the view's middle its card's middle
+  // stands for the outline (half a bar higher) to be in the middle, as a share of the height.
+  const elevation = Math.atan2(offset[1], Math.hypot(offset[0], offset[2])) * DEGREES;
+  const lift = bar / 2 / size.height;
+  // The panorama's span, narrowed so the horizon that centres the window keeps the image within a
+  // pole either way: `max(horizon, 1 - horizon) × span ≤ 90`, with a millionth of a degree in hand
+  // so rounding never carries it past the pole the projection checks.
+  const span = Math.min(
+    PANORAMA_VERTICAL.span,
+    (90 - Math.abs(elevation)) / (0.5 + lift) - POLE_MARGIN,
+  );
   return {
     heading: Math.atan2(offset[0], -offset[2]),
-    horizon,
+    vertical: { span, horizon: 0.5 + lift + elevation / span },
     scale: Math.min(
       (options.fill * size.width) / (width * unit),
-      (2 * Math.min(above, below)) / (height * unit),
+      room / (height * unit),
       options.maxMagnification,
     ),
   };
@@ -212,7 +216,7 @@ export function focusCommands(
     {
       type: 'viewport.patch',
       id: viewportId,
-      projection: panoramaProjection(fieldOfViewOf(PANORAMA.projection), frame.horizon),
+      projection: panoramaProjection(fieldOfViewOf(PANORAMA.projection), frame.vertical),
     },
   ];
 }

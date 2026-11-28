@@ -462,7 +462,8 @@ describe('settings (FR-004, CFG-001)', () => {
     // A drag moves a window round the room: there is no other way to choose.
     expect(bad({ dragMode: 'world-plane' })).toMatch(/settings.dragMode is not a setting/);
     expect(bad({ takeoverModifier: 'hyper' })).toMatch(/settings.takeoverModifier/);
-    expect(bad({ depthModifier: 'alt' })).toMatch(/settings.depthModifier must differ/);
+    // The wheel moves a window by its title bar or its picture, with no modifier to hold.
+    expect(bad({ depthModifier: 'shift' })).toMatch(/settings.depthModifier is not a setting/);
     // Steps build a keymap (defaultKeymap); they are not a setting that would change none.
     expect(bad({ steps: { heading: 0.2 } })).toMatch(
       /^INVALID_INPUT: settings.steps is not a setting/,

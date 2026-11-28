@@ -70,3 +70,9 @@ focus and focuses any other (claims `leaves_iff_focused`, `focuses_the_pressed`)
 `Swf.Gesture.pointerRoute` takes a pointer leaving the view and routes a pointer no gesture holds
 as hovering (`hover`, `unhover`; `hovers_only_free`), and `hoverShows` says what a press would do
 where it hovers, from `pressRoute` itself (`shows_what_a_press_does`).
+
+`Swf.Gesture.wheelRoute` takes what is under the wheel, whether it is a picture, Ctrl and a sideways
+scroll, and routes the wheel over a window's title bar, frame or picture to move it, over live
+content always to the content, and over the background to turn or zoom the view
+(`depth_move_iff`, `content_keeps_the_wheel`, `background_turns_and_zooms`). `Swf.AppWheel`'s bursts
+carry a window along the floor or the workspace round the camera (`Carries`).

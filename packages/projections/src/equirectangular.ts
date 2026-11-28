@@ -49,8 +49,10 @@ export interface EquirectangularConfig {
   /** In (0, 180]. The angle from the image's top row to its bottom row. */
   readonly vertical: number;
   /**
-   * Where the horizon lies, as a share of the image's height from its top, in [0, 1]: 0.5 in the
-   * middle; less is higher, showing more below the horizon. Default 0.5.
+   * Where the horizon lies, as a share of the image's height from its top: 0.5 in the middle; less
+   * is higher, showing more below the horizon. It may lie past the image's top (below 0) or its
+   * bottom (above 1), the image then wholly below or above it, so long as the image reaches no
+   * further than a pole either way. Default 0.5.
    */
   readonly horizon?: number;
 }
@@ -84,10 +86,9 @@ function configIssue(config: JsonValue): string | null {
   };
   const horizon = record['horizon'];
   const horizonIssue =
-    horizon === undefined ||
-    (typeof horizon === 'number' && Number.isFinite(horizon) && horizon >= 0 && horizon <= 1)
+    horizon === undefined || (typeof horizon === 'number' && Number.isFinite(horizon))
       ? null
-      : `horizon must be a share of the image's height in [0, 1] (got ${JSON.stringify(horizon)})`;
+      : `horizon must be a finite share of the image's height (got ${JSON.stringify(horizon)})`;
   const vertical = record['vertical'];
   const reach =
     typeof vertical === 'number' && typeof horizon === 'number'

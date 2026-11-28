@@ -24,3 +24,6 @@ at both edges, and a window or surface with a rotation of its own, or a surface 
 placed `approximate`. `projectGeometry`, `clipVisibility`, `Visibility` and `pickAt` are gone: the
 interaction router picks on the cards. The equirectangular projection takes a `horizon` (a share of
 the view's height from the top) and refuses a configuration that passes a pole.
+
+The equirectangular projection's horizon may lie past its image's top or bottom, the image then
+wholly below or above it, so long as the image reaches no further than a pole either way.

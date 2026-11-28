@@ -146,7 +146,7 @@ describe('focus and context (FR-120, UX-003, WF-04)', () => {
     expect(fit(ws, 'window-03', tall.scale, narrow).across).toBeCloseTo(0.75, 9);
   });
 
-  it('stands a focused window’s whole outline in view, its title bar too, centred as far as the projection allows', () => {
+  it('stands a focused window’s whole outline in the middle of the view, its title bar too, however high or low it stands', () => {
     const { ws, modes } = scene();
     const size = viewport(ws).size;
     const lift = (id: string, height: number) => {
@@ -160,25 +160,25 @@ describe('focus and context (FR-120, UX-003, WF-04)', () => {
         } as never).status,
       ).toBe('committed');
     };
-    // Raised a little, the outline is centred; raised as high as the room allows, it stands as near
-    // the middle as the projection lets the horizon go, its title bar still inside the view.
-    for (const [height, centred] of [
-      [0.6, true],
-      [4, false],
-    ] as const) {
+    // Raised a little, as high as the room allows, and as low: the outline in the middle each
+    // time, the panorama narrowed down only as far as the window needs.
+    for (const height of [0.6, 4, -3]) {
       lift('window-03', height);
       expect(modes.switchTo(FOCUS_ID, { target: 'window-03' }).status).toBe('committed');
       const [, y, , h] = drawnCard(ws, 'window-03');
       expect(y - TITLE_BAR_HEIGHT, `${String(height)} up`).toBeGreaterThanOrEqual(0);
       expect(y + h, `${String(height)} up`).toBeLessThanOrEqual(size.height);
-      const middle = (y - TITLE_BAR_HEIGHT + y + h) / 2;
-      if (centred) {
-        expect(middle).toBeCloseTo(size.height / 2, 6);
-      } else {
-        expect(middle).toBeLessThan(size.height / 2);
+      expect((y - TITLE_BAR_HEIGHT + y + h) / 2, `${String(height)} up`).toBeCloseTo(
+        size.height / 2,
+        6,
+      );
+      const span = (viewport(ws).projection.config as { vertical: number }).vertical;
+      expect(span).toBeLessThanOrEqual(130);
+      if (height === 0.6) {
+        expect(span).toBe(130);
       }
       expect(modes.back().status).toBe('committed');
-      // Back in the panorama, its own horizon.
+      // Back in the panorama, its own span and horizon.
       expect(viewport(ws).projection).toEqual(PANORAMA.projection);
     }
   });

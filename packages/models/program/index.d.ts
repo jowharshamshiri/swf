@@ -1003,13 +1003,15 @@ export interface FloorPoint {
 export function floorPointType(): L.Type<FloorPoint>;
 
 /**
- * A burst under way: the window it moves, and how far the wheel has turned over it in all, in
- * pixels (turned down, positive: farther along the floor).
+ * A burst under way: the node it carries, what way, and how far the wheel has turned over it in
+ * all, in pixels (down or right, positive).
  */
 export interface Burst {
-  /** The window the burst moves. */
+  /** The node the burst carries: a window, or the workspace's orbit root. */
   readonly nodeId: string;
-  /** How far the ticks so far have turned the wheel, in pixels (down positive). */
+  /** What way it carries it. */
+  readonly carries: Carries;
+  /** How far the ticks so far have turned the wheel, in pixels (down or right, positive). */
   readonly turned: number;
 }
 /** The descriptor of Swf.AppWheel.Burst: how its values cross the boundary. */
@@ -1018,10 +1020,15 @@ export function burstType(): L.Type<Burst>;
 /** What happens to a burst. */
 export type WheelEvent =
   | {
-      /** A wheel tick over window `nodeId`, turning the wheel `delta` pixels (down positive). */
+      /**
+       * A wheel tick carrying node `nodeId` that way, turning the wheel `delta` pixels (down or
+       * right, positive).
+       */
       readonly kind: "tick";
       /** The field `nodeId` of Lean's Swf.AppWheel.WheelEvent.tick. */
       readonly nodeId: string;
+      /** The field `carries` of Lean's Swf.AppWheel.WheelEvent.tick. */
+      readonly carries: Carries;
       /** The field `delta` of Lean's Swf.AppWheel.WheelEvent.tick. */
       readonly delta: number;
     }
@@ -1030,14 +1037,14 @@ export type WheelEvent =
       readonly kind: "settle";
     }
   | {
-      /** The burst is cancelled (Escape, or its window went away): nothing of it is kept. */
+      /** The burst is cancelled (Escape, or its node went away): nothing of it is kept. */
       readonly kind: "cancel";
     }
 ;
 /** The descriptor of Swf.AppWheel.WheelEvent: how its values cross the boundary. */
 export function wheelEventType(): L.Type<WheelEvent>;
 
-/** A step, or the refusal of a tick that moves the window by no finite amount. */
+/** A step, or the refusal of a tick that moves its node by no finite amount. */
 export type WheelOutcome =
   | {
       /** The step. */
@@ -1645,8 +1652,15 @@ export interface WheelFacts {
   readonly pick: PressPick;
   /** The region of what is under it. */
   readonly region: Region;
-  /** The depth modifier is held. */
-  readonly modifier: boolean;
+  /** What is under it is content shown only as a picture here (a proxy): it cannot scroll. */
+  readonly proxy: boolean;
+  /**
+   * Ctrl is held: a mouse's zoom, or a trackpad's pinch, which browsers send as Ctrl and the
+   * wheel.
+   */
+  readonly zoom: boolean;
+  /** It scrolls more sideways than upright: a trackpad swiped across, or a wheel tilted. */
+  readonly sideways: boolean;
 }
 /** The descriptor of Swf.Gesture.WheelFacts: how its values cross the boundary. */
 export function wheelFactsType(): L.Type<WheelFacts>;
@@ -1669,16 +1683,30 @@ export type WheelRoute =
       readonly kind: "blocked";
     }
   | {
-      /** Content keeps it: it scrolls the content natively. */
+      /**
+       * Content keeps it: it scrolls the content natively, or, over a window with Ctrl held, the
+       * page zooms as the browser zooms it.
+       */
       readonly kind: "native";
     }
   | {
-      /** A window's frame or handle without the depth modifier: nothing takes it. */
+      /** A window's resize band: nothing takes it. */
       readonly kind: "ignored";
     }
   | {
-      /** The window under it is moved in depth, as a change of its own. */
+      /** The window under it is moved nearer or farther along the floor, as a change of its own. */
       readonly kind: "depthMove";
+    }
+  | {
+      /** The view is turned round: what a drag on the background turns. */
+      readonly kind: "turnView";
+    }
+  | {
+      /**
+       * The view's field of view is zoomed: taken by the host that sets the view's field of view,
+       * else left to the browser.
+       */
+      readonly kind: "zoomView";
     }
 ;
 /** The descriptor of Swf.Gesture.WheelRoute: how its values cross the boundary. */
@@ -3135,6 +3163,20 @@ export interface SnapCandidate {
 /** The descriptor of Swf.AppSnap.SnapCandidate: how its values cross the boundary. */
 export function snapCandidateType(): L.Type<SnapCandidate>;
 
+/** What a burst carries. */
+export type Carries =
+  | {
+      /** A window, nearer or farther along the floor. */
+      readonly kind: "floor";
+    }
+  | {
+      /** The workspace (its orbit root), round the camera. */
+      readonly kind: "orbit";
+    }
+;
+/** The descriptor of Swf.AppWheel.Carries: how its values cross the boundary. */
+export function carriesType(): L.Type<Carries>;
+
 /** The burst under way after a step, and what the application does, in order. */
 export interface WheelStep {
   /** The burst under way after the step, if one is. */
@@ -4192,11 +4234,14 @@ export class SwfModels {
    * Where a wheel goes. While a press is held in the viewport, every wheel there is the press's
    * (`press`): a gesture is one change, so nothing else may change the scene in the middle of it, and
    * a gesture with no use for the wheel (a resize, a turn, a pinch, or a press not yet a drag) takes
-   * it as nothing, just as a move takes every wheel as its depth. With no press held,
-   * the wheel goes by what is under it: `ignore` over nothing spatial, `blocked` outside an active
-   * modal, `depthMove` over a window with the depth modifier held, and otherwise `native` over content
-   * and `ignored` over a frame. A keyboard hold holds no press: the wheel goes by what is under it,
-   * and the hold takes a depth move of its own node into itself.
+   * it as nothing, just as a move takes every wheel as its depth. With no press held, the wheel goes by
+   * what is under it. Live content keeps every wheel (`native`), whatever is held: it scrolls, or the
+   * page zooms. Over a window's title bar, its frame or a picture of its content, the wheel moves the
+   * window nearer or farther (`depthMove`), and with Ctrl the page zooms (`native`); over its resize
+   * band nothing takes it (`ignored`). Over the background, Ctrl zooms the view (`zoomView`), a scroll
+   * sideways turns it (`turnView`), and an upright scroll does nothing (`ignore`). Outside an active
+   * modal it is `blocked`, and over nothing spatial `ignore`. A keyboard hold holds no press: the wheel
+   * goes by what is under it, and the hold takes a depth move of its own node into itself.
    *
    * Lean's Swf.Gesture.wheelRoute : Swf.Gesture.WheelFacts → Swf.Gesture.WheelRoute
    */

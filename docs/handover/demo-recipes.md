@@ -49,8 +49,10 @@ in the command list (Ctrl+Shift+P or F1).
    goes (its angle, distance and height). The inspector's sliders follow it. Let go: one change,
    which Undo in that bar puts back. Drag it all the way round: it comes back where it began.
 2. Hold Shift and drag a window down or up: it goes farther or comes nearer along the floor, and
-   round you as the pointer goes across. Hold Shift and turn the wheel over it: down is farther,
-   the burst of turns one change once the wheel rests.
+   round you as the pointer goes across. Turn the wheel over its title bar: down is farther, the
+   burst of turns one change once the wheel rests. Scroll sideways over the background: the view
+   turns. Pinch, or hold Ctrl and turn the wheel, over the background: the view widens or narrows.
+   Turn the wheel over a note's text, with or without Shift: the note scrolls, and nothing moves.
 3. Drag a window's edge: it resizes, keeping its centre.
 4. Ctrl-click (⌘-click) a second window: both are selected, and the inspector offers to group
    them under a name, as one change. Delete removes what is selected, with an undo offered.

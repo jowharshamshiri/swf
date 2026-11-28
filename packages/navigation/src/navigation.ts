@@ -231,13 +231,15 @@ export interface NavigationWords {
 }
 
 /**
- * Makes the element the panorama is presented in one stop of the page's keyboard order, a
- * spatial workspace the keyboard operates (FR-109, UX-012, UX-013): it says what it is and which
- * keys act there. A press in it that is not in a window's live content gives it the keyboard, as a
- * press in any list does, though the framework keeps that press from the page: so a window clicked
- * is then moved, removed or focused by its keys. Returns what puts the element back as it was.
+ * Makes the element the panorama is presented in the view: one stop of the page's keyboard order,
+ * a spatial workspace the keyboard operates (FR-109, UX-012, UX-013), saying what it is and which
+ * keys act there; and ground no scroll carries past (`overscroll-behavior: none`), so a trackpad's
+ * swipe sideways over it turns the view instead of going back a page. A press in it that is not in
+ * a window's live content gives it the keyboard, as a press in any list does, though the framework
+ * keeps that press from the page: so a window clicked is then moved, removed or focused by its
+ * keys. Returns what puts the element back as it was.
  */
-function keyboardTarget(element: HTMLElement, words: NavigationWords): () => void {
+function asView(element: HTMLElement, words: NavigationWords): () => void {
   const attributes: Readonly<Record<string, string>> = {
     tabindex: '0',
     role: 'application',
@@ -249,6 +251,8 @@ function keyboardTarget(element: HTMLElement, words: NavigationWords): () => voi
   for (const [name, value] of Object.entries(attributes)) {
     element.setAttribute(name, value);
   }
+  const overscroll = element.style.getPropertyValue('overscroll-behavior');
+  element.style.setProperty('overscroll-behavior', 'none');
   const take = (event: Event) => {
     const target = event.target;
     const live = target instanceof Element && target.closest('[data-swf-slot]') !== null;
@@ -260,6 +264,7 @@ function keyboardTarget(element: HTMLElement, words: NavigationWords): () => voi
   element.addEventListener('pointerdown', take, { capture: true });
   return () => {
     element.removeEventListener('pointerdown', take, { capture: true });
+    element.style.setProperty('overscroll-behavior', overscroll);
     for (const [name, value] of before) {
       if (value === null) {
         element.removeAttribute(name);
@@ -843,7 +848,7 @@ export async function createNavigation(options: NavigationOptions): Promise<Navi
       observed(policies.input(dom, dom.pointerLock)),
     );
     resizes.observe(element);
-    const restoreElement = keyboardTarget(element, words);
+    const restoreElement = asView(element, words);
     return {
       viewport: opened,
       async release() {

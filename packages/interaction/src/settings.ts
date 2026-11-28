@@ -76,16 +76,10 @@ export interface InteractionSettings {
    */
   readonly depthTolerance: number;
   /**
-   * Held during a press on content, it starts a takeover gesture instead of native input. Must
-   * differ from `depthModifier`. Default `alt`.
+   * Held during a press on content, it starts a takeover gesture instead of native input. Default
+   * `alt`.
    */
   readonly takeoverModifier: ModifierKey;
-  /**
-   * Held during a wheel over a window, it moves the window along the room's floor instead of
-   * scrolling (`ROOM_PACE`: turning down moves it farther). Must differ from `takeoverModifier`.
-   * Default `shift`.
-   */
-  readonly depthModifier: ModifierKey;
   /** Smallest window width or height a resize may make, in world units: positive. Default 0.05. */
   readonly minSize: number;
   /**
@@ -163,7 +157,6 @@ export const DEFAULT_SETTINGS: InteractionSettings = Object.freeze({
   slopPx: 4,
   depthTolerance: 1e-6,
   takeoverModifier: 'alt',
-  depthModifier: 'shift',
   minSize: 0.05,
   keymap: Object.freeze(defaultKeymap()),
 });
@@ -219,16 +212,12 @@ export function mergeSettings(current: InteractionSettings, patch: unknown): Int
         next[key] = positive(key, value);
         break;
       case 'takeoverModifier':
-      case 'depthModifier':
         next[key] = modifier(key, value);
         break;
       case 'keymap':
         next[key] = keymapOf(value, fail);
         break;
     }
-  }
-  if ((next['takeoverModifier'] as string) === (next['depthModifier'] as string)) {
-    fail('depthModifier', 'must differ from takeoverModifier');
   }
   return Object.freeze(next) as unknown as InteractionSettings;
 }

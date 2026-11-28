@@ -773,8 +773,11 @@ export class InteractionRouter {
    * pointer still held, or a `cancel`, cancels its gesture (`capture-lost`). Presses on content
    * stay native unless a takeover is active or the content is a proxy. While a press is held in a
    * viewport, every wheel there is its gesture's: one that uses it (a move takes it as depth) gets
-   * it, and any other wheel is consumed and does nothing; with no press held, a wheel moves the
-   * window under it in depth when the depth modifier is held. A key runs the keymap while focus is
+   * it, and any other wheel is consumed and does nothing; with no press held, the wheel goes as the
+   * gesture model's `wheelRoute` decides: live content keeps it, the wheel over a window's title
+   * bar or its picture moves the window nearer or farther, a scroll sideways over the background
+   * turns the camera, and Ctrl and the wheel over the background is left to the host that sets the
+   * view's field of view. A pointer no gesture holds hovers (`pointer.hovered`). A key runs the keymap while focus is
    * in the workspace, Escape cancels every gesture, and Enter or Space puts a held node down. An exception thrown by a gesture's code
    * cancels that gesture (`host`) and then reaches the caller.
    */
@@ -1277,7 +1280,9 @@ export class InteractionRouter {
       pressed: pressed.length > 0,
       pick: { kind: picked === null ? 'none' : picked.kind },
       region: { kind: REGIONS[picked?.region ?? 'background'] },
-      modifier: intent.modifiers[this.#settings.depthModifier],
+      proxy: picked?.kind === 'hit' && picked.target.proxy,
+      zoom: intent.modifiers.ctrl,
+      sideways: Math.abs(intent.deltaX) > Math.abs(intent.deltaY),
     });
     if (route.kind === 'press') {
       for (const arena of pressed) {
@@ -1303,6 +1308,14 @@ export class InteractionRouter {
         ? NOT_HANDLED('nothing spatial is under the wheel', { region: result.region })
         : NOT_HANDLED(result.reason);
     }
+    if (route.kind === 'zoomView') {
+      // The view's field of view is its host's to set: a host that does not take the wheel for it
+      // leaves it to the browser.
+      return NOT_HANDLED('the view is zoomed by its host', { region: 'background' });
+    }
+    if (route.kind === 'turnView') {
+      return this.#turnView(intent, view);
+    }
     if (result.kind !== 'hit') {
       throw new Error(`the gesture model routed a wheel over no window to ${route.kind}`);
     }
@@ -1310,11 +1323,16 @@ export class InteractionRouter {
     switch (route.kind) {
       case 'blocked':
         return { ...NOT_HANDLED('a modal is active'), ...base, consumed: true, route: 'blocked' };
-      // Wheel over a window scrolls its content (or the page) unless the depth modifier is held.
+      // Live content keeps every wheel, and Ctrl over a window zooms the page; a resize band
+      // takes none.
       case 'native':
       case 'ignored':
         return {
-          ...NOT_HANDLED('the wheel stays with the content without the depth modifier'),
+          ...NOT_HANDLED(
+            route.kind === 'native'
+              ? 'the wheel stays with the content or the page'
+              : 'nothing takes the wheel here',
+          ),
           ...base,
           route: route.kind,
         };
@@ -1395,6 +1413,41 @@ export class InteractionRouter {
         edge: null,
       });
     }
+  }
+
+  /**
+   * Turns the view by a scroll sideways over the background, the way the view would scroll: the
+   * camera turned right by the angle the scroll crosses (`deltaX` pixels across from the middle of
+   * the view, measured by the projection). Turning the workspace instead is done in bursts by the
+   * host that offers orbit navigation, as one change each; the router leaves that wheel to it.
+   */
+  #turnView(intent: WheelIntent, view: ViewGeometry): Routed {
+    const scene = this.#workspace.getState();
+    if (scene.viewports.get(intent.viewportId)?.navigation !== 'camera') {
+      return NOT_HANDLED('the workspace is turned by its host', { region: 'background' });
+    }
+    const projection = this.#projection(view);
+    const [cx, cy] = [view.width / 2, view.height / 2];
+    const from = projection.interactionRay(cx, cy, view);
+    const to = projection.interactionRay(cx + intent.deltaX, cy, view, {
+      previousLongitude: from.kind === 'ray' ? from.longitude : 0,
+    });
+    if (from.kind !== 'ray' || to.kind !== 'ray') {
+      return NOT_HANDLED('the view gives no angle to turn by', { region: 'background' });
+    }
+    const outcome = this.#run('camera.turn', {
+      viewportId: intent.viewportId,
+      heading: to.longitude - from.longitude,
+    });
+    return {
+      consumed: true,
+      route: 'command',
+      region: 'background',
+      target: null,
+      gestureId: null,
+      operation: { name: 'camera.turn', outcome },
+      reason: null,
+    };
   }
 
   #key(intent: KeyIntent): Routed {

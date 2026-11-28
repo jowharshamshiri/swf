@@ -293,8 +293,9 @@ router.registerInputAdapter(
 
 Reload. Drag a window by its title bar: it turns round you as the pointer moves across
 and rises or sinks as it moves up or down, the same height for a pixel however far out it stands,
-and settles where you let go. Hold Shift while dragging, or turn the wheel, to move it nearer or
-farther along the floor. Drag the empty background: the whole view turns, all the way round. Press Escape in the middle of a drag:
+and settles where you let go. Hold Shift while dragging, or turn the wheel over its title bar, to
+move it nearer or farther along the floor. Drag the empty background, or scroll sideways over it:
+the whole view turns, all the way round. Press Escape in the middle of a drag:
 the window goes back. Type in the text box again: input over content still goes to the content.
 
 ## What we built

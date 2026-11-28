@@ -3,42 +3,82 @@ import type {
   DispatchResult,
   InputAdapter,
   InputIntent,
+  InputRegion,
   InteractionRouter,
   WheelIntent,
 } from '@swf/interaction';
 import {
+  eyeOf,
   INTERACTION_API_VERSION,
+  placementOf,
   ROOM_LIMITS,
   ROOM_PACE,
   roomPlaceOf,
   standingInRoom,
+  turnedAbout,
   wheelTurn,
 } from '@swf/interaction';
 import type * as Lean from '@swf/models';
 import { models } from '@swf/models';
+import { viewGeometryOf } from '@swf/presentation';
+import { fieldOfViewOf } from './modes.js';
 
 /**
- * The wheel over a window with the depth modifier (Shift) held brings it nearer along the floor or
- * sends it farther (turned down, farther, at the room's wheel pace). A burst of ticks over one window is one gesture: the window is shown where the ticks so
- * far take it (a preview) and committed once, as one undoable change, when the wheel rests, when
- * other input comes (a press, a key) or when another window is wheeled; Escape, or cancelling the
- * gesture, leaves it where it was. Each step is decided by the Lean model `Swf.AppWheel`
- * (models/Swf/AppWheel.lean); this module measures how far a tick turns the wheel, keeps the
- * timer, and turns the decision into previews and commits. It sits between the device and the
- * framework, so every other intent passes through as it was, and so does the wheel while a
- * gesture of the framework holds the viewport (a press, pending or running, or a keyboard hold):
- * that gesture's wheel is its own, so no burst changes the scene in the middle of it.
+ * The navigation's wheel. Where the wheel goes is decided by the gesture model's `wheelRoute`, as
+ * the router decides it: over a window's title bar, its frame or a picture of its content it
+ * brings the window nearer along the floor or sends it farther (turned down, farther, at the room's
+ * wheel pace); over the background, a scroll sideways turns the workspace round the camera while
+ * that is what a drag on the background turns (the router turns the camera itself otherwise), and
+ * Ctrl, a trackpad's pinch included, zooms the panorama's field of view; live content keeps every
+ * wheel. A burst of ticks carrying one thing one way is one gesture: shown where the ticks so far
+ * take it (a preview) and committed once, as one undoable change, when the wheel rests, when other
+ * input comes (a press, a key) or when another window, or the same one another way, is wheeled;
+ * Escape, or cancelling the gesture, leaves everything where it was. Each step is decided by the
+ * Lean model `Swf.AppWheel` (models/Swf/AppWheel.lean); this module measures how far a tick turns
+ * the wheel, keeps the timer, and turns the decision into previews and commits. It sits between
+ * the device and the framework, so every other intent passes through as it was, and so does the
+ * wheel while a gesture of the framework holds the viewport (a press, pending or running, or a
+ * keyboard hold): that gesture's wheel is its own, so no burst changes the scene in the middle of
+ * it.
  */
 
 /** How long the wheel rests before its burst is committed, in milliseconds. */
 export const WHEEL_REST_MS = 300;
 
+/**
+ * How fast the wheel with Ctrl, or a trackpad's pinch, zooms the field of view: by `e` to this
+ * times the pixels turned (a mouse's notch of 120 pixels, about a third; a pinch's few pixels a
+ * step, a few in a hundred).
+ */
+export const ZOOM_PACE = 0.0025;
+
+const FLOOR: Lean.Carries = Object.freeze({ kind: 'floor' });
+const ORBIT: Lean.Carries = Object.freeze({ kind: 'orbit' });
+
+/** Each input region as the gesture model names it. */
+const REGION_KINDS: Readonly<Record<InputRegion, Lean.Region['kind']>> = Object.freeze({
+  content: 'content',
+  chrome: 'chrome',
+  'title-bar': 'titleBar',
+  'resize-handle': 'resizeHandle',
+  background: 'background',
+  'modal-overlay': 'modalOverlay',
+});
+
 /** What the bursts tell their owner: a burst started, or how one ended. */
 export type BurstReport =
-  | { readonly kind: 'started'; readonly burstId: string; readonly nodeId: Id }
+  | {
+      readonly kind: 'started';
+      readonly burstId: string;
+      /** The command its change is: `node.move` along the floor, or `orbit.turn`. */
+      readonly operation: 'node.move' | 'orbit.turn';
+      readonly nodeId: Id;
+    }
   | {
       readonly kind: 'ended';
       readonly burstId: string;
+      /** The command its change is: `node.move` along the floor, or `orbit.turn`. */
+      readonly operation: 'node.move' | 'orbit.turn';
       readonly nodeId: Id;
       readonly outcome: 'committed' | 'cancelled';
     };
@@ -53,6 +93,12 @@ export interface WheelBurstOptions {
    * nothing.
    */
   readonly gestureHeld: () => boolean;
+  /**
+   * Zooms the panorama's field of view by a factor (above 1, wider), held within its limits: true
+   * when the view's field of view is the panorama's to set now (false in a mode that frames its
+   * own view, which leaves the wheel to the browser).
+   */
+  readonly zoom: (factor: number) => boolean;
   readonly report: (report: BurstReport) => void;
 }
 
@@ -104,16 +150,47 @@ export function createWheelBursts(options: WheelBurstOptions): WheelBursts {
     return [{ type: 'node.patch', id: nodeId, transform }];
   };
 
+  /**
+   * The change that turns the workspace's orbit root round the camera for `turned` pixels of
+   * sideways scroll (right, positive), at the panorama's angle a pixel: the windows go the way the
+   * view would, turned to the right.
+   */
+  const turnedBy = (rootId: Id, turned: number): SceneCommand[] => {
+    const state = workspace.getState();
+    const viewport = state.viewports.get(viewportId);
+    if (viewport === undefined) {
+      throw new Error(`viewport "${viewportId}" does not exist`);
+    }
+    const view = viewGeometryOf(state, viewportId);
+    const radians = (-turned * fieldOfViewOf(viewport.projection) * Math.PI) / 180 / view.width;
+    const transform = turnedAbout(placementOf(state, rootId), eyeOf(view), radians);
+    if (transform === null) {
+      throw new Error(`the orbit root "${rootId}" cannot be turned: its placement is singular`);
+    }
+    return [{ type: 'node.patch', id: rootId, transform }];
+  };
+
+  /** The change a burst is, as far as it has gone. */
+  const changeOf = ({ nodeId, carries, turned }: Lean.Burst): SceneCommand[] =>
+    carries.kind === 'floor' ? movedBy(nodeId, turned) : turnedBy(nodeId, turned);
+  const operationOf = (burst: Lean.Burst) =>
+    burst.carries.kind === 'floor' ? ('node.move' as const) : ('orbit.turn' as const);
+
   const act = (action: Lean.WheelAction) => {
     switch (action.kind) {
       case 'show': {
-        const { nodeId, turned } = action.burst;
+        const { nodeId } = action.burst;
         if (shown === null) {
           const burstId = `wheel-${String(next++)}`;
           shown = { burstId, previewId: `swf.${burstId}/${nodeId}` };
-          options.report({ kind: 'started', burstId, nodeId });
+          options.report({
+            kind: 'started',
+            burstId,
+            operation: operationOf(action.burst),
+            nodeId,
+          });
         }
-        workspace.preview(shown.previewId, movedBy(nodeId, turned), { source: 'user' });
+        workspace.preview(shown.previewId, changeOf(action.burst), { source: 'user' });
         return;
       }
       case 'commit': {
@@ -122,8 +199,8 @@ export function createWheelBursts(options: WheelBurstOptions): WheelBursts {
         if (ending === null) {
           throw new Error('a burst is committed that was never shown');
         }
-        const { nodeId, turned } = action.burst;
-        const result = workspace.transaction(movedBy(nodeId, turned), {
+        const { nodeId } = action.burst;
+        const result = workspace.transaction(changeOf(action.burst), {
           source: 'user',
           previewId: ending.previewId,
         });
@@ -131,6 +208,7 @@ export function createWheelBursts(options: WheelBurstOptions): WheelBursts {
           options.report({
             kind: 'ended',
             burstId: ending.burstId,
+            operation: operationOf(action.burst),
             nodeId,
             outcome: status === 'committed' ? 'committed' : 'cancelled',
           });
@@ -152,6 +230,7 @@ export function createWheelBursts(options: WheelBurstOptions): WheelBursts {
           options.report({
             kind: 'ended',
             burstId: ending.burstId,
+            operation: operationOf(current),
             nodeId: current.nodeId,
             outcome: 'cancelled',
           });
@@ -179,17 +258,57 @@ export function createWheelBursts(options: WheelBurstOptions): WheelBursts {
     }
   };
 
-  /** The window a wheel tick moves, when it is a burst's: the depth modifier over a movable window. */
-  const wheeled = (intent: WheelIntent): Id | null => {
-    if (!intent.modifiers[router.settings().depthModifier] || options.gestureHeld()) {
+  /**
+   * What a wheel tick is here, as `wheelRoute` decides it: a burst's tick, carrying a movable
+   * window along the floor or the workspace's orbit root round the camera; a zoom of the field of
+   * view; or neither, for the router (the camera turned, content scrolled, nothing).
+   */
+  const wheeled = (
+    intent: WheelIntent,
+  ): { kind: 'tick'; event: Lean.WheelEvent } | { kind: 'zoom' } | null => {
+    if (options.gestureHeld()) {
       return null;
     }
     const pick = router.pick(intent.viewportId, intent.x, intent.y);
-    if (pick.kind !== 'hit' || pick.region === 'modal-overlay') {
-      return null;
+    const picked = pick.kind === 'hit' || pick.kind === 'background' ? pick : null;
+    const target = picked?.kind === 'hit' ? picked.target : null;
+    const route = models.wheelRoute({
+      pressed: false,
+      pick: { kind: picked === null ? 'none' : picked.kind },
+      region: { kind: REGION_KINDS[picked?.region ?? 'background'] },
+      proxy: target?.proxy === true,
+      zoom: intent.modifiers.ctrl,
+      sideways: Math.abs(intent.deltaX) > Math.abs(intent.deltaY),
+    });
+    const state = workspace.getState();
+    switch (route.kind) {
+      case 'depthMove': {
+        const node = target === null ? undefined : state.nodes.get(target.nodeId);
+        return node?.kind === 'window' && node.flags.draggable && !node.flags.locked
+          ? {
+              kind: 'tick',
+              event: { kind: 'tick', nodeId: node.id, carries: FLOOR, delta: wheelTurn(intent) },
+            }
+          : null;
+      }
+      case 'turnView': {
+        const rootId = state.orbitRootId;
+        return state.viewports.get(viewportId)?.navigation === 'orbit' && rootId !== null
+          ? {
+              kind: 'tick',
+              event: { kind: 'tick', nodeId: rootId, carries: ORBIT, delta: intent.deltaX },
+            }
+          : null;
+      }
+      case 'zoomView':
+        return { kind: 'zoom' };
+      case 'press':
+      case 'ignore':
+      case 'blocked':
+      case 'native':
+      case 'ignored':
+        return null;
     }
-    const node = workspace.getState().nodes.get(pick.target.nodeId);
-    return node?.kind === 'window' && node.flags.draggable && !node.flags.locked ? node.id : null;
   };
 
   /** A tick the burst took: kept from the platform, and no command run until the burst ends. */
@@ -212,18 +331,18 @@ export function createWheelBursts(options: WheelBurstOptions): WheelBursts {
         connect(dispatch: (intent: InputIntent) => DispatchResult): () => void {
           return device.connect((intent) => {
             if (intent.kind === 'wheel') {
-              const nodeId = wheeled(intent);
-              if (nodeId !== null) {
+              const what = wheeled(intent);
+              if (what?.kind === 'tick') {
                 rest();
-                step({
-                  kind: 'tick',
-                  nodeId,
-                  delta: wheelTurn(intent),
-                });
+                step(what.event);
                 timer = setTimeout(settle, WHEEL_REST_MS);
                 return CONSUMED;
               }
               settle();
+              // Turned down (or a pinch closed), wider; up, narrower.
+              if (what?.kind === 'zoom' && options.zoom(Math.exp(intent.deltaY * ZOOM_PACE))) {
+                return CONSUMED;
+              }
             } else if (current !== null) {
               const escape =
                 intent.kind === 'key' && intent.phase === 'down' && intent.key === 'Escape';

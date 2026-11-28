@@ -438,15 +438,28 @@ describe('native content and takeover (FR-103, FR-108, FR-110)', () => {
     expect(w.ws.getState().focusedId).toBe('a');
   });
 
-  it('leaves the wheel with content, moving the window along the floor only with the depth modifier', () => {
+  it('leaves every wheel over live content to it, and moves a window along the floor by the wheel over its title bar', () => {
     const w = world([ahead]);
     const [x, y] = contentOf(w.ws, 'a');
     const before = transformOf(w.ws, 'a');
-    expect(w.input.wheel('v', x, y, 120)).toMatchObject({ consumed: false, route: 'native' });
+    // Content keeps the wheel, whatever is held: it scrolls, sideways too, or the page zooms.
+    for (const modifiers of [{}, { shift: true }, { ctrl: true }, { alt: true }]) {
+      expect(w.input.wheel('v', x, y, 120, { modifiers })).toMatchObject({
+        consumed: false,
+        route: 'native',
+      });
+    }
     expect(transformOf(w.ws, 'a')).toBe(before);
-    expect(w.input.wheel('v', 2, H / 2, 120)).toMatchObject({ consumed: false, route: 'ignored' });
-    const deep = w.input.wheel('v', x, y, -100, { modifiers: { shift: true } });
-    expect(deep).toMatchObject({
+    // The resize band takes no wheel.
+    const [ex, ey] = onCard(w.ws, 'a', [0.99, 0]);
+    expect(w.input.wheel('v', ex, ey, 120)).toMatchObject({ consumed: false, route: 'ignored' });
+    // Over its title bar the plain wheel moves it along the floor; with Ctrl, the page zooms.
+    const [tx, ty] = titleBar(w.ws, 'a');
+    expect(w.input.wheel('v', tx, ty, 120, { modifiers: { ctrl: true } })).toMatchObject({
+      consumed: false,
+      route: 'native',
+    });
+    expect(w.input.wheel('v', tx, ty, -100)).toMatchObject({
       consumed: true,
       route: 'command',
       operation: { name: 'node.move' },
@@ -456,9 +469,9 @@ describe('native content and takeover (FR-103, FR-108, FR-110)', () => {
     expect(placeOf(w.ws, 'a').floor).toBeCloseTo(3 * Math.exp(-0.12), 12);
   });
 
-  it('moves a window as far by the wheel turned sideways with the depth modifier as upright', () => {
+  it('moves a window as far by the wheel turned sideways over its title bar as upright', () => {
     const w = world([ahead]);
-    const [x, y] = contentOf(w.ws, 'a');
+    const [x, y] = titleBar(w.ws, 'a');
     // Browsers on Windows and Linux deliver a wheel turned with Shift held sideways: deltaX, with
     // deltaY zero. 100 px up, then 100 px down: nearer, then back.
     expect(w.input.wheel('v', x, y, 0, { deltaX: -100, modifiers: { shift: true } })).toMatchObject(
@@ -467,6 +480,30 @@ describe('native content and takeover (FR-103, FR-108, FR-110)', () => {
     expect(placeOf(w.ws, 'a').floor).toBeCloseTo(3 * Math.exp(-0.12), 12);
     w.input.wheel('v', x, y, 0, { deltaX: 100, modifiers: { shift: true } });
     expect(placeOf(w.ws, 'a').floor).toBeCloseTo(3, 12);
+  });
+
+  it('turns the camera by a scroll sideways over the background, by the angle it crosses, and leaves Ctrl to the host', () => {
+    const w = world([ahead]);
+    const history = w.ws.history().length;
+    const heading = () => {
+      const rotation = w.ws.getState().cameras.get('cam')?.rotation ?? [0, 0, 0, 1];
+      return headingPitchOf(rotation).heading;
+    };
+    // 80 px across in an 800 px view of the whole circle: 36°, to the right.
+    expect(w.input.wheel('v', 2, H / 2, 0, { deltaX: 80 })).toMatchObject({
+      consumed: true,
+      route: 'command',
+      operation: { name: 'camera.turn' },
+    });
+    expect(heading()).toBeCloseTo((80 / W) * 2 * Math.PI, 9);
+    // View state: no undo step.
+    expect(w.ws.history()).toHaveLength(history);
+    // An upright scroll over the background does nothing; Ctrl is the host's (its field of view).
+    expect(w.input.wheel('v', 2, H / 2, 120)).toMatchObject({ consumed: false });
+    expect(w.input.wheel('v', 2, H / 2, 120, { modifiers: { ctrl: true } })).toMatchObject({
+      consumed: false,
+    });
+    expect(heading()).toBeCloseTo((80 / W) * 2 * Math.PI, 9);
   });
 
   it('stops presses outside an active modal', () => {
@@ -581,10 +618,12 @@ describe('gesture arena (FR-113)', () => {
     const [x, y] = onCard(w.ws, 'a', [0.99, 0]);
     const [bx, by] = contentOf(w.ws, 'b');
     const [cx, cy] = contentOf(w.ws, 'a');
-    /** Shift+wheel over the resized window and another, and the plain wheel over content. */
+    const [tbx, tby] = titleBar(w.ws, 'b');
+    /** The wheel over the resized window, over another's title bar, and over content. */
     const wheels = (px: number) => [
-      w.input.wheel('v', px, y, -100, { modifiers: { shift: true } }),
+      w.input.wheel('v', px, y, -100),
       w.input.wheel('v', px, y, 0, { deltaX: -100, modifiers: { shift: true } }),
+      w.input.wheel('v', tbx, tby, -100),
       w.input.wheel('v', bx, by, -100, { modifiers: { shift: true } }),
       w.input.wheel('v', cx, cy, 120),
     ];
@@ -624,7 +663,7 @@ describe('gesture arena (FR-113)', () => {
     expect(w.ws.getState().nodes.get('a')?.bounds).toEqual(before.nodes.get('a')?.bounds);
     expect(w.ws.getState().nodes.get('a')?.transform).toEqual(before.nodes.get('a')?.transform);
     // With no press held, the wheel is routed as before.
-    expect(w.input.wheel('v', bx, by, -100, { modifiers: { shift: true } })).toMatchObject({
+    expect(w.input.wheel('v', tbx, tby, -100)).toMatchObject({
       route: 'command',
       operation: { name: 'node.move' },
     });

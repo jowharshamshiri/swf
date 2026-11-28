@@ -141,7 +141,7 @@ describe('a blank workspace, end to end (§33.2 scenario 1, WF-01, AC-001, AC-00
     expect(content?.isConnected).toBe(true);
 
     // Interacted with natively: a real press and real typing reach the content, and the scene
-    // does not change.
+    // changes only by the window pressed becoming the one worked on.
     const revision = app.workspace.getState().revision;
     const text = content?.querySelector('p');
     const box = text?.getBoundingClientRect();
@@ -153,7 +153,15 @@ describe('a blank workspace, end to end (§33.2 scenario 1, WF-01, AC-001, AC-00
     await commands.mouse('up', box.left + box.width / 2, box.top + box.height / 2);
     await userEvent.keyboard('Hello');
     expect(text.textContent).toContain('Hello');
-    expect(app.workspace.getState().revision).toBe(revision);
+    expect(app.workspace.getState().revision).toBe(revision + 1);
+    expect(app.workspace.getState().selection).toEqual([
+      app.workspace
+        .getState()
+        .surfaces.get(
+          [...app.workspace.getState().surfaces.values()].find((x) => x.bindingKey === key)?.id ??
+            '',
+        )?.ownerNodeId,
+    ]);
 
     // Moved behind the camera on the map: its marker dragged from in front of the camera's marker
     // to behind it, one change; the window turns to keep facing the camera.

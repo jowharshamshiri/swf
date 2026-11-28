@@ -426,16 +426,33 @@ describe('the horizon and places past the edges', () => {
     expect(ray.kind === 'ray' ? ray.latitude : NaN).toBeCloseTo(0, 12);
   });
 
-  it('refuses a horizon outside the image, or one that reaches past a pole', () => {
-    expect(equirectangular.configIssue({ horizontal: 360, vertical: 120, horizon: 1.2 })).toMatch(
-      /horizon must be a share of the image's height in \[0, 1\]/,
-    );
+  it('refuses a horizon that is no number, or one that reaches past a pole', () => {
+    expect(
+      equirectangular.configIssue({ horizontal: 360, vertical: 120, horizon: Number.NaN }),
+    ).toMatch(/horizon must be a finite share of the image's height/);
     expect(equirectangular.configIssue({ horizontal: 360, vertical: 180, horizon: 0.2 })).toMatch(
+      /past a pole/,
+    );
+    // Below the image's bottom, so far the image's top reaches past the pole above.
+    expect(equirectangular.configIssue({ horizontal: 360, vertical: 120, horizon: 1.2 })).toMatch(
       /past a pole/,
     );
     expect(
       equirectangular.configIssue({ horizontal: 360, vertical: 130, horizon: 0.49 }),
     ).toBeNull();
+  });
+
+  it('shows an image wholly above the horizon when the horizon lies below its bottom', () => {
+    // 40° down, the horizon one and a half heights from the top: 20° to 60° above it.
+    const { projection, view } = setup({ config: { horizontal: 360, vertical: 40, horizon: 1.5 } });
+    const at = (degrees: number) =>
+      projection.projectDirection(local(0, (degrees * Math.PI) / 180), view).images[0]?.[1];
+    expect(at(40)).toBeCloseTo(H / 2, 6);
+    expect(at(60 - 1e-6)).toBeCloseTo(0, 3);
+    expect(at(20 + 1e-6)).toBeCloseTo(H, 3);
+    expect(projection.projectDirection(local(0, (10 * Math.PI) / 180), view).images).toEqual([]);
+    const ray = projection.unprojectPoint(W / 2, H / 2, view);
+    expect(ray.kind === 'ray' ? (ray.latitude * 180) / Math.PI : NaN).toBeCloseTo(40, 9);
   });
 
   it('places a direction past the view’s edge just past it, on the branch nearest the centre', () => {

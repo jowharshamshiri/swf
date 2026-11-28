@@ -370,8 +370,14 @@ Surface ID. A surface shown only as a proxy is marked so, with focus and activat
 place of direct input.
 
 Presses on content stay with the content unless a takeover is active (the takeover modifier,
-Alt by default, or `setTakeover(true)`), and the wheel over content stays with it unless the
-depth modifier (Shift by default) is held. Pressed pointers enter a gesture arena per target;
+Alt by default, or `setTakeover(true)`), and every wheel over content stays with it, whatever is
+held. With no press held, the wheel goes as the gesture model's `wheelRoute` decides: over a
+window's title bar, its frame or a picture of its content it moves the window nearer or farther
+(Ctrl and the wheel there zoom the page, as the browser zooms it); over the background a scroll
+sideways turns the view, and Ctrl and the wheel, a trackpad's pinch included, are the host's: the
+navigation zooms the panorama's field of view by them (by e^0.0025 a pixel, within 85° to 360°),
+and the router leaves them to the browser for a host that does not. In workspace navigation a
+scroll sideways turns the workspace round the camera instead, in bursts of one change each. Pressed pointers enter a gesture arena per target;
 registered policies bid for them, and the arena resolves to the highest-priority drag once a
 pointer moves past the slop, or to a tap when they lift before that. Two pointers pressed on one
 window go to two-pointer gestures; a pointer pressed on a window already in a gesture is refused
@@ -384,7 +390,7 @@ pointer's motion across (the view's angle a pixel, so a full turn of the pointer
 where it began) and raises or lowers it a 68th of a unit a pixel, the same at any distance; with
 Shift held it moves along the floor instead, a 27th of a unit a pixel (down is farther). Pressing
 or letting go of Shift, or turning the wheel, mid-drag goes on from where the window stands
-(`RoomMotion`). The wheel with the depth modifier held, during a drag or over a window, reads its
+(`RoomMotion`). The wheel during a drag, or over a window's title bar or its picture, reads its
 turn one way on every platform (`wheelTurn`): from `deltaY`, or from `deltaX` when `deltaY` is zero,
 since browsers on Windows and Linux, and macOS itself, turn a wheel with Shift held into a sideways
 scroll that keeps its sign. Turned down it takes the window farther along the floor, turned up
@@ -1125,7 +1131,7 @@ gesture, saving and restoring.
   (its angle round the camera, its distance along the floor and its height) and size, and locks
   it. Each is one undoable change; a
   locked window's controls are disabled, saying why. These are also what touch and pen use for
-  every gesture: a drag, a resize handle, the wheel with Shift and a pinch each have their
+  every gesture: a drag, a resize handle, the wheel over a title bar and a pinch each have their
   control, a background drag has each window's Reveal and the experiment panel's turns, and a tap has the
   Windows list.
 - **The Windows view** stands in for the panorama for whoever cannot see it: every window, by
@@ -1162,10 +1168,10 @@ content is attached or detached by a switch.
   comes in at the other, its heading moving on without a jump.
 - **Focus**: the selected (or focused) window shown readably, its card and title bar filling
   three-quarters of the view at most two and a half times its content's own size, by turning the
-  level camera to face it, setting the panorama's horizon so the window stands in the middle of the
-  view (as near as the projection allows: the image reaches no further than a pole), and scaling
-  its card within the room left above and below it, so its title bar is always in view; a view too
-  small to show it so refuses the focus, saying why. Its content stays live: a note is the same element, edited in place. A
+  level camera to face it, setting the panorama's horizon so the window's card and title bar stand
+  in the middle of the view (narrowing the panorama's span down only as far as a window standing
+  high or low needs, its image reaching no further than a pole), and scaling its card so its title
+  bar is always in view; a view too short to hold the bar refuses the focus, saying why. Its content stays live: a note is the same element, edited in place. A
   bar above names it, steps to the next window to the right (round the circle, past the last) and
   closes the focus. Under it, with a movable edge between them, the focus strip holds a card for
   every window: the focused one in the middle, the others left and right of it in the order they
@@ -1604,11 +1610,12 @@ release` builds a versioned release from a commit ([Release the packages](docs/h
 A budget is raised only deliberately, by hand, to the package's measured gzip size rounded up to the
 next 256 bytes, so it leaves no room for growth nobody looked at; the measured sizes are recorded
 with `npm run size -- --record` in the same commit, whose message gives the old and the new budget.
-`@swf/models` is at 65536 bytes: it is the compiled program of every proved decision model the
-framework and the reference application run, so it grows with each model (65475 bytes
+`@swf/models` is at 66048 bytes: it is the compiled program of every proved decision model the
+framework and the reference application run, so it grows with each model (65937 bytes
 measured, the room (`Swf.Room`), the spacing after a snap (`Swf.AppSpacing`), the title bars'
 place in picking (`Swf.Arbitration`), the selection after a press and what a hovering pointer
-shows (`Swf.Gesture`) and a double press on a window (`Swf.AppFocus`) included).
+shows (`Swf.Gesture`), where the wheel goes (`Swf.Gesture.wheelRoute`, `Swf.AppWheel`) and a
+double press on a window (`Swf.AppFocus`) included).
 `@swf/persistence` is at 13568 bytes (13513 measured): snapshots, stores and the saver, with named
 spaces (`createSpaces`) and the step that brings `swf.workspace/1` layouts into the room.
 `@swf/backend-dom` is at 8192 bytes (7994 measured), the DOM input's pointer lock, the windows'

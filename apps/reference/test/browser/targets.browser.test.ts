@@ -9,6 +9,13 @@ import { start } from './shell-harness.js';
 
 declare module 'vitest/browser' {
   interface BrowserCommands {
+    wheel: (
+      x: number,
+      y: number,
+      deltaX: number,
+      deltaY: number,
+      modifiers?: readonly string[],
+    ) => Promise<void>;
     mouse: (
       action: 'move' | 'down' | 'up' | 'double' | 'release',
       x: number,
@@ -490,5 +497,101 @@ describe('cursors and hover', () => {
     await expect.poll(() => bar?.style.boxShadow).toMatch(/^inset 0 0 0 2px /);
     await hoverAt(m, x + w / 2, y + 400);
     await expect.poll(() => bar?.style.boxShadow).toBe('none');
+  });
+});
+
+describe('the wheel and the trackpad', () => {
+  const floorOf = (m: Mounted & { app: ReferenceApp }, id: string) => {
+    const p = m.app.workspace.getState().nodes.get(id)?.transform.position ?? [0, 0, 0];
+    return Math.hypot(p[0], p[2]);
+  };
+  /** Turns the wheel at a point of the view, and lets a burst rest so it commits. */
+  async function wheelAt(
+    m: Mounted & { app: ReferenceApp },
+    x: number,
+    y: number,
+    deltaX: number,
+    deltaY: number,
+    modifiers: readonly string[] = [],
+  ) {
+    const [px, py] = onPage(m.app, x, y);
+    await commands.wheel(px, py, deltaX, deltaY, modifiers);
+    await new Promise((resolve) => setTimeout(resolve, 450));
+    await m.settle();
+  }
+
+  it('moves a window along the floor by the plain wheel over its title bar or its picture, as one change', async () => {
+    const m = await visit();
+    for (const id of ['builds', 'reading'] as const) {
+      const { cards, representation } = cardsOf(m.app, id);
+      const [x, y, w, h] = cards[0] ?? [0, 0, 0, 0];
+      const [px, py] =
+        representation === 'full' ? [x + w / 2, y - BAR / 2] : [x + w / 2, y + h / 2];
+      const before = floorOf(m, id);
+      const history = m.app.workspace.history().length;
+      await wheelAt(m, px, py, 0, 120);
+      expect(floorOf(m, id), id).toBeGreaterThan(before + 0.1);
+      expect(m.app.workspace.history(), id).toHaveLength(history + 1);
+    }
+  });
+
+  it('leaves every wheel over live content to it, Shift and Ctrl included', async () => {
+    const m = await visit();
+    const slot = m.app.root.querySelector('[data-swf-slot="builds-surface"]');
+    let heard = 0;
+    slot?.addEventListener('wheel', () => {
+      heard += 1;
+    });
+    const box = slot?.getBoundingClientRect();
+    const root = m.app.root.getBoundingClientRect();
+    const [x, y] = [
+      (box?.left ?? 0) - root.left + (box?.width ?? 0) / 2,
+      (box?.top ?? 0) - root.top + (box?.height ?? 0) * 0.8,
+    ];
+    const before = m.app.workspace.getState().nodes.get('builds');
+    for (const modifiers of [[], ['Shift'], ['Alt']] as const) {
+      await wheelAt(m, x, y, 0, 120, modifiers);
+    }
+    expect(heard).toBe(3);
+    expect(m.app.workspace.getState().nodes.get('builds')).toBe(before);
+  });
+
+  it('turns the view by a scroll sideways over the background and zooms its field of view by Ctrl and the wheel', async () => {
+    const m = await visit();
+    // High in the sky above every window: the background.
+    const [gx, gy] = [m.app.root.getBoundingClientRect().width / 2, 40];
+    const field = (handle: string) =>
+      Number(
+        m.app.root.ownerDocument.querySelector<HTMLInputElement>(`[data-wsb="${handle}"]`)?.value,
+      );
+    const heading = () => field('page.view.heading.number');
+    const fov = () => field('page.view.fov.number');
+    expect(heading()).toBe(0);
+    await wheelAt(m, gx, gy, 60, 0);
+    expect(heading()).toBeGreaterThan(10);
+    expect(fov()).toBe(360);
+    await wheelAt(m, gx, gy, 0, -120, ['Control']);
+    expect(fov()).toBeLessThan(300);
+    // The panorama is ground no scroll carries past: a swipe never goes back a page from it.
+    expect(getComputedStyle(m.app.root).overscrollBehaviorX).toBe('none');
+  });
+
+  it('turns the workspace by a scroll sideways over the background while that is what a drag turns, as one change', async () => {
+    const m = await visit();
+    expect(await m.model.run('swf.navigation.set', { target: 'orbit' })).toBe(true);
+    await m.settle();
+    const history = m.app.workspace.history().length;
+    const before = m.app.workspace.getState().nodes.get('workspace')?.transform.rotation;
+    for (let i = 0; i < 4; i += 1) {
+      // High in the sky above every window: the background.
+      const [px, py] = onPage(m.app, m.app.root.getBoundingClientRect().width / 2, 40);
+      await commands.wheel(px, py, 20, 0);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 450));
+    await m.settle();
+    expect(m.app.workspace.getState().nodes.get('workspace')?.transform.rotation).not.toEqual(
+      before,
+    );
+    expect(m.app.workspace.history()).toHaveLength(history + 1);
   });
 });

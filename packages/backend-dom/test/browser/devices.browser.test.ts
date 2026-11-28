@@ -73,7 +73,7 @@ const distance = (s: Stage) => {
 const canTouch = server.browser === 'chromium';
 
 describe('input devices end to end (QA-006, FR-100, FR-101)', () => {
-  it('leaves the wheel over live content to the content, and changes depth with Shift and the wheel over a window', async () => {
+  it('leaves every wheel over live content to the content, and changes depth with the wheel over a window’s frame', async () => {
     current = await stage([framed]);
     const view = viewOf(current);
     const content = current.lives.get('key-a')?.element;
@@ -84,20 +84,23 @@ describe('input devices end to end (QA-006, FR-100, FR-101)', () => {
     });
     const before = current.ws.getState();
     const [cx, cy] = pageOf(view.root, ...onCard(current, 'a', [0, 0]));
+    // Plain, with Shift (a sideways scroll on most platforms) and with Alt: the content's.
     await commands.wheel(cx, cy, 0, 120);
-    await expect.poll(() => wheels.length).toBe(1);
-    expect(wheels[0]).toEqual({ trusted: true, prevented: false });
+    await commands.wheel(cx, cy, 0, 120, ['Shift']);
+    await commands.wheel(cx, cy, 0, 120, ['Alt']);
+    await expect.poll(() => wheels.length).toBe(3);
+    expect(wheels.every((w) => w.trusted && !w.prevented)).toBe(true);
     expect(current.ws.getState()).toBe(before);
-    // Shift with the wheel over the window's frame moves it along the floor: turned down,
-    // farther; turned up, nearer again. One change each.
+    // The wheel over the window's frame moves it along the floor: turned down, farther; turned
+    // up, nearer again. One change each.
     const [fx, fy] = pageOf(view.root, ...onCard(current, 'a', [0, 0.75]));
     const near = distance(current);
     const history = current.ws.history().length;
-    await commands.wheel(fx, fy, 0, 200, ['Shift']);
+    await commands.wheel(fx, fy, 0, 200);
     await expect.poll(() => current?.ws.history().length).toBe(history + 1);
     const far = distance(current);
     expect(far).toBeGreaterThan(near + 0.01);
-    await commands.wheel(fx, fy, 0, -200, ['Shift']);
+    await commands.wheel(fx, fy, 0, -200);
     await expect.poll(() => current?.ws.history().length).toBe(history + 2);
     expect(distance(current)).toBeCloseTo(near, 6);
   });

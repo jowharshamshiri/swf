@@ -64,3 +64,9 @@ A pointer no gesture holds hovers: the router says what a press where it is woul
 changes, after a gesture ends, and when the takeover control changes; a `leave` sample says the
 pointer left the view. An input adapter offers a sample of the pointer where it is whenever a
 modifier goes down or up, so a hover and a drag follow it.
+
+The wheel goes as `wheelRoute` decides it: live content keeps every wheel whatever is held; over a
+window's title bar, its frame or a picture of its content the wheel moves the window nearer or
+farther, with no modifier (Ctrl there is the page's zoom); over the background a scroll sideways
+turns the camera by the angle it crosses, and Ctrl and the wheel are left to the host that sets the
+view's field of view. The `depthModifier` setting is gone.

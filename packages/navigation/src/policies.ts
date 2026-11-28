@@ -13,6 +13,7 @@ import { placementOf, turnedAbout } from '@swf/interaction';
 import { models } from '@swf/models';
 import type { PresentedViewport, Representation } from '@swf/presentation';
 import type { Modes, ViewMode } from './modes.js';
+import { FIELD_OF_VIEW, fieldOfViewOf } from './modes.js';
 import { viewGeometryOf } from '@swf/presentation';
 import type { ProjectionRegistry } from '@swf/projections';
 import { projectionFor } from '@swf/projections';
@@ -302,8 +303,9 @@ export function createPolicies(options: PolicyOptions): Policies {
     }
   };
 
-  // A burst of the wheel over a window, with the depth modifier held, is a gesture of its own:
-  // shown as one, ended as one.
+  // A burst of the wheel over a window, or turning the workspace, is a gesture of its own: shown
+  // as one, ended as one. Ctrl and the wheel, or a pinch, over the background zoom the panorama's
+  // field of view.
   const bursts = createWheelBursts({
     workspace,
     router,
@@ -311,11 +313,26 @@ export function createPolicies(options: PolicyOptions): Policies {
     gestureHeld: () =>
       (gesture !== null && !gesture.wheel) ||
       router.captures().some((capture) => capture.viewportId === viewportId),
+    zoom(factor) {
+      // The panorama's field of view, only while a mode that shows the panorama is active: a mode
+      // that frames its own view (focus) leaves the wheel to the browser.
+      const viewport = workspace.getState().viewports.get(viewportId);
+      const current = modes.list().find((mode) => mode.id === modes.current());
+      if (viewport === undefined || current?.panoramic !== true) {
+        return false;
+      }
+      const degrees = Math.min(
+        FIELD_OF_VIEW.max,
+        Math.max(FIELD_OF_VIEW.min, fieldOfViewOf(viewport.projection) * factor),
+      );
+      modes.fieldOfView(degrees);
+      return true;
+    },
     report(report) {
       if (report.kind === 'started') {
         gesture = Object.freeze({
           gestureId: report.burstId,
-          operation: 'node.move',
+          operation: report.operation,
           nodeId: report.nodeId,
           snaps: false,
           wheel: true,
@@ -323,7 +340,7 @@ export function createPolicies(options: PolicyOptions): Policies {
         });
       } else if (gesture?.gestureId === report.burstId) {
         ended = Object.freeze({
-          operation: 'node.move',
+          operation: report.operation,
           nodeId: report.nodeId,
           outcome: report.outcome,
           reason: report.outcome === 'cancelled' ? 'escape' : null,

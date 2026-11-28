@@ -251,7 +251,7 @@ describe('a window handled directly in the panorama', () => {
     );
   });
 
-  it('goes farther with Shift and the wheel, shown as it goes, the burst one change once the wheel rests', async () => {
+  it('goes farther with the wheel over its title bar, shown as it goes, the burst one change once the wheel rests', async () => {
     const m = await visit();
     const { app } = m;
     const before = app.workspace.getState();
@@ -261,7 +261,7 @@ describe('a window handled directly in the panorama', () => {
     const start = reach();
     const seen: { reach: number; committed: number; bar: string }[] = [];
     for (let i = 0; i < 5; i += 1) {
-      await commands.wheel(x, y, 0, 100, ['Shift']);
+      await commands.wheel(x, y, 0, 100);
       await nextFrame();
       seen.push({ reach: reach(), committed: app.workspace.history().length, bar: bar(m) });
     }
@@ -284,8 +284,8 @@ describe('a window handled directly in the panorama', () => {
       before.nodes.get('window-01')?.transform,
     );
     // A burst cancelled leaves the window where it was, with nothing to undo.
-    await commands.wheel(x, y, 0, 100, ['Shift']);
-    await commands.wheel(x, y, 0, 100, ['Shift']);
+    await commands.wheel(x, y, 0, 100);
+    await commands.wheel(x, y, 0, 100);
     expect(reach()).toBeGreaterThan(start);
     expect(await m.model.run('swf.gesture.cancel', {})).toBe(true);
     await m.settle();
