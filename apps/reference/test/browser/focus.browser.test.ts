@@ -413,7 +413,8 @@ describe('focus with the strip of every window (section 3)', () => {
     const standIn = main.frame.planned.find((p) => {
       const at = centreIn(main, p.fragment.surfaceId);
       const id = a.workspace.getState().surfaces.get(p.fragment.surfaceId)?.ownerNodeId;
-      return p.representation !== 'full' && at !== null && a.windowAt(at[0], at[1]) === id;
+      const picked = at === null ? null : a.router.pick(a.viewport.viewportId, at[0], at[1]);
+      return p.representation !== 'full' && picked?.kind === 'hit' && picked.target.nodeId === id;
     });
     const id = a.workspace.getState().surfaces.get(standIn?.fragment.surfaceId ?? '')?.ownerNodeId;
     const at = centreIn(main, standIn?.fragment.surfaceId ?? '');

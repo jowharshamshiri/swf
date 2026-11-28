@@ -1,5 +1,6 @@
 import type { Id, JsonValue } from '@swf/core';
 import { jsonValue, SwfFailure } from '@swf/core';
+import type { PointerPrecision } from '@swf/presentation';
 import { models } from '@swf/models';
 
 /** Modifier keys held during an intent. All four are required; no other field is allowed. */
@@ -27,6 +28,16 @@ export const NO_MODIFIERS: Modifiers = Object.freeze({
 
 /** What kind of device produced a pointer. `virtual` is a pointer driven by software. */
 export type PointerType = 'mouse' | 'touch' | 'pen' | 'virtual';
+
+/**
+ * How precisely a pointer of a type points, a {@link PointerType} or the platform's own name for it
+ * (a DOM `PointerEvent`'s `pointerType`): a finger or a pen (`touch`, `pen`) is `coarse`, a mouse
+ * and every other pointer `fine`. A coarse pointer's handles are larger (`WINDOW_HANDLES` of
+ * `@swf/presentation`), and it may wobble and land farther apart (`slopPx`, `doublePressPx`).
+ */
+export function pointerPrecision(type: string): PointerPrecision {
+  return type === 'touch' || type === 'pen' ? 'coarse' : 'fine';
+}
 
 /**
  * Where a pointer is in its stroke. `cancel` means the platform took the pointer away (its capture

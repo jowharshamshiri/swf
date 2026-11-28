@@ -79,3 +79,8 @@ carry a window along the floor or the workspace round the camera (`Carries`).
 
 `Swf.Arbitration` orders a window in front before every other window's hits of the same priority,
 title bars included, and never marks it occluded (`Hit.front`, `front_before`).
+
+`Swf.Gesture.pressedTwice` says whether a tap is a double press's second: on the window of the tap
+before it, near enough and soon enough (`pressed_twice_iff`). `Swf.Arbitration` orders a handle's
+reach past what its window draws after every hit on something drawn, and never lets one occlude
+(`Hit.reach`, `reach_after`, `reach_hides_nothing`).

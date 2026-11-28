@@ -19,7 +19,7 @@ export type {
   PointerType,
   WheelIntent,
 } from './intents.js';
-export { intentIssue, NO_MODIFIERS, wheelTurn } from './intents.js';
+export { intentIssue, NO_MODIFIERS, pointerPrecision, wheelTurn } from './intents.js';
 export type {
   InputRegion,
   OcclusionLookup,
@@ -61,7 +61,13 @@ export type {
 export { createInteractionRouter, InteractionRouter, KEYBOARD_HOLD_ID } from './router.js';
 export type { RoomLimits, RoomPace, RoomPlace, RoomPointer } from './room.js';
 export { ROOM_LIMITS, ROOM_PACE, RoomMotion, roomPlaceOf, standingInRoom } from './room.js';
-export type { InteractionSettings, KeyBinding, KeyboardSteps } from './settings.js';
+export type {
+  InteractionSettings,
+  KeyBinding,
+  KeyboardSteps,
+  PerPrecision,
+  SettingsPatch,
+} from './settings.js';
 export {
   DEFAULT_KEYBOARD_STEPS,
   DEFAULT_SETTINGS,

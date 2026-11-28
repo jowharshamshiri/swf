@@ -3952,16 +3952,16 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "9452179fcfdc6dd5ca0cdf2522b091199a001ec5cdc4ce98e57a936e1b833ccc",
+      "fingerprint": "d83f536445d0c98a34e4e068324d4077e3d794968d1bb351fc9d18d6c7e95dc1",
       "source": {
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 402,
+          "line": 409,
           "column": 1
         },
         "end": {
-          "line": 422,
+          "line": 429,
           "column": 33
         }
       }
@@ -3973,7 +3973,7 @@
         "Swf.Arbitration.hitKey"
       ],
       "specifications": [],
-      "statement": "∀ (hits : Array Swf.Arbitration.Hit) (kept : List Nat) (tolerance : Float) (i j : Nat),\n  hits[i]!.front = true →\n    hits[j]!.front = false →\n      Swf.Order.floatKey hits[i]!.priority = Swf.Order.floatKey hits[j]!.priority →\n        Swf.Arbitration.keyLe (Swf.Arbitration.hitKey hits kept tolerance i)\n            (Swf.Arbitration.hitKey hits kept tolerance j) =\n          true",
+      "statement": "∀ (hits : Array Swf.Arbitration.Hit) (kept : List Nat) (tolerance : Float) (i j : Nat),\n  hits[i]!.front = true →\n    hits[i]!.reach = false →\n      hits[j]!.front = false →\n        Swf.Order.floatKey hits[i]!.priority = Swf.Order.floatKey hits[j]!.priority →\n          Swf.Arbitration.keyLe (Swf.Arbitration.hitKey hits kept tolerance i)\n              (Swf.Arbitration.hitKey hits kept tolerance j) =\n            true",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -3985,16 +3985,16 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "35af57cb1a9574b726880f242e43dcddd221a36c15ae4729afb039057a773beb",
+      "fingerprint": "347b4e765bb73aa015dcdb5d40e57457154c6325a4104d039fc645106c998d37",
       "source": {
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 466,
+          "line": 474,
           "column": 1
         },
         "end": {
-          "line": 483,
+          "line": 490,
           "column": 18
         }
       }
@@ -4018,16 +4018,16 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "56bc94e2e2a496da5206fb0ed839df8d73db443b1376a0699a91c05d754e11e7",
+      "fingerprint": "885d748e551f51142a92aa6727086e7a526743ea28493e3333f7d2eaa8b351dc",
       "source": {
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 605,
+          "line": 645,
           "column": 1
         },
         "end": {
-          "line": 628,
+          "line": 668,
           "column": 14
         }
       }
@@ -4056,11 +4056,11 @@
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 244,
+          "line": 245,
           "column": 1
         },
         "end": {
-          "line": 265,
+          "line": 266,
           "column": 39
         }
       }
@@ -4072,7 +4072,7 @@
         "Swf.Arbitration.pickOrder"
       ],
       "specifications": [],
-      "statement": "∀ (hits : Array Swf.Arbitration.Hit) (tolerance : Float) (po : Swf.Arbitration.PickOrder),\n  Swf.Arbitration.pickOrder hits tolerance = Swf.Arbitration.PickOutcome.ordered po →\n    ∀ (k : Nat),\n      k < po.order.length →\n        (po.occluded[k]! = true ↔\n          hits[po.order[k]!]!.region ≠ Swf.Arbitration.HitRegion.titleBar ∧\n            hits[po.order[k]!]!.front = false ∧\n              ∃ j,\n                j ∈ List.filter (Swf.Arbitration.keeps hits) (List.range hits.size) ∧\n                  j ≠ po.order[k]! ∧\n                    hits[j]!.occluding = true ∧\n                      Swf.Order.floatKey (hits[j]!.distance + tolerance) <\n                        Swf.Order.floatKey hits[po.order[k]!]!.distance)",
+      "statement": "∀ (hits : Array Swf.Arbitration.Hit) (tolerance : Float) (po : Swf.Arbitration.PickOrder),\n  Swf.Arbitration.pickOrder hits tolerance = Swf.Arbitration.PickOutcome.ordered po →\n    ∀ (k : Nat),\n      k < po.order.length →\n        (po.occluded[k]! = true ↔\n          hits[po.order[k]!]!.region ≠ Swf.Arbitration.HitRegion.titleBar ∧\n            hits[po.order[k]!]!.front = false ∧\n              ∃ j,\n                j ∈ List.filter (Swf.Arbitration.keeps hits) (List.range hits.size) ∧\n                  j ≠ po.order[k]! ∧\n                    hits[j]!.occluding = true ∧\n                      hits[j]!.reach = false ∧\n                        Swf.Order.floatKey (hits[j]!.distance + tolerance) <\n                          Swf.Order.floatKey hits[po.order[k]!]!.distance)",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -4084,16 +4084,16 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "111aa349b2ef544e02e6d5cdfa5a01b85d511abdccda6be0cf4e695309952eb4",
+      "fingerprint": "2068dd78ab637ac33f063d546984658c5dc09dd2b5daa53e9a1b33cc054a8e27",
       "source": {
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 568,
+          "line": 608,
           "column": 1
         },
         "end": {
-          "line": 579,
+          "line": 619,
           "column": 47
         }
       }
@@ -4117,16 +4117,16 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "13be3bb5552f5481b818977f6e57e942a00ec09919c092888a0810099dd81c07",
+      "fingerprint": "fe048a0a07dd6c653c3c3fb4520e76725ff7f7d2c0e7503c554fe7239c1000c8",
       "source": {
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 550,
+          "line": 590,
           "column": 1
         },
         "end": {
-          "line": 556,
+          "line": 596,
           "column": 38
         }
       }
@@ -4150,17 +4150,83 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "19566d83cc062e2bfc13492c8b91fc87a17ff5a5edf0bf5956f2544ef87f9c23",
+      "fingerprint": "ba54bf8ded07f4290bf2b7a779acdd1ec216c0813356fb4e297e87d357d044f0",
       "source": {
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 581,
+          "line": 621,
           "column": 1
         },
         "end": {
-          "line": 603,
+          "line": 643,
           "column": 26
+        }
+      }
+    },
+    {
+      "name": "Swf.Arbitration.reach_after",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Arbitration.hitKey"
+      ],
+      "specifications": [],
+      "statement": "∀ (hits : Array Swf.Arbitration.Hit) (kept : List Nat) (tolerance : Float) (i j : Nat),\n  hits[i]!.reach = false →\n    hits[j]!.reach = true →\n      Swf.Order.floatKey hits[i]!.priority = Swf.Order.floatKey hits[j]!.priority →\n        Swf.Arbitration.keyLe (Swf.Arbitration.hitKey hits kept tolerance i)\n            (Swf.Arbitration.hitKey hits kept tolerance j) =\n          true",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "842eaf9a960ae369b5eacfd7d0ce03f391282bbd83249c031db55c44827c45ab",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Arbitration.lean",
+        "start": {
+          "line": 492,
+          "column": 1
+        },
+        "end": {
+          "line": 509,
+          "column": 18
+        }
+      }
+    },
+    {
+      "name": "Swf.Arbitration.reach_hides_nothing",
+      "relation": "lungo.law",
+      "subjects": [
+        "Swf.Arbitration.occludedAt"
+      ],
+      "specifications": [],
+      "statement": "∀ (hits : Array Swf.Arbitration.Hit) (kept : List Nat) (tolerance : Float) (i : Nat),\n  (∀ (j : Nat), j ∈ kept → j ≠ i → hits[j]!.occluding = true → hits[j]!.reach = true) →\n    Swf.Arbitration.occludedAt hits kept tolerance i = false",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "22b82890097946b67a1b14481a3e18bc12fc95be81e9f81c174ff48445e8fa05",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Arbitration.lean",
+        "start": {
+          "line": 511,
+          "column": 1
+        },
+        "end": {
+          "line": 523,
+          "column": 30
         }
       }
     },
@@ -4188,11 +4254,11 @@
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 267,
+          "line": 268,
           "column": 1
         },
         "end": {
-          "line": 282,
+          "line": 283,
           "column": 58
         }
       }
@@ -4216,16 +4282,16 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "c4a8f2e84f1920715f70840d9f321affd4874c539a6ee3dc47f3fd0291f6c45d",
+      "fingerprint": "66410ea6a73d1d799e14fff7b3fba6c059830c6d622878b0f2fa9dd1302c76f9",
       "source": {
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 558,
+          "line": 598,
           "column": 1
         },
         "end": {
-          "line": 566,
+          "line": 606,
           "column": 59
         }
       }
@@ -4237,7 +4303,7 @@
         "Swf.Arbitration.hitKey"
       ],
       "specifications": [],
-      "statement": "∀ (hits : Array Swf.Arbitration.Hit) (kept : List Nat) (tolerance : Float) (i j : Nat),\n  hits[i]!.region = Swf.Arbitration.HitRegion.titleBar →\n    hits[i]!.front = false →\n      hits[j]!.region ≠ Swf.Arbitration.HitRegion.titleBar →\n        hits[j]!.front = false →\n          Swf.Order.floatKey hits[i]!.priority = Swf.Order.floatKey hits[j]!.priority →\n            Swf.Arbitration.keyLe (Swf.Arbitration.hitKey hits kept tolerance i)\n                (Swf.Arbitration.hitKey hits kept tolerance j) =\n              true",
+      "statement": "∀ (hits : Array Swf.Arbitration.Hit) (kept : List Nat) (tolerance : Float) (i j : Nat),\n  hits[i]!.region = Swf.Arbitration.HitRegion.titleBar →\n    hits[i]!.front = false →\n      hits[i]!.reach = false →\n        hits[j]!.region ≠ Swf.Arbitration.HitRegion.titleBar →\n          hits[j]!.front = false →\n            Swf.Order.floatKey hits[i]!.priority = Swf.Order.floatKey hits[j]!.priority →\n              Swf.Arbitration.keyLe (Swf.Arbitration.hitKey hits kept tolerance i)\n                  (Swf.Arbitration.hitKey hits kept tolerance j) =\n                true",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -4249,16 +4315,16 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "7eab099ad8d020630d5031ef9a616ce5a73b7024a53b2848d75363e9eb0c73c9",
+      "fingerprint": "d2de0d048c9fca2f8be460a6a737429a67aeceeff25d2f9f8f01cb8c56b94da8",
       "source": {
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 446,
+          "line": 454,
           "column": 1
         },
         "end": {
-          "line": 464,
+          "line": 472,
           "column": 18
         }
       }
@@ -4281,16 +4347,16 @@
       },
       "assumptions": [],
       "package": "swf_models",
-      "fingerprint": "7f6a16f28694949544d30b0512306a314a3cdc0ab0e16f2a25b0b79308487447",
+      "fingerprint": "36c4e5686e464258ccf1a3b4cdbe11af27c0073301bac6158198569b3b056df6",
       "source": {
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 485,
+          "line": 525,
           "column": 1
         },
         "end": {
-          "line": 496,
+          "line": 536,
           "column": 31
         }
       }
@@ -4319,11 +4385,11 @@
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 208,
+          "line": 209,
           "column": 1
         },
         "end": {
-          "line": 217,
+          "line": 218,
           "column": 75
         }
       }
@@ -4352,11 +4418,11 @@
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 228,
+          "line": 229,
           "column": 1
         },
         "end": {
-          "line": 242,
+          "line": 243,
           "column": 41
         }
       }
@@ -4385,11 +4451,11 @@
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 219,
+          "line": 220,
           "column": 1
         },
         "end": {
-          "line": 226,
+          "line": 227,
           "column": 65
         }
       }
@@ -4703,11 +4769,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 531,
+          "line": 566,
           "column": 1
         },
         "end": {
-          "line": 540,
+          "line": 575,
           "column": 41
         }
       }
@@ -4736,11 +4802,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 469,
+          "line": 492,
           "column": 1
         },
         "end": {
-          "line": 473,
+          "line": 496,
           "column": 20
         }
       }
@@ -4798,11 +4864,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 444,
+          "line": 467,
           "column": 1
         },
         "end": {
-          "line": 449,
+          "line": 472,
           "column": 83
         }
       }
@@ -4829,11 +4895,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 451,
+          "line": 474,
           "column": 1
         },
         "end": {
-          "line": 455,
+          "line": 478,
           "column": 89
         }
       }
@@ -4860,11 +4926,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 524,
+          "line": 559,
           "column": 1
         },
         "end": {
-          "line": 529,
+          "line": 564,
           "column": 54
         }
       }
@@ -4891,11 +4957,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 513,
+          "line": 548,
           "column": 1
         },
         "end": {
-          "line": 522,
+          "line": 557,
           "column": 41
         }
       }
@@ -4922,11 +4988,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 460,
+          "line": 483,
           "column": 1
         },
         "end": {
-          "line": 467,
+          "line": 490,
           "column": 89
         }
       }
@@ -4953,11 +5019,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 457,
+          "line": 480,
           "column": 1
         },
         "end": {
-          "line": 458,
+          "line": 481,
           "column": 101
         }
       }
@@ -4984,11 +5050,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 542,
+          "line": 577,
           "column": 1
         },
         "end": {
-          "line": 549,
+          "line": 584,
           "column": 20
         }
       }
@@ -5015,11 +5081,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 420,
+          "line": 443,
           "column": 1
         },
         "end": {
-          "line": 426,
+          "line": 449,
           "column": 57
         }
       }
@@ -5048,11 +5114,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 551,
+          "line": 586,
           "column": 1
         },
         "end": {
-          "line": 564,
+          "line": 599,
           "column": 52
         }
       }
@@ -5079,11 +5145,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 413,
+          "line": 436,
           "column": 1
         },
         "end": {
-          "line": 418,
+          "line": 441,
           "column": 38
         }
       }
@@ -5111,11 +5177,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 491,
+          "line": 526,
           "column": 1
         },
         "end": {
-          "line": 496,
+          "line": 531,
           "column": 63
         }
       }
@@ -5142,11 +5208,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 566,
+          "line": 601,
           "column": 1
         },
         "end": {
-          "line": 572,
+          "line": 607,
           "column": 101
         }
       }
@@ -5173,11 +5239,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 434,
+          "line": 457,
           "column": 1
         },
         "end": {
-          "line": 442,
+          "line": 465,
           "column": 26
         }
       }
@@ -5204,11 +5270,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 505,
+          "line": 540,
           "column": 1
         },
         "end": {
-          "line": 511,
+          "line": 546,
           "column": 41
         }
       }
@@ -5245,6 +5311,39 @@
       }
     },
     {
+      "name": "Swf.Gesture.pressed_twice_iff",
+      "relation": "lungo.decides",
+      "subjects": [
+        "Swf.Gesture.pressedTwice"
+      ],
+      "specifications": [],
+      "statement": "∀ (first : Option Swf.Gesture.Tap) (now : Swf.Gesture.Tap) (distance within : Float),\n  Swf.Gesture.pressedTwice first now distance within = true ↔\n    ∃ f,\n      first = some f ∧\n        f.node = now.node ∧\n          (now.x - f.x) * (now.x - f.x) + (now.y - f.y) * (now.y - f.y) ≤ distance * distance ∧\n            f.time ≤ now.time ∧ now.time - f.time ≤ within",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "swf_models",
+      "fingerprint": "cff10ce303dc996645a38b582f2cb6fc9846f56a04dff58f7bcc52d29bd693e2",
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Gesture.lean",
+        "start": {
+          "line": 498,
+          "column": 1
+        },
+        "end": {
+          "line": 508,
+          "column": 45
+        }
+      }
+    },
+    {
       "name": "Swf.Gesture.pressed_wheel_is_the_press",
       "relation": "lungo.law",
       "subjects": [
@@ -5266,11 +5365,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 498,
+          "line": 533,
           "column": 1
         },
         "end": {
-          "line": 503,
+          "line": 538,
           "column": 23
         }
       }
@@ -5297,11 +5396,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 428,
+          "line": 451,
           "column": 1
         },
         "end": {
-          "line": 432,
+          "line": 455,
           "column": 38
         }
       }
@@ -5360,11 +5459,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 483,
+          "line": 518,
           "column": 1
         },
         "end": {
-          "line": 489,
+          "line": 524,
           "column": 27
         }
       }
@@ -5392,11 +5491,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 475,
+          "line": 510,
           "column": 1
         },
         "end": {
-          "line": 481,
+          "line": 516,
           "column": 50
         }
       }
@@ -9737,11 +9836,11 @@
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 181,
+          "line": 182,
           "column": 1
         },
         "end": {
-          "line": 191,
+          "line": 192,
           "column": 21
         }
       }
@@ -9822,11 +9921,11 @@
         "package": "swf_models",
         "file": "Swf/Arbitration.lean",
         "start": {
-          "line": 518,
+          "line": 558,
           "column": 1
         },
         "end": {
-          "line": 528,
+          "line": 568,
           "column": 50
         }
       }
@@ -10047,11 +10146,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 313,
+          "line": 336,
           "column": 1
         },
         "end": {
-          "line": 332,
+          "line": 355,
           "column": 17
         }
       }
@@ -10077,11 +10176,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 400,
+          "line": 423,
           "column": 1
         },
         "end": {
-          "line": 409,
+          "line": 432,
           "column": 13
         }
       }
@@ -10141,11 +10240,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 373,
+          "line": 396,
           "column": 1
         },
         "end": {
-          "line": 384,
+          "line": 407,
           "column": 59
         }
       }
@@ -10217,6 +10316,46 @@
       }
     },
     {
+      "name": "Swf.Gesture.pressedTwice",
+      "module": "Swf.Gesture",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_float_add",
+          "lean_float_decLe",
+          "lean_float_mul",
+          "lean_float_sub",
+          "lean_string_dec_eq"
+        ]
+      },
+      "claims": [
+        "Swf.Gesture.pressed_twice_iff"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "swf_models",
+        "file": "Swf/Gesture.lean",
+        "start": {
+          "line": 212,
+          "column": 1
+        },
+        "end": {
+          "line": 222,
+          "column": 72
+        }
+      }
+    },
+    {
       "name": "Swf.Gesture.selectionOnPress",
       "module": "Swf.Gesture",
       "async": false,
@@ -10279,11 +10418,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 249,
+          "line": 272,
           "column": 1
         },
         "end": {
-          "line": 271,
+          "line": 294,
           "column": 56
         }
       }
@@ -10320,11 +10459,11 @@
         "package": "swf_models",
         "file": "Swf/Gesture.lean",
         "start": {
-          "line": 201,
+          "line": 224,
           "column": 1
         },
         "end": {
-          "line": 208,
+          "line": 231,
           "column": 53
         }
       }

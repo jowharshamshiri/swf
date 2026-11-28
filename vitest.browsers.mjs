@@ -173,6 +173,22 @@ export async function touch(ctx, phase, points) {
 }
 
 /**
+ * Makes the page's every pointer coarse, as on a touch screen with no mouse, or puts the mouse back:
+ * Chromium then answers `(any-pointer: fine)` and `(hover: hover)` as such a device does. Chromium
+ * only.
+ */
+export async function coarsePointer(ctx, coarse) {
+  if (typeof coarse !== 'boolean') {
+    throw new Error(`coarsePointer: coarse must be true or false (got ${String(coarse)})`);
+  }
+  const session = await devtools(ctx, 'touch');
+  await session.send('Emulation.setTouchEmulationEnabled', {
+    enabled: coarse,
+    ...(coarse ? { maxTouchPoints: 5 } : {}),
+  });
+}
+
+/**
  * Moves, presses or releases a pen at a point of the test frame, with a pressure: a move with
  * pressure is a move with the pen down. Chromium only.
  */

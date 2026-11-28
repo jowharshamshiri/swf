@@ -35,6 +35,14 @@ declare module 'vitest/browser' {
  */
 
 /** The sparse scene, seen through a 120° panorama so its windows are large enough to take. */
+/**
+ * Waits out the double-press time, so the next press on a window is a press of its own and not the
+ * second of a double press, as a person's are when they press a window again later.
+ */
+async function apart(app: ReferenceApp): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, app.router.settings().doublePressMs + 50));
+}
+
 async function visit(): Promise<Mounted & { readonly app: ReferenceApp }> {
   const m = await start('?preset=sparse', { store: createMemoryStore() });
   const app = m.model.app;
@@ -415,9 +423,11 @@ describe('a window handled directly in the panorama', () => {
     expect(m.model.selected?.id).toBe('window-02');
     expect(driver.has('page.inspector.together')).toBe(true);
     // Ctrl and click again takes one out; a plain click selects one alone.
+    await apart(app);
     await tap('window-01', ['Control']);
     expect(app.workspace.getState().selection).toEqual(['window-02']);
     expect(driver.has('page.inspector.together')).toBe(false);
+    await apart(app);
     await tap('window-01', ['Control']);
     const was = {
       a: worldMatrix(app.workspace.getState().nodes, 'window-01'),
@@ -437,6 +447,7 @@ describe('a window handled directly in the panorama', () => {
     expect(same(worldMatrix(state.nodes, 'window-01'), was.a)).toBe(true);
     expect(same(worldMatrix(state.nodes, 'window-02'), was.b)).toBe(true);
     // Grouped, each window still takes its own presses: the group takes none.
+    await apart(app);
     await tap('window-01');
     expect(app.workspace.getState().selection).toEqual(['window-01']);
     await tap('window-02');
@@ -466,6 +477,7 @@ describe('a window handled directly in the panorama', () => {
     await commands.mouse('up', x, y, ['Control']);
     await settle();
     expect(app.workspace.getState().selection).toEqual(['window-02']);
+    await apart(app);
     await commands.mouse('down', x, y, ['Control']);
     await commands.mouse('up', x, y, ['Control']);
     await settle();

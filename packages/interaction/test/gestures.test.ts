@@ -2,8 +2,13 @@ import type { CancelReason, Constraint, Workspace } from '@swf/core';
 import { SwfFailure } from '@swf/core';
 import { headingPitchOf } from '@swf/projections';
 import { describe, expect, it } from 'vitest';
-import type { InteractionEvent, InteractionPolicy } from '../src/index.js';
-import { INTERACTION_API_VERSION, ROOM_LIMITS, roomPlaceOf } from '../src/index.js';
+import type { InteractionEvent, InteractionPolicy, PointerType } from '../src/index.js';
+import {
+  createSyntheticInput,
+  INTERACTION_API_VERSION,
+  ROOM_LIMITS,
+  roomPlaceOf,
+} from '../src/index.js';
 import type { World } from './fixtures.js';
 import { cardOf, contentOf, H, onCard, titleBar, W, world } from './fixtures.js';
 
@@ -21,6 +26,7 @@ function story(events: readonly InteractionEvent[]): string[] {
         ];
       case 'content.pressed':
       case 'pointer.hovered':
+      case 'pointer.doublePressed':
       case 'capture.released':
       case 'settings.changed':
         return [];
@@ -519,13 +525,13 @@ describe('gesture arena (FR-113)', () => {
   it('gives two pointers pressed on one window to the two-pointer gesture', () => {
     const w = world([{ id: 'a', heading: 0.3, distance: 6, y: 0.5 }]);
     const [x, y] = titleBar(w.ws, 'a');
-    w.input.pointer('down', 'v', x - 10, y, { pointerId: 1, pointerType: 'touch' });
-    w.input.pointer('down', 'v', x + 10, y, { pointerId: 2, pointerType: 'touch' });
-    // Spreading the fingers to twice the distance brings the window to half its distance along
-    // the floor.
-    w.input.pointer('move', 'v', x - 20, y, { pointerId: 1, pointerType: 'touch' });
-    w.input.pointer('move', 'v', x + 20, y, { pointerId: 2, pointerType: 'touch' });
-    const up = w.input.pointer('up', 'v', x + 20, y, { pointerId: 2, pointerType: 'touch' });
+    w.input.pointer('down', 'v', x - 12, y, { pointerId: 1, pointerType: 'touch' });
+    w.input.pointer('down', 'v', x + 12, y, { pointerId: 2, pointerType: 'touch' });
+    // Spreading the fingers to twice the distance (each past a finger's slop) brings the window to
+    // half its distance along the floor.
+    w.input.pointer('move', 'v', x - 24, y, { pointerId: 1, pointerType: 'touch' });
+    w.input.pointer('move', 'v', x + 24, y, { pointerId: 2, pointerType: 'touch' });
+    const up = w.input.pointer('up', 'v', x + 24, y, { pointerId: 2, pointerType: 'touch' });
     expect(up.operation).toMatchObject({ name: 'node.move', outcome: { outcome: 'committed' } });
     expect(story(w.events)).toEqual(['start node.move', 'end committed']);
     expect(w.events.filter((e) => e.type === 'capture.released')).toHaveLength(2);
@@ -580,6 +586,97 @@ describe('gesture arena (FR-113)', () => {
     w.input.pointer('down', 'v', 2, H / 2);
     expect(w.input.pointer('up', 'v', 2, H / 2).operation?.name).toBe('selection.set');
     expect(w.ws.getState().selection).toEqual([]);
+  });
+
+  it('lets a finger or a pen wobble farther than a mouse and still press', () => {
+    const w = world([ahead]);
+    const [x, y] = titleBar(w.ws, 'a');
+    const before = transformOf(w.ws, 'a');
+    // 7 px: past a mouse's 4 px slop, within a finger's 10.
+    for (const pointerType of ['touch', 'pen'] as const) {
+      w.input.pointer('down', 'v', x, y, { pointerType });
+      expect(w.input.pointer('move', 'v', x + 7, y, { pointerType }).gestureId).toBeNull();
+      expect(w.input.pointer('up', 'v', x + 7, y, { pointerType }).operation?.name).toBe(
+        'selection.set',
+      );
+      expect(transformOf(w.ws, 'a')).toBe(before);
+    }
+    w.input.pointer('down', 'v', x, y, { pointerType: 'mouse' });
+    expect(
+      w.input.pointer('move', 'v', x + 7, y, { pointerType: 'mouse' }).gestureId,
+    ).not.toBeNull();
+    expect(w.input.pointer('up', 'v', x + 7, y, { pointerType: 'mouse' }).operation?.name).toBe(
+      'node.move',
+    );
+    // A finger moved past its own slop drags.
+    w.input.pointer('down', 'v', x, y, { pointerType: 'touch' });
+    expect(
+      w.input.pointer('move', 'v', x + 11, y, { pointerType: 'touch' }).gestureId,
+    ).not.toBeNull();
+    w.input.pointer('up', 'v', x + 11, y, { pointerType: 'touch' });
+  });
+
+  it('says a window was pressed twice when two presses lift on it near each other in time and place', () => {
+    const w = world([ahead, { id: 'b', heading: 1.2, distance: 3 }]);
+    let clock = 1000;
+    const input = createSyntheticInput({ id: 'test.clocked/1', now: () => clock });
+    w.router.registerInputAdapter(input);
+    const twice = () =>
+      w.events.flatMap((e) => (e.type === 'pointer.doublePressed' ? [[e.nodeId, e.x, e.y]] : []));
+    const [x, y] = titleBar(w.ws, 'a');
+    const tap = (px: number, py: number, after: number, pointerType: PointerType = 'mouse') => {
+      clock += after;
+      input.pointer('down', 'v', px, py, { pointerType });
+      input.pointer('up', 'v', px, py, { pointerType });
+    };
+    // Two presses 400 ms and 7 px apart on the title bar: one double press, at the second.
+    tap(x, y, 0);
+    expect(twice()).toEqual([]);
+    tap(x + 7, y, 400);
+    expect(twice()).toEqual([['a', x + 7, y]]);
+    // A third press soon after starts afresh: it is a first press, not a second double.
+    tap(x + 7, y, 100);
+    expect(twice()).toHaveLength(1);
+    // Too late (over 500 ms), too far (over 8 px for a mouse), or on another window: no double.
+    tap(x, y, 1000);
+    tap(x, y, 501);
+    tap(x, y, 1000);
+    tap(x + 9, y, 100);
+    const [bx, by] = titleBar(w.ws, 'b');
+    tap(bx, by, 100);
+    expect(twice()).toHaveLength(1);
+    // A drag between two presses breaks them apart.
+    tap(x, y, 1000);
+    clock += 50;
+    input.pointer('down', 'v', x, y, { pointerType: 'mouse' });
+    input.pointer('move', 'v', x + 30, y, { pointerType: 'mouse' });
+    input.pointer('up', 'v', x + 30, y, { pointerType: 'mouse' });
+    const [ax, ay] = titleBar(w.ws, 'a');
+    tap(ax, ay, 50);
+    expect(twice()).toHaveLength(1);
+    // A finger's two taps may land farther apart: 20 px.
+    tap(ax, ay, 1000, 'touch');
+    tap(ax + 20, ay, 300, 'touch');
+    expect(twice()).toEqual([
+      ['a', x + 7, y],
+      ['a', ax + 20, ay],
+    ]);
+    // Pressing the background, or a window's live content, never pairs with a press before it.
+    tap(ax, ay, 1000);
+    tap(2, H / 2, 100);
+    tap(ax, ay, 100);
+    const [cx, cy] = contentOf(w.ws, 'a');
+    tap(cx, cy, 100);
+    tap(ax, ay, 100);
+    expect(twice()).toHaveLength(2);
+    // Both presses are settings: a host may ask for them nearer in place and time.
+    w.router.configure({ doublePressPx: { fine: 4 }, doublePressMs: 200 });
+    tap(ax, ay, 1000);
+    tap(ax + 6, ay, 100);
+    tap(ax + 6, ay, 300);
+    expect(twice()).toHaveLength(2);
+    tap(ax + 3, ay, 100);
+    expect(twice()).toHaveLength(3);
   });
 
   it('does not move a locked window', () => {

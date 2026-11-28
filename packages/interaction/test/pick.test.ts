@@ -14,9 +14,10 @@ function hit(result: PickResult) {
 
 describe('input regions (FR-103)', () => {
   it('tells content, chrome, title bars, resize handles, background and modal overlays apart', () => {
+    // Two windows clear of each other's handles.
     const { ws, router } = world([
       { id: 'a', heading: 0, distance: 3 },
-      { id: 'b', heading: 1.2, distance: 3 },
+      { id: 'b', heading: 1.6, distance: 3 },
     ]);
     const [cx, cy] = contentOf(ws, 'a');
     const content = hit(router.pick('v', cx, cy));
@@ -61,8 +62,9 @@ describe('input regions (FR-103)', () => {
     expect(band(x - 6, y - TITLE_BAR_HEIGHT - 6)).toBe('nw');
     expect(band(x + w + 6, y + h + 6)).toBe('se');
     expect(hit(router.pick('v', x + w + 6, y + h / 2)).region).toBe('resize-handle');
-    // Past the band there is nothing of the window's (b stands beyond its right edge).
+    // Past the band there is nothing of the window's.
     expect(router.pick('v', x - 10, y + h / 2)).toMatchObject({ kind: 'background' });
+    expect(router.pick('v', x + w + 10, y + h / 2)).toMatchObject({ kind: 'background' });
     // Behind the camera there is nothing.
     expect(router.pick('v', 2, H / 2)).toMatchObject({ kind: 'background', region: 'background' });
 
@@ -134,6 +136,50 @@ describe('input regions (FR-103)', () => {
     // 12 px past the right edge: past a fine pointer's band, in a coarse pointer's.
     expect(router.pick('v', x + w + 12, y + 50)).toMatchObject({ kind: 'background' });
     expect(hit(router.pick('v', x + w + 12, y + 50, undefined, 'coarse')).target.edge).toBe('e');
+  });
+
+  it('lets a handle reach past what is drawn only where nothing else is: never into another window’s content', () => {
+    // A nearer window over the middle of a larger, farther one's content.
+    const { ws, router } = world([
+      { id: 'near', heading: 0, distance: 3 },
+      { id: 'far', heading: 0, distance: 6, size: [6, 8] },
+    ]);
+    const [x, y, w, h] = cardOf(ws, 'near');
+    const [fx, fy, fw, fh] = cardOf(ws, 'far');
+    const onFar = (px: number, py: number) => px > fx && px < fx + fw && py > fy && py < fy + fh;
+    // 5 px left of the nearer card, on its band outside its outline: the farther window's content
+    // shows there, and takes the press, not hidden by a band nothing draws.
+    const outside: [number, number] = [x - 5, y + h / 2];
+    expect(onFar(...outside)).toBe(true);
+    const beside = hit(router.pick('v', ...outside));
+    expect(beside).toMatchObject({ region: 'content', target: { nodeId: 'far', occluded: false } });
+    expect(beside.candidates.find((c) => c.nodeId === 'near')).toMatchObject({
+      region: 'resize-handle',
+      edge: 'w',
+      reach: true,
+    });
+    // 3 px inside the nearer card's edge, its band lies on the window as drawn: it takes the press.
+    expect(hit(router.pick('v', x + 3, y + h / 2)).target).toMatchObject({
+      nodeId: 'near',
+      region: 'resize-handle',
+      reach: false,
+    });
+    // A coarse pointer's title bar reaches 20 px above the bar as drawn: over the farther window's
+    // content it is that content's.
+    const above: [number, number] = [x + w / 2, y - TITLE_BAR_HEIGHT - 10];
+    expect(onFar(...above)).toBe(true);
+    const coarse = hit(router.pick('v', ...above, undefined, 'coarse'));
+    expect(coarse).toMatchObject({ region: 'content', target: { nodeId: 'far' } });
+    expect(coarse.candidates.find((c) => c.nodeId === 'near')).toMatchObject({
+      region: 'title-bar',
+      reach: true,
+    });
+    // On the bar as drawn, the nearer window's bar is pressed, for either pointer.
+    for (const precision of ['fine', 'coarse'] as const) {
+      expect(
+        hit(router.pick('v', x + w / 2, y - TITLE_BAR_HEIGHT / 2, undefined, precision)).target,
+      ).toMatchObject({ nodeId: 'near', region: 'title-bar', reach: false });
+    }
   });
 
   it('makes the whole card of a window shown by its label alone its title bar', () => {

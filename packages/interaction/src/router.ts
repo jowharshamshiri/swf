@@ -22,7 +22,7 @@ import type {
 import { viewGeometryOf } from '@swf/presentation';
 import type { Continuity, Projection, ProjectionModule, RayResult } from '@swf/projections';
 import { projectionFor, projectorOf } from '@swf/projections';
-import type { GestureEvent, GesturePhase, HoverShows, Region } from '@swf/models';
+import type { GestureEvent, GesturePhase, HoverShows, Region, Tap } from '@swf/models';
 import { models } from '@swf/models';
 import type { CommandContext, CommandOutcome, InteractionCommand, NodeChange } from './commands.js';
 import { BUILT_IN_COMMANDS, commandIssue, eyeOf, heldChange } from './commands.js';
@@ -34,7 +34,7 @@ import type {
   PointerIntent,
   WheelIntent,
 } from './intents.js';
-import { intentIssue, wheelTurn } from './intents.js';
+import { intentIssue, pointerPrecision, wheelTurn } from './intents.js';
 import type {
   InputRegion,
   OcclusionLookup,
@@ -54,7 +54,7 @@ import type {
   PressPick,
 } from './policies.js';
 import { BUILT_IN_POLICIES, INTERACTION_API_VERSION } from './policies.js';
-import type { InteractionSettings } from './settings.js';
+import type { InteractionSettings, SettingsPatch } from './settings.js';
 import { DEFAULT_SETTINGS, keyName, mergeSettings } from './settings.js';
 
 /** Where a dispatched intent went. */
@@ -170,6 +170,25 @@ export type InteractionEvent =
       readonly surfaceId: Id;
     }
   | {
+      /**
+       * A window was pressed twice: a press lifted on it before moving beyond the slop, no farther
+       * than `doublePressPx` (for its pointer's precision) and no later than `doublePressMs` after
+       * the one before it, which lifted on it too (`pressedTwice` of `@swf/models`). A press
+       * dragged, left to live content, on the background or with another pointer between them
+       * keeps them apart, and a third press starts afresh. Sent after the second press's own tap
+       * has ended. A host shows the window in focus on it.
+       */
+      readonly type: 'pointer.doublePressed';
+      /** The viewport it was pressed in. */
+      readonly viewportId: Id;
+      /** The window pressed twice. */
+      readonly nodeId: Id;
+      /** Where the second press went down, across the viewport from its left, in CSS pixels. */
+      readonly x: number;
+      /** Where the second press went down, down the viewport from its top, in CSS pixels. */
+      readonly y: number;
+    }
+  | {
       /** A gesture won its arena and began: its pointers stay captured until it ends. */
       readonly type: 'gesture.started';
       /** The gesture's ID, unique within the router (`gesture-<n>`). */
@@ -269,7 +288,7 @@ export interface InteractionRouterOptions {
    * binding must name a command the router has once `commands` are registered, as
    * {@link InteractionRouter.configure} requires.
    */
-  readonly settings?: Partial<InteractionSettings>;
+  readonly settings?: SettingsPatch;
   /** The gesture policies, registered in order. Default: {@link BUILT_IN_POLICIES}. */
   readonly policies?: readonly InteractionPolicy[];
   /** Commands besides {@link BUILT_IN_COMMANDS}, registered after them. */
@@ -430,6 +449,8 @@ export class InteractionRouter {
   #takeover = false;
   /** Each viewport's hovering pointer, last seen, and what was last said of it. */
   readonly #hovering = new Map<Id, { pointer: PointerIntent; said: string }>();
+  /** Each viewport's last press that lifted as a tap on a window, a double press's first. */
+  readonly #taps = new Map<Id, Tap>();
   #nextGesture = 1;
   #hold: Hold | null = null;
   #disposed = false;
@@ -472,7 +493,7 @@ export class InteractionRouter {
    *
    * @returns The settings now in force; frozen.
    */
-  configure(patch: Partial<InteractionSettings>): InteractionSettings {
+  configure(patch: SettingsPatch): InteractionSettings {
     this.#live();
     const next = mergeSettings(this.#settings, patch);
     this.#checkKeymap(next);
@@ -893,7 +914,7 @@ export class InteractionRouter {
       intent.x,
       intent.y,
       undefined,
-      precisionOf(intent.pointerType),
+      pointerPrecision(intent.pointerType),
     );
     const picked = result.kind === 'hit' || result.kind === 'background' ? result : null;
     const target = picked?.kind === 'hit' ? picked.target : null;
@@ -917,6 +938,10 @@ export class InteractionRouter {
       return NOT_HANDLED(result.reason);
     }
     const base = { region: picked.region, target };
+    // Only a press that can lift as a tap of one pointer can pair with the tap before it.
+    if (route.kind !== 'claim' || existing !== undefined) {
+      this.#taps.delete(intent.viewportId);
+    }
     switch (route.kind) {
       case 'ignore':
         throw new Error('the gesture model ignored a press on something picked');
@@ -957,6 +982,7 @@ export class InteractionRouter {
     arena.pointers.set(key, { down: intent, last: intent, continuity: undefined });
     const claims = this.#claims(arena, scene, takeover);
     if (claims.length === 0) {
+      this.#taps.delete(intent.viewportId);
       arena.pointers.delete(key);
       return { ...NOT_HANDLED('no policy takes this press'), ...base };
     }
@@ -1016,9 +1042,11 @@ export class InteractionRouter {
       return this.#handled(arena);
     }
     const moved = Math.hypot(intent.x - pressed.down.x, intent.y - pressed.down.y);
-    if (!models.beyondSlop(moved, this.#settings.slopPx)) {
+    const slop = this.#settings.slopPx[pointerPrecision(pressed.down.pointerType)];
+    if (!models.beyondSlop(moved, slop)) {
       return this.#handled(arena);
     }
+    this.#taps.delete(arena.viewportId);
     const winner = best(arena.claims, 'drag', arena.pointers.size);
     if (
       this.#step(arena, { kind: 'movedBeyond', winner: winner !== null }) === 'idle' ||
@@ -1035,6 +1063,47 @@ export class InteractionRouter {
   }
 
   #release(arena: Arena, key: string, intent: PointerIntent): Routed {
+    // A press of one pointer that lifts before it moved beyond the slop is a tap.
+    const tap =
+      arena.running === null && arena.pointers.size === 1
+        ? (arena.pointers.get(key)?.down ?? null)
+        : null;
+    const released = this.#lift(arena, key, intent);
+    if (tap !== null) {
+      this.#tapped(arena, tap);
+    }
+    return released;
+  }
+
+  /**
+   * A tap on a window is a double press's first, or its second when it pairs with the tap before
+   * it there (`pressedTwice` of `@swf/models`); a tap on the background pairs with nothing.
+   */
+  #tapped(arena: Arena, down: PointerIntent): void {
+    const target = arena.pick?.kind === 'hit' ? arena.pick.target : null;
+    if (target === null) {
+      this.#taps.delete(arena.viewportId);
+      return;
+    }
+    const now: Tap = { node: target.nodeId, x: down.x, y: down.y, time: down.timestamp };
+    const precision = pointerPrecision(down.pointerType);
+    const { doublePressPx, doublePressMs } = this.#settings;
+    const first = this.#taps.get(arena.viewportId) ?? null;
+    if (!models.pressedTwice(first, now, doublePressPx[precision], doublePressMs)) {
+      this.#taps.set(arena.viewportId, now);
+      return;
+    }
+    this.#taps.delete(arena.viewportId);
+    this.#emit({
+      type: 'pointer.doublePressed',
+      viewportId: arena.viewportId,
+      nodeId: target.nodeId,
+      x: down.x,
+      y: down.y,
+    });
+  }
+
+  #lift(arena: Arena, key: string, intent: PointerIntent): Routed {
     const pressed = arena.pointers.get(key);
     if (pressed !== undefined) {
       pressed.last = intent;
@@ -1206,6 +1275,7 @@ export class InteractionRouter {
     if (arena.ending) {
       return;
     }
+    this.#taps.delete(arena.viewportId);
     const running = arena.running;
     const next = this.#step(arena, { kind: 'cancel' });
     if (next === 'idle' || running === null) {
@@ -1371,7 +1441,7 @@ export class InteractionRouter {
       intent.x,
       intent.y,
       undefined,
-      precisionOf(intent.pointerType),
+      pointerPrecision(intent.pointerType),
     );
     const picked = result.kind === 'hit' || result.kind === 'background' ? result : null;
     const target = picked?.kind === 'hit' ? picked.target : null;
@@ -1872,11 +1942,6 @@ function messageOf(error: unknown): string {
 }
 
 const IDLE: GesturePhase = Object.freeze({ kind: 'idle' });
-
-/** How precisely a pointer of a type points: a finger or a pen is coarse, a mouse fine. */
-function precisionOf(type: PointerIntent['pointerType']): PointerPrecision {
-  return type === 'touch' || type === 'pen' ? 'coarse' : 'fine';
-}
 
 /** Each input region as the gesture model names it. */
 const REGIONS: Readonly<Record<InputRegion, Region['kind']>> = Object.freeze({

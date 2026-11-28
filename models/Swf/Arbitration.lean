@@ -7,7 +7,8 @@ hits a ray makes are merged (a window's frame counts inside it only where none o
 covers it, and a surface only where its window's resize band and title bar do not lie over it),
 marked occluded when a nearer occluding hit lies in front (a title bar never is: title bars are drawn
 over every card), and ordered by presentation priority, then title bars before everything else,
-then occlusion, depth, region and identity; the first is the target, ambiguous when the next is
+then occlusion, depth, region and identity, a handle's reach past what is drawn after everything
+drawn; the first is the target, ambiguous when the next is
 another window that ties with it. Among the gestures the
 policies bid for a press, the highest priority wins, then the lower policy ID. Priorities, distances
 and the depth tolerance are compared by order keys (`Swf.Order`), so a number that is not finite is
@@ -320,6 +321,10 @@ structure Hit where
   /-- The view brings the hit's window in front of every other window, their title bars included
   (the one focus shows). -/
   front : Bool
+  /-- The hit lies where a handle reaches past what its window draws: its resize band outside its
+  outline, or a coarse pointer's title bar above the bar as drawn. Such a hit is taken only where
+  nothing drawn is, and hides nothing. -/
+  reach : Bool
 deriving Inhabited
 
 /-- Whether a hit counts: a node's frame inside the window only where no surface of its own covers
@@ -332,23 +337,25 @@ def keeps (hits : Array Hit) (i : Nat) : Bool :=
   | some _ => !all.any (fun j => (hits[j]!).surface.isNone && (hits[j]!).node = h.node &&
       ((hits[j]!).region = .resizeHandle || (hits[j]!).region = .titleBar))
 
-/-- A kept hit is occluded when another kept hit that occludes lies nearer than it by more than the
-depth tolerance, unless it is a title bar or its window is in front: those are drawn over every
-other card, so nothing occludes them. -/
+/-- A kept hit is occluded when another kept hit that occludes, and is drawn (not a handle's reach),
+lies nearer than it by more than the depth tolerance, unless it is a title bar or its window is in
+front: those are drawn over every other card, so nothing occludes them. -/
 def occludedAt (hits : Array Hit) (kept : List Nat) (tolerance : Float) (i : Nat) : Bool :=
   (hits[i]!).region != .titleBar && !(hits[i]!).front &&
-    kept.any fun j => j != i && (hits[j]!).occluding &&
+    kept.any fun j => j != i && (hits[j]!).occluding && !(hits[j]!).reach &&
       decide (floatKey ((hits[j]!).distance + tolerance) < floatKey (hits[i]!).distance)
 
 /-- Where a hit lies among the layers a view draws: a window in front over everything (0), then
-title bars (1), then whatever is not occluded (2), then the occluded (3). -/
+title bars (1), then whatever is not occluded (2), then the occluded (3); a handle's reach past
+what is drawn under all of them (4). -/
 def layerOf (hits : Array Hit) (kept : List Nat) (tolerance : Float) (i : Nat) : Nat :=
-  if (hits[i]!).front then 0
+  if (hits[i]!).reach then 4
+  else if (hits[i]!).front then 0
   else if (hits[i]!).region = .titleBar then 1
   else if occludedAt hits kept tolerance i then 3 else 2
 
 /-- Presentation priority first (higher), then the layer (a window in front, title bars, the rest
-not occluded, the occluded), nearer, region, and identity. -/
+not occluded, the occluded, a handle's reach), nearer, region, and identity. -/
 def hitKey (hits : Array Hit) (kept : List Nat) (tolerance : Float) (i : Nat) : SortKey :=
   let h := hits[i]!
   ⟨-floatKey h.priority, layerOf hits kept tolerance i, floatKey h.distance,
@@ -421,8 +428,8 @@ theorem covered_frames_dropped (hits : Array Hit) (i j : Nat) (hi : i < hits.siz
       simp
       exact ⟨j, hj, by simp_all⟩
 
-/-- A hit is occluded exactly when it is not a title bar and another kept, occluding hit lies nearer
-than it by more than the tolerance. -/
+/-- A hit is occluded exactly when it is not a title bar and another kept, occluding hit that is not a
+handle's reach lies nearer than it by more than the tolerance. -/
 theorem orderHits_occluded (hits : Array Hit) (tolerance : Float) (k : Nat)
     (hk : k < (orderHits hits tolerance).order.length) :
     (orderHits hits tolerance).occluded[k]! = true ↔
@@ -430,6 +437,7 @@ theorem orderHits_occluded (hits : Array Hit) (tolerance : Float) (k : Nat)
       (hits[(orderHits hits tolerance).order[k]!]!).front = false ∧
       ∃ j ∈ (List.range hits.size).filter (keeps hits),
         j ≠ (orderHits hits tolerance).order[k]! ∧ (hits[j]!).occluding = true ∧
+        (hits[j]!).reach = false ∧
         floatKey ((hits[j]!).distance + tolerance) <
           floatKey (hits[(orderHits hits tolerance).order[k]!]!).distance := by
   simp only [orderHits] at hk ⊢
@@ -437,50 +445,82 @@ theorem orderHits_occluded (hits : Array Hit) (tolerance : Float) (k : Nat)
   simp only [Option.map_some, Option.getD_some, occludedAt, List.any_eq_true, Bool.and_eq_true,
     bne_iff_ne, ne_eq, decide_eq_true_eq, List.getElem!_eq_getElem?_getD, List.getElem?_eq_getElem hk]
   constructor
-  · rintro ⟨⟨hr, hf⟩, j, hj, ⟨hne, ho⟩, hlt⟩
-    exact ⟨hr, by simpa using hf, j, hj, hne, ho, hlt⟩
-  · rintro ⟨hr, hf, j, hj, hne, ho, hlt⟩
-    exact ⟨⟨hr, by simpa using hf⟩, j, hj, ⟨hne, ho⟩, hlt⟩
+  · rintro ⟨⟨hr, hf⟩, j, hj, ⟨⟨hne, ho⟩, hre⟩, hlt⟩
+    exact ⟨hr, by simpa using hf, j, hj, hne, ho, by simpa using hre, hlt⟩
+  · rintro ⟨hr, hf, j, hj, hne, ho, hre, hlt⟩
+    exact ⟨⟨hr, by simpa using hf⟩, j, hj, ⟨⟨hne, ho⟩, by simpa using hre⟩, hlt⟩
 
 
-/-- A title bar ranks before every hit that is neither one nor of a window in front, of the same
-presentation priority, however near that hit is: title bars are drawn over every other card, so the
-one under the pointer is pressed. -/
+/-- A title bar, where it is drawn, ranks before every hit that is neither one nor of a window in
+front, of the same presentation priority, however near that hit is: title bars are drawn over every
+other card, so the one under the pointer is pressed. -/
 @[lungo_claim "lungo.law" subject hitKey]
 theorem titleBar_before (hits : Array Hit) (kept : List Nat) (tolerance : Float) (i j : Nat)
     (hi : (hits[i]!).region = .titleBar) (hf : (hits[i]!).front = false)
+    (hir : (hits[i]!).reach = false)
     (hj : (hits[j]!).region ≠ .titleBar) (hjf : (hits[j]!).front = false)
     (hp : floatKey (hits[i]!).priority = floatKey (hits[j]!).priority) :
     keyLe (hitKey hits kept tolerance i) (hitKey hits kept tolerance j) = true := by
-  have li : layerOf hits kept tolerance i = 1 := by simp [layerOf, hi, hf]
+  have li : layerOf hits kept tolerance i = 1 := by simp [layerOf, hi, hf, hir]
   have lj : 1 < layerOf hits kept tolerance j := by
     unfold layerOf
-    by_cases hr : (hits[j]!).region = .titleBar
-    · exact absurd hr hj
-    · cases ho : occludedAt hits kept tolerance j <;> simp [hjf, hr, ho]
+    repeat' split
+    all_goals simp_all
   simp only [keyLe, hitKey, hp, li]
   simp only [ite_true]
   have : (1 : Nat) ≠ layerOf hits kept tolerance j := by omega
   simp [this, lj]
 
-/-- A hit of a window in front ranks before every hit of a window that is not, of the same
-presentation priority, a title bar included: the window the view brings forward is drawn over
-everything, so a press on it is its own. -/
+/-- A hit of a window in front, where it is drawn, ranks before every hit of a window that is not, of
+the same presentation priority, a title bar included: the window the view brings forward is drawn
+over everything, so a press on it is its own. -/
 @[lungo_claim "lungo.law" subject hitKey]
 theorem front_before (hits : Array Hit) (kept : List Nat) (tolerance : Float) (i j : Nat)
-    (hi : (hits[i]!).front = true) (hj : (hits[j]!).front = false)
+    (hi : (hits[i]!).front = true) (hir : (hits[i]!).reach = false) (hj : (hits[j]!).front = false)
     (hp : floatKey (hits[i]!).priority = floatKey (hits[j]!).priority) :
     keyLe (hitKey hits kept tolerance i) (hitKey hits kept tolerance j) = true := by
-  have li : layerOf hits kept tolerance i = 0 := by simp [layerOf, hi]
+  have li : layerOf hits kept tolerance i = 0 := by simp [layerOf, hi, hir]
   have lj : 0 < layerOf hits kept tolerance j := by
     unfold layerOf
-    by_cases hr : (hits[j]!).region = .titleBar
-    · simp [hj, hr]
-    · cases ho : occludedAt hits kept tolerance j <;> simp [hj, hr, ho]
+    repeat' split
+    all_goals simp_all
   simp only [keyLe, hitKey, hp, li]
   simp only [ite_true]
   have : (0 : Nat) ≠ layerOf hits kept tolerance j := by omega
   simp [this, lj]
+
+/-- A handle's reach past what its window draws ranks after every hit on something drawn, of the
+same presentation priority, however near it is: a band outside a window's outline, or a coarse
+pointer's title bar above the bar as drawn, takes a press only where nothing else is, never from
+another window's content or card. -/
+@[lungo_claim "lungo.law" subject hitKey]
+theorem reach_after (hits : Array Hit) (kept : List Nat) (tolerance : Float) (i j : Nat)
+    (hi : (hits[i]!).reach = false) (hj : (hits[j]!).reach = true)
+    (hp : floatKey (hits[i]!).priority = floatKey (hits[j]!).priority) :
+    keyLe (hitKey hits kept tolerance i) (hitKey hits kept tolerance j) = true := by
+  have lj : layerOf hits kept tolerance j = 4 := by simp [layerOf, hj]
+  have li : layerOf hits kept tolerance i < 4 := by
+    unfold layerOf
+    repeat' split
+    all_goals simp_all
+  simp only [keyLe, hitKey, hp, lj]
+  simp only [ite_true]
+  have : layerOf hits kept tolerance i ≠ 4 := by omega
+  simp [this, li]
+
+/-- A handle's reach hides nothing: no hit is occluded by one. -/
+@[lungo_claim "lungo.law" subject occludedAt]
+theorem reach_hides_nothing (hits : Array Hit) (kept : List Nat) (tolerance : Float) (i : Nat)
+    (only : ∀ j ∈ kept, j ≠ i → (hits[j]!).occluding = true → (hits[j]!).reach = true) :
+    occludedAt hits kept tolerance i = false := by
+  simp only [occludedAt, Bool.and_eq_false_iff, List.any_eq_false]
+  right
+  intro j hj
+  by_cases hne : j = i
+  · simp [hne]
+  · cases ho : (hits[j]!).occluding
+    · simp
+    · simp [only j hj hne ho]
 
 /-- A surface under its own window's title bar does not count: the bar is drawn over it. -/
 @[lungo_claim "lungo.law" subject keeps]
@@ -566,14 +606,14 @@ theorem target_ranks_first (hits : Array Hit) (tolerance : Float) (po : PickOrde
   exact orderHits_target_first hits tolerance t ht j hj hk
 
 /-- A hit is occluded exactly when it is neither a title bar nor of a window in front and another
-kept, occluding hit lies nearer than it by more than the tolerance. -/
+kept, occluding hit that is not a handle's reach lies nearer than it by more than the tolerance. -/
 @[lungo_claim "lungo.law" subject pickOrder]
 theorem occluded_by_nearer (hits : Array Hit) (tolerance : Float) (po : PickOrder)
     (h : pickOrder hits tolerance = .ordered po) (k : Nat) (hk : k < po.order.length) :
     po.occluded[k]! = true ↔
       (hits[po.order[k]!]!).region ≠ .titleBar ∧ (hits[po.order[k]!]!).front = false ∧
       ∃ j ∈ (List.range hits.size).filter (keeps hits),
-        j ≠ po.order[k]! ∧ (hits[j]!).occluding = true ∧
+        j ≠ po.order[k]! ∧ (hits[j]!).occluding = true ∧ (hits[j]!).reach = false ∧
         floatKey ((hits[j]!).distance + tolerance) < floatKey (hits[po.order[k]!]!).distance := by
   rw [pickOrder_ordered h] at hk ⊢
   exact orderHits_occluded hits tolerance k hk

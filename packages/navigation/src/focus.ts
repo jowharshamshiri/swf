@@ -46,7 +46,12 @@ export interface FocusFrame {
    * own span, narrowed as far as a window standing high or low needs for its image to reach no
    * further than a pole.
    */
-  readonly vertical: { readonly span: number; readonly horizon: number };
+  readonly vertical: {
+    /** The panorama's span down, in degrees. */
+    readonly span: number;
+    /** Where its horizon lies, as a share of the view's height from its top. */
+    readonly horizon: number;
+  };
   /** The scale of the window's card. */
   readonly scale: number;
 }

@@ -1,4 +1,5 @@
 import type { Id } from '@swf/core';
+import type { ScreenRect } from './fragments.js';
 import type { Representation } from './representation.js';
 
 /**
@@ -158,25 +159,22 @@ export const WINDOW_HANDLES: Readonly<Record<PointerPrecision, HandleSizes>> = O
 /** The height a window's title bar is drawn at, in CSS pixels, whatever the card's scale. */
 export const TITLE_BAR_HEIGHT = 24;
 
-/** A rectangle in CSS pixels: left, top, width, height. */
-type Rect = readonly [number, number, number, number];
-
 /**
  * A window's title bar on a view, for a card drawn at `card` as `representation`: the bar across
  * the top of the card, `height` pixels high above it (by default as drawn); a window shown by its
  * label alone has the label's card as its title bar.
  */
 export function titleBarOf(
-  card: Rect,
+  card: ScreenRect,
   representation: Representation,
   height: number = TITLE_BAR_HEIGHT,
-): Rect {
+): ScreenRect {
   const [x, y, w] = card;
   return representation === 'label' ? card : [x, y - height, w, height];
 }
 
 /** A window's outline on a view: its card with its title bar as drawn. */
-export function outlineOf(card: Rect, representation: Representation): Rect {
+export function outlineOf(card: ScreenRect, representation: Representation): ScreenRect {
   const [x, y, w, h] = card;
   return representation === 'label' ? card : [x, y - TITLE_BAR_HEIGHT, w, h + TITLE_BAR_HEIGHT];
 }
@@ -193,7 +191,7 @@ export type ResizeEdge = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
  * has a square zone `corner` pixels on a side, which is that corner's wherever the point lies in it.
  */
 export function bandEdgeAt(
-  card: Rect,
+  card: ScreenRect,
   representation: Representation,
   precision: PointerPrecision,
   px: number,
@@ -233,7 +231,7 @@ function bandSizes(representation: Representation, precision: PointerPrecision):
  * with its title bar, as a press counts it for this precision) grown by the band's `outside`.
  */
 function outerBox(
-  card: Rect,
+  card: ScreenRect,
   representation: Representation,
   precision: PointerPrecision,
 ): readonly [number, number, number, number] {
@@ -253,14 +251,14 @@ function outerBox(
  * its handles out by it.
  */
 export function bandZones(
-  card: Rect,
+  card: ScreenRect,
   representation: Representation,
   precision: PointerPrecision,
-): Readonly<Record<ResizeEdge, Rect>> {
+): Readonly<Record<ResizeEdge, ScreenRect>> {
   const { outside, inside, corner } = bandSizes(representation, precision);
   const [l, t, r, b] = outerBox(card, representation, precision);
   const [x, y] = card;
-  const at = (left: number, top: number, width: number, height: number): Rect => [
+  const at = (left: number, top: number, width: number, height: number): ScreenRect => [
     left - x,
     top - y,
     width,

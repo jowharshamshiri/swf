@@ -7,6 +7,7 @@ import {
   emulate,
   heap,
   mouse,
+  coarsePointer,
   pen,
   touch,
   wheel,
@@ -43,7 +44,7 @@ export default defineConfig({
       // Room for an 800 × 400 view and more.
       viewport: { width: 1280, height: 900 },
       provider: playwright(),
-      commands: { mouse, heap, emulate, wheel, touch, pen },
+      commands: { mouse, heap, emulate, wheel, touch, pen, coarsePointer },
       instances: browserInstances(),
     },
   },

@@ -1,6 +1,13 @@
 import type { JsonValue } from '@swf/core';
 import { jsonValue, makeError, SwfFailure } from '@swf/core';
+import type { PointerPrecision } from '@swf/presentation';
 import type { ModifierKey } from './intents.js';
+
+/**
+ * A distance for each pointer precision, in CSS pixels: a mouse's (`fine`), and a finger's or a
+ * pen's (`coarse`).
+ */
+export type PerPrecision = Readonly<Record<PointerPrecision, number>>;
 
 /**
  * A key binding: a key with the modifiers it needs, and the command it runs. Bindings run only
@@ -67,10 +74,22 @@ export const DEFAULT_KEYBOARD_STEPS: KeyboardSteps = Object.freeze({
  */
 export interface InteractionSettings {
   /**
-   * How far (CSS px) a pressed pointer may move and still be a press; moving farther makes it a
-   * drag. Non-negative. Default 4.
+   * How far (CSS px) a pressed pointer may move and still be a press, for each pointer precision;
+   * moving farther makes it a drag. Non-negative. Default 4 for a mouse (`fine`), 10 for a finger
+   * or a pen (`coarse`), which wobble more as they press.
    */
-  readonly slopPx: number;
+  readonly slopPx: PerPrecision;
+  /**
+   * How near (CSS px) the second press of a double press lands to the first, for the precision of
+   * the second. Non-negative. Default 8 for a mouse, 22 for a finger or a pen: half a coarse
+   * pointer's 44 px target.
+   */
+  readonly doublePressPx: PerPrecision;
+  /**
+   * How soon (ms) after the first the second press of a double press goes down: positive.
+   * Default 500.
+   */
+  readonly doublePressMs: number;
   /**
    * Depths closer than this count as a tie when picking, in world units: positive. Default 1e-6.
    */
@@ -89,6 +108,17 @@ export interface InteractionSettings {
    */
   readonly keymap: readonly KeyBinding[];
 }
+
+/**
+ * A change to {@link InteractionSettings}: the fields it changes, each distance per precision by
+ * the precisions it changes.
+ */
+export type SettingsPatch = Partial<Omit<InteractionSettings, 'slopPx' | 'doublePressPx'>> & {
+  /** The slop of the precisions it changes ({@link InteractionSettings.slopPx}). */
+  readonly slopPx?: Partial<PerPrecision>;
+  /** The double press's reach of the precisions it changes ({@link InteractionSettings.doublePressPx}). */
+  readonly doublePressPx?: Partial<PerPrecision>;
+};
 
 /**
  * The default keyboard bindings for the given steps: the left and right arrows turn the selected
@@ -154,7 +184,9 @@ export function defaultKeymap(given: Partial<KeyboardSteps> = {}): KeyBinding[] 
  * it. Frozen.
  */
 export const DEFAULT_SETTINGS: InteractionSettings = Object.freeze({
-  slopPx: 4,
+  slopPx: Object.freeze({ fine: 4, coarse: 10 }),
+  doublePressPx: Object.freeze({ fine: 8, coarse: 22 }),
+  doublePressMs: 500,
   depthTolerance: 1e-6,
   takeoverModifier: 'alt',
   minSize: 0.05,
@@ -162,13 +194,15 @@ export const DEFAULT_SETTINGS: InteractionSettings = Object.freeze({
 });
 
 const MODIFIER_KEYS: readonly string[] = ['shift', 'ctrl', 'alt', 'meta'];
+const PRECISIONS: readonly string[] = ['fine', 'coarse'];
 
 /**
  * `current` with `patch` applied, validated. Throws {@link SwfFailure} (`INVALID_INPUT`) naming
- * the first invalid field as the path `settings.<field>` (such as `settings.keymap[2].modifiers`);
- * `current` is never changed. An unknown field is rejected. The result is a fresh frozen settings
- * object; the fields the patch leaves out are shared with `current`. Key bindings are checked for
- * their shape only, not for whether their commands exist.
+ * the first invalid field as the path `settings.<field>` (such as `settings.keymap[2].modifiers`
+ * or `settings.slopPx.coarse`); `current` is never changed. An unknown field is rejected. A
+ * distance per precision is patched by precision: those the patch leaves out keep their value. The
+ * result is a fresh frozen settings object; the fields the patch leaves out are shared with
+ * `current`. Key bindings are checked for their shape only, not for whether their commands exist.
  */
 export function mergeSettings(current: InteractionSettings, patch: unknown): InteractionSettings {
   const fail = (path: string, message: string): never => {
@@ -195,6 +229,19 @@ export function mergeSettings(current: InteractionSettings, patch: unknown): Int
     }
     return value as number;
   };
+  const perPrecision = (key: string, value: unknown, was: PerPrecision): PerPrecision => {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+      return fail(key, 'must be an object of a distance for each pointer precision');
+    }
+    const next: Record<string, number> = { ...was };
+    for (const [precision, distance] of Object.entries(value)) {
+      if (!PRECISIONS.includes(precision)) {
+        fail(`${key}.${precision}`, `is not a pointer precision (${PRECISIONS.join(', ')})`);
+      }
+      next[precision] = positive(`${key}.${precision}`, distance, true);
+    }
+    return Object.freeze(next);
+  };
   const modifier = (key: string, value: unknown): ModifierKey => {
     if (typeof value !== 'string' || !MODIFIER_KEYS.includes(value)) {
       fail(key, `must be one of ${MODIFIER_KEYS.join(', ')}`);
@@ -205,8 +252,10 @@ export function mergeSettings(current: InteractionSettings, patch: unknown): Int
   for (const [key, value] of Object.entries(p)) {
     switch (key) {
       case 'slopPx':
-        next[key] = positive(key, value, true);
+      case 'doublePressPx':
+        next[key] = perPrecision(key, value, current[key]);
         break;
+      case 'doublePressMs':
       case 'depthTolerance':
       case 'minSize':
         next[key] = positive(key, value);

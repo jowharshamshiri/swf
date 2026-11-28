@@ -37,3 +37,7 @@ band hovered.
 
 A window in front (the one focus shows) is drawn over every other window's title bar, its own bar in
 a layer of its own over everything (`overlay:front-bars`).
+
+The resize handles lie where the band lies on the window's card, and nowhere outside it, so a press
+just past a window's edge reaches whatever is drawn there. They are a finger's on a page whose every
+pointer is coarse, else a mouse's.

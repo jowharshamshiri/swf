@@ -11,7 +11,7 @@ import type {
   ScreenRect,
   ViewGeometry,
 } from '@swf/presentation';
-import { bandEdgeAt, titleBarOf, WINDOW_HANDLES } from '@swf/presentation';
+import { bandEdgeAt, outlineOf, titleBarOf, WINDOW_HANDLES } from '@swf/presentation';
 import type { Continuity, Projection } from '@swf/projections';
 
 /**
@@ -76,6 +76,13 @@ export interface PickCandidate {
    * shows): it is picked before them.
    */
   readonly front: boolean;
+  /**
+   * The hit lies where a handle reaches past what its window draws: its resize band outside its
+   * outline, or a coarse pointer's title bar above the bar as drawn. It is picked after every hit
+   * on something drawn, so it takes a press only where nothing else is, never from another
+   * window's content or card, and hides nothing behind it.
+   */
+  readonly reach: boolean;
 }
 
 /**
@@ -278,6 +285,7 @@ export function pick(
       occluding:
         options.occlusion({ nodeId: hit.nodeId, surfaceId: hit.surfaceId }) === 'occluding',
       front: hit.front,
+      reach: hit.reach,
     })),
     options.depthTolerance,
   );
@@ -371,6 +379,7 @@ function surfaceHit(ctx: PickContext, fragment: ProjectedFragment, x: number, y:
     priority: (owner?.flags.presentationPriority ?? 0) + surface.flags.presentationPriority,
     proxy,
     front: fragment.front,
+    reach: false,
   };
 }
 
@@ -387,7 +396,8 @@ function takesPointer(scene: SceneState, nodeId: Id): boolean {
 /**
  * A hit at (`x`, `y`) on a window's handles or its card: the resize band round a resizable window's
  * outline first, then its title bar, then its card (its frame), each sized for the pointer's
- * precision (`WINDOW_HANDLES`); null where the point is on none of them.
+ * precision (`WINDOW_HANDLES`); null where the point is on none of them. A handle's part beyond
+ * what the window draws (its outline, with its title bar as drawn) is its reach.
  */
 function nodeHit(
   scene: SceneState,
@@ -416,6 +426,10 @@ function nodeHit(
   if (region === null) {
     return null;
   }
+  const reach =
+    region === 'resize-handle'
+      ? !inside(outlineOf(card, representation), x, y)
+      : region === 'title-bar' && !inside(titleBarOf(card, representation), x, y);
   const [cx, cy, cw, ch] = card;
   const [w, h] = node.bounds;
   const localPoint: Vec3 = [((x - cx) / cw - 0.5) * w, (0.5 - (y - cy) / ch) * h, 0];
@@ -432,5 +446,6 @@ function nodeHit(
     priority: node.flags.presentationPriority,
     proxy: false,
     front: fragment.front,
+    reach,
   };
 }

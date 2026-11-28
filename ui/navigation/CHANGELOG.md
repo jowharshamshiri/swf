@@ -29,3 +29,7 @@ over the background turns the view, and a pinch, or Ctrl and the wheel, widens o
 key that leaves it (`NavigationKeys.leaveContent`, F6 by default, `DEFAULT_NAVIGATION_KEYS`), which
 runs `swf.content.leave`. `NavigationModel.contentFocused` says which window's content has the
 keyboard, and the messages say how to leave it.
+
+The panorama focuses a window on the router's double press (`pointer.doublePressed`), not on the
+browser's `dblclick`: two presses on a window near in time and place, never two drags. A marker on
+the map moves past the slop of the pointer that pressed it.

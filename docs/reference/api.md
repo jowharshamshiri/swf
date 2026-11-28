@@ -71,7 +71,9 @@ outline (`bandEdgeAt`, `bandZones`). How large a press counts them depends on th
 and 4 in, for a finger or a pen a bar of 44 pixels and a band 16 out and 6 in. Picking reports a
 press on a bar in the `title-bar` region; the Lean model `Swf.Arbitration` orders title bars before
 every other hit of the same presentation priority, however near that hit is, and never marks a bar
-occluded. A copy of a live window's card across a panorama's seam is a picture of its content, and
+occluded. A handle's part past what its window draws (its band outside the outline, a finger's bar
+above the bar as drawn) is its reach (`PickCandidate.reach`), ordered after every hit on something
+drawn and hiding nothing, so it never takes a press from another window's content or card. A copy of a live window's card across a panorama's seam is a picture of its content, and
 picks as the window's card (`chrome`). A host colours each window's bar (`TitleBarColouring`;
 `WindowTraits.titleBar` in `@swf/navigation`).
 

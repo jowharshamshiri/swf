@@ -456,7 +456,20 @@ describe('settings (FR-004, CFG-001)', () => {
     const { router } = world([]);
     const before = router.settings();
     const bad = (patch: Record<string, unknown>) => codeOf(() => router.configure(patch));
-    expect(bad({ slopPx: -1 })).toMatch(/^INVALID_INPUT: settings.slopPx/);
+    expect(bad({ slopPx: 4 })).toMatch(/^INVALID_INPUT: settings.slopPx must be an object/);
+    expect(bad({ slopPx: { fine: -1 } })).toMatch(
+      /^INVALID_INPUT: settings.slopPx.fine must be a non-negative finite number/,
+    );
+    // Each pointer precision has its own: a mouse's (fine) and a finger's or a pen's (coarse).
+    expect(bad({ slopPx: { medium: 6 } })).toMatch(
+      /^INVALID_INPUT: settings.slopPx.medium is not a pointer precision/,
+    );
+    expect(bad({ doublePressPx: { coarse: Number.NaN } })).toMatch(
+      /^INVALID_INPUT: settings.doublePressPx.coarse/,
+    );
+    expect(bad({ doublePressMs: 0 })).toMatch(
+      /^INVALID_INPUT: settings.doublePressMs must be a positive finite number/,
+    );
     // The windows' handles are sized by the card rules (`WINDOW_HANDLES`), not a setting.
     expect(bad({ handlePx: 12 })).toMatch(/settings.handlePx is not a setting/);
     // A drag moves a window round the room: there is no other way to choose.
@@ -524,10 +537,12 @@ describe('settings (FR-004, CFG-001)', () => {
         heard.push(e.settings);
       }
     });
-    codeOf(() => router.configure({ slopPx: -1 }));
+    codeOf(() => router.configure({ slopPx: { fine: -1 } }));
     expect(heard).toEqual([]);
-    const next = router.configure({ slopPx: 7 });
+    const next = router.configure({ slopPx: { coarse: 12 } });
     expect(heard).toEqual([next]);
+    // A precision left out keeps what it was.
+    expect(next.slopPx).toEqual({ fine: 4, coarse: 12 });
     // They are JSON data: a host stores them as they are.
     expect(JSON.parse(JSON.stringify(next))).toEqual(next);
   });
@@ -535,7 +550,7 @@ describe('settings (FR-004, CFG-001)', () => {
   it('take effect when valid', () => {
     const { ws, input, router } = world(two);
     router.configure({
-      slopPx: 0,
+      slopPx: { fine: 0 },
       keymap: [{ key: 'm', modifiers: [], command: 'node.move', args: { height: 1 } }],
     });
     const [x, y] = titleBar(ws, 'a');

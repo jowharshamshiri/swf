@@ -4,6 +4,7 @@ import type {
   CompositionLayer,
   HoverLookup,
   PlannedFragment,
+  PointerPrecision,
   ProjectedFragment,
   RenderedFrame,
   RendererBackend,
@@ -280,6 +281,8 @@ export class DomRendererSession implements RendererSession {
   #family: string | null = null;
   /** The 2D context names are measured with, once made. */
   #measuring: OffscreenCanvasRenderingContext2D | null = null;
+  /** Whether the page has a fine pointer, once asked: `(any-pointer: fine)`. */
+  #finePointer: MediaQueryList | null = null;
   #released = false;
 
   /** A session for `view`, as {@link DomRenderer.prepare} makes it. */
@@ -893,6 +896,22 @@ export class DomRendererSession implements RendererSession {
   }
 
   /**
+   * The pointer precision the handles are laid out for: coarse on a page whose every pointer is
+   * coarse (`(any-pointer: fine)` does not match), else fine. Throws when the view's document has
+   * no window to ask.
+   */
+  #precision(): PointerPrecision {
+    if (this.#finePointer === null) {
+      const window = this.#document.defaultView;
+      if (window === null) {
+        throw new Error('window chrome is drawn in a document that has no window');
+      }
+      this.#finePointer = window.matchMedia('(any-pointer: fine)');
+    }
+    return this.#finePointer.matches ? 'fine' : 'coarse';
+  }
+
+  /**
    * Each window's card, at every place it is drawn (its own first, then across the seam), when
    * chrome is drawn. A window whose every surface is represented by its label alone has none: the
    * label stands for the whole window.
@@ -917,9 +936,13 @@ export class DomRendererSession implements RendererSession {
   /**
    * A window's chrome, a layer of its own: its frame outline round its card and title bar (which
    * takes no input, so nothing over content is intercepted) and, for a resizable window, the
-   * handles of its resize band (`bandZones`) along the edges that lie inside the view, which take
-   * input so presses on them reach the framework even where the content under them is a
-   * cross-origin frame.
+   * handles of its resize band (`bandZones`) where the band lies on its card, along the edges that
+   * lie inside the view. They take input, so presses on them reach the framework even where the
+   * content under them is a cross-origin frame. Outside the card the view itself hears a press
+   * and leaves it to whatever is drawn there: a band's reach past the window never takes a press
+   * from another window's content. The band is a coarse pointer's on a page whose every pointer
+   * is coarse, where no press can be a mouse's; else a mouse's, so a mouse pressing a cross-origin
+   * frame near its edge reaches it.
    */
   #chromeLayer(
     frame: RenderFrame,
@@ -960,7 +983,7 @@ export class DomRendererSession implements RendererSession {
     this.#write.toggle(element, DOM_ATTRIBUTES.selected, selected);
     this.#write.toggle(element, DOM_ATTRIBUTES.focused, focused);
     const resizable = node.flags.resizable && !node.flags.locked;
-    const zones = bandZones(card, 'full', 'fine');
+    const zones = bandZones(card, 'full', this.#precision());
     // An edge takes a handle only where it lies inside the view.
     const has = {
       n: y - TITLE_BAR_HEIGHT >= 0,
@@ -970,8 +993,14 @@ export class DomRendererSession implements RendererSession {
     };
     for (const handle of element.querySelectorAll<HTMLElement>(`[${DOM_ATTRIBUTES.handle}]`)) {
       const edge = handle.getAttribute(DOM_ATTRIBUTES.handle) as keyof typeof RESIZE_EDGES;
-      const shown = resizable && RESIZE_EDGES[edge].every((side) => has[side]);
-      const [left, top, width, height] = zones[edge];
+      // The zone's part on the card.
+      const [zx, zy, zw, zh] = zones[edge];
+      const left = Math.max(zx, 0);
+      const top = Math.max(zy, 0);
+      const width = Math.min(zx + zw, w) - left;
+      const height = Math.min(zy + zh, h) - top;
+      const shown =
+        resizable && width > 0 && height > 0 && RESIZE_EDGES[edge].every((side) => has[side]);
       this.#write.style(
         handle,
         shown

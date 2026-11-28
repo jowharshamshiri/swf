@@ -65,3 +65,6 @@ trackpad's swipe sideways turns the view instead of going back a page.
 The window in focus stands in front of every other, their title bars included, in both focus
 policies (`frontOf`). `swf.content.leave` takes the keyboard out of a window's live content to the
 view, the window selected.
+
+`Navigation.windowAt` is gone: the router says which window a double press took
+(`pointer.doublePressed`).

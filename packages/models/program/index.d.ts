@@ -1210,6 +1210,12 @@ export interface Hit {
    * (the one focus shows).
    */
   readonly front: boolean;
+  /**
+   * The hit lies where a handle reaches past what its window draws: its resize band outside its
+   * outline, or a coarse pointer's title bar above the bar as drawn. Such a hit is taken only where
+   * nothing drawn is, and hides nothing.
+   */
+  readonly reach: boolean;
 }
 /** The descriptor of Swf.Arbitration.Hit: how its values cross the boundary. */
 export function hitType(): L.Type<Hit>;
@@ -1648,6 +1654,23 @@ export type PressRoute =
 ;
 /** The descriptor of Swf.Gesture.PressRoute: how its values cross the boundary. */
 export function pressRouteType(): L.Type<PressRoute>;
+
+/**
+ * A press that lifted before it moved beyond the slop, on a window: which window, where (CSS
+ * pixels in its viewport) and when (milliseconds).
+ */
+export interface Tap {
+  /** The window pressed. */
+  readonly node: string;
+  /** Lean's Swf.Gesture.Tap.x. */
+  readonly x: number;
+  /** Lean's Swf.Gesture.Tap.y. */
+  readonly y: number;
+  /** When it went down, in milliseconds. */
+  readonly time: number;
+}
+/** The descriptor of Swf.Gesture.Tap: how its values cross the boundary. */
+export function tapType(): L.Type<Tap>;
 
 /** What a wheel over a viewport is decided from. */
 export interface WheelFacts {
@@ -4225,6 +4248,15 @@ export class SwfModels {
    * Lean's Swf.Gesture.pressRoute : Swf.Gesture.PressFacts → Swf.Gesture.PressRoute
    */
   pressRoute(f: PressFacts): PressRoute;
+  /**
+   * Whether a tap is the second press of a double press: on the window of the tap before it,
+   * `first`, within `distance` pixels of it and no more than `within` milliseconds after it. With no
+   * tap before it (the last press lay elsewhere, was dragged, or was itself a double press's second),
+   * it is a first press.
+   *
+   * Lean's Swf.Gesture.pressedTwice : Option Swf.Gesture.Tap → Swf.Gesture.Tap → Float → Float → Bool
+   */
+  pressedTwice(first: L.Option<Tap>, now: Tap, distance: number, within: number): boolean;
   /**
    * What a press on a window does to the selection, whether a gesture takes the window or its live
    * content keeps the press: the window becomes the selection, unless it is already among the selected,

@@ -22,6 +22,11 @@ declare module 'vitest/browser' {
       y: number,
       modifiers?: readonly string[],
     ) => Promise<void>;
+    touch: (
+      phase: 'start' | 'move' | 'end',
+      points: readonly { id: number; x: number; y: number }[],
+    ) => Promise<void>;
+    coarsePointer: (coarse: boolean) => Promise<void>;
   }
 }
 
@@ -662,5 +667,170 @@ describe('the window in focus in front of every other', () => {
       }
     }
     expect([...regions]).toEqual(['desk content']);
+  });
+});
+
+describe('fingers, pens and the mouse', () => {
+  /** A finger's tap at a point of the view, wobbling `wobble` px across before it lifts. */
+  async function tapAt(
+    m: Mounted & { app: ReferenceApp },
+    x: number,
+    y: number,
+    wobble = 0,
+  ): Promise<void> {
+    const [px, py] = onPage(m.app, x, y);
+    await commands.touch('start', [{ id: 1, x: px, y: py }]);
+    for (let step = 1; step <= wobble; step += 1) {
+      await commands.touch('move', [{ id: 1, x: px + step, y: py }]);
+    }
+    await commands.touch('end', []);
+    await m.settle();
+  }
+
+  /** A mouse press and release at a point of the view. */
+  async function clickAt(m: Mounted & { app: ReferenceApp }, x: number, y: number): Promise<void> {
+    const [px, py] = onPage(m.app, x, y);
+    await commands.mouse('move', px, py);
+    await commands.mouse('down', px, py);
+    await commands.mouse('up', px, py);
+    await m.settle();
+  }
+
+  /** Lets a move into or out of focus finish. */
+  async function settled(m: Mounted & { app: ReferenceApp }): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, 900));
+    await m.settle();
+  }
+
+  it('keeps a finger’s press that wobbles 7 px a press: it selects the window and moves nothing', async () => {
+    const m = await visit();
+    const [bx, by, bw, bh] = barOf(m.app, 'builds');
+    const before = headingOf(m.app, 'builds');
+    const changes = m.app.workspace.history().length;
+    await tapAt(m, bx + bw / 2, by + bh / 2, 7);
+    expect(m.app.workspace.getState().selection).toEqual(['builds']);
+    expect(headingOf(m.app, 'builds')).toBe(before);
+    expect(m.app.workspace.history()).toHaveLength(changes);
+  });
+
+  it('counts a finger’s press on a title bar 44 px high, reaching into the space above the bar', async () => {
+    const m = await visit();
+    // Build Status: a live note with nothing above it.
+    const [x, y, w] = cardsOf(m.app, 'builds').cards[0] ?? [0, 0, 0];
+    // 40 px above the card: 16 px above the bar as drawn.
+    const above: [number, number] = [x + w / 2, y - 40];
+    await clickAt(m, ...above);
+    expect(m.app.workspace.getState().selection).toEqual([]);
+    await tapAt(m, ...above);
+    expect(m.app.workspace.getState().selection).toEqual(['builds']);
+  });
+
+  it('focuses a window a finger taps twice on its title bar, the taps up to 20 px apart', async () => {
+    const m = await visit();
+    const [bx, by, bw, bh] = barOf(m.app, 'desk');
+    await tapAt(m, bx + bw / 2, by + bh / 2);
+    await tapAt(m, bx + bw / 2 + 20, by + bh / 2);
+    await settled(m);
+    expect(m.app.modes.current()).toBe('focus');
+    expect(m.app.workspace.getState().focusedId).toBe('desk');
+  });
+
+  it('focuses a window the mouse presses twice within 8 px, and not two presses farther apart', async () => {
+    const m = await visit();
+    const [bx, by, bw, bh] = barOf(m.app, 'desk');
+    const [x, y] = [bx + bw / 2, by + bh / 2];
+    await clickAt(m, x, y);
+    await clickAt(m, x + 12, y);
+    await settled(m);
+    expect(m.app.modes.current()).toBe('panorama');
+    await clickAt(m, x, y);
+    await clickAt(m, x + 6, y);
+    await settled(m);
+    expect(m.app.modes.current()).toBe('focus');
+  });
+
+  it('leaves a press just outside a window’s edge to the content of the window drawn there', async () => {
+    const m = await visit();
+    // Build Status stood nearer than the Desk note, as high in view, its right edge over the
+    // middle of the note.
+    const desk = m.app.poseOf('desk');
+    const builds = m.app.poseOf('builds');
+    if (desk === null || builds === null) {
+      throw new Error('no Desk or Build Status');
+    }
+    const nearer = 0.6;
+    const reach = desk.reach * nearer;
+    const half = (Math.atan(builds.width / 2 / reach) * 180) / Math.PI;
+    m.app.poseWindow(
+      'builds',
+      {
+        heading: desk.heading - half,
+        reach,
+        y: desk.position[1] - desk.above * (1 - nearer),
+      },
+      { preview: false },
+    );
+    await m.settle();
+    const [x, y, w, h] = cardsOf(m.app, 'builds').cards[0] ?? [0, 0, 0, 0];
+    // 5 px past its right edge: in its resize band, past what it draws, on the note.
+    const [px, py] = [x + w + 5, y + h / 2];
+    const slot = m.app.root.querySelector<HTMLElement>('[data-swf-slot="desk-surface"]');
+    const box = slot?.getBoundingClientRect();
+    const root = m.app.root.getBoundingClientRect();
+    if (slot === null || box === undefined) {
+      throw new Error('the Desk note has no slot');
+    }
+    const [sx, sy] = [box.left - root.left, box.top - root.top];
+    expect(px > sx && px < sx + box.width && py > sy && py < sy + box.height).toBe(true);
+    let heard = 0;
+    slot.addEventListener('pointerdown', () => {
+      heard += 1;
+    });
+    const before = m.app.workspace.getState().nodes.get('builds')?.bounds;
+    await dragBy(m, px, py, 12, 0);
+    expect(heard).toBe(1);
+    expect(m.app.workspace.getState().nodes.get('builds')?.bounds).toEqual(before);
+  });
+
+  it('lays a window’s resize handles on its card alone, a finger’s width wide where every pointer is coarse', async () => {
+    const m = await visit('dom');
+    /** Each shown handle of Build Status, by edge: its box, in its card's pixels. */
+    const handles = () => {
+      const chrome = m.app.root.querySelector<HTMLElement>(
+        '[data-swf-layer="chrome"][data-swf-node="builds"]',
+      );
+      if (chrome === null) {
+        throw new Error('Build Status has no chrome');
+      }
+      const card = chrome.getBoundingClientRect();
+      return {
+        card,
+        shown: [...chrome.querySelectorAll<HTMLElement>('[data-swf-handle]')]
+          .filter((h) => h.style.display !== 'none')
+          .map((h) => {
+            const b = h.getBoundingClientRect();
+            return {
+              edge: h.getAttribute('data-swf-handle'),
+              box: [b.left - card.left, b.top - card.top, b.width, b.height] as const,
+            };
+          }),
+      };
+    };
+    const { card, shown } = handles();
+    expect(shown.map((h) => h.edge).sort()).toEqual(['e', 's', 'se', 'sw', 'w']);
+    for (const { edge, box } of shown) {
+      const [x, y, w, h] = box;
+      expect(x >= -0.01 && y >= -0.01, `${String(edge)} ${box.join(' ')}`).toBe(true);
+      expect(x + w <= card.width + 0.01 && y + h <= card.height + 0.01, String(edge)).toBe(true);
+    }
+    expect(shown.find((h) => h.edge === 's')?.box[3]).toBeCloseTo(4, 5);
+    await commands.coarsePointer(true);
+    try {
+      m.app.viewport.invalidate();
+      await m.settle();
+      expect(handles().shown.find((h) => h.edge === 's')?.box[3]).toBeCloseTo(6, 5);
+    } finally {
+      await commands.coarsePointer(false);
+    }
   });
 });

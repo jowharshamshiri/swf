@@ -198,6 +198,29 @@ theorem shows_what_a_press_does (f : PressFacts) :
 which a press becomes a drag. -/
 def beyondSlop (distance slop : Float) : Bool := distance > slop
 
+/-- A press that lifted before it moved beyond the slop, on a window: which window, where (CSS
+pixels in its viewport) and when (milliseconds). -/
+structure Tap where
+  /-- The window pressed. -/
+  node : String
+  x : Float
+  y : Float
+  /-- When it went down, in milliseconds. -/
+  time : Float
+deriving Inhabited
+
+/-- Whether a tap is the second press of a double press: on the window of the tap before it,
+`first`, within `distance` pixels of it and no more than `within` milliseconds after it. With no
+tap before it (the last press lay elsewhere, was dragged, or was itself a double press's second),
+it is a first press. -/
+def pressedTwice (first : Option Tap) (now : Tap) (distance within : Float) : Bool :=
+  match first with
+  | none => false
+  | some f =>
+    f.node == now.node &&
+      decide ((now.x - f.x) * (now.x - f.x) + (now.y - f.y) * (now.y - f.y) ≤ distance * distance) &&
+      decide (f.time ≤ now.time) && decide (now.time - f.time ≤ within)
+
 /-- How far a wheel turned, in CSS pixels, from its scroll's deltas: its vertical delta, or its
 horizontal one when the vertical is zero (plus or minus). Browsers on Windows and Linux, and macOS
 itself, turn a wheel with Shift held into a sideways scroll, carrying the turn in `deltaX` with
@@ -471,6 +494,18 @@ theorem every_end_returns_idle (p : GesturePhase) (e : GestureEvent) :
 theorem beyond_slop_iff (distance slop : Float) :
     beyondSlop distance slop = true ↔ distance > slop := by
   simp [beyondSlop]
+
+/-- A tap is a double press's second exactly when a tap came before it on the same window, near
+enough and soon enough after it. -/
+@[lungo_claim "lungo.decides" subject pressedTwice]
+theorem pressed_twice_iff (first : Option Tap) (now : Tap) (distance within : Float) :
+    pressedTwice first now distance within = true ↔
+      ∃ f, first = some f ∧ f.node = now.node ∧
+        (now.x - f.x) * (now.x - f.x) + (now.y - f.y) * (now.y - f.y) ≤ distance * distance ∧
+        f.time ≤ now.time ∧ now.time - f.time ≤ within := by
+  cases first with
+  | none => simp [pressedTwice]
+  | some f => simp [pressedTwice, and_assoc]
 
 /-- A wheel's turn is its vertical delta whenever that is not zero, and its horizontal delta when
 it is. -/

@@ -7,10 +7,10 @@
     }
   },
   "@swf/models": {
-    "budget": 66048,
+    "budget": 66816,
     "recorded": {
-      "minified": 401110,
-      "gzip": 66043
+      "minified": 404906,
+      "gzip": 66670
     }
   },
   "@swf/core": {
@@ -44,15 +44,15 @@
   "@swf/interaction": {
     "budget": 17408,
     "recorded": {
-      "minified": 47650,
-      "gzip": 15109
+      "minified": 49030,
+      "gzip": 15539
     }
   },
   "@swf/backend-dom": {
-    "budget": 8192,
+    "budget": 8448,
     "recorded": {
-      "minified": 23299,
-      "gzip": 8105
+      "minified": 23608,
+      "gzip": 8218
     }
   },
   "@swf/backend-geometry": {
@@ -86,8 +86,8 @@
   "@swf/navigation": {
     "budget": 29440,
     "recorded": {
-      "minified": 83978,
-      "gzip": 27667
+      "minified": 83749,
+      "gzip": 27594
     }
   },
   "@swf/benchmark": {
@@ -100,8 +100,8 @@
   "@swf/navigation-ui": {
     "budget": 40704,
     "recorded": {
-      "minified": 144803,
-      "gzip": 37218
+      "minified": 144843,
+      "gzip": 37246
     }
   }
 }

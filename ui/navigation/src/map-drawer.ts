@@ -22,6 +22,8 @@ import {
 } from '@swf/navigation';
 import type { NavigationMessages } from './messages.js';
 import { models } from '@swf/models';
+import { pointerPrecision } from '@swf/interaction';
+import type { PointerPrecision } from '@swf/presentation';
 
 /**
  * Draws the map on the kit's stage and works it: the ground split into what lies in front of the
@@ -164,11 +166,12 @@ export class MapDrawer {
   #inks: Inks;
   /**
    * A marker pressed: it becomes a drag (`marker`) once the pointer has moved past the router's
-   * slop from where it pressed, so a press that only selects moves nothing.
+   * slop for its precision from where it pressed, so a press that only selects moves nothing.
    */
   #drag: {
     readonly nodeId: string;
     readonly pointer: number;
+    readonly precision: PointerPrecision;
     readonly from: readonly [number, number];
     marker: MarkerDrag | null;
   } | null = null;
@@ -418,7 +421,13 @@ export class MapDrawer {
     this.#options.viewport.setPointerCapture(event.pointerId);
     event.preventDefault();
     this.#options.onselect(marker.id);
-    this.#drag = { nodeId: marker.id, pointer: event.pointerId, from: [x, y], marker: null };
+    this.#drag = {
+      nodeId: marker.id,
+      pointer: event.pointerId,
+      precision: pointerPrecision(event.pointerType),
+      from: [x, y],
+      marker: null,
+    };
   }
 
   #move(event: PointerEvent): void {
@@ -426,8 +435,8 @@ export class MapDrawer {
     const drag = this.#drag;
     if (drag?.pointer === event.pointerId) {
       if (drag.marker === null) {
-        const { slopPx } = this.#options.app.router.settings();
-        if (Math.hypot(x - drag.from[0], y - drag.from[1]) <= slopPx) {
+        const slop = this.#options.app.router.settings().slopPx[drag.precision];
+        if (Math.hypot(x - drag.from[0], y - drag.from[1]) <= slop) {
           return;
         }
         const { policies } = this.#options.app;

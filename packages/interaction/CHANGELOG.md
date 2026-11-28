@@ -73,3 +73,14 @@ view's field of view. The `depthModifier` setting is gone.
 
 A pick candidate says whether its window is in front (`front`): picked before every other window's
 hits of the same priority, title bars included.
+
+The slop is the pointer's: `slopPx` is a distance for each `PointerPrecision`, 4 pixels for a mouse
+and 10 for a finger or a pen (`PerPrecision`), patched by precision (`SettingsPatch`).
+`pointerPrecision(type)` says how precisely a pointer of a type, or of the platform's name for it,
+points. A tap on a window within `doublePressPx` (8 for a mouse, 22 for a finger or a pen) and
+`doublePressMs` (500) of the tap before it there is announced as `pointer.doublePressed`.
+
+A pick candidate says whether it lies in a handle's reach past what its window draws (`reach`): the
+band outside a window's outline, or a coarse pointer's bar above the bar as drawn. A reach is picked
+after every hit on something drawn and occludes nothing, so it never takes a press from another
+window's content or card.

@@ -512,12 +512,6 @@ export interface Navigation {
   turnCamera(degrees: number): TxResult;
   /** The windows around the focused one while focus is shown; null otherwise. */
   focusNeighbours(): FocusContext | null;
-  /**
-   * The window a press at a point of the panorama, in CSS pixels from its top-left, chooses: the
-   * window whose frame or stand-in is there. A window's own live content takes its presses itself,
-   * so a point on it chooses none; nor does the background.
-   */
-  windowAt(x: number, y: number): string | null;
   /** How a window stands as the panorama shows it now (a held window where it is held). */
   poseOf(id: string): Pose | null;
   /**
@@ -1096,17 +1090,6 @@ export async function createNavigation(options: NavigationOptions): Promise<Navi
       return modes.current() !== FOCUS_ID || state.focusedId === null || eye === undefined
         ? null
         : focusContext(state, state.focusedId, eye.position);
-    },
-    windowAt(x, y) {
-      if (mount.viewport.state !== 'active') {
-        return null;
-      }
-      const picked = router.pick(VIEWPORT_ID, x, y);
-      if (picked.kind !== 'hit' || (picked.region === 'content' && !picked.target.proxy)) {
-        return null;
-      }
-      const node = workspace.getState().nodes.get(picked.target.nodeId);
-      return node?.kind === 'window' ? node.id : null;
     },
     poseOf(id) {
       const scene = workspace.getPresented();

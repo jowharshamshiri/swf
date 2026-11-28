@@ -379,7 +379,13 @@ navigation zooms the panorama's field of view by them (by e^0.0025 a pixel, with
 and the router leaves them to the browser for a host that does not. In workspace navigation a
 scroll sideways turns the workspace round the camera instead, in bursts of one change each. Pressed pointers enter a gesture arena per target;
 registered policies bid for them, and the arena resolves to the highest-priority drag once a
-pointer moves past the slop, or to a tap when they lift before that. Two pointers pressed on one
+pointer moves past the slop, or to a tap when they lift before that. The slop is the pointer's
+(`slopPx`, by `pointerPrecision`): 4 pixels for a mouse, 10 for a finger or a pen, which wobble
+more as they press. A tap on a window that lands within `doublePressPx` of the tap before it on
+that window (8 pixels for a mouse, 22 for a finger or a pen) and within `doublePressMs` (500) is a
+double press, announced as `pointer.doublePressed` (decided by `Swf.Gesture.pressedTwice`); a press
+dragged, left to live content, on the background or with another pointer between them keeps two
+taps apart, and a third starts afresh. Two pointers pressed on one
 window go to two-pointer gestures; a pointer pressed on a window already in a gesture is refused
 rather than starting a second one.
 
@@ -598,6 +604,10 @@ window keys act on is seen. The resize band lies round the window's outline, 8 p
 and 4 inside at the sides and bottom (above the bar at the top), with square corners 20 pixels on a
 side; for a coarse pointer (a finger, a pen) a press counts on a bar 44 pixels high and a band 16
 pixels outside and 6 inside (`WINDOW_HANDLES`, `bandEdgeAt`, `bandZones` of `@swf/presentation`).
+Where a handle reaches past what its window draws (its band outside the outline, a finger's bar
+above the bar as drawn) it is a reach (`reach` of a pick candidate): the Lean model
+`Swf.Arbitration` orders it after every hit on something drawn and lets it hide nothing, so it takes
+a press only where nothing else is, never from another window's content or card.
 A window shown by its label alone is a mark (`data-swf-mark`) in the middle of where it is, its
 whole small card its title bar, and its name is written flat in a layer of names on top
 (`data-swf-layer="names"`, each name `data-swf-label` with its window's `data-swf-node`), on a plate
@@ -609,7 +619,11 @@ and a name with no free place is not written. `placeNames` and `windowNames` of
 another window's outline or mark are left out before the model is asked, which its proofs show
 changes none of its answers. The defaults stand out on a light page; a host gives the colours its
 own design system checks against its grounds. Only the title bars and the resize handles take
-input, so a press there reaches the framework even over a cross-origin frame. `createDomInput` offers every pointer,
+input, so a press there reaches the framework even over a cross-origin frame. The DOM backend lays
+the handles where the band lies on the window's card; outside the card the view itself hears a
+press and leaves it to whatever is drawn there. They are a finger's on a page whose every pointer
+is coarse (`(any-pointer: fine)` does not match), else a mouse's, so a mouse pressing a cross-origin
+frame near its edge reaches it. `createDomInput` offers every pointer,
 wheel and key event over the view to the interaction router. What the router consumes stops there
 (and a pressed pointer is captured until its gesture ends); what it does not consume reaches the
 content as the browser's own event. A pointer no gesture holds hovers: the router says what a press
@@ -1190,10 +1204,11 @@ content is attached or detached by a switch.
   above the strip. Pressing a card focuses its window; from the strip's keyboard stop, the arrows
   step to the next window either way; above it the nearest two each way are named with how far
   round each lies, each a press away.
-  A double press on a window's title bar, frame or stand-in in the panorama, on its dot on the radar
-  or the map, on its card in the overview or on its row in the Windows view focuses it, and on the
-  window in focus closes the focus (`swf.focus.toggle`, decided by `Swf.AppFocus.doublePress`); a
-  double press on live content stays the content's. Focus follows the workspace's focus, so focusing a window from any
+  A double press on a window's title bar, frame or stand-in in the panorama (the router's
+  `pointer.doublePressed`), on its dot on the radar or the map, on its card in the overview or on
+  its row in the Windows view focuses it, and on the window in focus closes the focus
+  (`swf.focus.toggle`, decided by `Swf.AppFocus.doublePress`); a double press on live content stays
+  the content's. Focus follows the workspace's focus, so focusing a window from any
   list, tile or the map frames that one; a resize fits the frame again. Escape or the bar's close
   button leaves focus for the mode, projection and camera it was entered from, exactly, and
   leaving it for any other mode puts the camera back too. Entering a focus, moving it to another
@@ -1616,16 +1631,18 @@ release` builds a versioned release from a commit ([Release the packages](docs/h
 A budget is raised only deliberately, by hand, to the package's measured gzip size rounded up to the
 next 256 bytes, so it leaves no room for growth nobody looked at; the measured sizes are recorded
 with `npm run size -- --record` in the same commit, whose message gives the old and the new budget.
-`@swf/models` is at 66048 bytes: it is the compiled program of every proved decision model the
-framework and the reference application run, so it grows with each model (65937 bytes
+`@swf/models` is at 66816 bytes: it is the compiled program of every proved decision model the
+framework and the reference application run, so it grows with each model (66670 bytes
 measured, the room (`Swf.Room`), the spacing after a snap (`Swf.AppSpacing`), the title bars'
-place in picking (`Swf.Arbitration`), the selection after a press and what a hovering pointer
-shows (`Swf.Gesture`), where the wheel goes (`Swf.Gesture.wheelRoute`, `Swf.AppWheel`) and a
-double press on a window (`Swf.AppFocus`) included).
+place in picking and a handle's reach (`Swf.Arbitration`), the selection after a press, what a
+hovering pointer shows and when two presses are a double press (`Swf.Gesture`), where the wheel
+goes (`Swf.Gesture.wheelRoute`, `Swf.AppWheel`) and a double press on a window (`Swf.AppFocus`)
+included).
 `@swf/persistence` is at 13568 bytes (13513 measured): snapshots, stores and the saver, with named
 spaces (`createSpaces`) and the step that brings `swf.workspace/1` layouts into the room.
-`@swf/backend-dom` is at 8192 bytes (7994 measured), the DOM input's pointer lock, the windows'
-title bars, the cursor that says what a press would do and the hovered window included.
+`@swf/backend-dom` is at 8448 bytes (8218 measured), the DOM input's pointer lock, the windows'
+title bars, the cursor that says what a press would do, the hovered window and resize handles laid
+on the card for the page's pointers included.
 `@swf/navigation-ui` starts at 40704 bytes, 10% over its measured size (36801) rounded up to
 the next 256: the navigation controls compiled as a host's build compiles them, with Svelte, the kit
 and the framework's packages left out; it is measured only where the kit is.

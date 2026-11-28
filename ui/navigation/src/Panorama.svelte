@@ -45,12 +45,28 @@
     const element = surface;
     // The guides under the windows: what lies behind the camera, and the seam.
     let guides: PanoramaGuides | null = null;
+    let stopDoublePress: (() => void) | null = null;
     let gone = false;
     void onsurface(element).then(() => {
       const app = model.navigation;
-      if (app !== null && !gone) {
-        guides = new PanoramaGuides({ app, messages: model.messages, container: element });
+      if (app === null || gone) {
+        return;
       }
+      guides = new PanoramaGuides({ app, messages: model.messages, container: element });
+      // A window pressed twice (`pointer.doublePressed`: on its title bar, frame or stand-in, near
+      // in time and place) is shown in focus, and the window in focus pressed twice closes the
+      // focus. Its live content keeps its own presses: a double press there selects a word, as
+      // anywhere else.
+      stopDoublePress = app.router.subscribe((event) => {
+        if (
+          event.type === 'pointer.doublePressed' &&
+          event.viewportId === app.viewport.viewportId &&
+          model.policies?.features.enabled.focus === true &&
+          app.workspace.getState().nodes.get(event.nodeId)?.kind === 'window'
+        ) {
+          void model.run('swf.focus.toggle', { id: event.nodeId });
+        }
+      });
     });
     // Whether the panorama itself has the keyboard, so its keys can be shown where hints are, or
     // which window's live content in it has, so the way out of it can be.
@@ -66,23 +82,9 @@
     };
     element.addEventListener('focusin', follow);
     element.addEventListener('focusout', follow);
-    // A double press on a window's title bar, frame or stand-in shows it in focus, and on the
-    // window in focus closes the focus (its live content keeps its own presses: a double press
-    // there selects a word, as anywhere else).
-    const focusAt = (event: MouseEvent) => {
-      const app = model.navigation;
-      if (app === null || model.policies?.features.enabled.focus !== true) {
-        return;
-      }
-      const box = element.getBoundingClientRect();
-      const id = app.windowAt(event.clientX - box.left, event.clientY - box.top);
-      if (id !== null) {
-        void model.run('swf.focus.toggle', { id });
-      }
-    };
-    element.addEventListener('dblclick', focusAt);
     return () => {
-      element.removeEventListener('dblclick', focusAt);
+      stopDoublePress?.();
+      stopDoublePress = null;
       gone = true;
       guides?.dispose();
       guides = null;
